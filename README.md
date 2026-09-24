@@ -2,7 +2,13 @@
 
 Repository này biến slide khóa học và sách tham khảo thành một **visual-first personal study desk** bằng tiếng Việt.
 
-## Mở sản phẩm
+## Xem online
+
+```text
+https://ankinguyen-engineer-2002.github.io/FSDS-EDAI-DSAI/
+```
+
+## Mở sản phẩm local
 
 Chạy một static server tại thư mục repo:
 

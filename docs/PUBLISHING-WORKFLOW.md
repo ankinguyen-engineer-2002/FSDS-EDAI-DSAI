@@ -2,6 +2,12 @@
 
 Từ ngày 2026-09-24, `main` trên GitHub là nguồn đồng bộ của Learning Hub. GitHub Pages tự deploy sau mỗi push thành công.
 
+## Production URL
+
+```text
+https://ankinguyen-engineer-2002.github.io/FSDS-EDAI-DSAI/
+```
+
 ## Quy tắc bắt buộc
 
 1. Mọi learning visual của F01–F03 và các bài mới đều dùng Archify.

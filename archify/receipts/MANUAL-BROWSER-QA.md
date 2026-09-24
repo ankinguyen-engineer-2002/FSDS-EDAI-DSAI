@@ -1,6 +1,6 @@
 # Manual browser QA — embedded Archify artifacts
 
-Date: 2026-09-24  
+Date: 2026-09-24
 Runner: Playwright browser session against local static server.
 
 ## Automated Archify evidence
@@ -28,6 +28,13 @@ The delivered artifacts were then loaded through their exact committed HTML path
 
 - expanded desktop canvas measured 1552px with the 304px rail open and 1800px with the rail collapsed on a 1920px viewport;
 - native lesson diagrams are no longer rendered in F01–F03.
+
+## GitHub Pages production check
+
+- Pages workflow run `35948532075` completed successfully on 2026-09-24.
+- Production root returned HTTP 200.
+- A delivered Archify artifact returned HTTP 200.
+- Online Python lesson rendered 11 labs; the first iframe completed and exposed SVG with no horizontal overflow at 1440×900.
 
 ## Perceptual review
 

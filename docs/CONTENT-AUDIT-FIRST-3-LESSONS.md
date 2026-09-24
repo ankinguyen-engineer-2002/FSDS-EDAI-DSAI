@@ -1,6 +1,6 @@
 # Audit nội dung — F01 Linux, F02 Python, F03 Database
 
-Ngày audit: 2026-09-24  
+Ngày audit: 2026-09-24
 Phạm vi: `fsds-learning-hub.html`, ba learning digest, ba slide gốc, syllabus và sách liên quan trong `library/`.
 
 ## Kết luận điều hành
