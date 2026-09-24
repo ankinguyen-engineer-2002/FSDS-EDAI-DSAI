@@ -1,0 +1,332 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Bốn cách đặt một yêu cầu API",
+    "subtitle": "REST, SOAP, GraphQL và gRPC khác nhau ở thứ được gọi, cách khai báo hợp đồng và đường thực thi",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "visual_preset": "editorial",
+    "viewBox": [
+      1380,
+      620
+    ],
+    "views": [
+      {
+        "id": "rest-path",
+        "label": "REST",
+        "focus": [
+          "caller",
+          "rest-contract",
+          "rest-runtime",
+          "service",
+          "data"
+        ],
+        "note": "Resource + HTTP method đi qua router/handler rồi mới chạm nghiệp vụ."
+      },
+      {
+        "id": "soap-path",
+        "label": "SOAP",
+        "focus": [
+          "caller",
+          "soap-contract",
+          "soap-runtime",
+          "service",
+          "data"
+        ],
+        "note": "WSDL và XML Envelope mô tả operation, header, body và fault."
+      },
+      {
+        "id": "graphql-path",
+        "label": "GraphQL",
+        "focus": [
+          "caller",
+          "graphql-contract",
+          "graphql-runtime",
+          "service",
+          "data"
+        ],
+        "note": "Query chọn field; resolver graph biến một request thành nhiều lần lấy dữ liệu."
+      },
+      {
+        "id": "grpc-path",
+        "label": "gRPC",
+        "focus": [
+          "caller",
+          "grpc-contract",
+          "grpc-runtime",
+          "service",
+          "data"
+        ],
+        "note": ".proto sinh stub; HTTP/2 mang unary call hoặc stream typed."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "caller",
+      "type": "external",
+      "label": "Client",
+      "sublabel": "Cần gọi một năng lực",
+      "pos": [
+        40,
+        235
+      ],
+      "size": [
+        155,
+        78
+      ]
+    },
+    {
+      "id": "rest-contract",
+      "type": "frontend",
+      "label": "REST contract",
+      "sublabel": "Resource URI + HTTP method",
+      "tag": "WHAT",
+      "pos": [
+        250,
+        40
+      ],
+      "size": [
+        230,
+        86
+      ]
+    },
+    {
+      "id": "rest-runtime",
+      "type": "backend",
+      "label": "REST execution",
+      "sublabel": "Representation → router → handler",
+      "tag": "HOW",
+      "pos": [
+        555,
+        40
+      ],
+      "size": [
+        250,
+        86
+      ]
+    },
+    {
+      "id": "soap-contract",
+      "type": "security",
+      "label": "SOAP contract",
+      "sublabel": "WSDL + operation",
+      "tag": "WHAT",
+      "pos": [
+        250,
+        170
+      ],
+      "size": [
+        230,
+        86
+      ]
+    },
+    {
+      "id": "soap-runtime",
+      "type": "backend",
+      "label": "SOAP execution",
+      "sublabel": "XML Envelope → Body / Fault",
+      "tag": "HOW",
+      "pos": [
+        555,
+        170
+      ],
+      "size": [
+        250,
+        86
+      ]
+    },
+    {
+      "id": "graphql-contract",
+      "type": "messagebus",
+      "label": "GraphQL contract",
+      "sublabel": "Schema + query field selection",
+      "tag": "WHAT",
+      "pos": [
+        250,
+        300
+      ],
+      "size": [
+        230,
+        86
+      ],
+      "brand": {
+        "url": "https://graphql.org/brand/",
+        "sha256": "8fa609b2ddcaa9abd1f45e3afe587bdbe6cd3588527795211332f3f7f39654c1"
+      }
+    },
+    {
+      "id": "graphql-runtime",
+      "type": "backend",
+      "label": "GraphQL execution",
+      "sublabel": "Parse → validate → resolver graph",
+      "tag": "HOW",
+      "pos": [
+        555,
+        300
+      ],
+      "size": [
+        250,
+        86
+      ]
+    },
+    {
+      "id": "grpc-contract",
+      "type": "cloud",
+      "label": "gRPC contract",
+      "sublabel": ".proto → generated stubs",
+      "tag": "WHAT",
+      "pos": [
+        250,
+        430
+      ],
+      "size": [
+        230,
+        86
+      ],
+      "brand": {
+        "url": "https://grpc.io/",
+        "sha256": "6705611c168ee1480897030133e6d8c10aaf23c15bb650edb1775c35c6514561"
+      }
+    },
+    {
+      "id": "grpc-runtime",
+      "type": "backend",
+      "label": "gRPC execution",
+      "sublabel": "Protobuf → HTTP/2 call / stream",
+      "tag": "HOW",
+      "pos": [
+        555,
+        430
+      ],
+      "size": [
+        250,
+        86
+      ]
+    },
+    {
+      "id": "service",
+      "type": "backend",
+      "label": "Service logic",
+      "sublabel": "Cùng một năng lực nghiệp vụ",
+      "pos": [
+        850,
+        235
+      ],
+      "size": [
+        205,
+        82
+      ]
+    },
+    {
+      "id": "data",
+      "type": "database",
+      "label": "Data / downstream",
+      "sublabel": "Database và dịch vụ phụ thuộc",
+      "pos": [
+        1130,
+        235
+      ],
+      "size": [
+        210,
+        82
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "caller-to-rest",
+      "from": "caller",
+      "to": "rest-contract"
+    },
+    {
+      "id": "rest-contract-to-runtime",
+      "from": "rest-contract",
+      "to": "rest-runtime",
+      "label": "HTTP semantics",
+      "variant": "emphasis"
+    },
+    {
+      "id": "rest-runtime-to-service",
+      "from": "rest-runtime",
+      "to": "service"
+    },
+    {
+      "id": "caller-to-soap",
+      "from": "caller",
+      "to": "soap-contract"
+    },
+    {
+      "id": "soap-contract-to-runtime",
+      "from": "soap-contract",
+      "to": "soap-runtime",
+      "label": "XML message",
+      "variant": "emphasis"
+    },
+    {
+      "id": "soap-runtime-to-service",
+      "from": "soap-runtime",
+      "to": "service"
+    },
+    {
+      "id": "caller-to-graphql",
+      "from": "caller",
+      "to": "graphql-contract"
+    },
+    {
+      "id": "graphql-contract-to-runtime",
+      "from": "graphql-contract",
+      "to": "graphql-runtime",
+      "label": "selection set",
+      "variant": "emphasis"
+    },
+    {
+      "id": "graphql-runtime-to-service",
+      "from": "graphql-runtime",
+      "to": "service"
+    },
+    {
+      "id": "caller-to-grpc",
+      "from": "caller",
+      "to": "grpc-contract"
+    },
+    {
+      "id": "grpc-contract-to-runtime",
+      "from": "grpc-contract",
+      "to": "grpc-runtime",
+      "label": "generated stub",
+      "variant": "emphasis"
+    },
+    {
+      "id": "grpc-runtime-to-service",
+      "from": "grpc-runtime",
+      "to": "service"
+    },
+    {
+      "id": "service-to-data",
+      "from": "service",
+      "to": "data",
+      "label": "work + state",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Đừng hỏi style nào tốt nhất",
+      "items": [
+        "REST: public resource interface và HTTP semantics",
+        "SOAP: hợp đồng enterprise chặt và message XML chuẩn hóa"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Chi phí không tự biến mất",
+      "items": [
+        "GraphQL gọn cho client nhưng resolver vẫn có thể fan-out / N+1",
+        "gRPC typed và nhanh nhưng network vẫn timeout, mất response và lỗi một phần"
+      ]
+    }
+  ]
+}

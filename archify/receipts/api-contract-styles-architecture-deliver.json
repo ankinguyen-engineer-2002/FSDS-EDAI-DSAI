@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/api-contract-styles-architecture.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/api-contract-styles-architecture.html",
+  "specification": {
+    "sha256": "130e02f6e650164a115ae7085aa9337b2b1ccb592880460d5ea1175c35ae3f30",
+    "bytes": 7111
+  },
+  "artifact": {
+    "sha256": "1345af2c271a7541eb524dd4bf0b0d6a49276ef9d9fa96330b6d9dedfcce0d99",
+    "bytes": 846898
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

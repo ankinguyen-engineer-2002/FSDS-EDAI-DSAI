@@ -1,11 +1,11 @@
-# Archify visual labs — 35/35
+# Archify visual labs — 44/44
 
 ## Source of truth
 
-- `specs/*.json`: 35 editable diagram specifications — source of truth.
-- `rendered/*.html`: 35 deterministic artifacts produced by Archify `deliver`.
+- `specs/*.json`: 44 editable diagram specifications — source of truth.
+- `rendered/*.html`: 44 deterministic artifacts produced by Archify `deliver`.
 - `receipts/*-deliver.json`: SHA-256 and validation receipts.
-- `receipts/*-visual-check.json`: failed packaged browser-check attempts retained for transparency; failure reason was Chrome `SIGABRT` in the execution environment.
+- `receipts/*-visual-check.json`: packaged browser evidence for containment, readability, theme and viewer chrome; current F04 artifacts pass.
 - `receipts/MANUAL-BROWSER-QA.md`: supplementary Playwright/browser and perceptual QA.
 
 ## Rebuild one artifact
@@ -31,4 +31,5 @@ Generator `scripts/generate_archify_specs.py` quản lý 26 spec bổ sung; chí
 
 - `python`, `postgresql` và `fastapi` dùng canonical vector trong catalogue Archify.
 - Linux/Tux được capture từ website chính thức `kernel.org`, khóa bằng SHA-256 trong spec, rồi embed vào artifact; bản PNG audit nằm tại `brand-assets/linux-kernel-org.png`.
+- GraphQL và gRPC trong F04 được capture từ website chính thức `graphql.org` và `grpc.io`, pin SHA-256 trực tiếp trong `api-contract-styles-architecture.json`.
 - Artifact đã deliver không fetch logo khi người học mở bài. Không dùng icon gần giống, logo không rõ nguồn hoặc URL chưa pin digest.

@@ -1,0 +1,238 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Web API: bảy câu hỏi để hiểu một request",
+    "subtitle": "Boundary, route, contract, trust, work, failure và evidence tạo thành một mental model",
+    "viewBox": [
+      1260,
+      620
+    ],
+    "animation": "trace",
+    "visual_preset": "editorial",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "happy",
+        "label": "Happy path",
+        "focus": [
+          "client",
+          "reach",
+          "contract",
+          "trust",
+          "work",
+          "response"
+        ],
+        "note": "Theo request từ client tới kết quả, không bỏ qua boundary nào."
+      },
+      {
+        "id": "failure",
+        "label": "Failure path",
+        "focus": [
+          "reach",
+          "contract",
+          "trust",
+          "work",
+          "resilience",
+          "evidence"
+        ],
+        "note": "Mỗi lớp thất bại khác nhau và cần evidence khác nhau."
+      },
+      {
+        "id": "operate",
+        "label": "Production proof",
+        "focus": [
+          "resilience",
+          "evidence",
+          "response"
+        ],
+        "note": "Một API chỉ “ổn” khi đo được và hồi phục được dưới tải."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "client",
+      "type": "frontend",
+      "label": "1 · Ai đang gọi?",
+      "sublabel": "browser · service · script",
+      "pos": [
+        40,
+        295
+      ],
+      "size": [
+        170,
+        78
+      ]
+    },
+    {
+      "id": "reach",
+      "type": "cloud",
+      "label": "2 · Có tới đúng nơi?",
+      "sublabel": "DNS · transport · TLS",
+      "pos": [
+        245,
+        120
+      ],
+      "size": [
+        190,
+        78
+      ]
+    },
+    {
+      "id": "contract",
+      "type": "messagebus",
+      "label": "3 · Muốn làm gì?",
+      "sublabel": "method · target · headers · body",
+      "pos": [
+        245,
+        470
+      ],
+      "size": [
+        190,
+        78
+      ]
+    },
+    {
+      "id": "trust",
+      "type": "security",
+      "label": "4 · Có được phép?",
+      "sublabel": "identity · policy",
+      "pos": [
+        515,
+        120
+      ],
+      "size": [
+        180,
+        78
+      ]
+    },
+    {
+      "id": "work",
+      "type": "backend",
+      "label": "5 · Máy xử lý gì?",
+      "sublabel": "route · validate · handler · DB",
+      "pos": [
+        515,
+        470
+      ],
+      "size": [
+        190,
+        78
+      ],
+      "brand": "fastapi"
+    },
+    {
+      "id": "resilience",
+      "type": "security",
+      "label": "6 · Nếu chậm/hỏng?",
+      "sublabel": "deadline · retry · idempotency",
+      "pos": [
+        800,
+        120
+      ],
+      "size": [
+        205,
+        78
+      ]
+    },
+    {
+      "id": "evidence",
+      "type": "messagebus",
+      "label": "7 · Bằng chứng nào?",
+      "sublabel": "status · logs · metrics · trace",
+      "pos": [
+        800,
+        470
+      ],
+      "size": [
+        205,
+        78
+      ]
+    },
+    {
+      "id": "response",
+      "type": "external",
+      "label": "Kết quả client nhận",
+      "sublabel": "status + headers + body",
+      "pos": [
+        1060,
+        295
+      ],
+      "size": [
+        170,
+        78
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "a",
+      "from": "client",
+      "to": "reach",
+      "variant": "emphasis"
+    },
+    {
+      "id": "b",
+      "from": "client",
+      "to": "contract",
+      "variant": "emphasis"
+    },
+    {
+      "id": "c",
+      "from": "reach",
+      "to": "trust",
+      "variant": "default"
+    },
+    {
+      "id": "d",
+      "from": "contract",
+      "to": "work",
+      "variant": "default"
+    },
+    {
+      "id": "e",
+      "from": "trust",
+      "to": "resilience",
+      "variant": "security"
+    },
+    {
+      "id": "f",
+      "from": "work",
+      "to": "evidence",
+      "variant": "default"
+    },
+    {
+      "id": "g",
+      "from": "resilience",
+      "to": "response",
+      "variant": "emphasis"
+    },
+    {
+      "id": "h",
+      "from": "evidence",
+      "to": "response",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Điều cần kể lại",
+      "items": [
+        "API là boundary có hợp đồng",
+        "HTTP là message; FastAPI là runtime xử lý contract",
+        "Security, resilience và observability là một phần của lời hứa"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Cách chẩn đoán",
+      "items": [
+        "Xác định request dừng ở lớp nào",
+        "Tìm evidence đúng lớp",
+        "Không sửa database khi lỗi nằm ở DNS/TLS/contract"
+      ]
+    }
+  ]
+}

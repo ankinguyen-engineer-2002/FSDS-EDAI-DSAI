@@ -1,0 +1,268 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "HTTP là hai phong bì có cấu trúc",
+    "subtitle": "Request mang ý định; response mang kết quả và cách hiểu kết quả",
+    "viewBox": [
+      1240,
+      620
+    ],
+    "animation": "trace",
+    "visual_preset": "editorial",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "request",
+        "label": "Phong bì đi",
+        "focus": [
+          "method",
+          "target",
+          "reqheaders",
+          "reqbody",
+          "server"
+        ],
+        "note": "Method nói loại hành động; target nói tài nguyên; headers/body mang ngữ cảnh và dữ liệu."
+      },
+      {
+        "id": "response",
+        "label": "Phong bì về",
+        "focus": [
+          "status",
+          "resheaders",
+          "resbody",
+          "client"
+        ],
+        "note": "Status nói kết quả; headers/body giúp client xử lý tiếp."
+      },
+      {
+        "id": "safety",
+        "label": "Ý nghĩa của method",
+        "focus": [
+          "method",
+          "server",
+          "status"
+        ],
+        "note": "Safe và idempotent là thuộc tính hợp đồng để cache/retry đúng, không phải lời hứa phép màu."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "client",
+      "type": "frontend",
+      "label": "Client",
+      "sublabel": "tạo request",
+      "pos": [
+        45,
+        285
+      ],
+      "size": [
+        150,
+        70
+      ]
+    },
+    {
+      "id": "method",
+      "type": "backend",
+      "label": "Method",
+      "sublabel": "GET · POST · PUT · PATCH · DELETE",
+      "pos": [
+        265,
+        80
+      ],
+      "size": [
+        190,
+        72
+      ]
+    },
+    {
+      "id": "target",
+      "type": "external",
+      "label": "Target",
+      "sublabel": "/orders/123",
+      "pos": [
+        265,
+        205
+      ],
+      "size": [
+        190,
+        72
+      ]
+    },
+    {
+      "id": "reqheaders",
+      "type": "messagebus",
+      "label": "Request headers",
+      "sublabel": "Accept · Content-Type · Authorization",
+      "pos": [
+        265,
+        330
+      ],
+      "size": [
+        190,
+        72
+      ]
+    },
+    {
+      "id": "reqbody",
+      "type": "database",
+      "label": "Request body",
+      "sublabel": "JSON khi cần dữ liệu",
+      "pos": [
+        265,
+        455
+      ],
+      "size": [
+        190,
+        72
+      ]
+    },
+    {
+      "id": "server",
+      "type": "backend",
+      "label": "API server",
+      "sublabel": "hiểu contract và xử lý",
+      "pos": [
+        565,
+        285
+      ],
+      "size": [
+        175,
+        82
+      ],
+      "brand": "fastapi"
+    },
+    {
+      "id": "status",
+      "type": "security",
+      "label": "Status",
+      "sublabel": "2xx · 4xx · 5xx",
+      "pos": [
+        860,
+        120
+      ],
+      "size": [
+        185,
+        72
+      ]
+    },
+    {
+      "id": "resheaders",
+      "type": "messagebus",
+      "label": "Response headers",
+      "sublabel": "Content-Type · Cache-Control",
+      "pos": [
+        860,
+        285
+      ],
+      "size": [
+        185,
+        72
+      ]
+    },
+    {
+      "id": "resbody",
+      "type": "database",
+      "label": "Response body",
+      "sublabel": "data / error details",
+      "pos": [
+        860,
+        450
+      ],
+      "size": [
+        185,
+        72
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1",
+      "from": "client",
+      "to": "method",
+      "variant": "default"
+    },
+    {
+      "id": "c2",
+      "from": "client",
+      "to": "target",
+      "variant": "default"
+    },
+    {
+      "id": "c3",
+      "from": "client",
+      "to": "reqheaders",
+      "variant": "default"
+    },
+    {
+      "id": "c4",
+      "from": "client",
+      "to": "reqbody",
+      "variant": "default"
+    },
+    {
+      "id": "r1",
+      "from": "method",
+      "to": "server",
+      "variant": "emphasis"
+    },
+    {
+      "id": "r2",
+      "from": "target",
+      "to": "server",
+      "variant": "emphasis"
+    },
+    {
+      "id": "r3",
+      "from": "reqheaders",
+      "to": "server",
+      "variant": "emphasis"
+    },
+    {
+      "id": "r4",
+      "from": "reqbody",
+      "to": "server",
+      "variant": "emphasis"
+    },
+    {
+      "id": "s1",
+      "from": "server",
+      "to": "status",
+      "variant": "security"
+    },
+    {
+      "id": "s2",
+      "from": "server",
+      "to": "resheaders",
+      "variant": "default"
+    },
+    {
+      "id": "s3",
+      "from": "server",
+      "to": "resbody",
+      "variant": "default"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Một request trả lời bốn câu",
+      "items": [
+        "Làm loại việc gì?",
+        "Với tài nguyên nào?",
+        "Trong ngữ cảnh nào?",
+        "Mang dữ liệu gì?"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Một response trả lời ba câu",
+      "items": [
+        "Thành công hay lỗi?",
+        "Client nên hiểu/cached thế nào?",
+        "Dữ liệu hoặc chi tiết lỗi là gì?"
+      ]
+    }
+  ]
+}

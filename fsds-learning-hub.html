@@ -541,8 +541,8 @@
   </style>
 </head>
 <body>
-  <header class="topbar"><div class="brand"><span class="brand-mark" aria-hidden="true">FS</span><span class="brand-copy"><b>FSDS Learning</b><span>Personal visual study desk</span></span></div><nav class="top-tab" aria-label="Không gian chính"><button type="button" aria-current="page">Study Hub</button></nav><div class="top-actions"><span class="reading-progress" aria-label="Tiến độ đọc"><i id="readingProgressBar"></i></span><button class="icon-btn rail-toggle" id="railToggle" type="button" aria-label="Thu gọn syllabus" aria-expanded="true"><span class="rail-toggle-icon" aria-hidden="true"></span></button><span class="availability"><b>3</b> bài hoàn chỉnh · <b>35</b> visual lab</span><button class="icon-btn note-btn" id="noteBtn" type="button" aria-label="Mở ghi chú cá nhân" aria-expanded="false"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg><span>Ghi chú</span></button><button class="icon-btn menu-btn" id="menuBtn" type="button" aria-label="Mở danh sách chủ đề" aria-expanded="false"><svg class="control-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><button class="icon-btn" id="themeBtn" type="button" aria-label="Đổi giao diện sáng tối"><span class="theme-icon" aria-hidden="true"></span></button></div></header>
-  <div class="app"><aside class="rail" id="rail"><div class="rail-intro"><p class="eyebrow">Syllabus</p><h2>Mạch kiến thức</h2><p>Ba bài đã biên tập; sáu chủ đề hiện chỉ có slide gốc.</p><div class="rail-meter" aria-label="3 bài mới trên 27 chủ đề, 8 chủ đề có slide gốc"><i></i></div></div><nav class="topic-groups" id="topicGroups" aria-label="Danh sách chủ đề"></nav></aside><main class="main"><div class="content" id="content"></div></main></div>
+  <header class="topbar"><div class="brand"><span class="brand-mark" aria-hidden="true">FS</span><span class="brand-copy"><b>FSDS Learning</b><span>Personal visual study desk</span></span></div><nav class="top-tab" aria-label="Không gian chính"><button type="button" aria-current="page">Study Hub</button></nav><div class="top-actions"><span class="reading-progress" aria-label="Tiến độ đọc"><i id="readingProgressBar"></i></span><button class="icon-btn rail-toggle" id="railToggle" type="button" aria-label="Thu gọn syllabus" aria-expanded="true"><span class="rail-toggle-icon" aria-hidden="true"></span></button><span class="availability"><b>4</b> bài hoàn chỉnh · <b id="visualLabCount">44</b> visual lab</span><button class="icon-btn note-btn" id="noteBtn" type="button" aria-label="Mở ghi chú cá nhân" aria-expanded="false"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg><span>Ghi chú</span></button><button class="icon-btn menu-btn" id="menuBtn" type="button" aria-label="Mở danh sách chủ đề" aria-expanded="false"><svg class="control-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><button class="icon-btn" id="themeBtn" type="button" aria-label="Đổi giao diện sáng tối"><span class="theme-icon" aria-hidden="true"></span></button></div></header>
+  <div class="app"><aside class="rail" id="rail"><div class="rail-intro"><p class="eyebrow">Syllabus</p><h2>Mạch kiến thức</h2><p>Bốn bài đã biên tập; bốn chủ đề nền tảng còn lại hiện có slide gốc.</p><div class="rail-meter" aria-label="4 bài hoàn chỉnh trên 27 chủ đề, 8 chủ đề có slide gốc"><i></i></div></div><nav class="topic-groups" id="topicGroups" aria-label="Danh sách chủ đề"></nav></aside><main class="main"><div class="content" id="content"></div></main></div>
   <button class="rail-backdrop" id="railBackdrop" type="button" aria-label="Đóng danh sách chủ đề"></button><div class="toast" id="toast" role="status" aria-live="polite"></div><button class="note-backdrop" id="noteBackdrop" type="button" aria-label="Đóng ghi chú"></button><aside class="note-drawer" id="noteDrawer" aria-hidden="true" aria-label="Ghi chú cá nhân"><header class="note-drawer-head"><div><p>Personal knowledge note</p><h2 id="noteLessonTitle">Ghi chú bài học</h2><span>Tự động lưu trong trình duyệt này.</span></div><button class="note-close" id="noteClose" type="button" aria-label="Đóng ghi chú">×</button></header><div class="note-editor"><p class="note-prompt"><b>Gợi ý:</b> viết lại một cơ chế bằng lời của bạn, ghi điều còn mơ hồ, rồi thêm bằng chứng sẽ dùng để kiểm tra.</p><textarea class="note-area" id="noteArea" placeholder="Ví dụ: Kernel khác shell ở chỗ...
 Cần kiểm tra lại: ...
 Bằng chứng / command: ..."></textarea></div><footer class="note-drawer-foot"><span class="note-status" id="noteStatus">Chưa có ghi chú</span><button class="note-action" id="noteCopy" type="button">Sao chép</button><button class="note-action" id="noteClear" type="button">Xóa</button></footer></aside>
@@ -564,7 +564,7 @@ const groups = [
   { name: 'Coursework', items: [['C02', 'Final Coursework', '2 tháng', false]] }
 ];
 
-const topics = groups.flatMap(group => group.items.map(([code, title, time, available]) => ({ code, title, time, available, group: group.name, ready: ['F01', 'F02', 'F03'].includes(code) })));
+const topics = groups.flatMap(group => group.items.map(([code, title, time, available]) => ({ code, title, time, available, group: group.name, ready: ['F01', 'F02', 'F03', 'F04'].includes(code) })));
 const templateChapters = [
   { id: 'overview', label: 'Bức tranh lớn', hint: 'Khung quan hệ' },
   { id: 'concepts', label: 'Khái niệm lõi', hint: 'Khung so sánh' },
@@ -1019,7 +1019,7 @@ function renderTopics() {
     const rows = group.items.map(([code, title, time, isAvailable]) => {
       cursor += 1;
       const chapterCount = lessons[code]?.chapters.length || 0;
-      const ready = ['F01', 'F02', 'F03'].includes(code);
+      const ready = Boolean(lessons[code] && beginnerGuides[code]);
       const subline = ready ? `Bài học · ${chapterCount} chương` : isAvailable ? `Có slide · ${time}` : 'Chưa có nội dung';
       return `<button class="topic-btn ${ready ? 'content-ready' : ''}" type="button" data-topic="${code}" ${isAvailable ? '' : `disabled aria-label="${escapeHtml(title)} · chưa có slide"`} aria-current="${state.topic === code ? 'page' : 'false'}"><span class="topic-index">${String(cursor).padStart(2, '0')}</span><span class="topic-copy"><b>${escapeHtml(title)}</b><span>${subline}</span></span><i class="topic-state" aria-hidden="true"></i></button>`;
     }).join('');
@@ -1884,8 +1884,82 @@ const archifyVisuals = {
         "summary": "Where, visibility, path, durability và evidence nối thành một mental model"
       }
     ]
+  },
+  "F04": {
+    "boundary": [
+      {
+        "id": "W01",
+        "file": "web-api-boundary-architecture",
+        "title": "Web API là quầy tiếp nhận có hợp đồng",
+        "summary": "Nhiều client hội tụ vào một boundary trước business logic và database"
+      }
+    ],
+    "journey": [
+      {
+        "id": "W02",
+        "file": "https-request-journey-sequence",
+        "title": "Một request HTTPS đi và về",
+        "summary": "DNS → transport → TLS → HTTP → application → database → response"
+      }
+    ],
+    "message": [
+      {
+        "id": "W03",
+        "file": "http-message-contract-architecture",
+        "title": "HTTP là hai phong bì có cấu trúc",
+        "summary": "Request mang ý định; response mang kết quả và cách hiểu kết quả"
+      }
+    ],
+    "contract": [
+      {
+        "id": "W04",
+        "file": "fastapi-contract-sequence",
+        "title": "FastAPI biến hợp đồng thành đường chạy",
+        "summary": "OpenAPI công bố contract; ASGI/FastAPI validate trước khi gọi handler"
+      }
+    ],
+    "styles": [
+      {
+        "id": "W05A",
+        "file": "api-contract-styles-architecture",
+        "title": "REST, SOAP, GraphQL và gRPC gọi khác nhau thế nào?",
+        "summary": "So thứ được gọi, nơi khai báo contract và đường thực thi của bốn API style"
+      },
+      {
+        "id": "W05B",
+        "file": "api-interaction-styles-architecture",
+        "title": "Chọn kiểu giao tiếp từ hướng và nhịp dữ liệu",
+        "summary": "Polling, WebSocket, SSE và Webhook phục vụ các cuộc hội thoại khác nhau"
+      }
+    ],
+    "trust": [
+      {
+        "id": "W06",
+        "file": "api-trust-sequence",
+        "title": "Một request được tin theo ba cửa",
+        "summary": "Authentication → authorization → action → audit; token chỉ là vật mang bằng chứng"
+      }
+    ],
+    "resilience": [
+      {
+        "id": "W07",
+        "file": "api-resilience-lifecycle",
+        "title": "API sống sót nhờ giới hạn và bằng chứng",
+        "summary": "Đường bình thường, retry có kiểm soát và điều khiển traffic dưới overload"
+      }
+    ],
+    "recap": [
+      {
+        "id": "W08",
+        "file": "web-api-synthesis-architecture",
+        "title": "Web API: bảy câu hỏi để hiểu một request",
+        "summary": "Boundary, route, contract, trust, work, failure và evidence nối thành một mental model"
+      }
+    ]
   }
 };
+const visualLabCount = Object.values(archifyVisuals).reduce((total, lesson) => total + Object.values(lesson).reduce((count, visuals) => count + visuals.length, 0), 0);
+$('#visualLabCount').textContent = String(visualLabCount);
 function renderArchifyChapter(topicCode, chapterId) {
   const visuals = archifyVisuals[topicCode]?.[chapterId] || [];
   return visuals.map((visual) => {
@@ -2902,9 +2976,352 @@ const beginnerGuides = {
       ],
       "golden": "Database là người giữ sổ chung: chặn điều sai, điều phối nhiều người, chọn đường lấy dữ liệu và giữ bằng chứng để phục hồi khi có sự cố."
     }
+  },
+  "F04": {
+    "hero": {
+      "kicker": "Web API cho người mới · từ quầy nhận món tới dịch vụ thật",
+      "title": "Web API là quầy giao tiếp có hợp đồng — không phải phép màu nối hai ứng dụng.",
+      "dek": "Ta theo một yêu cầu đặt món từ điện thoại: tìm đúng địa chỉ, mở kênh an toàn, đóng gói HTTP, đi qua FastAPI, kiểm tra danh tính và quyền, chạm dữ liệu rồi trở về với status rõ ràng. Khi hệ thống chậm hoặc quá tải, ta biết request mắc ở đâu và cần nhìn bằng chứng nào.",
+      "scenarioTitle": "Tình huống xuyên suốt",
+      "scenario": "Một nhà hàng nhận đơn từ website, ứng dụng điện thoại và đối tác giao hàng. Nếu mỗi bên được chạm thẳng vào bếp và sổ kho, họ sẽ dùng ba cách gọi khác nhau, gửi dữ liệu sai, thấy bí mật nội bộ và không biết lỗi ở đâu. Nhà hàng cần một quầy duy nhất: nhận phiếu theo mẫu, kiểm tra người gọi, chuyển đúng trạm, rồi trả biên nhận mà mọi bên cùng hiểu.",
+      "analogy": "Hãy hình dung API là quầy nhận món. DNS là danh bạ tìm địa chỉ nhà hàng; TCP/TLS là đường giao hàng và túi niêm phong; HTTP là mẫu phiếu; endpoint là ô nhận một loại việc; FastAPI là nhân viên phân loại và kiểm tra phiếu; handler là bếp quyết định nghiệp vụ; status code là dấu trên biên nhận; logs/metrics là camera và đồng hồ của ca làm.",
+      "outcomes": [
+        "Giải thích vì sao API tồn tại như một boundary và contract giữa client với server.",
+        "Theo một request HTTPS qua DNS, transport, TLS, HTTP, framework, handler và database.",
+        "Đọc request/response bằng method, target, headers, body và status thay vì học thuộc URL.",
+        "Hiểu REST và FastAPI biến resource contract thành route, validation và code nghiệp vụ như thế nào.",
+        "Phân biệt REST, SOAP, GraphQL và gRPC bằng thứ được gọi, hợp đồng và đường thực thi.",
+        "Chọn WebSocket, SSE, polling hoặc webhook từ hướng, nhịp dữ liệu và failure model.",
+        "Tách authentication khỏi authorization; hiểu token/JWT/OAuth không phải bùa an toàn.",
+        "Dùng deadline, retry có kiểm soát, idempotency, probes và metrics để vận hành dưới tải."
+      ],
+      "path": [
+        {
+          "label": "Boundary",
+          "plain": "Nhiều client gặp một hợp đồng chung."
+        },
+        {
+          "label": "Đường đi",
+          "plain": "Tên miền, mạng và kênh an toàn đưa byte tới đúng máy."
+        },
+        {
+          "label": "Thông điệp",
+          "plain": "HTTP nói muốn làm gì và kết quả ra sao."
+        },
+        {
+          "label": "Runtime",
+          "plain": "FastAPI route, validate và gọi code nghiệp vụ."
+        },
+        {
+          "label": "Contract + dòng chảy",
+          "plain": "Chọn thứ được gọi và cách dữ liệu đi qua mạng."
+        },
+        {
+          "label": "Tin cậy",
+          "plain": "Xác minh người gọi, xét quyền và ghi dấu vết."
+        },
+        {
+          "label": "Sống sót",
+          "plain": "Giới hạn chờ, chống lặp sai và đo dưới tải."
+        }
+      ],
+      "metaphorWorld": "Nhà hàng có một quầy nhận món cho nhiều kênh đặt hàng",
+      "metaphorMap": [
+        {
+          "technical": "Client / server",
+          "physical": "Khách gửi phiếu / nhà hàng thực hiện",
+          "role": "Một bên khởi tạo yêu cầu; một bên giữ năng lực và dữ liệu để xử lý."
+        },
+        {
+          "technical": "API contract",
+          "physical": "Mẫu phiếu gọi món",
+          "role": "Quy định ô nào phải có, được gọi món gì và biên nhận trả về có hình dạng nào."
+        },
+        {
+          "technical": "DNS + IP",
+          "physical": "Danh bạ + địa chỉ đường",
+          "role": "Biến tên dễ nhớ thành địa chỉ máy để chuyến đi có đích."
+        },
+        {
+          "technical": "TLS / HTTPS",
+          "physical": "Túi niêm phong và kiểm tra bảng hiệu",
+          "role": "Mã hóa chuyến đi và giúp client kiểm tra đang nói với đúng máy chủ."
+        },
+        {
+          "technical": "Endpoint / router",
+          "physical": "Ô nhận đơn theo loại món",
+          "role": "Ghép method và path với đúng code xử lý."
+        },
+        {
+          "technical": "Validation / middleware",
+          "physical": "Soát phiếu / cổng kiểm tra chung",
+          "role": "Chặn dữ liệu sai và xử lý việc chung trước hoặc sau mọi đơn."
+        },
+        {
+          "technical": "Status / logs / metrics",
+          "physical": "Dấu biên nhận / camera / đồng hồ ca",
+          "role": "Cho client biết kết quả và cho người vận hành bằng chứng để chẩn đoán."
+        }
+      ],
+      "ladder": "nhu cầu giao tiếp → đường truyền → thông điệp → contract/runtime → tin cậy → khả năng sống sót"
+    },
+    "chapters": {
+      "boundary": {
+        "question": "Vì sao website, mobile app hay script không nên chạm thẳng vào code và database?",
+        "plain": "API là một ranh giới có luật. Client chỉ biết cách gửi yêu cầu theo hợp đồng và nhận phản hồi; server được tự do thay code, đổi database hoặc thêm máy miễn là vẫn giữ lời hứa bên ngoài.",
+        "analogy": "Ba kênh đặt món cùng đi qua một quầy. Khách không chạy vào bếp, tự mở tủ lạnh hay sửa sổ kho.",
+        "analogyLimit": "API không tự làm dữ liệu đúng hay hệ thống an toàn. Nó chỉ tạo nơi tập trung để kiểm tra, phân quyền, xử lý và quan sát.",
+        "why": "Không có boundary, mỗi client ghép chặt với nội bộ server. Một thay đổi bảng dữ liệu có thể làm hỏng mọi client; dữ liệu sai và quyền truy cập cũng khó chặn ở một nơi.",
+        "place": "Đây là cửa đầu tiên của toàn bộ flow: client → API boundary → nghiệp vụ → dữ liệu → response.",
+        "flow": "client tạo ý định → contract đóng gói yêu cầu → endpoint nhận đúng loại việc → server xử lý → response quay lại",
+        "visualLook": "Nhìn ba client bên trái cùng hội tụ vào một quầy. Sau quầy mới có luật nghiệp vụ và database; yêu cầu xấu dừng ở boundary.",
+        "sayBack": "Tự nói: API không phải database và cũng không phải business logic; nó là cửa có hợp đồng để hai phía thay đổi độc lập hơn.",
+        "job": "Gặp ở mobile backend, data service, model serving, microservice, webhook receiver và mọi tích hợp hệ thống.",
+        "bridge": "Có quầy rồi, câu tiếp theo là một phiếu từ điện thoại thật sự tìm đường tới quầy bằng cách nào.",
+        "stress": "Mobile app gửi trường `price=-100`, còn một script cố đọc thẳng bảng khách hàng bằng mật khẩu database dùng chung.",
+        "response": "API validation chặn hình dạng vô lý, authorization chặn quá quyền; database không lộ trực tiếp ra internet và mỗi request để lại dấu vết.",
+        "coreTerms": [
+          "API",
+          "client",
+          "server",
+          "API contract",
+          "endpoint"
+        ],
+        "heading": "Tại sao cần một quầy giao tiếp chung?",
+        "headingLead": "Bắt đầu từ nỗi đau: nhiều client mà không có boundary sẽ biến nội bộ server thành một mớ phụ thuộc nguy hiểm."
+      },
+      "journey": {
+        "question": "Trước khi FastAPI chạy một dòng code, request đã phải vượt qua những chặng nào?",
+        "plain": "Tên miền phải được đổi thành địa chỉ máy; mạng phải mở đường; TLS phải tạo kênh mã hóa và kiểm tra danh tính server; sau đó HTTP mới mang ý định tới ứng dụng.",
+        "analogy": "Danh bạ tìm địa chỉ nhà hàng, xe giao hàng mở tuyến, túi niêm phong bảo vệ phiếu, rồi quầy mới đọc nội dung đặt món.",
+        "analogyLimit": "Các lớp không phải những chuyến xe tách rời hoàn toàn; chúng bọc và dựa lên nhau. HTTP có thể chạy trên các transport khác nhau tùy phiên bản.",
+        "why": "Nếu không tách lớp, bạn dễ sửa code API khi lỗi thật là DNS, chứng chỉ TLS, kết nối hoặc timeout mạng.",
+        "place": "Đây là đoạn từ tên dễ nhớ trên client tới byte đã đến ASGI server của ứng dụng.",
+        "flow": "domain → DNS trả IP → transport mở đường → TLS bảo vệ → HTTP request → application → HTTP response",
+        "visualLook": "Đọc từ trái sang phải và chia hai câu: “đi tới đúng nơi an toàn” trước, “xử lý ý định” sau. Mỗi chặng có loại lỗi riêng.",
+        "sayBack": "Phân biệt được DNS error, connection timeout, TLS error và HTTP 500; bốn lỗi này không nằm cùng một tầng.",
+        "job": "Dùng khi debug “API không gọi được”, cấu hình domain/certificate, theo dõi latency và đọc network trace.",
+        "bridge": "Khi byte đã tới server, cả hai bên vẫn cần cùng hiểu bên trong phong bì HTTP có gì.",
+        "stress": "Domain vẫn trỏ vào IP cũ hoặc chứng chỉ hết hạn; application khỏe nhưng client vẫn không tạo được request HTTP hợp lệ.",
+        "response": "Kiểm tra theo thứ tự DNS resolution → kết nối → TLS handshake → HTTP status, thay vì nhảy thẳng vào database.",
+        "coreTerms": [
+          "DNS",
+          "IP address",
+          "transport connection",
+          "TLS",
+          "HTTPS"
+        ],
+        "heading": "Một request đi tới server bằng đường nào?",
+        "headingLead": "Tách việc tìm địa chỉ, vận chuyển, bảo vệ và hiểu thông điệp để khoanh vùng lỗi đúng lớp."
+      },
+      "message": {
+        "question": "HTTP request và response cần mang những mảnh nào để hai phía hiểu cùng một việc?",
+        "plain": "Request nói loại hành động, tài nguyên đích, ngữ cảnh và dữ liệu. Response nói kết quả bằng status, thêm metadata trong headers và đặt dữ liệu hoặc chi tiết lỗi trong body.",
+        "analogy": "Phiếu gọi món có động từ, mã món, ghi chú và phần tùy chọn; biên nhận có dấu thành công/lỗi, hướng dẫn và món hoặc lý do từ chối.",
+        "analogyLimit": "Method không tự thực thi hành động và status không tự chứng minh server làm đúng; ý nghĩa cuối cùng nằm trong contract và code.",
+        "why": "Nếu chỉ nhìn JSON body, bạn bỏ qua method, cache, content type, auth và status — những thứ quyết định client có thể retry hay xử lý lỗi ra sao.",
+        "place": "Đây là ngôn ngữ trên dây giữa client và endpoint trước/sau business logic.",
+        "flow": "method + target + headers + body → server xử lý → status + headers + body",
+        "visualLook": "Tách phong bì đi và phong bì về. Với mỗi ô, hỏi nó trả lời câu nào chứ không học tên trường rời rạc.",
+        "sayBack": "Đọc được `POST /orders`, `Content-Type: application/json`, body đơn hàng và `201 Created` như một câu chuyện hoàn chỉnh.",
+        "job": "Dùng khi thiết kế endpoint, debug bằng curl/Postman, đọc access log, viết client và quyết định retry/cache.",
+        "bridge": "HTTP cho cú pháp trao đổi; API vẫn cần cách tổ chức tài nguyên và runtime biến contract thành code chạy.",
+        "stress": "Server tạo đơn thành công nhưng trả 500 vì lỗi gửi response; client tự động POST lại và tạo đơn trùng.",
+        "response": "Thiết kế method/status đúng nghĩa, dùng idempotency key cho hành động có thể bị lặp và trả error body đủ để chẩn đoán.",
+        "coreTerms": [
+          "HTTP request",
+          "HTTP method",
+          "request target",
+          "header",
+          "message body",
+          "status code",
+          "idempotent method"
+        ],
+        "heading": "Hai phong bì HTTP nói chuyện với nhau ra sao?",
+        "headingLead": "Hiểu cấu trúc request/response trước khi bàn REST hay framework."
+      },
+      "contract": {
+        "question": "REST và FastAPI chia nhau những trách nhiệm nào trong một API thực tế?",
+        "plain": "REST là cách suy nghĩ về tài nguyên và giao diện HTTP; FastAPI là framework Python thực thi contract: chọn route, parse dữ liệu, validate model, chạy dependency/middleware, gọi handler và serialize response.",
+        "analogy": "REST thiết kế menu và quy tắc gọi món; FastAPI là đội quầy đọc phiếu, kiểm tra ô bắt buộc và chuyển đúng bếp.",
+        "analogyLimit": "Dùng FastAPI không tự biến API thành RESTful; có OpenAPI không bảo đảm business rule, transaction hay authorization đúng.",
+        "why": "Nếu trộn mọi việc vào handler, code khó test và lỗi boundary đi sâu tới database. Nếu hiểu ranh giới, bạn biết thứ gì framework làm và thứ gì đội sản phẩm vẫn phải quyết định.",
+        "place": "Đây là đoạn HTTP message được biến thành input đã kiểm tra rồi đi vào business logic.",
+        "flow": "route declaration → OpenAPI contract → ASGI request → middleware/dependencies → validation → handler → serialized response",
+        "visualLook": "Đọc phần trên như lúc publish hợp đồng; phần dưới là request thật. Chú ý request sai dừng trước handler.",
+        "sayBack": "Nói rõ: ASGI server đọc/gửi sự kiện mạng; FastAPI route và validate; handler quyết định nghiệp vụ; database giữ state.",
+        "job": "Gặp khi viết FastAPI endpoint, sinh docs/client, tổ chức dependency, auth middleware và tách business logic khỏi framework.",
+        "bridge": "Một request-response không phù hợp mọi bài toán; cần chọn kiểu trao đổi theo hướng và nhịp dữ liệu.",
+        "stress": "Client thiếu trường bắt buộc nhưng handler vẫn cố truy cập; hoặc middleware gọi blocking I/O khiến mọi request async cùng chờ.",
+        "response": "Định nghĩa schema rõ, trả lỗi validation tại boundary, giữ handler mỏng và đo middleware/downstream I/O thay vì tin vào từ khóa `async`.",
+        "coreTerms": [
+          "REST",
+          "resource",
+          "stateless",
+          "schema",
+          "validation",
+          "OpenAPI",
+          "ASGI",
+          "middleware"
+        ],
+        "heading": "Từ hợp đồng tới code FastAPI đang chạy",
+        "headingLead": "Tách triết lý thiết kế, mô tả contract, server runtime và luật nghiệp vụ thành các trách nhiệm nhìn thấy được."
+      },
+      "styles": {
+        "question": "REST, SOAP, GraphQL, gRPC, WebSocket, SSE, polling và webhook thật sự khác nhau ở đâu?",
+        "plain": "Có hai quyết định thường bị trộn. Quyết định thứ nhất là client gọi thứ gì và hợp đồng được viết ra sao: resource của REST, operation của SOAP/RPC, field của GraphQL hay method typed của gRPC. Quyết định thứ hai là cuộc hội thoại diễn ra một lần, giữ kết nối để stream hay gọi ngược bằng webhook.",
+        "analogy": "Cùng một nhà hàng nhưng có bốn kiểu phiếu: REST ghi món/tài nguyên và hành động; SOAP dùng bộ hồ sơ XML theo mẫu cứng; GraphQL cho khách khoanh đúng các phần muốn lấy; gRPC dùng bộ đàm nội bộ với mã lệnh đã sinh sẵn. Khi chờ cập nhật, khách có thể gọi hỏi liên tục, nghe loa một chiều, giữ bộ đàm hai chiều hoặc để nhà hàng chủ động gọi lại.",
+        "analogyLimit": "Ẩn dụ phiếu gọi món không thể hiện hết chi phí mạng. Dù contract có typed và code được sinh tự động, gRPC vẫn là remote call; GraphQL một endpoint vẫn có thể chạm nhiều service; WebSocket giữ kết nối nhưng không tự giải quyết reconnect hay đồng bộ state.",
+        "why": "Nếu chỉ thuộc tên công nghệ, bạn dễ dùng GraphQL để che database chậm, dùng WebSocket cho dữ liệu chỉ cần cập nhật mỗi phút, tưởng webhook chỉ gửi đúng một lần hoặc tưởng gRPC giống hệt gọi function trong cùng process.",
+        "place": "Phần này nằm sau HTTP/network và trước trust: trước hết chọn hình dạng contract và đường truyền; sau đó mọi style vẫn phải xác thực, phân quyền, chịu timeout và để lại evidence.",
+        "flow": "nhu cầu → chọn đối tượng được gọi + contract → chọn một lần hay liên tục → thực thi qua network → xử lý failure riêng của style",
+        "visualLook": "Visual đầu so bốn đường contract REST/SOAP/GraphQL/gRPC: đọc WHAT rồi HOW. Visual sau so request-response, kết nối dài và callback: nhìn ai mở kết nối, mũi tên đi một hay hai chiều và khi lỗi ai phải thử lại.",
+        "sayBack": "Không nhìn bài, nói cho mỗi style: client gọi cái gì, contract nằm đâu, dữ liệu chạy theo hướng nào và một failure quan trọng là gì.",
+        "job": "REST thường hợp public resource API; SOAP gặp ở tích hợp enterprise có WSDL/chính sách chặt; GraphQL hợp giao diện cần chọn field linh hoạt; gRPC hợp service-to-service typed; WebSocket cho tương tác hai chiều; SSE cho feed một chiều; webhook cho event server-to-server; polling là phương án đơn giản khi chấp nhận trễ và request thừa.",
+        "bridge": "Dù dùng phong bì REST, SOAP, GraphQL hay gRPC, server vẫn phải trả lời hai câu: ai đang gọi và người đó có quyền chạm dữ liệu nào.",
+        "stress": "Cổng thanh toán đã xử lý xong nhưng timeout trước khi nhận ACK, nên gửi lại cùng webhook ba lần và đảo thứ tự hai event. Đồng thời dashboard WebSocket mất mạng rồi reconnect với state cũ.",
+        "response": "Webhook receiver phải kiểm chữ ký, lưu event ID trước khi ACK, xử lý idempotent và chịu được đến muộn/đảo thứ tự. Client kết nối dài phải heartbeat, reconnect có backoff và đồng bộ lại state từ mốc đã biết; metrics phải tách delivery attempt khỏi business effect.",
+        "coreTerms": [
+          "REST",
+          "SOAP",
+          "WSDL",
+          "SOAP Envelope",
+          "GraphQL",
+          "GraphQL resolver",
+          "RPC",
+          "gRPC",
+          "Protocol Buffers (protobuf)",
+          "generated stub",
+          "WebSocket",
+          "HTTP Upgrade",
+          "Server-Sent Events (SSE)",
+          "event stream",
+          "webhook",
+          "webhook signature",
+          "polling"
+        ],
+        "heading": "Hai lựa chọn khác nhau: hợp đồng gọi gì và cuộc hội thoại chảy thế nào",
+        "headingLead": "Tách REST/SOAP/GraphQL/gRPC khỏi WebSocket/SSE/webhook/polling để chọn đúng từ cơ chế, không từ tên đang thịnh hành."
+      },
+      "trust": {
+        "question": "Làm sao API biết người gọi là ai, được làm gì và đã làm gì?",
+        "plain": "Authentication biến bằng chứng đăng nhập thành identity; authorization xét identity đó với hành động và resource cụ thể; audit ghi lại actor, action, result và thời điểm.",
+        "analogy": "Bảo vệ kiểm tra thẻ, người quản lý xem bạn được vào phòng nào, camera ghi bạn đã mở tủ nào.",
+        "analogyLimit": "Token không phải danh tính vĩnh viễn và payload JWT không phải két sắt. Quyền có thể đổi, token có thể hết hạn hoặc bị thu hồi.",
+        "why": "Đăng nhập thành công không có nghĩa được phép xóa dữ liệu. Nếu nhập nhằng hai bước, API rất dễ lộ dữ liệu giữa người dùng.",
+        "place": "Đây là cổng tin cậy trước business action và là dấu vết sau action.",
+        "flow": "credential → identity/token → verify token → authorization policy → resource → audit record → response",
+        "visualLook": "Theo ba vùng Authenticate, Authorize và Account. Token đi cùng request nhưng policy vẫn phải xét hành động hiện tại.",
+        "sayBack": "Giải thích được 401 và 403 khác nhau; JWT có chữ ký nhưng payload vẫn đọc được; OAuth giải quyết ủy quyền chứ không tự thay mọi cơ chế đăng nhập.",
+        "job": "Gặp ở login, service account, API key, role/scope, multi-tenant access và điều tra sự cố bảo mật.",
+        "bridge": "Request đúng quyền vẫn có thể chậm, lặp hoặc làm hệ thống quá tải; lời hứa cuối cùng là khả năng sống sót.",
+        "stress": "Một JWT của user A hợp lệ nhưng API chỉ kiểm chữ ký, không kiểm `order.user_id`; user A đọc được đơn của user B.",
+        "response": "Xác minh issuer/audience/expiry, tạo identity context, authorization theo resource ownership và ghi audit với trace ID.",
+        "coreTerms": [
+          "authentication",
+          "authorization",
+          "audit log",
+          "credential",
+          "access token",
+          "JWT",
+          "OAuth 2.0"
+        ],
+        "heading": "Tin một request theo ba cửa, không theo một token",
+        "headingLead": "Danh tính, quyền và dấu vết là ba câu hỏi khác nhau nhưng phải đi cùng một flow."
+      },
+      "resilience": {
+        "question": "Khi dependency chậm hoặc traffic tăng, API tránh chờ vô hạn và tự làm sự cố nặng hơn thế nào?",
+        "plain": "Mỗi request cần deadline; retry chỉ dành cho lỗi tạm thời và phải có budget/backoff. Hành động có thể bị lặp cần idempotency. Readiness điều khiển nhận traffic; liveness chỉ quyết định process có cần restart. Metrics và load test cung cấp bằng chứng.",
+        "analogy": "Quầy có thời hạn chờ món, quy tắc gọi lại có khoảng nghỉ, mã đơn chống ghi hai lần, biển “tạm ngừng nhận khách” và đồng hồ đo hàng chờ.",
+        "analogyLimit": "Retry không sửa lỗi cố định; restart không cứu database chậm; health endpoint xanh không chứng minh mọi hành trình người dùng đều tốt.",
+        "why": "Không có deadline, request giữ tài nguyên mãi. Retry đồng loạt tạo retry storm. Probe sai khiến nền tảng restart dịch vụ khỏe chỉ vì dependency đang chập chờn.",
+        "place": "Đây là lớp bảo vệ bao quanh request path và lớp evidence cho vận hành production.",
+        "flow": "accept + deadline → validate → work → response; nếu timeout → classify → retry có budget; nếu overload → stop traffic → recover → verify metrics",
+        "visualLook": "Đọc ba đường riêng: đường bình thường, đường timeout/retry và đường overload/readiness. Không coi retry là mũi tên quay lại vô hạn.",
+        "sayBack": "Nói được khi nào không retry, vì sao POST cần idempotency key và vì sao readiness khác liveness.",
+        "job": "Dùng trong client SDK, payment/order API, Kubernetes probes, SLO dashboard, Locust load test và incident response.",
+        "bridge": "Ghép tất cả lại: mỗi request là chuỗi boundary có bằng chứng, không phải một hàm Python đứng một mình.",
+        "stress": "Database chậm 10 giây; 1.000 client timeout sau 2 giây rồi cùng retry ngay, nhân tải thành nhiều lần và kéo cả cụm sập.",
+        "response": "Đặt deadline xuyên chuỗi, giới hạn retry với exponential backoff + jitter, dùng idempotency, shed load/readiness và quan sát p95/p99, error rate, queue.",
+        "coreTerms": [
+          "deadline",
+          "retry",
+          "backoff + jitter",
+          "idempotency key",
+          "liveness probe",
+          "readiness probe",
+          "requests per second (RPS)",
+          "latency percentile",
+          "load test"
+        ],
+        "heading": "API production cần biết dừng, từ chối và chứng minh",
+        "headingLead": "Độ tin cậy đến từ giới hạn rõ và evidence, không đến từ việc cứ thử lại."
+      },
+      "recap": {
+        "question": "Khi một request lỗi hoặc chậm, mental model tối thiểu để không sửa mò là gì?",
+        "plain": "Hỏi lần lượt: ai gọi, có tới đúng nơi không, message có đúng contract không, có được phép không, code/downstream làm gì, failure control nào can thiệp và evidence nào xác nhận.",
+        "analogy": "Đi theo camera của một phiếu từ khách tới địa chỉ, quầy soát, bếp, kho rồi biên nhận; đừng đoán bằng cách nhìn một trạm riêng lẻ.",
+        "analogyLimit": "Flow tổng hợp là bản đồ chẩn đoán, không thay thế trace/log/metric thật của từng hệ thống.",
+        "why": "Một triệu chứng “API chậm” có thể đến từ DNS, TLS, queue, validation, database, retry storm hoặc client đọc response sai.",
+        "place": "Đây là bản đồ gốc nối toàn bài và nối F04 với Linux, Python, Database, testing, container và observability.",
+        "flow": "caller → reachability → HTTP contract → trust → application/data → resilience → evidence → response",
+        "visualLook": "Theo bảy câu hỏi và tự dừng ở từng node: nếu node này hỏng, client thấy gì và mình lấy bằng chứng ở đâu?",
+        "sayBack": "Không nhìn bài, kể trọn một request và nêu ít nhất một failure + evidence ở mỗi lớp.",
+        "job": "Dùng khi thiết kế API review, on-call, viết runbook, tracing distributed service và chuẩn bị bài testing/container kế tiếp.",
+        "bridge": "Bài sau sẽ dùng chính contract và failure model này để quyết định phải kiểm thử điều gì, ở boundary nào và bằng chứng thành công là gì.",
+        "stress": "Dashboard chỉ có CPU trung bình; người dùng báo chậm nhưng không ai có trace ID, percentile hay phân tách 4xx/5xx.",
+        "response": "Gắn trace ID từ đầu request, log theo boundary, đo latency distribution/error rate và liên kết client–API–database bằng cùng context.",
+        "coreTerms": [
+          "trace ID",
+          "observability"
+        ],
+        "heading": "Bảy câu hỏi nối toàn bộ Web API thành một cỗ máy",
+        "headingLead": "Kết thúc bằng một đường chẩn đoán có thứ tự, không phải danh sách thuật ngữ."
+      }
+    },
+    "final": {
+      "golden": "Web API là quầy có hợp đồng: đưa một yêu cầu tới đúng nơi, kiểm tra nó, làm việc được phép, rồi trả kết quả và bằng chứng đủ rõ để cả người dùng lẫn người vận hành biết chuyện gì đã xảy ra.",
+      "learned": [
+        "API tồn tại để nhiều client dùng một boundary ổn định thay vì phụ thuộc trực tiếp vào code và database.",
+        "DNS, transport và TLS đưa byte tới đúng nơi an toàn; HTTP mới diễn đạt ý định và kết quả.",
+        "REST tổ chức contract quanh resource; FastAPI biến contract thành route, validation, dependency, handler và response.",
+        "REST, SOAP, GraphQL và gRPC khác nhau ở thứ client gọi, cách mô tả contract và runtime thực thi.",
+        "Polling, SSE, WebSocket và webhook khác nhau ở ai chủ động, dữ liệu đi một hay hai chiều, connection sống bao lâu và ai retry.",
+        "Authentication, authorization và audit nối thành trust path; token chỉ là một mảnh bằng chứng.",
+        "Deadline, retry budget, idempotency, probes và metrics giúp API thất bại có kiểm soát và hồi phục được."
+      ],
+      "market": [
+        {
+          "label": "Backend / Data API",
+          "text": "Thiết kế endpoint, schema và error contract để web, pipeline hoặc model client gọi ổn định."
+        },
+        {
+          "label": "Data engineering",
+          "text": "Dùng webhook/API để nhận sự kiện, khởi chạy pipeline và cung cấp dữ liệu mà vẫn chống trùng."
+        },
+        {
+          "label": "ML serving",
+          "text": "Giữ readiness tới khi model nạp xong, đo tail latency và bảo vệ endpoint khỏi request quá lớn."
+        },
+        {
+          "label": "SRE / Platform",
+          "text": "Đặt deadline, load shed, probes, tracing và load test để tìm breaking point trước người dùng."
+        }
+      ],
+      "practice": "Dựng một FastAPI nhỏ có `POST /orders` và `GET /orders/{id}`. Khai báo model input/output, trả 201/404/422 rõ, thêm API-key dependency, middleware gắn trace ID, `/live` và `/ready`, idempotency key cho POST; sau đó dùng curl và Locust để quan sát p50/p95/error rate dưới tải.",
+      "checks": [
+        "Nếu browser báo ‘không kết nối được’, bạn tách DNS/TCP/TLS khỏi HTTP/application như thế nào?",
+        "REST, SOAP, GraphQL và gRPC khác nhau ở thứ được gọi, contract và đường thực thi nào?",
+        "Khi nào chọn polling, SSE, WebSocket hoặc webhook; failure riêng của mỗi cách là gì?",
+        "FastAPI, handler, database, authentication và authorization khác trách nhiệm ở điểm nào?",
+        "Khi timeout xảy ra, điều kiện nào phải đúng trước khi retry và bằng chứng nào cho thấy hệ thống đã hồi phục?"
+      ]
+    }
   }
 };
 const termExamples = {
+  "API": "Ứng dụng giao hàng gọi API nhà hàng để tạo đơn mà không biết database dùng PostgreSQL hay hệ khác.",
+  "API contract": "Tài liệu quy định `POST /orders` cần `items`, trả 201 khi tạo và 422 khi input sai.",
   "ASGI": "Uvicorn gọi ứng dụng bằng scope, receive và send thay vì framework tự đọc socket.",
   "AST": "Python nhìn `total = price * qty` như cây phép gán và phép nhân.",
   "Arrow": "Một bảng cột có thể được ghi theo Arrow để trao đổi dữ liệu hiệu quả giữa công cụ.",
@@ -2913,37 +3330,58 @@ const termExamples = {
   "CPU task": "Nén ảnh hoặc tính tổng lớn là đoạn chủ yếu dùng thời gian CPU.",
   "CPython": "Lệnh `python` phổ biến thường khởi động implementation CPython.",
   "CSV": "Mỗi dòng `order_id,total` là text; khi đọc phải parse lại thành kiểu dữ liệu.",
+  "DNS": "Máy hỏi DNS để đổi `api.example.com` thành một IP trước khi kết nối.",
   "EACCES": "Mở file không đủ quyền thường trả lỗi hệ điều hành EACCES và shell hiện Permission denied.",
   "EXPLAIN ANALYZE": "So `rows=10` ước lượng với `actual rows=100000` để thấy planner đoán sai.",
   "GIL": "Hai thread chạy bytecode Python CPU-bound trong một CPython có GIL phải thay phiên.",
   "GIN / GiST / BRIN": "GIN hợp tìm phần tử trong JSONB; BRIN hợp bảng thời gian rất lớn có thứ tự vật lý.",
   "HTTP": "Client gửi `POST /orders` kèm header và body tới server.",
+  "HTTP method": "`GET` đọc order; `POST` yêu cầu tạo order; `DELETE` yêu cầu xóa.",
+  "HTTP request": "`POST /orders` cùng headers và JSON body là một request hoàn chỉnh.",
+  "HTTPS": "Bearer token đi trong HTTP header nhưng được bảo vệ trên đường truyền bởi TLS.",
   "I/O": "Đọc file, chờ database hoặc gửi qua mạng đều là I/O.",
   "IO task": "Gọi API và chờ phản hồi 500 ms là task chủ yếu chờ I/O.",
+  "IP address": "Packet mang destination IP của load balancer phục vụ API.",
   "JSON": "Object đơn hàng được encode thành chuỗi JSON trước khi gửi qua HTTP.",
+  "JWT": "API verify chữ ký, issuer, audience và expiry trước khi dùng claim `sub`.",
   "MVCC": "Một transaction vẫn đọc version cũ trong khi transaction khác tạo version mới.",
+  "OAuth 2.0": "Ứng dụng xin quyền đọc lịch của user mà không nhận password tài khoản lịch.",
+  "OpenAPI": "Trang docs sinh từ schema cho biết endpoint, input model và response model.",
   "PATH": "Shell tìm `python` lần lượt trong các thư mục được ghi trong PATH.",
   "PID": "Dùng `ps` thấy mỗi process có một số PID riêng.",
   "PITR": "Khôi phục database về thời điểm ngay trước khi ai đó chạy nhầm `DROP TABLE`.",
   "RAM": "List Python và page đang cache sống trong RAM khi chương trình chạy.",
+  "REST": "API dùng `/orders/123` như resource và HTTP semantics để đọc hoặc cập nhật representation.",
+  "RPC": "Service A gọi operation `GetFeatureVector` trên service B qua network.",
+  "Server-Sent Events (SSE)": "Dashboard mở EventSource để nhận trạng thái pipeline liên tục từ server.",
+  "TLS": "Browser kiểm certificate của domain rồi mã hóa traffic bằng session key.",
   "Uvicorn": "Uvicorn giữ socket HTTP và chuyển request vào ứng dụng ASGI/FastAPI.",
   "WAL": "PostgreSQL ghi record thay đổi vào WAL trước khi data page buộc phải xuống disk.",
   "WAL writer": "Background process đẩy các WAL buffer cần thiết ra storage.",
+  "WebSocket": "Ứng dụng chat giữ kết nối để cả client và server gửi message ngay khi có.",
   "__main__": "`if __name__ == \"__main__\": main()` chỉ chạy khi module là chương trình chính.",
   "absolute path": "`/home/student/report.log` chỉ cùng một vị trí từ mọi cwd.",
+  "access path": "Planner có thể chọn sequential scan thay vì B-tree index scan.",
+  "access token": "Client gửi bearer access token có scope `orders:read` tới resource server.",
   "address space": "Hai process có thể dùng cùng địa chỉ số nhưng trỏ tới vùng memory tách biệt.",
   "alias": "`backup = records` làm hai name cùng trỏ tới một list.",
   "argv": "Lệnh `python app.py input.csv` tạo danh sách đối số gồm tên script và file input.",
   "assembler": "Assembler biến assembly thành object file như `hello.o`.",
   "async def / def": "FastAPI có thể await `async def`, còn hàm `def` thường được chạy ở thread pool.",
+  "attribute": "`customer_id`, `name`, `email` là các attribute của Customer.",
+  "audit log": "Log bảo mật ghi user 42 đã export dataset 9 lúc nào và kết quả ra sao.",
+  "authentication": "API key hợp lệ giúp server nhận diện service gọi dữ liệu.",
+  "authorization": "User đã đăng nhập nhưng chỉ owner hoặc admin mới được xóa order.",
   "autovacuum": "PostgreSQL tự chạy vacuum/analyze khi table tích đủ thay đổi.",
   "await": "`await client.get(url)` nhường event loop trong lúc chờ mạng.",
   "backend": "Trong PostgreSQL, backend là process phục vụ một connection; trong web, backend là phía server.",
   "backend process": "Một kết nối `psql` thường có một PostgreSQL backend process tương ứng.",
   "backfill": "Scheduler chạy bù các ngày đã bỏ lỡ; cron thông thường không tự làm việc đó.",
+  "backoff + jitter": "Các client chờ khoảng ngẫu nhiên tăng dần thay vì cùng gọi lại đúng sau 1 giây.",
   "bitmap heap scan": "PostgreSQL gom nhiều TID từ index rồi đọc heap theo từng page.",
   "bloat": "Update/delete để lại version cũ khiến table/index chiếm nhiều page hơn lượng dữ liệu sống.",
   "blocking I/O": "Gọi `requests.get()` trong event loop có thể giữ thread đứng chờ đến khi mạng trả lời.",
+  "boundary": "Encode JSON là boundary giữa object Python và byte trên mạng.",
   "buffer": "Chương trình đọc một khối byte vào RAM trước khi parse hoặc xử lý.",
   "bytecode": "CPython biến source thành các instruction như LOAD_FAST và BINARY_OP.",
   "cProfile": "Chạy cProfile để biết hàm nào dùng nhiều thời gian CPU nhất.",
@@ -2952,85 +3390,120 @@ const termExamples = {
   "checkpoint": "PostgreSQL tạo mốc để recovery không phải replay WAL từ quá xa.",
   "checkpointer": "Background process điều phối checkpoint và ghi dirty buffers theo chính sách.",
   "chmod": "`chmod 640 secret.txt` đổi các bit quyền của file.",
+  "client": "Một script Python gửi `GET /datasets/42` và tự xử lý 200 hoặc 404.",
   "code object": "Một function đã compile có code object chứa bytecode và metadata, chưa phải lần gọi cụ thể.",
   "compiler": "`gcc -c hello.c` tạo object code từ source C.",
   "connection pooling": "PgBouncer cho nhiều request ứng dụng dùng lại số connection PostgreSQL giới hạn.",
+  "constraint": "CHECK `quantity >= 0` chặn tồn kho âm ngay tại database.",
   "context manager": "`with open(path) as f:` bảo đảm file được đóng cả khi xảy ra lỗi.",
   "contract": "Một script hứa nhận input nào, tạo output nào và báo lỗi bằng exit status ra sao.",
   "coreutils": "`cat`, `cp`, `mv`, `rm` thường đến từ bộ GNU coreutils.",
   "cp · mv · rm": "`cp` sao chép, `mv` đổi vị trí/tên, `rm` gỡ directory entry.",
+  "credential": "Password, API key hoặc private key phải nằm trong secret store chứ không commit vào Git.",
   "cron expression": "`30 3 * * *` nghĩa là kích hoạt lúc 03:30 mỗi ngày.",
   "crontab": "File crontab liệt kê lịch và command cron phải gọi.",
   "cwd": "`open(\"data.csv\")` tìm file tương đối từ current working directory.",
   "cyclic GC": "Hai object trỏ vòng nhau có thể cần cyclic GC dù reference count không về 0.",
   "daemon": "Cron daemon chạy nền và thức dậy để kiểm tra job đến lịch.",
+  "deadline": "Request có tổng ngân sách 2 giây nên downstream không được tự chờ 5 giây.",
   "deadlock": "T1 giữ row A chờ B trong khi T2 giữ B chờ A; database phải hủy một transaction.",
   "decode / parse": "Chuỗi JSON nhận từ mạng được parse thành dict/list mới.",
   "decorator": "`@app.post(\"/orders\")` đăng ký function với router lúc module được import.",
+  "denormalization": "Lưu thêm `order_total` để đọc nhanh nhưng phải đồng bộ với order items.",
   "dependency": "`main.o` phụ thuộc `main.c` và `common.h`; đổi một prerequisite làm target cũ.",
   "driver": "Psycopg biến lời gọi Python thành PostgreSQL wire protocol và trả row về ứng dụng.",
   "durability": "COMMIT đã trả thành công thì recovery phải khôi phục được thay đổi.",
+  "endpoint": "`GET /health` và `POST /orders` là hai endpoint vì method/path và mục đích khác nhau.",
   "entry point": "Function `main()` là chỗ chương trình bắt đầu nghiệp vụ sau startup/import.",
   "environment": "`DATABASE_URL` và PATH là biến environment process nhận lúc khởi động.",
   "event loop": "Event loop lần lượt chạy coroutine sẵn sàng và quay lại task khi I/O hoàn tất.",
+  "evidence": "Exit status 1 và stderr cho biết job thất bại ở đâu; EXPLAIN cho evidence của query.",
   "exception": "`json.loads()` ném exception khi input không phải JSON hợp lệ.",
   "executor": "PostgreSQL executor chạy các plan node và tạo tuple kết quả.",
   "exit status": "0 thường nghĩa thành công; giá trị khác 0 cho shell/CI biết job lỗi.",
+  "fact": "“Khách C1 có email x@example.com” là một fact cần một nguồn cập nhật.",
   "file descriptor": "Process dùng fd 1 cho stdout và fd 2 cho stderr theo quy ước.",
+  "foreign key": "`orders.customer_id` phải tham chiếu một customer tồn tại.",
   "fork / exec": "Shell có thể tạo process con rồi exec để nạp chương trình `cat`.",
   "frame": "Mỗi lần gọi function có frame giữ local variables và instruction hiện tại.",
   "free space map": "PostgreSQL dùng FSM để tìm page còn chỗ cho tuple mới.",
+  "gRPC": "Hai service nội bộ dùng protobuf contract để gọi unary hoặc stream dữ liệu typed.",
   "glibc": "Chương trình C thường gọi hàm thư viện như `read()` trước khi đi vào system call.",
   "handler": "Function `create_order()` chạy nghiệp vụ sau khi router chọn route và dependency sẵn sàng.",
+  "header": "`Content-Type: application/json` nói body phải được parse như JSON.",
   "heap page": "Nhiều tuple của table được đặt trong một page heap, mặc định thường 8 KiB ở PostgreSQL.",
+  "idempotency key": "Hai lần POST thanh toán cùng key trả lại cùng kết quả thay vì trừ tiền hai lần.",
   "idempotent": "Chạy lại thao tác “đặt trạng thái thành processed” không tạo kết quả khác sau lần đầu.",
+  "idempotent method": "Gửi lại cùng `PUT /profiles/7` với cùng representation nên hướng tới cùng state cuối.",
   "identity": "`a is b` hỏi hai name có trỏ đúng cùng một object hay không.",
   "import": "Import tìm module, tạo namespace, chạy top-level code rồi cache module.",
   "index-only scan": "Nếu index có đủ cột và visibility map cho phép, PostgreSQL tránh đọc heap page.",
   "instruction pointer": "Frame ghi nhớ bytecode instruction nào sẽ chạy tiếp.",
   "interpreter": "Executable Python đọc bytecode và thực hiện nó trong process.",
+  "invariant": "Tổng tiền đơn hàng phải bằng tổng các dòng hàng sau mọi transaction.",
   "isolation level": "READ COMMITTED và REPEATABLE READ quy định snapshot/hiện tượng transaction được phép thấy.",
   "kernel": "Kernel kiểm tra permission và điều phối CPU, memory, file, network cho process.",
+  "key": "Bảng khách hàng dùng `customer_id` để phân biệt hai người có thể trùng tên; mọi đơn hàng nối đúng khách qua mã này.",
+  "latency percentile": "p99 = 900 ms nghĩa là khoảng 1% request chậm hơn 900 ms.",
   "line pointer": "Heap page dùng line pointer để định vị tuple dù tuple có thể được di chuyển trong page.",
   "linker": "Linker ghép nhiều object file và library thành executable.",
+  "liveness probe": "Probe chỉ fail khi process deadlock hoặc không còn tiến triển và cần restart.",
+  "load test": "Mô phỏng 100 user đồng thời để kiểm API còn giữ latency/error mục tiêu ở giờ cao điểm.",
   "lock": "Update một row có thể giữ row lock để transaction khác không sửa xung đột.",
   "lockfile": "Lockfile ghi chính xác version dependency đã được resolver chọn.",
   "logical model": "Bảng customer/order và quan hệ của chúng mô tả ý nghĩa dữ liệu, không phải vị trí page.",
   "logical replication": "Chọn table/change ở mức logical để gửi sang subscriber.",
   "man": "`man chmod` mở tài liệu mô tả command và option trên hệ thống.",
-  "middleware": "Middleware ghi log hoặc kiểm tra auth trước/sau khi request vào route.",
+  "message body": "Body `{\"items\":[{\"sku\":\"A1\",\"qty\":2}]}` mang dữ liệu tạo đơn.",
+  "middleware": "Middleware gắn trace ID và đo thời gian cho mọi request trước/sau handler.",
   "mutable": "List là mutable: `append` đổi object hiện có.",
   "mutation": "`records.append(x)` thay đổi list thay vì tạo binding mới.",
   "name binding": "Lệnh `total = 10` gắn name `total` với object số 10 trong namespace.",
   "namespace": "Module hoặc function có một mapping từ name tới object.",
+  "normalization": "Tách Customer khỏi Order để email khách chỉ có một nơi cập nhật.",
   "object": "List, dict, function và integer đều là object có type và identity trong Python.",
+  "observability": "Trace cho biết 800 ms nằm ở database; metric cho thấy p99 tăng; log ghi timeout cụ thể.",
   "orchestrator": "Airflow có dependency, retry, backfill và state; cron chỉ trigger theo giờ.",
   "parse tree": "PostgreSQL parser biến SQL text thành cấu trúc biểu diễn câu truy vấn.",
+  "parser": "Shell parser hiểu quote và redirect; PostgreSQL parser hiểu cấu trúc SQL.",
   "permission": "Owner/group/other và bit read/write/execute quyết định thao tác file được phép.",
   "pipe": "`cat log | grep ERROR` nối stdout của cat vào stdin của grep.",
   "planner / optimizer": "PostgreSQL so nhiều plan và chọn plan có estimated cost thấp nhất.",
+  "polling": "Frontend gọi `/jobs/123` mỗi 5 giây để hỏi job xong chưa.",
   "postmaster / server process": "Process chính lắng nghe connection và tạo backend phục vụ client.",
   "preprocessor": "C preprocessor mở rộng `#include` và macro trước compiler.",
+  "primary key": "`customer_id = C1` nhận diện duy nhất khách hàng C1.",
   "process": "Mỗi lần chạy chương trình có PID, address space, file descriptors và state riêng.",
+  "profiling": "cProfile cho biết function `transform()` chiếm 70% thời gian chạy.",
   "pwd · cd · ls · find": "Các lệnh này lần lượt xem cwd, đổi cwd, liệt kê và tìm path.",
   "pyproject.toml": "File khai báo metadata/build/dependency contract của project Python hiện đại.",
   "quote": "`\"a b\"` giữ chuỗi có khoảng trắng thành một argv thay vì hai.",
+  "readiness probe": "Pod đang nạp model trả not-ready để load balancer chưa gửi inference traffic.",
   "rebinding": "`records = []` làm name trỏ sang list mới, không sửa list cũ.",
   "recipe": "Trong Makefile, recipe là command dùng để tạo/cập nhật target.",
   "redirect": "`2>error.log` chuyển stderr vào file thay vì terminal.",
   "reference counting": "CPython thường giảm bộ đếm khi một name/reference không còn giữ object.",
+  "relation": "Relation Customer chứa các tuple khách hàng cùng bộ attribute.",
   "relative path": "`data/report.csv` được tính từ cwd nên có thể trỏ nơi khác khi cwd đổi.",
   "replication lag": "Standby còn thiếu một đoạn WAL so với primary nên dữ liệu đọc có thể chậm hơn.",
   "reproducibility": "Đồng đội checkout project và dựng lại cùng dependency để test cho kết quả tương đương.",
+  "request target": "`/orders/123?include=items` chỉ đúng order 123 và tùy chọn dữ liệu kèm theo.",
+  "requests per second (RPS)": "Locust tăng từ 50 lên 200 RPS và ghi nhận throughput cùng error rate.",
   "resolver": "Resolver tìm tập version dependency thỏa các constraint của project.",
+  "resource": "Order là resource nghiệp vụ; JSON chỉ là một representation của order.",
+  "retry": "Client gửi lại khi gặp 503 tạm thời, không retry validation 422.",
   "rewrite": "PostgreSQL rewriter biến view/rule thành query tree phù hợp trước planning.",
   "route": "Router khớp method/path như POST `/orders` với handler.",
   "row lock": "Hai transaction cùng update một row sẽ phải chờ hoặc xung đột theo lock.",
+  "runtime": "CPython runtime giữ module table, call stack và exception state khi chương trình chạy.",
   "scheduler": "OS scheduler quyết định process/thread nào được dùng CPU ở thời điểm này.",
-  "schema": "Schema có thể nghĩa cấu trúc dữ liệu mong đợi; trong PostgreSQL còn là namespace chứa object.",
+  "scheduling": "Event loop chọn coroutine sẵn sàng; OS chọn thread/process dùng CPU.",
+  "schema": "OrderCreate yêu cầu danh sách item, quantity dương và customer ID đúng kiểu.",
   "scope": "ASGI scope mô tả loại connection, HTTP method, path và metadata request.",
   "selectivity": "Filter giữ 10 trên 1 triệu row có selectivity thấp và thường hợp index hơn.",
+  "sequential scan": "Báo cáo cần 90% đơn hàng nên PostgreSQL đọc bảng theo từng page từ đầu tới cuối thay vì nhảy qua index rồi quay lại bảng liên tục.",
   "serialization": "Dict Python được encode thành JSON bytes trước khi đi qua mạng.",
+  "server": "FastAPI service lắng nghe request, chạy policy rồi gọi database.",
   "set -euo pipefail": "Thiết lập shell giúp dừng khi command lỗi, biến chưa có hoặc pipeline có stage thất bại.",
   "shallow copy": "`records.copy()` tạo list ngoài mới nhưng phần tử bên trong vẫn có thể dùng chung.",
   "shared buffers": "PostgreSQL cache data/index page trong vùng memory dùng chung.",
@@ -3041,52 +3514,49 @@ const termExamples = {
   "snapshot": "Transaction dùng snapshot để quyết định tuple version nào visible.",
   "socket": "Socket là endpoint byte giữa client và server qua mạng hoặc local IPC.",
   "source": "File `.py` hoặc `.c` là văn bản con người viết trước khi runtime/compiler xử lý.",
+  "state": "Cùng command nhưng cwd hoặc environment khác có thể cho kết quả khác.",
+  "stateless": "Request thứ hai vẫn mang token và parameters cần thiết dù instance xử lý khác request đầu.",
+  "status code": "API trả 404 khi order không tồn tại và 409 khi trạng thái xung đột.",
   "stderr": "Thông báo lỗi đi fd 2 để không trộn với dữ liệu stdout.",
   "stdin": "Chương trình đọc input chuẩn từ fd 0, có thể đến từ keyboard, file hoặc pipe.",
   "stdout": "Kết quả dữ liệu chuẩn đi fd 1, có thể hiện ở terminal hoặc chảy vào pipe.",
+  "stream": "stdout của `cat` chảy thành stdin của `grep` qua pipe.",
   "streaming replication": "Standby nhận và replay WAL gần thời gian thực từ primary.",
   "synchronous": "Hàm sync giữ quyền chạy cho tới khi trả về hoặc bị chặn chờ.",
   "system call": "`open`, `read`, `write` là cửa có kiểm soát từ user space vào kernel.",
   "target": "Trong Make, target là file/kết quả cần được tạo từ dependency.",
   "terminal": "Ứng dụng terminal nhận phím và vẽ text; nó thường chạy một shell bên trong.",
   "thread": "Nhiều thread trong một process dùng chung address space nhưng có stack riêng.",
+  "trace ID": "Cùng ID xuất hiện trong gateway, FastAPI và database span của một request.",
   "traceback": "Traceback liệt kê file, dòng và chuỗi frame dẫn tới exception.",
   "tracemalloc": "tracemalloc chụp và so sánh nơi Python cấp phát memory.",
+  "transport connection": "Client mở kết nối transport tới cổng dịch vụ trước khi gửi HTTP message.",
+  "tuple": "Tuple `(C1, An, x@example.com)` biểu diễn một khách hàng cụ thể.",
   "unwinding": "Khi exception không được bắt, runtime đóng frame hiện tại và đi lên caller.",
+  "update anomaly": "Email khách lặp trong 100 order và chỉ 99 row được sửa.",
   "user process": "`cat`, Python hoặc nginx chạy ở user space và xin kernel qua system call.",
   "user space": "Vùng chương trình thường chạy với quyền hạn chế, tách khỏi kernel space.",
+  "vacuum": "Sau nhiều lần cập nhật đơn hàng, PostgreSQL xác nhận các phiên bản cũ không còn ai cần rồi cho phép dùng lại chỗ của chúng.",
   "validate": "Sau khi parse JSON, kiểm tra field/type/rule trước khi tin và dùng dữ liệu.",
+  "validation": "FastAPI trả 422 trước handler khi `qty` là chuỗi hoặc số âm theo rule đã khai báo.",
   "virtual environment": "`.venv` cho project một interpreter/package path riêng.",
+  "visibility": "T2 dùng snapshot nên chưa thấy version T1 chưa commit.",
   "visibility map": "PostgreSQL đánh dấu page có tuple all-visible để tối ưu vacuum/index-only scan.",
   "wait event": "`pg_stat_activity.wait_event` cho biết backend đang chờ lock, I/O hay tài nguyên khác.",
+  "webhook": "GitHub gửi POST tới Jenkins khi có push; Jenkins không cần hỏi GitHub mỗi phút.",
+  "where": "Khi query chậm, hỏi dữ liệu đang được đọc từ index, heap hay disk.",
   "wire protocol": "Quy ước byte để client/driver và PostgreSQL trao query, result và error.",
   "xmin / xmax": "Tuple version ghi transaction tạo nó và transaction làm nó hết hiệu lực.",
-  "parser": "Shell parser hiểu quote và redirect; PostgreSQL parser hiểu cấu trúc SQL.",
-  "state": "Cùng command nhưng cwd hoặc environment khác có thể cho kết quả khác.",
-  "resource": "Một job có thể thiếu RAM, bận CPU hoặc chờ disk I/O.",
-  "stream": "stdout của `cat` chảy thành stdin của `grep` qua pipe.",
-  "evidence": "Exit status 1 và stderr cho biết job thất bại ở đâu; EXPLAIN cho evidence của query.",
-  "runtime": "CPython runtime giữ module table, call stack và exception state khi chương trình chạy.",
-  "boundary": "Encode JSON là boundary giữa object Python và byte trên mạng.",
-  "scheduling": "Event loop chọn coroutine sẵn sàng; OS chọn thread/process dùng CPU.",
-  "profiling": "cProfile cho biết function `transform()` chiếm 70% thời gian chạy.",
-  "fact": "“Khách C1 có email x@example.com” là một fact cần một nguồn cập nhật.",
-  "relation": "Relation Customer chứa các tuple khách hàng cùng bộ attribute.",
-  "tuple": "Tuple `(C1, An, x@example.com)` biểu diễn một khách hàng cụ thể.",
-  "attribute": "`customer_id`, `name`, `email` là các attribute của Customer.",
-  "primary key": "`customer_id = C1` nhận diện duy nhất khách hàng C1.",
-  "foreign key": "`orders.customer_id` phải tham chiếu một customer tồn tại.",
-  "constraint": "CHECK `quantity >= 0` chặn tồn kho âm ngay tại database.",
-  "invariant": "Tổng tiền đơn hàng phải bằng tổng các dòng hàng sau mọi transaction.",
-  "normalization": "Tách Customer khỏi Order để email khách chỉ có một nơi cập nhật.",
-  "denormalization": "Lưu thêm `order_total` để đọc nhanh nhưng phải đồng bộ với order items.",
-  "update anomaly": "Email khách lặp trong 100 order và chỉ 99 row được sửa.",
-  "where": "Khi query chậm, hỏi dữ liệu đang được đọc từ index, heap hay disk.",
-  "visibility": "T2 dùng snapshot nên chưa thấy version T1 chưa commit.",
-  "access path": "Planner có thể chọn sequential scan thay vì B-tree index scan.",
-  "key": "Bảng khách hàng dùng `customer_id` để phân biệt hai người có thể trùng tên; mọi đơn hàng nối đúng khách qua mã này.",
-  "vacuum": "Sau nhiều lần cập nhật đơn hàng, PostgreSQL xác nhận các phiên bản cũ không còn ai cần rồi cho phép dùng lại chỗ của chúng.",
-  "sequential scan": "Báo cáo cần 90% đơn hàng nên PostgreSQL đọc bảng theo từng page từ đầu tới cuối thay vì nhảy qua index rồi quay lại bảng liên tục."
+  "SOAP": "Ngân hàng gửi operation `CreatePayment` bằng SOAP Envelope XML theo WSDL và nhận SOAP Fault nếu contract bị vi phạm.",
+  "WSDL": "Đối tác bảo hiểm phát WSDL để công cụ sinh client biết operation, XML message và endpoint nào phải gọi.",
+  "SOAP Envelope": "Message SOAP bọc metadata trong Header, dữ liệu nghiệp vụ trong Body và mô tả lỗi bằng Fault.",
+  "GraphQL": "Màn hình hồ sơ hỏi đúng `user { name orders { id total } }`; response trả cùng hình dạng field đã chọn.",
+  "GraphQL resolver": "Resolver của field `orders` lấy đơn từ database; nếu chạy riêng cho từng user có thể tạo lỗi N+1.",
+  "Protocol Buffers (protobuf)": "File `.proto` khai báo `Order{id=1,total=2}`; hai service mã hóa message bằng field number thay vì gửi JSON text.",
+  "generated stub": "Lệnh sinh code tạo `OrderServiceClient`; code gọi stub nhưng vẫn phải đặt deadline và xử lý gRPC status.",
+  "HTTP Upgrade": "Trình duyệt bắt đầu bằng HTTP handshake rồi yêu cầu chuyển connection sang WebSocket để chat hai chiều.",
+  "event stream": "Pipeline gửi từng event tiến độ kèm ID; dashboard reconnect và tiếp tục từ event cuối đã nhận.",
+  "webhook signature": "GitHub ký raw request body; receiver tính lại HMAC bằng secret rồi mới tin event `push`."
 };
 
 function renderInlineCode(value = '') {
@@ -3203,7 +3673,8 @@ function renderPlainStudyNote(topic) {
     F02: 'thư mục code → lần chạy → dữ liệu và lỗi → chờ/tính → yêu cầu web',
     F03: 'sự thật chung → luật dữ liệu → đọc/ghi đồng thời → lưu bền → vận hành'
   };
-  $('#content').innerHTML = `<header class="lesson-head"><div><div class="crumb"><strong>Syllabus</strong><i></i><span>${escapeHtml(topic.group)}</span><i></i><span>${topic.code}</span></div><h1>${escapeHtml(topic.title)}</h1><p>${escapeHtml(guide.hero.dek)}</p><div class="lesson-ladder"><span>Toàn cảnh → chi tiết</span><b>${escapeHtml(ladders[topic.code] || '')}</b></div></div><div class="head-state"><div class="state-row"><span>Trạng thái</span><b class="state-live">Dành cho người mới</b></div><div class="state-row"><span>Chủ đề</span><b>${String(topicIndex).padStart(2, '0')} / ${topics.length}</b></div><div class="state-row"><span>Cách học</span><b>Việc thật → cơ chế → thuật ngữ</b></div></div></header><article class="beginner-note">${renderBeginnerHero(topic, lesson, guide)}${sections}${renderBeginnerSynthesis(topic.code, guide)}</article>`;
+  const ladder = guide.hero.ladder || ladders[topic.code] || '';
+  $('#content').innerHTML = `<header class="lesson-head"><div><div class="crumb"><strong>Syllabus</strong><i></i><span>${escapeHtml(topic.group)}</span><i></i><span>${topic.code}</span></div><h1>${escapeHtml(topic.title)}</h1><p>${escapeHtml(guide.hero.dek)}</p><div class="lesson-ladder"><span>Toàn cảnh → chi tiết</span><b>${escapeHtml(ladder)}</b></div></div><div class="head-state"><div class="state-row"><span>Trạng thái</span><b class="state-live">Dành cho người mới</b></div><div class="state-row"><span>Chủ đề</span><b>${String(topicIndex).padStart(2, '0')} / ${topics.length}</b></div><div class="state-row"><span>Cách học</span><b>Việc thật → cơ chế → thuật ngữ</b></div></div></header><article class="beginner-note">${renderBeginnerHero(topic, lesson, guide)}${sections}${renderBeginnerSynthesis(topic.code, guide)}</article>`;
   document.body.classList.remove('is-studio');
 }
 /* END BEGINNER_CONTENT */
@@ -6875,6 +7346,768 @@ const lessons = {
         ]
       }
     ]
+  },
+  "F04": {
+    "promise": "Theo một request từ client tới kết quả, gọi đúng tên từng boundary và dùng evidence để chẩn đoán thay vì đoán.",
+    "chapters": [
+      {
+        "id": "boundary",
+        "label": "API là boundary",
+        "hint": "Nỗi đau và hợp đồng",
+        "scenes": [
+          {
+            "kind": "process",
+            "eyebrow": "Cơ chế chính",
+            "title": "Từ ba client hỗn loạn tới một cửa có luật",
+            "lead": "Website, mobile app và script đều cần dùng cùng năng lực nhưng không được biết nội bộ server.",
+            "predict": "Hãy đoán request dừng ở đâu trước khi đọc bước tiếp theo.",
+            "conclusion": "API làm giảm coupling bằng một hợp đồng bên ngoài, đồng thời tạo chỗ tập trung cho validation, security và observability.",
+            "reading": "Client chỉ gửi ý định qua contract. Endpoint nhận đúng cặp method/path, chuyển vào application và trả response. Database nằm sau server; client không giữ credential database và không phụ thuộc schema vật lý.",
+            "glossary": [
+              {
+                "term": "API",
+                "gloss": "Giao diện có quy tắc để phần mềm yêu cầu dữ liệu hoặc hành động từ phần mềm khác.",
+                "purpose": "Tạo boundary ổn định giữa người gọi và phần thực thi."
+              },
+              {
+                "term": "client",
+                "gloss": "Phần chủ động khởi tạo request.",
+                "purpose": "Đóng gói ý định theo contract và xử lý response."
+              },
+              {
+                "term": "server",
+                "gloss": "Phần lắng nghe request và giữ năng lực xử lý.",
+                "purpose": "Bảo vệ code, dữ liệu và tài nguyên phía sau API."
+              },
+              {
+                "term": "API contract",
+                "gloss": "Lời hứa về request hợp lệ, response, lỗi và hành vi quan sát được.",
+                "purpose": "Giúp client và server phát triển độc lập nhưng vẫn hiểu nhau."
+              },
+              {
+                "term": "endpoint",
+                "gloss": "Một cửa API xác định bởi method và route/path.",
+                "purpose": "Đưa một loại ý định tới đúng handler."
+              }
+            ],
+            "steps": [
+              {
+                "say": "Client tạo một ý định nghiệp vụ.",
+                "mechanism": "Website, mobile hoặc script cần “tạo đơn”, không cần biết bảng nào sẽ được ghi.",
+                "term": "client"
+              },
+              {
+                "say": "Contract biến ý định thành request có hình dạng chung.",
+                "mechanism": "Method, path, headers và body tạo thông điệp mà hai phía đã thống nhất.",
+                "term": "API contract"
+              },
+              {
+                "say": "Endpoint chọn đúng cửa xử lý.",
+                "mechanism": "Router ghép request với handler thay vì cho client chạm trực tiếp code nội bộ.",
+                "term": "endpoint"
+              },
+              {
+                "say": "Server chạy luật và chạm state phía sau.",
+                "mechanism": "Application mới được dùng credential nội bộ để gọi database hoặc service khác.",
+                "term": "server"
+              },
+              {
+                "say": "API trả response cho client.",
+                "mechanism": "Status và body cho client biết kết quả mà không lộ chi tiết triển khai.",
+                "term": "API"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "journey",
+        "label": "Đường đi HTTPS",
+        "hint": "DNS, transport, TLS",
+        "scenes": [
+          {
+            "kind": "process",
+            "eyebrow": "Cơ chế chính",
+            "title": "Trước application là ba câu hỏi: đi đâu, mở đường thế nào, có an toàn không?",
+            "lead": "Một URL dễ đọc chưa phải địa chỉ máy và HTTP chưa thể xuất hiện nếu đường truyền chưa sẵn sàng.",
+            "predict": "Hãy đoán request dừng ở đâu trước khi đọc bước tiếp theo.",
+            "conclusion": "Debug theo lớp: DNS → connection/transport → TLS → HTTP/application.",
+            "reading": "DNS giải tên thành IP. Transport tạo kênh trao đổi và xử lý việc chuyển byte. TLS xác minh server bằng certificate và tạo khóa phiên để mã hóa. Chỉ sau đó request HTTP mới tới server ứng dụng.",
+            "glossary": [
+              {
+                "term": "DNS",
+                "gloss": "Hệ thống phân giải tên miền thành địa chỉ mạng.",
+                "purpose": "Trả lời client phải gửi traffic tới địa chỉ nào."
+              },
+              {
+                "term": "IP address",
+                "gloss": "Địa chỉ logic dùng để định tuyến tới một thiết bị/interface trên mạng.",
+                "purpose": "Cho packet một đích có thể định tuyến."
+              },
+              {
+                "term": "transport connection",
+                "gloss": "Kênh vận chuyển giữa hai endpoint mạng; với TCP có thiết lập kết nối và truyền byte tin cậy.",
+                "purpose": "Đưa byte giữa client và server với semantics của transport."
+              },
+              {
+                "term": "TLS",
+                "gloss": "Giao thức tạo kênh mã hóa và xác thực đầu kia bằng certificate.",
+                "purpose": "Bảo vệ tính bí mật/toàn vẹn và giảm nguy cơ nói nhầm server."
+              },
+              {
+                "term": "HTTPS",
+                "gloss": "HTTP chạy bên trong kênh TLS.",
+                "purpose": "Giữ cấu trúc HTTP nhưng bảo vệ thông điệp trên đường truyền."
+              }
+            ],
+            "steps": [
+              {
+                "say": "Client phân giải tên miền.",
+                "mechanism": "Resolver tìm IP từ cache hoặc hệ thống DNS.",
+                "term": "DNS"
+              },
+              {
+                "say": "Packet được định tuyến tới địa chỉ đích.",
+                "mechanism": "Router dùng IP destination để chuyển traffic qua nhiều mạng.",
+                "term": "IP address"
+              },
+              {
+                "say": "Hai phía tạo kênh vận chuyển.",
+                "mechanism": "Transport quản lý việc trao đổi byte; với TCP có connection state và retransmission.",
+                "term": "transport connection"
+              },
+              {
+                "say": "TLS xác minh và tạo khóa phiên.",
+                "mechanism": "Client kiểm certificate/hostname rồi hai phía thống nhất key cho kênh mã hóa.",
+                "term": "TLS"
+              },
+              {
+                "say": "HTTP đi qua kênh đã bảo vệ.",
+                "mechanism": "Server đọc request và response quay lại trên HTTPS.",
+                "term": "HTTPS"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "message",
+        "label": "Thông điệp HTTP",
+        "hint": "Request và response",
+        "scenes": [
+          {
+            "kind": "process",
+            "eyebrow": "Cơ chế chính",
+            "title": "HTTP biến một lần gọi thành hai phong bì có cấu trúc",
+            "lead": "Không chỉ JSON: method, target, headers, body và status cùng tạo nghĩa.",
+            "predict": "Hãy đoán request dừng ở đâu trước khi đọc bước tiếp theo.",
+            "conclusion": "Đọc HTTP như một câu đầy đủ: hành động + đích + ngữ cảnh + dữ liệu → kết quả + hướng dẫn + nội dung.",
+            "reading": "Request line/metadata nói client muốn thao tác gì và với tài nguyên nào. Body mang representation khi cần. Response status phân loại kết quả; headers hướng dẫn cách hiểu/cache; body mang data hoặc error detail. Idempotency của method mô tả tác dụng dự kiến khi lặp cùng request, nhưng server vẫn phải triển khai đúng.",
+            "glossary": [
+              {
+                "term": "HTTP request",
+                "gloss": "Thông điệp client gửi để yêu cầu một hành động hoặc representation.",
+                "purpose": "Mang toàn bộ ý định cần thiết tới server."
+              },
+              {
+                "term": "HTTP method",
+                "gloss": "Động từ chuẩn như GET, POST, PUT, PATCH, DELETE.",
+                "purpose": "Nói loại hành động và semantics mà client/intermediary có thể kỳ vọng."
+              },
+              {
+                "term": "request target",
+                "gloss": "Đích của request, thường gồm path và query.",
+                "purpose": "Xác định resource hoặc route mà server phải xét."
+              },
+              {
+                "term": "header",
+                "gloss": "Cặp tên–giá trị mang metadata của request hoặc response.",
+                "purpose": "Truyền content type, auth, cache policy, correlation và khả năng client."
+              },
+              {
+                "term": "message body",
+                "gloss": "Phần dữ liệu tùy chọn của HTTP message.",
+                "purpose": "Mang representation như JSON, file hoặc error detail."
+              },
+              {
+                "term": "status code",
+                "gloss": "Mã ba chữ số phân loại kết quả HTTP.",
+                "purpose": "Cho client biết thành công, lỗi phía request hay lỗi server để xử lý tiếp."
+              },
+              {
+                "term": "idempotent method",
+                "gloss": "Method mà lặp cùng request có intended effect tương đương một lần.",
+                "purpose": "Giúp hệ thống reasoning về retry; không có nghĩa mọi implementation tự động chống trùng."
+              }
+            ],
+            "steps": [
+              {
+                "say": "Method nêu loại ý định.",
+                "mechanism": "GET đọc representation; POST thường tạo/xử lý; PUT thay representation; DELETE yêu cầu xóa.",
+                "term": "HTTP method"
+              },
+              {
+                "say": "Target nêu tài nguyên/cửa đích.",
+                "mechanism": "Path và query giúp router cùng handler biết request đang nói về gì.",
+                "term": "request target"
+              },
+              {
+                "say": "Headers mang ngữ cảnh.",
+                "mechanism": "Content-Type, Accept, Authorization và trace headers không thuộc business payload.",
+                "term": "header"
+              },
+              {
+                "say": "Body mang dữ liệu khi cần.",
+                "mechanism": "JSON được parse rồi validate; GET thường không dựa vào body cho semantics phổ biến.",
+                "term": "message body"
+              },
+              {
+                "say": "Server trả status và body.",
+                "mechanism": "2xx, 4xx, 5xx tạo nhánh xử lý khác nhau cho client.",
+                "term": "status code"
+              },
+              {
+                "say": "Client quyết định retry từ semantics.",
+                "mechanism": "Idempotent method dễ retry hơn, còn POST thường cần idempotency key nghiệp vụ.",
+                "term": "idempotent method"
+              }
+            ],
+            "command": "POST /orders HTTP/1.1 → 201 Created"
+          }
+        ]
+      },
+      {
+        "id": "contract",
+        "label": "REST và FastAPI",
+        "hint": "Từ schema tới handler",
+        "scenes": [
+          {
+            "kind": "process",
+            "eyebrow": "Cơ chế chính",
+            "title": "Một contract được công bố rồi được thực thi ở runtime",
+            "lead": "FastAPI nối type hints/model Python với OpenAPI và request lifecycle, nhưng business rule vẫn thuộc application.",
+            "predict": "Hãy đoán request dừng ở đâu trước khi đọc bước tiếp theo.",
+            "conclusion": "Framework quản lý đường ống; application quản lý quyết định nghiệp vụ và transaction.",
+            "reading": "Developer khai báo route cùng schema input/output. FastAPI sinh OpenAPI để client đọc. Khi request tới Uvicorn/ASGI, framework chạy middleware, chọn route, parse/validate và resolve dependencies. Chỉ input qua boundary mới tới handler; handler gọi database và trả object để framework serialize.",
+            "glossary": [
+              {
+                "term": "REST",
+                "gloss": "Phong cách kiến trúc dùng giao diện thống nhất và representation của resource qua web semantics.",
+                "purpose": "Giữ interaction đơn giản, tách client/server và cho intermediary hiểu message."
+              },
+              {
+                "term": "resource",
+                "gloss": "Khái niệm nghiệp vụ được nhận diện qua URI, như order hoặc user.",
+                "purpose": "Cho API một “danh từ” ổn định để đọc/thay đổi representation."
+              },
+              {
+                "term": "stateless",
+                "gloss": "Mỗi request mang đủ context cần cho việc xử lý; server không dựa vào memory phiên ngầm của request trước.",
+                "purpose": "Giúp request có thể tới nhiều instance; state nghiệp vụ vẫn có thể nằm trong database/cache."
+              },
+              {
+                "term": "schema",
+                "gloss": "Mô tả hình dạng, kiểu và ràng buộc của dữ liệu.",
+                "purpose": "Tạo ngôn ngữ chung cho validation, docs, code generation và compatibility."
+              },
+              {
+                "term": "validation",
+                "gloss": "Kiểm tra dữ liệu có đúng schema và rule boundary trước khi dùng.",
+                "purpose": "Chặn input sai sớm và trả lỗi rõ thay vì để lỗi lan vào nghiệp vụ."
+              },
+              {
+                "term": "OpenAPI",
+                "gloss": "Đặc tả máy đọc được cho HTTP API.",
+                "purpose": "Mô tả paths, operations, schemas và responses để sinh docs/tooling."
+              },
+              {
+                "term": "ASGI",
+                "gloss": "Chuẩn giao tiếp async giữa Python web server và application.",
+                "purpose": "Tách Uvicorn/network server khỏi FastAPI application."
+              },
+              {
+                "term": "middleware",
+                "gloss": "Lớp bọc chạy quanh nhiều request/response.",
+                "purpose": "Đặt logic dùng chung như trace, timing, CORS hoặc security header ở một chỗ."
+              }
+            ],
+            "steps": [
+              {
+                "say": "Developer mô hình hóa resource và schema.",
+                "mechanism": "Route nói method/path; model nói input/output hợp lệ.",
+                "term": "resource"
+              },
+              {
+                "say": "OpenAPI công bố contract.",
+                "mechanism": "FastAPI tổng hợp route/model thành tài liệu máy đọc được.",
+                "term": "OpenAPI"
+              },
+              {
+                "say": "ASGI server nhận sự kiện mạng.",
+                "mechanism": "Uvicorn chuyển request thành ASGI scope/receive/send cho application.",
+                "term": "ASGI"
+              },
+              {
+                "say": "Middleware xử lý việc chung.",
+                "mechanism": "Trace ID, timing hoặc policy chung bao quanh route handler.",
+                "term": "middleware"
+              },
+              {
+                "say": "Framework validate input.",
+                "mechanism": "Parse không đồng nghĩa validate; schema kiểm type và constraint trước handler.",
+                "term": "validation"
+              },
+              {
+                "say": "Handler thực thi luật nghiệp vụ.",
+                "mechanism": "REST/FastAPI không tự quyết định tồn kho, quyền ownership hay transaction.",
+                "term": "REST"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "styles",
+        "label": "Các kiểu API",
+        "hint": "Contract, stream, callback",
+        "scenes": [
+          {
+            "kind": "process",
+            "eyebrow": "Cơ chế 01 · Contract style",
+            "title": "Bốn cách gọi cùng một năng lực: REST, SOAP, GraphQL và gRPC",
+            "lead": "Cùng là “lấy đơn hàng”, nhưng mỗi style chọn một đơn vị để gọi, một cách mô tả hợp đồng và một runtime khác nhau.",
+            "predict": "Trước khi chọn công nghệ, hãy trả lời: client đang gọi tài nguyên, operation, field hay method typed?",
+            "conclusion": "REST tổ chức quanh resource và HTTP; SOAP quanh operation + XML contract; GraphQL quanh field graph; gRPC quanh typed method — không style nào làm chi phí backend tự biến mất.",
+            "reading": "REST xem thế giới như các resource có URI và dùng HTTP method/status để diễn đạt ý định, nên proxy, cache và client web dễ hiểu semantics. SOAP là protocol message: WSDL mô tả operation; XML Envelope có Header và Body; lỗi có Fault, vì vậy hợp đồng dài và chặt nhưng dễ đồng bộ giữa tổ chức lớn. GraphQL thường nhận query tại một HTTP endpoint; query chọn field, engine parse/validate rồi gọi resolver để lấy dữ liệu, nên response có hình gần giống query nhưng resolver fan-out vẫn có thể gây N+1. gRPC đọc file .proto để sinh client/server stub; protobuf được gửi qua HTTP/2 dưới dạng unary call hoặc stream, nhưng timeout và partial failure vẫn tồn tại vì hai process nói qua mạng.",
+            "glossary": [
+              {
+                "term": "REST",
+                "gloss": "Phong cách thiết kế API tổ chức giao tiếp quanh resource và semantics của HTTP.",
+                "purpose": "Tạo interface quen thuộc cho web/public API và làm method, status, cache, idempotency có nghĩa nhất quán."
+              },
+              {
+                "term": "SOAP",
+                "gloss": "Protocol trao đổi message XML có cấu trúc Envelope, Header, Body và Fault.",
+                "purpose": "Dùng khi nhiều tổ chức cần hợp đồng operation, policy và fault rất chặt; SOAP không chỉ là REST đổi JSON thành XML."
+              },
+              {
+                "term": "WSDL",
+                "gloss": "Tài liệu máy đọc được mô tả SOAP service có operation nào, message vào/ra và cách kết nối.",
+                "purpose": "Cho công cụ sinh client và giúp hai bên thống nhất contract trước khi chạy."
+              },
+              {
+                "term": "SOAP Envelope",
+                "gloss": "Phong bì XML ngoài cùng của SOAP; bên trong có Header tùy chọn, Body và có thể có Fault.",
+                "purpose": "Đóng gói dữ liệu nghiệp vụ cùng metadata/policy theo cấu trúc chuẩn."
+              },
+              {
+                "term": "GraphQL",
+                "gloss": "Ngôn ngữ query và runtime cho phép client nêu chính xác field cần lấy theo schema typed.",
+                "purpose": "Giảm over-fetching/under-fetching ở boundary nhưng không xóa chi phí resolver, database hay authorization."
+              },
+              {
+                "term": "GraphQL resolver",
+                "gloss": "Hàm biết cách lấy giá trị cho một field trong GraphQL schema.",
+                "purpose": "Nối field client hỏi với database/service thật; nhiều resolver gọi lặp có thể tạo N+1."
+              },
+              {
+                "term": "RPC",
+                "gloss": "Mô hình gọi một operation ở process/service khác như lời gọi thủ tục từ xa.",
+                "purpose": "Tổ chức interface quanh hành động, nhưng buộc người thiết kế xử lý timeout, mất response và lỗi một phần."
+              },
+              {
+                "term": "gRPC",
+                "gloss": "Framework RPC dùng .proto/protobuf và HTTP/2, hỗ trợ unary cùng ba kiểu streaming.",
+                "purpose": "Tạo service-to-service contract typed và code sinh tự động khi hai phía cùng kiểm soát schema."
+              },
+              {
+                "term": "Protocol Buffers (protobuf)",
+                "gloss": "Định dạng schema và serialization nhị phân của Google dùng field number để mã hóa message typed.",
+                "purpose": "Làm payload gọn và hỗ trợ tiến hóa schema nếu giữ quy tắc compatibility."
+              },
+              {
+                "term": "generated stub",
+                "gloss": "Client/server code được sinh từ contract, che phần đóng gói message và gọi transport.",
+                "purpose": "Giảm code lặp và lỗi contract, nhưng không biến remote call thành local call đáng tin tuyệt đối."
+              }
+            ],
+            "steps": [
+              {
+                "say": "REST gọi một resource qua HTTP.",
+                "mechanism": "Client ghép URI + method + representation; router chọn handler; response dùng status, headers và representation. Stateless nghĩa mỗi request mang đủ context cần thiết, không nghĩa hệ thống không có database.",
+                "term": "REST"
+              },
+              {
+                "say": "SOAP gọi operation bằng phong bì XML.",
+                "mechanism": "WSDL mô tả operation/message; client tạo SOAP Envelope; server đọc Header/Body, dispatch operation và trả XML response hoặc Fault.",
+                "term": "SOAP"
+              },
+              {
+                "say": "GraphQL gọi các field trong một graph.",
+                "mechanism": "Engine parse và validate query theo schema, rồi chạy resolver; một request phía client có thể fan-out thành nhiều query/service call phía server.",
+                "term": "GraphQL"
+              },
+              {
+                "say": "gRPC gọi method typed qua stub.",
+                "mechanism": ".proto sinh stub; stub serialize protobuf; HTTP/2 mang unary, server-streaming, client-streaming hoặc bidirectional-streaming; status/deadline quay về qua cùng call.",
+                "term": "gRPC"
+              },
+              {
+                "say": "Kiểm tra compatibility và failure trước khi chọn.",
+                "mechanism": "Hỏi client/server có nâng cấp cùng lúc không, browser/proxy có hỗ trợ không, request có thể retry không và partial failure sẽ được quan sát thế nào.",
+                "term": "generated stub"
+              }
+            ]
+          },
+          {
+            "kind": "process",
+            "eyebrow": "Cơ chế 02 · Live delivery",
+            "title": "Polling, SSE và WebSocket khác nhau ở ai được nói và kết nối sống bao lâu",
+            "lead": "Ba cách đều có thể làm màn hình “cập nhật”, nhưng lượng request thừa, chiều dữ liệu và trách nhiệm reconnect khác hẳn.",
+            "predict": "Nếu client chỉ cần xem tiến độ job mỗi phút, có thật sự cần một kết nối hai chiều 24/7 không?",
+            "conclusion": "Polling đổi đơn giản lấy trễ/tải; SSE giữ luồng một chiều; WebSocket giữ kênh hai chiều — hãy chọn đúng hình dạng cuộc hội thoại.",
+            "reading": "Polling để client hỏi lại trạng thái theo chu kỳ; càng hỏi nhanh càng ít trễ nhưng càng nhiều request rỗng. SSE bắt đầu bằng HTTP request bình thường, server giữ response dạng text/event-stream và gửi event một chiều; trình duyệt có thể reconnect và gửi Last-Event-ID. WebSocket bắt đầu bằng HTTP handshake rồi nâng cấp thành kết nối trao đổi frame hai chiều; ứng dụng phải lo heartbeat, reconnect, backpressure và đồng bộ state sau khi mất mạng.",
+            "glossary": [
+              {
+                "term": "polling",
+                "gloss": "Client lặp request sau mỗi khoảng thời gian để hỏi trạng thái mới.",
+                "purpose": "Là lựa chọn đơn giản khi thay đổi hiếm và độ trễ theo chu kỳ được chấp nhận."
+              },
+              {
+                "term": "Server-Sent Events (SSE)",
+                "gloss": "Kết nối HTTP lâu dài để server gửi event dạng text một chiều tới client.",
+                "purpose": "Phù hợp feed, log, progress hay notification khi browser chủ yếu chỉ nhận."
+              },
+              {
+                "term": "event stream",
+                "gloss": "Chuỗi event có thứ tự được gửi dần thay vì đợi gom thành một response hoàn chỉnh.",
+                "purpose": "Cho client xử lý cập nhật ngay khi từng event xuất hiện và có thể resume theo event ID."
+              },
+              {
+                "term": "WebSocket",
+                "gloss": "Kết nối dài cho phép client và server cùng gửi frame hai chiều.",
+                "purpose": "Phù hợp chat, game, collaboration hoặc control channel cần cả hai phía nói bất kỳ lúc nào."
+              },
+              {
+                "term": "HTTP Upgrade",
+                "gloss": "Handshake HTTP yêu cầu chuyển protocol của connection sang WebSocket.",
+                "purpose": "Dùng hạ tầng HTTP để bắt đầu, rồi chuyển sang trao đổi frame hai chiều trên kết nối đã mở."
+              }
+            ],
+            "steps": [
+              {
+                "say": "Polling hỏi rồi đóng, đợi rồi hỏi lại.",
+                "mechanism": "Client GET trạng thái, nhận response, sleep theo interval và lặp; failure dễ hiểu nhưng interval tạo trade-off giữa tải và độ trễ.",
+                "term": "polling"
+              },
+              {
+                "say": "SSE mở một response và server nói một chiều.",
+                "mechanism": "Client gửi HTTP request; server trả Content-Type text/event-stream và giữ response mở để đẩy event; client reconnect từ event ID nếu thiết kế hỗ trợ.",
+                "term": "Server-Sent Events (SSE)"
+              },
+              {
+                "say": "WebSocket nâng cấp thành kênh hai chiều.",
+                "mechanism": "Sau HTTP Upgrade, hai phía gửi frame bất kỳ lúc nào; heartbeat phát hiện connection chết và reconnect phải lấy lại state bị bỏ lỡ.",
+                "term": "WebSocket"
+              },
+              {
+                "say": "Chọn bằng nhu cầu nhỏ nhất đủ dùng.",
+                "mechanism": "Progress thưa có thể polling; feed một chiều dùng SSE; chat/collaboration mới cần WebSocket và chi phí connection state.",
+                "term": "event stream"
+              }
+            ]
+          },
+          {
+            "kind": "process",
+            "eyebrow": "Cơ chế 03 · Callback delivery",
+            "title": "Webhook là một request HTTP do producer chủ động gọi sang consumer",
+            "lead": "Webhook không phải kết nối realtime thần kỳ; nó là delivery qua mạng nên có thể trễ, lặp, đảo thứ tự hoặc mất ACK.",
+            "predict": "Nếu consumer đã ghi đơn nhưng crash trước khi trả 2xx, producer nên nghĩ event thành công hay thất bại?",
+            "conclusion": "Webhook đáng tin không nhờ “gửi đúng một lần”, mà nhờ verify + persist + ACK nhanh + retry có giới hạn + deduplicate/idempotency.",
+            "reading": "Khi event xảy ra, producer tạo payload, gắn event ID/timestamp và ký nội dung bằng secret chung. Producer POST tới callback URL. Consumer phải xác minh chữ ký trên raw body, kiểm event còn hợp lệ, lưu event ID hoặc đưa vào queue bền rồi trả 2xx nhanh. Nếu producer timeout hoặc nhận lỗi, nó có thể gửi lại. Vì vậy business handler phải nhận duplicate mà không tạo thêm hóa đơn; nếu event đến đảo thứ tự, consumer so version/timestamp hoặc đọc state hiện tại từ nguồn sự thật.",
+            "glossary": [
+              {
+                "term": "webhook",
+                "gloss": "HTTP callback được producer gửi tới URL của consumer khi một event xảy ra.",
+                "purpose": "Đẩy sự kiện server-to-server mà không bắt consumer polling liên tục."
+              },
+              {
+                "term": "webhook signature",
+                "gloss": "Giá trị ký từ raw payload và secret để consumer kiểm tra event thật sự do producer gửi và không bị sửa.",
+                "purpose": "Ngăn kẻ lạ giả event; thường phải kết hợp timestamp để giảm replay attack."
+              }
+            ],
+            "steps": [
+              {
+                "say": "Producer tạo event có danh tính rõ.",
+                "mechanism": "Payload mang event ID, loại event, timestamp và dữ liệu tối thiểu; ID là chìa khóa nhận duplicate.",
+                "term": "webhook"
+              },
+              {
+                "say": "Producer ký đúng bytes sẽ gửi.",
+                "mechanism": "HMAC/signature được tính trên raw body; consumer phải verify trước khi parse và làm business work.",
+                "term": "webhook signature"
+              },
+              {
+                "say": "Consumer persist trước, ACK nhanh sau.",
+                "mechanism": "Ghi event ID/payload vào durable inbox hoặc queue rồi trả 2xx; tác vụ nặng chạy async để tránh producer timeout.",
+                "term": "webhook"
+              },
+              {
+                "say": "Producer retry khi delivery chưa được xác nhận.",
+                "mechanism": "Timeout không cho biết consumer chưa xử lý hay đã xử lý nhưng mất response, nên retry phải có backoff và giới hạn.",
+                "term": "RPC"
+              },
+              {
+                "say": "Consumer deduplicate và chịu đảo thứ tự.",
+                "mechanism": "Unique event ID/idempotency chặn side effect trùng; version/timestamp hoặc fetch-current-state xử lý event cũ đến muộn.",
+                "term": "webhook"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "trust",
+        "label": "Đường tin cậy",
+        "hint": "Identity, quyền, audit",
+        "scenes": [
+          {
+            "kind": "process",
+            "eyebrow": "Cơ chế chính",
+            "title": "Token đi qua ba câu hỏi trước khi chạm resource",
+            "lead": "Chữ ký hợp lệ chỉ trả lời một phần; API vẫn phải xét identity, quyền và resource hiện tại.",
+            "predict": "Hãy đoán request dừng ở đâu trước khi đọc bước tiếp theo.",
+            "conclusion": "Tin request theo chuỗi authenticate → authorize → act → account, không theo cảm giác “có token là được”.",
+            "reading": "Credential được dùng để authentication và nhận identity/access token. API verify token claims như issuer, audience và expiry. Authorization policy xét role/scope/ownership đối với action cụ thể. Audit log ghi actor, action, resource, result và trace ID. JWT payload base64url có thể đọc; signature chống sửa chứ không mã hóa payload.",
+            "glossary": [
+              {
+                "term": "authentication",
+                "gloss": "Quá trình xác minh người hoặc service là ai.",
+                "purpose": "Tạo identity đáng tin đủ để tiếp tục xét quyền."
+              },
+              {
+                "term": "authorization",
+                "gloss": "Quá trình quyết định identity được làm action nào trên resource nào.",
+                "purpose": "Chặn overreach sau khi đã biết người gọi."
+              },
+              {
+                "term": "audit log",
+                "gloss": "Bản ghi có chủ đích về actor, action, resource và result.",
+                "purpose": "Cung cấp bằng chứng cho điều tra, compliance và chống chối bỏ."
+              },
+              {
+                "term": "credential",
+                "gloss": "Bí mật hoặc bằng chứng dùng để chứng minh identity, như password, API key hay private key.",
+                "purpose": "Khởi tạo quá trình authentication và phải được bảo vệ."
+              },
+              {
+                "term": "access token",
+                "gloss": "Chuỗi đại diện quyền truy cập có giới hạn cho client.",
+                "purpose": "Mang proof/scopes tới resource server mà không gửi password mỗi lần."
+              },
+              {
+                "term": "JWT",
+                "gloss": "Định dạng token gồm header, payload và signature theo cấu trúc JWS phổ biến.",
+                "purpose": "Mang claims có thể verify; payload không mặc định được mã hóa."
+              },
+              {
+                "term": "OAuth 2.0",
+                "gloss": "Framework ủy quyền để client nhận access token thay mặt resource owner hoặc chính nó.",
+                "purpose": "Cho phép delegated access mà không chia sẻ password với ứng dụng bên thứ ba."
+              }
+            ],
+            "steps": [
+              {
+                "say": "Client chứng minh identity bằng credential.",
+                "mechanism": "Login hoặc machine flow kiểm bí mật/chữ ký ở identity provider.",
+                "term": "credential"
+              },
+              {
+                "say": "Client nhận access token có giới hạn.",
+                "mechanism": "Token có expiry, audience và scope phù hợp mục đích.",
+                "term": "access token"
+              },
+              {
+                "say": "API verify token và dựng identity context.",
+                "mechanism": "JWT signature cùng issuer/audience/expiry phải hợp lệ; payload không phải bí mật.",
+                "term": "JWT"
+              },
+              {
+                "say": "Policy xét quyền trên action và resource.",
+                "mechanism": "Role/scope chưa đủ nếu resource còn có owner/tenant.",
+                "term": "authorization"
+              },
+              {
+                "say": "Application thực hiện action được phép.",
+                "mechanism": "Authentication chỉ mở đầu; business invariant vẫn phải được giữ.",
+                "term": "authentication"
+              },
+              {
+                "say": "Audit ghi lại kết quả.",
+                "mechanism": "Trace ID nối bản ghi security với request/log/metric.",
+                "term": "audit log"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "resilience",
+        "label": "Sống sót dưới tải",
+        "hint": "Deadline, retry, probes",
+        "scenes": [
+          {
+            "kind": "process",
+            "eyebrow": "Cơ chế chính",
+            "title": "Một request phải biết khi nào dừng và hệ thống phải biết khi nào từ chối",
+            "lead": "Failure control tốt ngăn một dependency chậm biến thành retry storm và cascading failure.",
+            "predict": "Hãy đoán request dừng ở đâu trước khi đọc bước tiếp theo.",
+            "conclusion": "Reliability là giới hạn + recovery + evidence, không phải “cứ retry”.",
+            "reading": "Deadline giới hạn tổng thời gian hữu ích. Timeout là nơi thực thi giới hạn ở một operation. Retry chỉ dùng cho lỗi tạm thời, có budget và backoff/jitter. Idempotency key cho phép server nhận ra lần lặp cùng operation. Readiness loại instance khỏi traffic; liveness chỉ yêu cầu restart khi process thật sự không thể tiến triển. Load test đo dưới tải dự kiến và phải nhìn tail latency.",
+            "glossary": [
+              {
+                "term": "deadline",
+                "gloss": "Thời điểm cuối mà toàn bộ operation còn hữu ích.",
+                "purpose": "Lan ngân sách thời gian xuyên các downstream thay vì mỗi bước chờ độc lập."
+              },
+              {
+                "term": "retry",
+                "gloss": "Gửi lại operation sau một failure được phân loại là tạm thời.",
+                "purpose": "Tăng cơ hội thành công nhưng cũng tăng tải, nên cần điều kiện và budget."
+              },
+              {
+                "term": "backoff + jitter",
+                "gloss": "Khoảng nghỉ tăng dần cộng ngẫu nhiên giữa các lần retry.",
+                "purpose": "Tránh nhiều client retry cùng lúc và tạo retry storm."
+              },
+              {
+                "term": "idempotency key",
+                "gloss": "Mã định danh một operation logic để server nhận biết request lặp.",
+                "purpose": "Ngăn tạo side effect trùng khi client không biết lần trước đã thành công hay chưa."
+              },
+              {
+                "term": "liveness probe",
+                "gloss": "Kiểm tra process còn sống/tiến triển đủ để không cần restart.",
+                "purpose": "Cho scheduler quyết định restart; không nên fail chỉ vì dependency tạm chậm."
+              },
+              {
+                "term": "readiness probe",
+                "gloss": "Kiểm tra instance có sẵn sàng nhận traffic mới không.",
+                "purpose": "Cho load balancer tạm loại instance mà không nhất thiết restart."
+              },
+              {
+                "term": "requests per second (RPS)",
+                "gloss": "Số request hệ thống nhận/xử lý trong một giây.",
+                "purpose": "Đo mức traffic/throughput để đặt test và capacity context."
+              },
+              {
+                "term": "latency percentile",
+                "gloss": "Ngưỡng thời gian mà một tỷ lệ request hoàn thành nhanh hơn, như p95/p99.",
+                "purpose": "Cho thấy tail experience bị trung bình che khuất."
+              },
+              {
+                "term": "load test",
+                "gloss": "Thử hệ thống dưới traffic dự kiến/đỉnh dự kiến và đo response.",
+                "purpose": "Xác minh SLO/capacity trước production và tìm bottleneck có evidence."
+              }
+            ],
+            "steps": [
+              {
+                "say": "Gắn deadline và trace ID khi nhận request.",
+                "mechanism": "Request không được giữ tài nguyên vô hạn và cần context xuyên chuỗi.",
+                "term": "deadline"
+              },
+              {
+                "say": "Thực thi operation trong ngân sách còn lại.",
+                "mechanism": "Downstream timeout phải ngắn hơn phần deadline còn lại.",
+                "term": "requests per second (RPS)"
+              },
+              {
+                "say": "Phân loại failure trước khi retry.",
+                "mechanism": "Validation/permission error không trở thành đúng khi gửi lại; lỗi tạm thời mới đáng cân nhắc.",
+                "term": "retry"
+              },
+              {
+                "say": "Giãn retry và giới hạn số lần.",
+                "mechanism": "Exponential backoff + jitter làm giảm đồng bộ hóa và bảo vệ dependency.",
+                "term": "backoff + jitter"
+              },
+              {
+                "say": "Chống side effect trùng.",
+                "mechanism": "Server lưu kết quả theo idempotency key cho operation tạo đơn/thanh toán.",
+                "term": "idempotency key"
+              },
+              {
+                "say": "Điều khiển traffic bằng readiness, restart bằng liveness.",
+                "mechanism": "Hai probe trả lời hai câu khác nhau và không được trộn dependency health vào liveness tùy tiện.",
+                "term": "readiness probe"
+              },
+              {
+                "say": "Đo phân phối latency dưới load thật.",
+                "mechanism": "RPS, error rate và p95/p99 cho biết hệ thống chậm ở tail hay đã vượt capacity.",
+                "term": "latency percentile"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "recap",
+        "label": "Mental model cuối",
+        "hint": "Bảy câu hỏi chẩn đoán",
+        "scenes": [
+          {
+            "kind": "process",
+            "eyebrow": "Cơ chế chính",
+            "title": "Theo một request bằng bảy câu hỏi có thứ tự",
+            "lead": "Mỗi câu hỏi tương ứng một boundary, một failure class và một loại evidence.",
+            "predict": "Hãy đoán request dừng ở đâu trước khi đọc bước tiếp theo.",
+            "conclusion": "Không sửa mò: xác định chặng dừng, lấy evidence đúng lớp rồi mới thay đổi.",
+            "reading": "Bắt đầu từ caller, reachability, HTTP contract, trust, application/data, resilience rồi evidence/response. Trace ID nối log giữa các chặng; observability kết hợp logs, metrics và traces để trả lời hệ thống đang ở state nào và vì sao.",
+            "glossary": [
+              {
+                "term": "trace ID",
+                "gloss": "Mã tương quan theo một request qua nhiều component.",
+                "purpose": "Nối log/trace của cùng hành trình để điều tra end-to-end."
+              },
+              {
+                "term": "observability",
+                "gloss": "Khả năng suy ra trạng thái bên trong hệ thống từ output như logs, metrics và traces.",
+                "purpose": "Giúp trả lời nguyên nhân thay vì chỉ biết triệu chứng."
+              }
+            ],
+            "steps": [
+              {
+                "say": "Xác định caller và ý định.",
+                "mechanism": "Biết ai gọi và operation nào trước khi nhìn hạ tầng.",
+                "term": "trace ID"
+              },
+              {
+                "say": "Kiểm tra reachability và contract.",
+                "mechanism": "DNS/TLS/HTTP/validation tạo các lớp lỗi riêng.",
+                "term": "observability"
+              },
+              {
+                "say": "Kiểm tra trust và business work.",
+                "mechanism": "Identity/quyền đúng chưa; handler/downstream đang làm gì.",
+                "term": "observability"
+              },
+              {
+                "say": "Kiểm tra failure control.",
+                "mechanism": "Deadline, retry, idempotency và probes có làm tình hình tốt hơn hay xấu đi.",
+                "term": "observability"
+              },
+              {
+                "say": "Đối chiếu evidence với response.",
+                "mechanism": "Status, logs, metrics và trace phải kể cùng một câu chuyện.",
+                "term": "trace ID"
+              }
+            ]
+          }
+        ]
+      }
+    ]
   }
 };
 /* END LESSON_MECHANISMS */
@@ -6943,13 +8176,14 @@ function setNoteDrawer(open) {
   $('#noteBtn').setAttribute('aria-expanded', String(open));
   document.body.classList.toggle('note-open', open);
   if (open) setTimeout(() => $('#noteArea').focus(), 180);
+  else if ($('#noteDrawer').contains(document.activeElement) || document.activeElement === $('#noteBackdrop')) $('#noteBtn').focus();
 }
 
 function renderContent() {
   const topic = currentTopic();
   if (topic.code === 'F01') renderLinuxContent(topic);
   else if (topic.code === 'F02') renderPythonContent(topic);
-  else if (topic.code === 'F03') renderPlainStudyNote(topic);
+  else if (lessons[topic.code] && beginnerGuides[topic.code]) renderPlainStudyNote(topic);
   else renderTemplateContent(topic);
   syncStudyHub(topic);
 }

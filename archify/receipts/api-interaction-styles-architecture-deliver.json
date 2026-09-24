@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/api-interaction-styles-architecture.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/api-interaction-styles-architecture.html",
+  "specification": {
+    "sha256": "3e4e04792e786ffa8479678d42d42407d208bbddc168c057b2df054e5011f8ac",
+    "bytes": 5117
+  },
+  "artifact": {
+    "sha256": "110cdadf068aae88eaef0212c75d6b8253eb56fb02afcadaa6d49f4f35ea1e55",
+    "bytes": 809914
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

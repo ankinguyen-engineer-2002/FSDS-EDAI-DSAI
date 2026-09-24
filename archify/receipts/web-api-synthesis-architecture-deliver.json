@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/web-api-synthesis-architecture.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/web-api-synthesis-architecture.html",
+  "specification": {
+    "sha256": "4eeb2c3098d31b624cb3d7bf86897bb09de7e5db707399c79565c1dcbfa3a375",
+    "bytes": 4828
+  },
+  "artifact": {
+    "sha256": "79f8bf2365fe56988d8efa0b84cb982053d58faeb286ae2df60f0b46dfa6c3c0",
+    "bytes": 808651
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

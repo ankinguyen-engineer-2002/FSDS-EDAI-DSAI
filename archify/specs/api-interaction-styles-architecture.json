@@ -1,0 +1,244 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Bốn cách nhận dữ liệu mới",
+    "subtitle": "Polling, SSE, WebSocket và Webhook khác nhau ở ai chủ động, hướng dữ liệu và tuổi thọ kết nối",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "visual_preset": "editorial",
+    "viewBox": [
+      1240,
+      630
+    ],
+    "views": [
+      {
+        "id": "polling-loop",
+        "label": "Polling",
+        "focus": [
+          "browser",
+          "polling",
+          "service"
+        ],
+        "note": "Client hỏi, nhận state, chờ theo interval rồi hỏi lại."
+      },
+      {
+        "id": "sse-stream",
+        "label": "SSE",
+        "focus": [
+          "browser",
+          "sse",
+          "service"
+        ],
+        "note": "Client subscribe một lần; server giữ HTTP response và đẩy event một chiều."
+      },
+      {
+        "id": "websocket-channel",
+        "label": "WebSocket",
+        "focus": [
+          "browser",
+          "websocket",
+          "service"
+        ],
+        "note": "HTTP Upgrade mở connection dài để hai phía gửi frame."
+      },
+      {
+        "id": "webhook-delivery",
+        "label": "Webhook",
+        "focus": [
+          "producer",
+          "webhook",
+          "consumer"
+        ],
+        "note": "Producer POST callback; consumer verify, persist, ACK và deduplicate."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "browser",
+      "type": "frontend",
+      "label": "Browser / app",
+      "sublabel": "Client đang mở",
+      "pos": [
+        40,
+        210
+      ],
+      "size": [
+        165,
+        78
+      ]
+    },
+    {
+      "id": "polling",
+      "type": "external",
+      "label": "Polling loop",
+      "sublabel": "ask → response → wait → repeat",
+      "tag": "CLIENT STARTS",
+      "pos": [
+        285,
+        50
+      ],
+      "size": [
+        245,
+        82
+      ]
+    },
+    {
+      "id": "sse",
+      "type": "messagebus",
+      "label": "SSE event stream",
+      "sublabel": "server → client · HTTP stays open",
+      "tag": "ONE WAY",
+      "pos": [
+        285,
+        205
+      ],
+      "size": [
+        245,
+        82
+      ]
+    },
+    {
+      "id": "websocket",
+      "type": "messagebus",
+      "label": "WebSocket channel",
+      "sublabel": "client ↔ server · frames",
+      "tag": "TWO WAY",
+      "pos": [
+        285,
+        360
+      ],
+      "size": [
+        245,
+        82
+      ]
+    },
+    {
+      "id": "service",
+      "type": "backend",
+      "label": "API service",
+      "sublabel": "State, events và connection",
+      "pos": [
+        625,
+        210
+      ],
+      "size": [
+        220,
+        82
+      ]
+    },
+    {
+      "id": "producer",
+      "type": "external",
+      "label": "GitHub / payment",
+      "sublabel": "Event producer",
+      "brand": "github",
+      "pos": [
+        625,
+        485
+      ],
+      "size": [
+        220,
+        78
+      ]
+    },
+    {
+      "id": "webhook",
+      "type": "security",
+      "label": "Signed webhook",
+      "sublabel": "event ID + signature + retry",
+      "tag": "SERVER STARTS",
+      "pos": [
+        910,
+        485
+      ],
+      "size": [
+        235,
+        78
+      ]
+    },
+    {
+      "id": "consumer",
+      "type": "backend",
+      "label": "Consumer service",
+      "sublabel": "verify → persist → ACK",
+      "pos": [
+        910,
+        335
+      ],
+      "size": [
+        235,
+        82
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "browser-to-polling",
+      "from": "browser",
+      "to": "polling"
+    },
+    {
+      "id": "polling-to-service",
+      "from": "polling",
+      "to": "service",
+      "label": "GET every interval",
+      "variant": "dashed"
+    },
+    {
+      "id": "browser-to-sse",
+      "from": "browser",
+      "to": "sse"
+    },
+    {
+      "id": "service-to-sse",
+      "from": "service",
+      "to": "sse",
+      "variant": "emphasis"
+    },
+    {
+      "id": "browser-to-websocket",
+      "from": "browser",
+      "to": "websocket",
+      "label": "HTTP Upgrade"
+    },
+    {
+      "id": "websocket-to-service",
+      "from": "websocket",
+      "to": "service",
+      "label": "frames both ways",
+      "variant": "emphasis"
+    },
+    {
+      "id": "producer-to-webhook",
+      "from": "producer",
+      "to": "webhook",
+      "variant": "security"
+    },
+    {
+      "id": "webhook-to-consumer",
+      "from": "webhook",
+      "to": "consumer",
+      "label": "verify + persist"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Chọn phương án nhỏ nhất đủ dùng",
+      "items": [
+        "Polling: đơn giản nhưng interval đổi tải lấy độ trễ",
+        "SSE: feed một chiều; WebSocket: tương tác hai chiều"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Failure không được giấu",
+      "items": [
+        "Kết nối dài cần heartbeat, reconnect và state sync",
+        "Webhook có thể trễ/lặp/đảo thứ tự → signature + idempotency"
+      ]
+    }
+  ]
+}

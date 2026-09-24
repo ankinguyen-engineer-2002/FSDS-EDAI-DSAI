@@ -1,0 +1,248 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "FastAPI biến hợp đồng thành đường chạy",
+    "subtitle": "OpenAPI công bố cửa vào; runtime kiểm tra request trước khi gọi nghiệp vụ",
+    "viewBox": [
+      1240,
+      640
+    ],
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "contract",
+        "label": "Publish contract",
+        "focus": [
+          "developer",
+          "openapi",
+          "client"
+        ],
+        "note": "Route và model tạo schema mà người và máy đều đọc được."
+      },
+      {
+        "id": "runtime",
+        "label": "Serve request",
+        "focus": [
+          "request",
+          "uvicorn",
+          "fastapi",
+          "handler",
+          "database",
+          "response"
+        ],
+        "note": "Server đọc byte; framework route/validate/dependencies; handler giữ luật nghiệp vụ."
+      },
+      {
+        "id": "boundary",
+        "label": "Invalid input",
+        "focus": [
+          "request",
+          "fastapi"
+        ],
+        "note": "Request sai dừng tại boundary trước khi chạm handler hoặc database."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "developer",
+      "type": "external",
+      "label": "Developer",
+      "sublabel": "route + models",
+      "pos": [
+        35,
+        85
+      ],
+      "size": [
+        165,
+        72
+      ],
+      "brand": "python"
+    },
+    {
+      "id": "openapi",
+      "type": "messagebus",
+      "label": "OpenAPI",
+      "sublabel": "API contract",
+      "pos": [
+        350,
+        85
+      ],
+      "size": [
+        180,
+        72
+      ]
+    },
+    {
+      "id": "client",
+      "type": "frontend",
+      "label": "Client tooling",
+      "sublabel": "docs + generated client",
+      "pos": [
+        665,
+        85
+      ],
+      "size": [
+        180,
+        72
+      ]
+    },
+    {
+      "id": "request",
+      "type": "frontend",
+      "label": "Client request",
+      "sublabel": "HTTP message",
+      "pos": [
+        35,
+        380
+      ],
+      "size": [
+        150,
+        72
+      ]
+    },
+    {
+      "id": "uvicorn",
+      "type": "cloud",
+      "label": "Uvicorn",
+      "sublabel": "ASGI server",
+      "pos": [
+        235,
+        380
+      ],
+      "size": [
+        150,
+        72
+      ]
+    },
+    {
+      "id": "fastapi",
+      "type": "backend",
+      "label": "FastAPI",
+      "sublabel": "route + validate",
+      "pos": [
+        435,
+        380
+      ],
+      "size": [
+        160,
+        72
+      ],
+      "brand": "fastapi"
+    },
+    {
+      "id": "handler",
+      "type": "backend",
+      "label": "Handler",
+      "sublabel": "business policy",
+      "pos": [
+        645,
+        380
+      ],
+      "size": [
+        150,
+        72
+      ],
+      "brand": "python"
+    },
+    {
+      "id": "database",
+      "type": "database",
+      "label": "Database",
+      "sublabel": "durable state",
+      "pos": [
+        845,
+        380
+      ],
+      "size": [
+        150,
+        72
+      ],
+      "brand": "postgresql"
+    },
+    {
+      "id": "response",
+      "type": "external",
+      "label": "Response",
+      "sublabel": "status + body",
+      "pos": [
+        1045,
+        380
+      ],
+      "size": [
+        150,
+        72
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "a",
+      "from": "developer",
+      "to": "openapi",
+      "variant": "emphasis",
+      "label": "declare"
+    },
+    {
+      "id": "b",
+      "from": "openapi",
+      "to": "client",
+      "variant": "default",
+      "label": "publish"
+    },
+    {
+      "id": "c",
+      "from": "request",
+      "to": "uvicorn",
+      "variant": "emphasis"
+    },
+    {
+      "id": "d",
+      "from": "uvicorn",
+      "to": "fastapi",
+      "variant": "default"
+    },
+    {
+      "id": "e",
+      "from": "fastapi",
+      "to": "handler",
+      "variant": "emphasis"
+    },
+    {
+      "id": "f",
+      "from": "handler",
+      "to": "database",
+      "variant": "default"
+    },
+    {
+      "id": "g",
+      "from": "database",
+      "to": "response",
+      "variant": "default"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Framework làm",
+      "items": [
+        "Map method/path tới handler",
+        "Parse, validate và resolve dependencies",
+        "Serialize response + publish OpenAPI"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Application vẫn phải làm",
+      "items": [
+        "Business rules và authorization",
+        "Transaction đúng",
+        "Timeout/downstream I/O đúng",
+        "Không block event loop"
+      ]
+    }
+  ]
+}

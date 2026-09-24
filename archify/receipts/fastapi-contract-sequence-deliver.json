@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/fastapi-contract-sequence.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/fastapi-contract-sequence.html",
+  "specification": {
+    "sha256": "8656c99946cc9baec925812871c866e68f03d95bb3380a27c9e7a68e06149c0a",
+    "bytes": 4736
+  },
+  "artifact": {
+    "sha256": "78239b208b923a5d5a3110329cc40943fc9075a41e60f9b5a64335e358aba36b",
+    "bytes": 817916
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

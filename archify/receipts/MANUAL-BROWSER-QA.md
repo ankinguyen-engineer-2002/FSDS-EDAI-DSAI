@@ -121,3 +121,20 @@ A final DOM audit checked all 107 visible core term cards against the beginner c
 - Database: 43/43 valid;
 - every card contains non-empty answers for `Là gì?`, `Tác dụng`, `Ví dụ thật`, `Vì sao học?` and `Nằm ở đâu?`;
 - every core term resolves to either a concrete mechanism step or an explicit term-level mechanism; no generic purpose fallback remains.
+
+## F04 · Web API completion QA · 2026-09-24
+
+After synthesizing slide 04 with the related networking, distributed-systems, cloud-native and SRE books:
+
+- F04 renders 8 chapters, 10 mechanism scenes and 60 deliberately selected term cards;
+- the API-style chapter explicitly separates contract styles (REST, SOAP, GraphQL, RPC/gRPC) from delivery styles (polling, SSE, WebSocket and webhook);
+- F04 embeds 9 Archify labs; all 9 lazy iframes were scrolled into view, completed loading and exposed SVG;
+- all 9 F04 packaged `visual-check` receipts pass with zero diagnostics;
+- the two comparison visuals were inspected perceptually in light mode inside the article:
+  - REST/SOAP/GraphQL/gRPC shows WHAT → HOW paths converging on common service logic;
+  - polling/SSE/WebSocket/webhook shows initiator, direction, connection lifetime and failure responsibility;
+- GraphQL and gRPC marks were captured from their official sites and digest-pinned in the source spec; the webhook producer uses the canonical GitHub mark;
+- article/iframe containment passed with zero horizontal overflow at 1920×1080, 1440×1000, 1024×900, 768×900 and 390×844;
+- at 1440px the article measured 1084px with the rail open and 1388px with the rail collapsed;
+- light/dark, rail expansion, note autosave, Escape close and focus return to the note button passed;
+- the final local reload reported 44 visual labs in the top bar, 9 F04 labs, 10 F04 scenes, 60 F04 term cards and zero console errors.

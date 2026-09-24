@@ -1,0 +1,226 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Một request HTTPS đi và về",
+    "subtitle": "Tên miền → địa chỉ → đường truyền → kênh mã hóa → HTTP/application → dữ liệu → response",
+    "viewBox": [
+      1240,
+      640
+    ],
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "reach",
+        "label": "Tìm và mở đường",
+        "focus": [
+          "client",
+          "dns",
+          "transport",
+          "tls"
+        ],
+        "note": "DNS tìm địa chỉ; transport mở đường; TLS tạo kênh tin cậy."
+      },
+      {
+        "id": "meaning",
+        "label": "Xử lý ý định",
+        "focus": [
+          "tls",
+          "fastapi",
+          "database",
+          "response"
+        ],
+        "note": "HTTP mang ý định; application validate/chạy luật rồi tạo response."
+      },
+      {
+        "id": "failure",
+        "label": "Khoanh vùng lỗi",
+        "focus": [
+          "dns",
+          "transport",
+          "tls",
+          "fastapi",
+          "database"
+        ],
+        "note": "DNS error, timeout, TLS error, 4xx/5xx và database wait là các failure lớp khác nhau."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "client",
+      "type": "external",
+      "label": "Client",
+      "sublabel": "domain + request",
+      "pos": [
+        35,
+        110
+      ],
+      "size": [
+        155,
+        72
+      ]
+    },
+    {
+      "id": "dns",
+      "type": "cloud",
+      "label": "DNS",
+      "sublabel": "name → IP",
+      "pos": [
+        255,
+        110
+      ],
+      "size": [
+        155,
+        72
+      ]
+    },
+    {
+      "id": "transport",
+      "type": "messagebus",
+      "label": "Transport",
+      "sublabel": "connection + bytes",
+      "pos": [
+        475,
+        110
+      ],
+      "size": [
+        155,
+        72
+      ]
+    },
+    {
+      "id": "tls",
+      "type": "security",
+      "label": "TLS",
+      "sublabel": "identity + encryption",
+      "pos": [
+        695,
+        110
+      ],
+      "size": [
+        155,
+        72
+      ]
+    },
+    {
+      "id": "fastapi",
+      "type": "backend",
+      "label": "FastAPI",
+      "sublabel": "route + validate",
+      "pos": [
+        695,
+        385
+      ],
+      "size": [
+        170,
+        76
+      ],
+      "brand": "fastapi"
+    },
+    {
+      "id": "database",
+      "type": "database",
+      "label": "Database",
+      "sublabel": "shared truth",
+      "pos": [
+        925,
+        385
+      ],
+      "size": [
+        170,
+        76
+      ],
+      "brand": "postgresql"
+    },
+    {
+      "id": "response",
+      "type": "frontend",
+      "label": "Response",
+      "sublabel": "status + headers + body",
+      "pos": [
+        925,
+        550
+      ],
+      "size": [
+        180,
+        76
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "a",
+      "from": "client",
+      "to": "dns",
+      "variant": "default",
+      "label": "resolve",
+      "labelDy": -24
+    },
+    {
+      "id": "b",
+      "from": "dns",
+      "to": "transport",
+      "variant": "default",
+      "label": "IP",
+      "labelDy": -24
+    },
+    {
+      "id": "c",
+      "from": "transport",
+      "to": "tls",
+      "variant": "security",
+      "label": "handshake",
+      "labelDy": -24
+    },
+    {
+      "id": "d",
+      "from": "tls",
+      "to": "fastapi",
+      "variant": "emphasis",
+      "label": "HTTP request",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDx": 65
+    },
+    {
+      "id": "e",
+      "from": "fastapi",
+      "to": "database",
+      "variant": "default"
+    },
+    {
+      "id": "f",
+      "from": "database",
+      "to": "response",
+      "label": "HTTP response",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDx": 70
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Bốn lớp câu hỏi",
+      "items": [
+        "DNS: đi đâu?",
+        "Transport: chuyển byte thế nào?",
+        "TLS: có an toàn và đúng server không?",
+        "HTTP/Application: muốn làm gì?"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Dấu vết lỗi",
+      "items": [
+        "DNS error ≠ timeout ≠ TLS error",
+        "4xx nói contract/request",
+        "5xx nói server không hoàn thành lời hứa"
+      ]
+    }
+  ]
+}

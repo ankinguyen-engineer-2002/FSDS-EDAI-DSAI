@@ -50,7 +50,7 @@ Pages build tạo `_site` tạm thời gồm:
 ```text
 index.html                         # copy của fsds-learning-hub.html
 fsds-learning-hub.html
-archify/rendered/*.html            # 35 standalone visual labs
+archify/rendered/*.html            # standalone Archify visual labs (đếm động trong validator)
 .nojekyll
 ```
 

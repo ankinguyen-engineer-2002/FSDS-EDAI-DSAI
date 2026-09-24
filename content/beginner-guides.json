@@ -932,5 +932,346 @@
       ],
       "golden": "Database là người giữ sổ chung: chặn điều sai, điều phối nhiều người, chọn đường lấy dữ liệu và giữ bằng chứng để phục hồi khi có sự cố."
     }
+  },
+  "F04": {
+    "hero": {
+      "kicker": "Web API cho người mới · từ quầy nhận món tới dịch vụ thật",
+      "title": "Web API là quầy giao tiếp có hợp đồng — không phải phép màu nối hai ứng dụng.",
+      "dek": "Ta theo một yêu cầu đặt món từ điện thoại: tìm đúng địa chỉ, mở kênh an toàn, đóng gói HTTP, đi qua FastAPI, kiểm tra danh tính và quyền, chạm dữ liệu rồi trở về với status rõ ràng. Khi hệ thống chậm hoặc quá tải, ta biết request mắc ở đâu và cần nhìn bằng chứng nào.",
+      "scenarioTitle": "Tình huống xuyên suốt",
+      "scenario": "Một nhà hàng nhận đơn từ website, ứng dụng điện thoại và đối tác giao hàng. Nếu mỗi bên được chạm thẳng vào bếp và sổ kho, họ sẽ dùng ba cách gọi khác nhau, gửi dữ liệu sai, thấy bí mật nội bộ và không biết lỗi ở đâu. Nhà hàng cần một quầy duy nhất: nhận phiếu theo mẫu, kiểm tra người gọi, chuyển đúng trạm, rồi trả biên nhận mà mọi bên cùng hiểu.",
+      "analogy": "Hãy hình dung API là quầy nhận món. DNS là danh bạ tìm địa chỉ nhà hàng; TCP/TLS là đường giao hàng và túi niêm phong; HTTP là mẫu phiếu; endpoint là ô nhận một loại việc; FastAPI là nhân viên phân loại và kiểm tra phiếu; handler là bếp quyết định nghiệp vụ; status code là dấu trên biên nhận; logs/metrics là camera và đồng hồ của ca làm.",
+      "outcomes": [
+        "Giải thích vì sao API tồn tại như một boundary và contract giữa client với server.",
+        "Theo một request HTTPS qua DNS, transport, TLS, HTTP, framework, handler và database.",
+        "Đọc request/response bằng method, target, headers, body và status thay vì học thuộc URL.",
+        "Hiểu REST và FastAPI biến resource contract thành route, validation và code nghiệp vụ như thế nào.",
+        "Phân biệt REST, SOAP, GraphQL và gRPC bằng thứ được gọi, hợp đồng và đường thực thi.",
+        "Chọn WebSocket, SSE, polling hoặc webhook từ hướng, nhịp dữ liệu và failure model.",
+        "Tách authentication khỏi authorization; hiểu token/JWT/OAuth không phải bùa an toàn.",
+        "Dùng deadline, retry có kiểm soát, idempotency, probes và metrics để vận hành dưới tải."
+      ],
+      "path": [
+        {
+          "label": "Boundary",
+          "plain": "Nhiều client gặp một hợp đồng chung."
+        },
+        {
+          "label": "Đường đi",
+          "plain": "Tên miền, mạng và kênh an toàn đưa byte tới đúng máy."
+        },
+        {
+          "label": "Thông điệp",
+          "plain": "HTTP nói muốn làm gì và kết quả ra sao."
+        },
+        {
+          "label": "Runtime",
+          "plain": "FastAPI route, validate và gọi code nghiệp vụ."
+        },
+        {
+          "label": "Contract + dòng chảy",
+          "plain": "Chọn thứ được gọi và cách dữ liệu đi qua mạng."
+        },
+        {
+          "label": "Tin cậy",
+          "plain": "Xác minh người gọi, xét quyền và ghi dấu vết."
+        },
+        {
+          "label": "Sống sót",
+          "plain": "Giới hạn chờ, chống lặp sai và đo dưới tải."
+        }
+      ],
+      "metaphorWorld": "Nhà hàng có một quầy nhận món cho nhiều kênh đặt hàng",
+      "metaphorMap": [
+        {
+          "technical": "Client / server",
+          "physical": "Khách gửi phiếu / nhà hàng thực hiện",
+          "role": "Một bên khởi tạo yêu cầu; một bên giữ năng lực và dữ liệu để xử lý."
+        },
+        {
+          "technical": "API contract",
+          "physical": "Mẫu phiếu gọi món",
+          "role": "Quy định ô nào phải có, được gọi món gì và biên nhận trả về có hình dạng nào."
+        },
+        {
+          "technical": "DNS + IP",
+          "physical": "Danh bạ + địa chỉ đường",
+          "role": "Biến tên dễ nhớ thành địa chỉ máy để chuyến đi có đích."
+        },
+        {
+          "technical": "TLS / HTTPS",
+          "physical": "Túi niêm phong và kiểm tra bảng hiệu",
+          "role": "Mã hóa chuyến đi và giúp client kiểm tra đang nói với đúng máy chủ."
+        },
+        {
+          "technical": "Endpoint / router",
+          "physical": "Ô nhận đơn theo loại món",
+          "role": "Ghép method và path với đúng code xử lý."
+        },
+        {
+          "technical": "Validation / middleware",
+          "physical": "Soát phiếu / cổng kiểm tra chung",
+          "role": "Chặn dữ liệu sai và xử lý việc chung trước hoặc sau mọi đơn."
+        },
+        {
+          "technical": "Status / logs / metrics",
+          "physical": "Dấu biên nhận / camera / đồng hồ ca",
+          "role": "Cho client biết kết quả và cho người vận hành bằng chứng để chẩn đoán."
+        }
+      ],
+      "ladder": "nhu cầu giao tiếp → đường truyền → thông điệp → contract/runtime → tin cậy → khả năng sống sót"
+    },
+    "chapters": {
+      "boundary": {
+        "question": "Vì sao website, mobile app hay script không nên chạm thẳng vào code và database?",
+        "plain": "API là một ranh giới có luật. Client chỉ biết cách gửi yêu cầu theo hợp đồng và nhận phản hồi; server được tự do thay code, đổi database hoặc thêm máy miễn là vẫn giữ lời hứa bên ngoài.",
+        "analogy": "Ba kênh đặt món cùng đi qua một quầy. Khách không chạy vào bếp, tự mở tủ lạnh hay sửa sổ kho.",
+        "analogyLimit": "API không tự làm dữ liệu đúng hay hệ thống an toàn. Nó chỉ tạo nơi tập trung để kiểm tra, phân quyền, xử lý và quan sát.",
+        "why": "Không có boundary, mỗi client ghép chặt với nội bộ server. Một thay đổi bảng dữ liệu có thể làm hỏng mọi client; dữ liệu sai và quyền truy cập cũng khó chặn ở một nơi.",
+        "place": "Đây là cửa đầu tiên của toàn bộ flow: client → API boundary → nghiệp vụ → dữ liệu → response.",
+        "flow": "client tạo ý định → contract đóng gói yêu cầu → endpoint nhận đúng loại việc → server xử lý → response quay lại",
+        "visualLook": "Nhìn ba client bên trái cùng hội tụ vào một quầy. Sau quầy mới có luật nghiệp vụ và database; yêu cầu xấu dừng ở boundary.",
+        "sayBack": "Tự nói: API không phải database và cũng không phải business logic; nó là cửa có hợp đồng để hai phía thay đổi độc lập hơn.",
+        "job": "Gặp ở mobile backend, data service, model serving, microservice, webhook receiver và mọi tích hợp hệ thống.",
+        "bridge": "Có quầy rồi, câu tiếp theo là một phiếu từ điện thoại thật sự tìm đường tới quầy bằng cách nào.",
+        "stress": "Mobile app gửi trường `price=-100`, còn một script cố đọc thẳng bảng khách hàng bằng mật khẩu database dùng chung.",
+        "response": "API validation chặn hình dạng vô lý, authorization chặn quá quyền; database không lộ trực tiếp ra internet và mỗi request để lại dấu vết.",
+        "coreTerms": [
+          "API",
+          "client",
+          "server",
+          "API contract",
+          "endpoint"
+        ],
+        "heading": "Tại sao cần một quầy giao tiếp chung?",
+        "headingLead": "Bắt đầu từ nỗi đau: nhiều client mà không có boundary sẽ biến nội bộ server thành một mớ phụ thuộc nguy hiểm."
+      },
+      "journey": {
+        "question": "Trước khi FastAPI chạy một dòng code, request đã phải vượt qua những chặng nào?",
+        "plain": "Tên miền phải được đổi thành địa chỉ máy; mạng phải mở đường; TLS phải tạo kênh mã hóa và kiểm tra danh tính server; sau đó HTTP mới mang ý định tới ứng dụng.",
+        "analogy": "Danh bạ tìm địa chỉ nhà hàng, xe giao hàng mở tuyến, túi niêm phong bảo vệ phiếu, rồi quầy mới đọc nội dung đặt món.",
+        "analogyLimit": "Các lớp không phải những chuyến xe tách rời hoàn toàn; chúng bọc và dựa lên nhau. HTTP có thể chạy trên các transport khác nhau tùy phiên bản.",
+        "why": "Nếu không tách lớp, bạn dễ sửa code API khi lỗi thật là DNS, chứng chỉ TLS, kết nối hoặc timeout mạng.",
+        "place": "Đây là đoạn từ tên dễ nhớ trên client tới byte đã đến ASGI server của ứng dụng.",
+        "flow": "domain → DNS trả IP → transport mở đường → TLS bảo vệ → HTTP request → application → HTTP response",
+        "visualLook": "Đọc từ trái sang phải và chia hai câu: “đi tới đúng nơi an toàn” trước, “xử lý ý định” sau. Mỗi chặng có loại lỗi riêng.",
+        "sayBack": "Phân biệt được DNS error, connection timeout, TLS error và HTTP 500; bốn lỗi này không nằm cùng một tầng.",
+        "job": "Dùng khi debug “API không gọi được”, cấu hình domain/certificate, theo dõi latency và đọc network trace.",
+        "bridge": "Khi byte đã tới server, cả hai bên vẫn cần cùng hiểu bên trong phong bì HTTP có gì.",
+        "stress": "Domain vẫn trỏ vào IP cũ hoặc chứng chỉ hết hạn; application khỏe nhưng client vẫn không tạo được request HTTP hợp lệ.",
+        "response": "Kiểm tra theo thứ tự DNS resolution → kết nối → TLS handshake → HTTP status, thay vì nhảy thẳng vào database.",
+        "coreTerms": [
+          "DNS",
+          "IP address",
+          "transport connection",
+          "TLS",
+          "HTTPS"
+        ],
+        "heading": "Một request đi tới server bằng đường nào?",
+        "headingLead": "Tách việc tìm địa chỉ, vận chuyển, bảo vệ và hiểu thông điệp để khoanh vùng lỗi đúng lớp."
+      },
+      "message": {
+        "question": "HTTP request và response cần mang những mảnh nào để hai phía hiểu cùng một việc?",
+        "plain": "Request nói loại hành động, tài nguyên đích, ngữ cảnh và dữ liệu. Response nói kết quả bằng status, thêm metadata trong headers và đặt dữ liệu hoặc chi tiết lỗi trong body.",
+        "analogy": "Phiếu gọi món có động từ, mã món, ghi chú và phần tùy chọn; biên nhận có dấu thành công/lỗi, hướng dẫn và món hoặc lý do từ chối.",
+        "analogyLimit": "Method không tự thực thi hành động và status không tự chứng minh server làm đúng; ý nghĩa cuối cùng nằm trong contract và code.",
+        "why": "Nếu chỉ nhìn JSON body, bạn bỏ qua method, cache, content type, auth và status — những thứ quyết định client có thể retry hay xử lý lỗi ra sao.",
+        "place": "Đây là ngôn ngữ trên dây giữa client và endpoint trước/sau business logic.",
+        "flow": "method + target + headers + body → server xử lý → status + headers + body",
+        "visualLook": "Tách phong bì đi và phong bì về. Với mỗi ô, hỏi nó trả lời câu nào chứ không học tên trường rời rạc.",
+        "sayBack": "Đọc được `POST /orders`, `Content-Type: application/json`, body đơn hàng và `201 Created` như một câu chuyện hoàn chỉnh.",
+        "job": "Dùng khi thiết kế endpoint, debug bằng curl/Postman, đọc access log, viết client và quyết định retry/cache.",
+        "bridge": "HTTP cho cú pháp trao đổi; API vẫn cần cách tổ chức tài nguyên và runtime biến contract thành code chạy.",
+        "stress": "Server tạo đơn thành công nhưng trả 500 vì lỗi gửi response; client tự động POST lại và tạo đơn trùng.",
+        "response": "Thiết kế method/status đúng nghĩa, dùng idempotency key cho hành động có thể bị lặp và trả error body đủ để chẩn đoán.",
+        "coreTerms": [
+          "HTTP request",
+          "HTTP method",
+          "request target",
+          "header",
+          "message body",
+          "status code",
+          "idempotent method"
+        ],
+        "heading": "Hai phong bì HTTP nói chuyện với nhau ra sao?",
+        "headingLead": "Hiểu cấu trúc request/response trước khi bàn REST hay framework."
+      },
+      "contract": {
+        "question": "REST và FastAPI chia nhau những trách nhiệm nào trong một API thực tế?",
+        "plain": "REST là cách suy nghĩ về tài nguyên và giao diện HTTP; FastAPI là framework Python thực thi contract: chọn route, parse dữ liệu, validate model, chạy dependency/middleware, gọi handler và serialize response.",
+        "analogy": "REST thiết kế menu và quy tắc gọi món; FastAPI là đội quầy đọc phiếu, kiểm tra ô bắt buộc và chuyển đúng bếp.",
+        "analogyLimit": "Dùng FastAPI không tự biến API thành RESTful; có OpenAPI không bảo đảm business rule, transaction hay authorization đúng.",
+        "why": "Nếu trộn mọi việc vào handler, code khó test và lỗi boundary đi sâu tới database. Nếu hiểu ranh giới, bạn biết thứ gì framework làm và thứ gì đội sản phẩm vẫn phải quyết định.",
+        "place": "Đây là đoạn HTTP message được biến thành input đã kiểm tra rồi đi vào business logic.",
+        "flow": "route declaration → OpenAPI contract → ASGI request → middleware/dependencies → validation → handler → serialized response",
+        "visualLook": "Đọc phần trên như lúc publish hợp đồng; phần dưới là request thật. Chú ý request sai dừng trước handler.",
+        "sayBack": "Nói rõ: ASGI server đọc/gửi sự kiện mạng; FastAPI route và validate; handler quyết định nghiệp vụ; database giữ state.",
+        "job": "Gặp khi viết FastAPI endpoint, sinh docs/client, tổ chức dependency, auth middleware và tách business logic khỏi framework.",
+        "bridge": "Một request-response không phù hợp mọi bài toán; cần chọn kiểu trao đổi theo hướng và nhịp dữ liệu.",
+        "stress": "Client thiếu trường bắt buộc nhưng handler vẫn cố truy cập; hoặc middleware gọi blocking I/O khiến mọi request async cùng chờ.",
+        "response": "Định nghĩa schema rõ, trả lỗi validation tại boundary, giữ handler mỏng và đo middleware/downstream I/O thay vì tin vào từ khóa `async`.",
+        "coreTerms": [
+          "REST",
+          "resource",
+          "stateless",
+          "schema",
+          "validation",
+          "OpenAPI",
+          "ASGI",
+          "middleware"
+        ],
+        "heading": "Từ hợp đồng tới code FastAPI đang chạy",
+        "headingLead": "Tách triết lý thiết kế, mô tả contract, server runtime và luật nghiệp vụ thành các trách nhiệm nhìn thấy được."
+      },
+      "styles": {
+        "question": "REST, SOAP, GraphQL, gRPC, WebSocket, SSE, polling và webhook thật sự khác nhau ở đâu?",
+        "plain": "Có hai quyết định thường bị trộn. Quyết định thứ nhất là client gọi thứ gì và hợp đồng được viết ra sao: resource của REST, operation của SOAP/RPC, field của GraphQL hay method typed của gRPC. Quyết định thứ hai là cuộc hội thoại diễn ra một lần, giữ kết nối để stream hay gọi ngược bằng webhook.",
+        "analogy": "Cùng một nhà hàng nhưng có bốn kiểu phiếu: REST ghi món/tài nguyên và hành động; SOAP dùng bộ hồ sơ XML theo mẫu cứng; GraphQL cho khách khoanh đúng các phần muốn lấy; gRPC dùng bộ đàm nội bộ với mã lệnh đã sinh sẵn. Khi chờ cập nhật, khách có thể gọi hỏi liên tục, nghe loa một chiều, giữ bộ đàm hai chiều hoặc để nhà hàng chủ động gọi lại.",
+        "analogyLimit": "Ẩn dụ phiếu gọi món không thể hiện hết chi phí mạng. Dù contract có typed và code được sinh tự động, gRPC vẫn là remote call; GraphQL một endpoint vẫn có thể chạm nhiều service; WebSocket giữ kết nối nhưng không tự giải quyết reconnect hay đồng bộ state.",
+        "why": "Nếu chỉ thuộc tên công nghệ, bạn dễ dùng GraphQL để che database chậm, dùng WebSocket cho dữ liệu chỉ cần cập nhật mỗi phút, tưởng webhook chỉ gửi đúng một lần hoặc tưởng gRPC giống hệt gọi function trong cùng process.",
+        "place": "Phần này nằm sau HTTP/network và trước trust: trước hết chọn hình dạng contract và đường truyền; sau đó mọi style vẫn phải xác thực, phân quyền, chịu timeout và để lại evidence.",
+        "flow": "nhu cầu → chọn đối tượng được gọi + contract → chọn một lần hay liên tục → thực thi qua network → xử lý failure riêng của style",
+        "visualLook": "Visual đầu so bốn đường contract REST/SOAP/GraphQL/gRPC: đọc WHAT rồi HOW. Visual sau so request-response, kết nối dài và callback: nhìn ai mở kết nối, mũi tên đi một hay hai chiều và khi lỗi ai phải thử lại.",
+        "sayBack": "Không nhìn bài, nói cho mỗi style: client gọi cái gì, contract nằm đâu, dữ liệu chạy theo hướng nào và một failure quan trọng là gì.",
+        "job": "REST thường hợp public resource API; SOAP gặp ở tích hợp enterprise có WSDL/chính sách chặt; GraphQL hợp giao diện cần chọn field linh hoạt; gRPC hợp service-to-service typed; WebSocket cho tương tác hai chiều; SSE cho feed một chiều; webhook cho event server-to-server; polling là phương án đơn giản khi chấp nhận trễ và request thừa.",
+        "bridge": "Dù dùng phong bì REST, SOAP, GraphQL hay gRPC, server vẫn phải trả lời hai câu: ai đang gọi và người đó có quyền chạm dữ liệu nào.",
+        "stress": "Cổng thanh toán đã xử lý xong nhưng timeout trước khi nhận ACK, nên gửi lại cùng webhook ba lần và đảo thứ tự hai event. Đồng thời dashboard WebSocket mất mạng rồi reconnect với state cũ.",
+        "response": "Webhook receiver phải kiểm chữ ký, lưu event ID trước khi ACK, xử lý idempotent và chịu được đến muộn/đảo thứ tự. Client kết nối dài phải heartbeat, reconnect có backoff và đồng bộ lại state từ mốc đã biết; metrics phải tách delivery attempt khỏi business effect.",
+        "coreTerms": [
+          "REST",
+          "SOAP",
+          "WSDL",
+          "SOAP Envelope",
+          "GraphQL",
+          "GraphQL resolver",
+          "RPC",
+          "gRPC",
+          "Protocol Buffers (protobuf)",
+          "generated stub",
+          "WebSocket",
+          "HTTP Upgrade",
+          "Server-Sent Events (SSE)",
+          "event stream",
+          "webhook",
+          "webhook signature",
+          "polling"
+        ],
+        "heading": "Hai lựa chọn khác nhau: hợp đồng gọi gì và cuộc hội thoại chảy thế nào",
+        "headingLead": "Tách REST/SOAP/GraphQL/gRPC khỏi WebSocket/SSE/webhook/polling để chọn đúng từ cơ chế, không từ tên đang thịnh hành."
+      },
+      "trust": {
+        "question": "Làm sao API biết người gọi là ai, được làm gì và đã làm gì?",
+        "plain": "Authentication biến bằng chứng đăng nhập thành identity; authorization xét identity đó với hành động và resource cụ thể; audit ghi lại actor, action, result và thời điểm.",
+        "analogy": "Bảo vệ kiểm tra thẻ, người quản lý xem bạn được vào phòng nào, camera ghi bạn đã mở tủ nào.",
+        "analogyLimit": "Token không phải danh tính vĩnh viễn và payload JWT không phải két sắt. Quyền có thể đổi, token có thể hết hạn hoặc bị thu hồi.",
+        "why": "Đăng nhập thành công không có nghĩa được phép xóa dữ liệu. Nếu nhập nhằng hai bước, API rất dễ lộ dữ liệu giữa người dùng.",
+        "place": "Đây là cổng tin cậy trước business action và là dấu vết sau action.",
+        "flow": "credential → identity/token → verify token → authorization policy → resource → audit record → response",
+        "visualLook": "Theo ba vùng Authenticate, Authorize và Account. Token đi cùng request nhưng policy vẫn phải xét hành động hiện tại.",
+        "sayBack": "Giải thích được 401 và 403 khác nhau; JWT có chữ ký nhưng payload vẫn đọc được; OAuth giải quyết ủy quyền chứ không tự thay mọi cơ chế đăng nhập.",
+        "job": "Gặp ở login, service account, API key, role/scope, multi-tenant access và điều tra sự cố bảo mật.",
+        "bridge": "Request đúng quyền vẫn có thể chậm, lặp hoặc làm hệ thống quá tải; lời hứa cuối cùng là khả năng sống sót.",
+        "stress": "Một JWT của user A hợp lệ nhưng API chỉ kiểm chữ ký, không kiểm `order.user_id`; user A đọc được đơn của user B.",
+        "response": "Xác minh issuer/audience/expiry, tạo identity context, authorization theo resource ownership và ghi audit với trace ID.",
+        "coreTerms": [
+          "authentication",
+          "authorization",
+          "audit log",
+          "credential",
+          "access token",
+          "JWT",
+          "OAuth 2.0"
+        ],
+        "heading": "Tin một request theo ba cửa, không theo một token",
+        "headingLead": "Danh tính, quyền và dấu vết là ba câu hỏi khác nhau nhưng phải đi cùng một flow."
+      },
+      "resilience": {
+        "question": "Khi dependency chậm hoặc traffic tăng, API tránh chờ vô hạn và tự làm sự cố nặng hơn thế nào?",
+        "plain": "Mỗi request cần deadline; retry chỉ dành cho lỗi tạm thời và phải có budget/backoff. Hành động có thể bị lặp cần idempotency. Readiness điều khiển nhận traffic; liveness chỉ quyết định process có cần restart. Metrics và load test cung cấp bằng chứng.",
+        "analogy": "Quầy có thời hạn chờ món, quy tắc gọi lại có khoảng nghỉ, mã đơn chống ghi hai lần, biển “tạm ngừng nhận khách” và đồng hồ đo hàng chờ.",
+        "analogyLimit": "Retry không sửa lỗi cố định; restart không cứu database chậm; health endpoint xanh không chứng minh mọi hành trình người dùng đều tốt.",
+        "why": "Không có deadline, request giữ tài nguyên mãi. Retry đồng loạt tạo retry storm. Probe sai khiến nền tảng restart dịch vụ khỏe chỉ vì dependency đang chập chờn.",
+        "place": "Đây là lớp bảo vệ bao quanh request path và lớp evidence cho vận hành production.",
+        "flow": "accept + deadline → validate → work → response; nếu timeout → classify → retry có budget; nếu overload → stop traffic → recover → verify metrics",
+        "visualLook": "Đọc ba đường riêng: đường bình thường, đường timeout/retry và đường overload/readiness. Không coi retry là mũi tên quay lại vô hạn.",
+        "sayBack": "Nói được khi nào không retry, vì sao POST cần idempotency key và vì sao readiness khác liveness.",
+        "job": "Dùng trong client SDK, payment/order API, Kubernetes probes, SLO dashboard, Locust load test và incident response.",
+        "bridge": "Ghép tất cả lại: mỗi request là chuỗi boundary có bằng chứng, không phải một hàm Python đứng một mình.",
+        "stress": "Database chậm 10 giây; 1.000 client timeout sau 2 giây rồi cùng retry ngay, nhân tải thành nhiều lần và kéo cả cụm sập.",
+        "response": "Đặt deadline xuyên chuỗi, giới hạn retry với exponential backoff + jitter, dùng idempotency, shed load/readiness và quan sát p95/p99, error rate, queue.",
+        "coreTerms": [
+          "deadline",
+          "retry",
+          "backoff + jitter",
+          "idempotency key",
+          "liveness probe",
+          "readiness probe",
+          "requests per second (RPS)",
+          "latency percentile",
+          "load test"
+        ],
+        "heading": "API production cần biết dừng, từ chối và chứng minh",
+        "headingLead": "Độ tin cậy đến từ giới hạn rõ và evidence, không đến từ việc cứ thử lại."
+      },
+      "recap": {
+        "question": "Khi một request lỗi hoặc chậm, mental model tối thiểu để không sửa mò là gì?",
+        "plain": "Hỏi lần lượt: ai gọi, có tới đúng nơi không, message có đúng contract không, có được phép không, code/downstream làm gì, failure control nào can thiệp và evidence nào xác nhận.",
+        "analogy": "Đi theo camera của một phiếu từ khách tới địa chỉ, quầy soát, bếp, kho rồi biên nhận; đừng đoán bằng cách nhìn một trạm riêng lẻ.",
+        "analogyLimit": "Flow tổng hợp là bản đồ chẩn đoán, không thay thế trace/log/metric thật của từng hệ thống.",
+        "why": "Một triệu chứng “API chậm” có thể đến từ DNS, TLS, queue, validation, database, retry storm hoặc client đọc response sai.",
+        "place": "Đây là bản đồ gốc nối toàn bài và nối F04 với Linux, Python, Database, testing, container và observability.",
+        "flow": "caller → reachability → HTTP contract → trust → application/data → resilience → evidence → response",
+        "visualLook": "Theo bảy câu hỏi và tự dừng ở từng node: nếu node này hỏng, client thấy gì và mình lấy bằng chứng ở đâu?",
+        "sayBack": "Không nhìn bài, kể trọn một request và nêu ít nhất một failure + evidence ở mỗi lớp.",
+        "job": "Dùng khi thiết kế API review, on-call, viết runbook, tracing distributed service và chuẩn bị bài testing/container kế tiếp.",
+        "bridge": "Bài sau sẽ dùng chính contract và failure model này để quyết định phải kiểm thử điều gì, ở boundary nào và bằng chứng thành công là gì.",
+        "stress": "Dashboard chỉ có CPU trung bình; người dùng báo chậm nhưng không ai có trace ID, percentile hay phân tách 4xx/5xx.",
+        "response": "Gắn trace ID từ đầu request, log theo boundary, đo latency distribution/error rate và liên kết client–API–database bằng cùng context.",
+        "coreTerms": [
+          "trace ID",
+          "observability"
+        ],
+        "heading": "Bảy câu hỏi nối toàn bộ Web API thành một cỗ máy",
+        "headingLead": "Kết thúc bằng một đường chẩn đoán có thứ tự, không phải danh sách thuật ngữ."
+      }
+    },
+    "final": {
+      "golden": "Web API là quầy có hợp đồng: đưa một yêu cầu tới đúng nơi, kiểm tra nó, làm việc được phép, rồi trả kết quả và bằng chứng đủ rõ để cả người dùng lẫn người vận hành biết chuyện gì đã xảy ra.",
+      "learned": [
+        "API tồn tại để nhiều client dùng một boundary ổn định thay vì phụ thuộc trực tiếp vào code và database.",
+        "DNS, transport và TLS đưa byte tới đúng nơi an toàn; HTTP mới diễn đạt ý định và kết quả.",
+        "REST tổ chức contract quanh resource; FastAPI biến contract thành route, validation, dependency, handler và response.",
+        "REST, SOAP, GraphQL và gRPC khác nhau ở thứ client gọi, cách mô tả contract và runtime thực thi.",
+        "Polling, SSE, WebSocket và webhook khác nhau ở ai chủ động, dữ liệu đi một hay hai chiều, connection sống bao lâu và ai retry.",
+        "Authentication, authorization và audit nối thành trust path; token chỉ là một mảnh bằng chứng.",
+        "Deadline, retry budget, idempotency, probes và metrics giúp API thất bại có kiểm soát và hồi phục được."
+      ],
+      "market": [
+        {
+          "label": "Backend / Data API",
+          "text": "Thiết kế endpoint, schema và error contract để web, pipeline hoặc model client gọi ổn định."
+        },
+        {
+          "label": "Data engineering",
+          "text": "Dùng webhook/API để nhận sự kiện, khởi chạy pipeline và cung cấp dữ liệu mà vẫn chống trùng."
+        },
+        {
+          "label": "ML serving",
+          "text": "Giữ readiness tới khi model nạp xong, đo tail latency và bảo vệ endpoint khỏi request quá lớn."
+        },
+        {
+          "label": "SRE / Platform",
+          "text": "Đặt deadline, load shed, probes, tracing và load test để tìm breaking point trước người dùng."
+        }
+      ],
+      "practice": "Dựng một FastAPI nhỏ có `POST /orders` và `GET /orders/{id}`. Khai báo model input/output, trả 201/404/422 rõ, thêm API-key dependency, middleware gắn trace ID, `/live` và `/ready`, idempotency key cho POST; sau đó dùng curl và Locust để quan sát p50/p95/error rate dưới tải.",
+      "checks": [
+        "Nếu browser báo ‘không kết nối được’, bạn tách DNS/TCP/TLS khỏi HTTP/application như thế nào?",
+        "REST, SOAP, GraphQL và gRPC khác nhau ở thứ được gọi, contract và đường thực thi nào?",
+        "Khi nào chọn polling, SSE, WebSocket hoặc webhook; failure riêng của mỗi cách là gì?",
+        "FastAPI, handler, database, authentication và authorization khác trách nhiệm ở điểm nào?",
+        "Khi timeout xảy ra, điều kiện nào phải đúng trước khi retry và bằng chứng nào cho thấy hệ thống đã hồi phục?"
+      ]
+    }
   }
 }

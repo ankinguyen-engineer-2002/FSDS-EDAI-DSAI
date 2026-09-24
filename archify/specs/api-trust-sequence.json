@@ -1,0 +1,222 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Một request được tin theo ba cửa",
+    "subtitle": "Xác thực danh tính → xét quyền → ghi dấu vết; token chỉ là vật mang bằng chứng",
+    "viewBox": [
+      1240,
+      640
+    ],
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "identity",
+        "label": "Bạn là ai?",
+        "focus": [
+          "client",
+          "idp",
+          "token",
+          "api"
+        ],
+        "note": "Credential được đổi thành identity/token; chữ ký chỉ chứng minh token không bị sửa bởi bên lạ."
+      },
+      {
+        "id": "permission",
+        "label": "Bạn được làm gì?",
+        "focus": [
+          "api",
+          "policy",
+          "resource"
+        ],
+        "note": "Policy xét action, role/scope và ownership trên resource hiện tại."
+      },
+      {
+        "id": "evidence",
+        "label": "Bạn đã làm gì?",
+        "focus": [
+          "resource",
+          "audit"
+        ],
+        "note": "Audit ghi actor, action, resource, result và trace ID."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "client",
+      "type": "external",
+      "label": "Client",
+      "sublabel": "credential",
+      "pos": [
+        35,
+        95
+      ],
+      "size": [
+        155,
+        72
+      ]
+    },
+    {
+      "id": "idp",
+      "type": "security",
+      "label": "Identity provider",
+      "sublabel": "authenticate",
+      "pos": [
+        270,
+        95
+      ],
+      "size": [
+        180,
+        72
+      ]
+    },
+    {
+      "id": "token",
+      "type": "security",
+      "label": "Access token",
+      "sublabel": "claims + expiry",
+      "pos": [
+        525,
+        95
+      ],
+      "size": [
+        170,
+        72
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "API",
+      "sublabel": "verify + identity context",
+      "pos": [
+        775,
+        95
+      ],
+      "size": [
+        175,
+        72
+      ],
+      "brand": "fastapi"
+    },
+    {
+      "id": "policy",
+      "type": "security",
+      "label": "Authorization",
+      "sublabel": "role · scope · owner",
+      "pos": [
+        775,
+        385
+      ],
+      "size": [
+        185,
+        72
+      ]
+    },
+    {
+      "id": "resource",
+      "type": "database",
+      "label": "Resource",
+      "sublabel": "order / dataset",
+      "pos": [
+        1000,
+        385
+      ],
+      "size": [
+        170,
+        72
+      ]
+    },
+    {
+      "id": "audit",
+      "type": "messagebus",
+      "label": "Audit log",
+      "sublabel": "actor + action + result",
+      "pos": [
+        1000,
+        535
+      ],
+      "size": [
+        180,
+        72
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "a",
+      "from": "client",
+      "to": "idp",
+      "variant": "security",
+      "label": "prove identity",
+      "labelDy": -24
+    },
+    {
+      "id": "b",
+      "from": "idp",
+      "to": "token",
+      "variant": "default",
+      "label": "issue",
+      "labelDy": -24
+    },
+    {
+      "id": "c",
+      "from": "token",
+      "to": "api",
+      "variant": "emphasis",
+      "label": "bearer token",
+      "labelDy": -24
+    },
+    {
+      "id": "d",
+      "from": "api",
+      "to": "policy",
+      "variant": "security",
+      "label": "authorize action",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDx": 72
+    },
+    {
+      "id": "e",
+      "from": "policy",
+      "to": "resource",
+      "variant": "emphasis",
+      "label": "allow",
+      "labelDy": -24
+    },
+    {
+      "id": "f",
+      "from": "resource",
+      "to": "audit",
+      "label": "audit outcome",
+      "variant": "default",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDx": 70
+    }
+  ],
+  "cards": [
+    {
+      "dot": "rose",
+      "title": "Ba nhầm lẫn nguy hiểm",
+      "items": [
+        "JWT payload đọc được, không phải bí mật",
+        "401 khác 403",
+        "OAuth 2.0 là delegated authorization framework"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Token không xóa mọi state",
+      "items": [
+        "Revocation/consent có thể cần server-side data",
+        "Quyền phải xét theo resource hiện tại",
+        "TLS vẫn bắt buộc để bảo vệ token trên đường truyền"
+      ]
+    }
+  ]
+}

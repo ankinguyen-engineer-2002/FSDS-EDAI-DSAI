@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/https-request-journey-sequence.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/https-request-journey-sequence.html",
+  "specification": {
+    "sha256": "9ffca6ce60188b705488e1ceac687176512701d9c941874a041c56a28318f2d7",
+    "bytes": 4476
+  },
+  "artifact": {
+    "sha256": "65eb645ca1e70dd1a8fa2798a2886c4894b0f4a22705784cb3cf49991bf13820",
+    "bytes": 810569
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/api-resilience-lifecycle.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/api-resilience-lifecycle.html",
+  "specification": {
+    "sha256": "7fb87481ba6052563ae74850e1dba9b8f25a28205c0ada51a0254a7bc41f0d64",
+    "bytes": 5978
+  },
+  "artifact": {
+    "sha256": "2f8be29e8394d6bd6a9c1d85437215c43d07eeccb7ff7007441bcb4c4d61dceb",
+    "bytes": 811775
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

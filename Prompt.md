@@ -22,7 +22,7 @@ Trước khi viết, phải đọc kỹ:
 - `docs/FSDS-LEARNING-HUB-STANDARD.md`;
 - `docs/PUBLISHING-WORKFLOW.md`;
 - `direction-approved.md`;
-- ba bài Linux, Python và Database hiện có để giữ tính nhất quán nhưng không sao chép máy móc.
+- bốn bài Linux, Python, Database và Web API hiện có để giữ tính nhất quán nhưng không sao chép máy móc.
 
 Slide dùng để xác định phạm vi. Sách dùng để đào sâu bản chất. Tài liệu chính thức dùng để kiểm chứng hành vi. Không bê nguyên nội dung nguồn vào bài và không nhồi mọi kiến thức tìm thấy.
 
@@ -265,8 +265,8 @@ Hãy chủ động hoàn thành toàn bộ quy trình. Chỉ hỏi lại khi thi
 ## Ví dụ điền nhanh cho bài kế tiếp
 
 ```text
-<MÃ_BÀI>          = F04
-<TÊN_BÀI>         = Web API
-<ĐƯỜNG_DẪN_SLIDE> = course-slides/04-web-api.pdf
-<SLUG_BÀI>        = web-api-fundamentals
+<MÃ_BÀI>          = F05
+<TÊN_BÀI>         = Validation & Verification
+<ĐƯỜNG_DẪN_SLIDE> = course-slides/05-validation-and-verification.pdf
+<SLUG_BÀI>        = validation-verification-fundamentals
 ```

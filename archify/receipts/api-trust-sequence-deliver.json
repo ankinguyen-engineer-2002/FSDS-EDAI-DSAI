@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/api-trust-sequence.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/api-trust-sequence.html",
+  "specification": {
+    "sha256": "fce7c12a048ec96221fdceb35fcfbc7ec6d4bbd661c4da4d270d55be3abcfba4",
+    "bytes": 4480
+  },
+  "artifact": {
+    "sha256": "33df72b7748cef715e9a1f27ce77d9d49036e097266c5d11ad8fc2ec73fde969",
+    "bytes": 805516
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

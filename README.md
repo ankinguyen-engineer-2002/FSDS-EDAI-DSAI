@@ -4,8 +4,8 @@ Repository này biến slide khóa học và sách tham khảo thành một **vi
 
 ## Source nội dung beginner-first
 
-- `content/lesson-mechanisms.json`: source of truth cho 27 scene cơ chế của Linux, Python và Database.
-- `content/beginner-guides.json`: pain, living metaphor, hướng dẫn đọc, stress test và synthesis của 19 chương.
+- `content/lesson-mechanisms.json`: source of truth cho 37 scene cơ chế của Linux, Python, Database và Web API.
+- `content/beginner-guides.json`: pain, living metaphor, hướng dẫn đọc, stress test và synthesis của 27 chương.
 - `content/term-examples.json`: ví dụ thực tế cho toàn bộ thuật ngữ được hiển thị.
 - `content/beginner-layout.css`: layout bài học đã được duyệt theo phong cách Anthropic.
 - `content/beginner-renderer.js`: renderer nối prose, glossary và Archify.
@@ -29,11 +29,12 @@ Sau đó mở `http://127.0.0.1:8765/fsds-learning-hub.html`.
 
 > Không nên mở trực tiếp bằng `file://` vì các Archify iframe là file tương đối và browser có thể áp chính sách origin khác nhau.
 
-## Ba bài hoàn chỉnh
+## Bốn bài hoàn chỉnh
 
 - F01 · Linux Fundamentals
 - F02 · Python Fundamentals
 - F03 · Database Fundamentals / PostgreSQL
+- F04 · Web API / FastAPI
 
 Hub có:
 
@@ -42,9 +43,9 @@ Hub có:
 - collapsible rail;
 - reading progress theo bài;
 - ghi chú cá nhân autosave bằng localStorage;
-- 35/35 learning visuals được dựng bằng Archify, có pan/zoom, guided focus, brand mark chuẩn và full-screen;
-- ba bài đầu dùng format beginner-first: việc thật → giải thích đời thường → cơ chế → thuật ngữ → ứng dụng công việc → tự kiểm;
-- 19 chương hiển thị 107 thuật ngữ cốt lõi, được hỗ trợ bởi bank 182 ví dụ thực tế; từng visual có hướng dẫn đọc và câu tự kể lại riêng;
+- 44/44 learning visuals được dựng bằng Archify, có pan/zoom, guided focus, brand mark chuẩn và full-screen;
+- bốn bài hoàn chỉnh dùng format beginner-first: việc thật → giải thích đời thường → cơ chế → thuật ngữ → ứng dụng công việc → tự kiểm;
+- 27 chương hiển thị 167 thuật ngữ cốt lõi, được hỗ trợ bởi bank 237 ví dụ thực tế; từng visual có hướng dẫn đọc và câu tự kể lại riêng;
 - bài đọc theo mạch vĩ mô → vi mô.
 
 ## Cấu trúc chính
@@ -54,8 +55,8 @@ fsds-learning-hub.html          # application/hub chính
 learning-digest/                # nguồn prose cô đọng theo bài
 course-slides/                  # slide nguồn
 library/                        # thư viện sách tham khảo
-archify/specs/                  # 35 JSON specs — source of truth
-archify/rendered/               # 35 Archify HTML đã deliver
+archify/specs/                  # 44 JSON specs — source of truth
+archify/rendered/               # 44 Archify HTML đã deliver
 archify/receipts/               # validation/delivery/browser receipts
 docs/                           # audit, visual catalog, technical/UI standard
 LEARNING-DESIGN-METHOD.md       # phương pháp học nền

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/web-api-boundary-architecture.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/web-api-boundary-architecture.html",
+  "specification": {
+    "sha256": "4c79c7732baef7b6f4f7bfe58144cba1cb02645135cb609c559b26ee007e074b",
+    "bytes": 4181
+  },
+  "artifact": {
+    "sha256": "8fac25d6955a78a059905017c9aff999e211ca1da55fbe15612479a068336d55",
+    "bytes": 813837
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

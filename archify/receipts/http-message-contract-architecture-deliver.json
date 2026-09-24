@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/http-message-contract-architecture.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/http-message-contract-architecture.html",
+  "specification": {
+    "sha256": "1a8904372961e17216c73b0311d44e1f2efec2400d3b6627256d64233473859a",
+    "bytes": 5181
+  },
+  "artifact": {
+    "sha256": "fb3051ee42d457678b183e52cc10899be9173ee42ef64e1b733180c3ecf9c2b4",
+    "bytes": 810594
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

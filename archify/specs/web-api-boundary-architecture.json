@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Web API là quầy tiếp nhận có hợp đồng",
+    "subtitle": "Client không chạm thẳng code hay database; mọi yêu cầu đi qua một boundary có luật",
+    "viewBox": [
+      1240,
+      640
+    ],
+    "animation": "trace",
+    "visual_preset": "editorial",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "without",
+        "label": "Nếu không có API",
+        "focus": [
+          "web",
+          "mobile",
+          "script",
+          "database"
+        ],
+        "note": "Ba client tự hiểu database sẽ tạo ba cách gọi, ba loại lỗi và ba chỗ lộ bí mật."
+      },
+      {
+        "id": "contract",
+        "label": "Boundary có hợp đồng",
+        "focus": [
+          "web",
+          "mobile",
+          "script",
+          "api",
+          "logic",
+          "database"
+        ],
+        "note": "API gom cách gọi, kiểm tra đầu vào và trả một hình thức phản hồi ổn định."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "Website",
+      "sublabel": "màn hình người dùng",
+      "pos": [
+        45,
+        100
+      ],
+      "size": [
+        155,
+        70
+      ]
+    },
+    {
+      "id": "mobile",
+      "type": "frontend",
+      "label": "Ứng dụng điện thoại",
+      "sublabel": "một client khác",
+      "pos": [
+        45,
+        265
+      ],
+      "size": [
+        155,
+        70
+      ]
+    },
+    {
+      "id": "script",
+      "type": "external",
+      "label": "Script dữ liệu",
+      "sublabel": "tự động gọi",
+      "pos": [
+        45,
+        430
+      ],
+      "size": [
+        155,
+        70
+      ],
+      "brand": "python"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "Web API",
+      "sublabel": "hợp đồng + cửa kiểm tra",
+      "pos": [
+        355,
+        255
+      ],
+      "size": [
+        190,
+        86
+      ],
+      "brand": "fastapi"
+    },
+    {
+      "id": "logic",
+      "type": "backend",
+      "label": "Luật nghiệp vụ",
+      "sublabel": "quyết định được phép",
+      "pos": [
+        690,
+        255
+      ],
+      "size": [
+        180,
+        76
+      ]
+    },
+    {
+      "id": "database",
+      "type": "database",
+      "label": "Dữ liệu chung",
+      "sublabel": "nguồn sự thật",
+      "pos": [
+        1000,
+        255
+      ],
+      "size": [
+        180,
+        76
+      ],
+      "brand": "postgresql"
+    },
+    {
+      "id": "attacker",
+      "type": "security",
+      "label": "Yêu cầu xấu",
+      "sublabel": "sai định dạng / quá quyền",
+      "pos": [
+        365,
+        500
+      ],
+      "size": [
+        170,
+        76
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "w",
+      "from": "web",
+      "to": "api",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m",
+      "from": "mobile",
+      "to": "api",
+      "variant": "emphasis"
+    },
+    {
+      "id": "s",
+      "from": "script",
+      "to": "api",
+      "variant": "emphasis"
+    },
+    {
+      "id": "route",
+      "from": "api",
+      "to": "logic",
+      "label": "validated input",
+      "variant": "emphasis",
+      "labelDy": -24
+    },
+    {
+      "id": "data",
+      "from": "logic",
+      "to": "database",
+      "label": "read / write",
+      "variant": "default",
+      "labelDy": -24
+    },
+    {
+      "id": "deny",
+      "from": "attacker",
+      "to": "api",
+      "label": "bị kiểm tra",
+      "variant": "security",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelDx": 70
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "API giải quyết nỗi đau gì?",
+      "items": [
+        "Một hợp đồng chung cho nhiều client",
+        "Ẩn code và database phía sau boundary"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Boundary phải giữ gì?",
+      "items": [
+        "Input đúng hình dạng",
+        "Identity và quyền",
+        "Response đủ rõ để client xử lý"
+      ]
+    }
+  ]
+}

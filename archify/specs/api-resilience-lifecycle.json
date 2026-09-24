@@ -1,0 +1,306 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "API sống sót nhờ giới hạn và bằng chứng",
+    "subtitle": "Ba đường cần nhìn: request bình thường, retry có kiểm soát và điều khiển traffic",
+    "viewBox": [
+      1220,
+      620
+    ],
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "normal",
+        "label": "Đường bình thường",
+        "focus": [
+          "accepted",
+          "validated",
+          "working",
+          "responded"
+        ],
+        "note": "Request có deadline, được kiểm tra, xử lý và trả kết quả có status."
+      },
+      {
+        "id": "retry",
+        "label": "Đường timeout/retry",
+        "focus": [
+          "working",
+          "timedout",
+          "retrycheck",
+          "backoff"
+        ],
+        "note": "Chỉ retry lỗi tạm thời khi còn budget và hành động an toàn để lặp."
+      },
+      {
+        "id": "operations",
+        "label": "Đường vận hành",
+        "focus": [
+          "overloaded",
+          "readiness",
+          "recovered",
+          "metrics"
+        ],
+        "note": "Readiness ngừng nhận traffic; metrics chứng minh hệ thống đã hồi phục."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "accepted",
+      "type": "external",
+      "label": "Accepted",
+      "sublabel": "trace ID + deadline",
+      "pos": [
+        40,
+        80
+      ],
+      "size": [
+        170,
+        72
+      ]
+    },
+    {
+      "id": "validated",
+      "type": "security",
+      "label": "Validated",
+      "sublabel": "shape + identity + policy",
+      "pos": [
+        285,
+        80
+      ],
+      "size": [
+        185,
+        72
+      ]
+    },
+    {
+      "id": "working",
+      "type": "backend",
+      "label": "Working",
+      "sublabel": "DB / downstream I/O",
+      "pos": [
+        555,
+        80
+      ],
+      "size": [
+        170,
+        72
+      ]
+    },
+    {
+      "id": "responded",
+      "type": "frontend",
+      "label": "Responded",
+      "sublabel": "status + latency",
+      "pos": [
+        1010,
+        80
+      ],
+      "size": [
+        170,
+        72
+      ]
+    },
+    {
+      "id": "timedout",
+      "type": "security",
+      "label": "Timed out",
+      "sublabel": "deadline exceeded",
+      "pos": [
+        555,
+        315
+      ],
+      "size": [
+        170,
+        72
+      ]
+    },
+    {
+      "id": "retrycheck",
+      "type": "security",
+      "label": "Retry safe?",
+      "sublabel": "transient + budget + idempotent",
+      "pos": [
+        790,
+        315
+      ],
+      "size": [
+        195,
+        72
+      ]
+    },
+    {
+      "id": "backoff",
+      "type": "messagebus",
+      "label": "Backoff",
+      "sublabel": "jitter before retry",
+      "pos": [
+        1030,
+        315
+      ],
+      "size": [
+        170,
+        72
+      ]
+    },
+    {
+      "id": "overloaded",
+      "type": "security",
+      "label": "Overloaded",
+      "sublabel": "queue + latency + errors rise",
+      "pos": [
+        285,
+        515
+      ],
+      "size": [
+        185,
+        72
+      ]
+    },
+    {
+      "id": "readiness",
+      "type": "cloud",
+      "label": "Not ready",
+      "sublabel": "remove from traffic",
+      "pos": [
+        555,
+        515
+      ],
+      "size": [
+        170,
+        72
+      ]
+    },
+    {
+      "id": "recovered",
+      "type": "backend",
+      "label": "Recovered",
+      "sublabel": "load drops",
+      "pos": [
+        790,
+        515
+      ],
+      "size": [
+        170,
+        72
+      ]
+    },
+    {
+      "id": "metrics",
+      "type": "messagebus",
+      "label": "Evidence",
+      "sublabel": "RPS · errors · p95/p99",
+      "pos": [
+        1030,
+        515
+      ],
+      "size": [
+        170,
+        72
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "a",
+      "from": "accepted",
+      "to": "validated",
+      "variant": "emphasis",
+      "label": "parse + auth",
+      "labelDy": -24
+    },
+    {
+      "id": "b",
+      "from": "validated",
+      "to": "working",
+      "variant": "emphasis",
+      "label": "execute",
+      "labelDy": -24
+    },
+    {
+      "id": "c",
+      "from": "working",
+      "to": "responded",
+      "variant": "emphasis",
+      "label": "within deadline",
+      "labelDy": -24
+    },
+    {
+      "id": "d",
+      "from": "working",
+      "to": "timedout",
+      "variant": "security",
+      "label": "deadline",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 28
+    },
+    {
+      "id": "e",
+      "from": "timedout",
+      "to": "retrycheck",
+      "variant": "security",
+      "label": "classify"
+    },
+    {
+      "id": "f",
+      "from": "retrycheck",
+      "to": "backoff",
+      "variant": "default",
+      "label": "yes"
+    },
+    {
+      "id": "g",
+      "from": "validated",
+      "to": "overloaded",
+      "variant": "security",
+      "label": "too much traffic",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 28
+    },
+    {
+      "id": "h",
+      "from": "overloaded",
+      "to": "readiness",
+      "variant": "security",
+      "label": "shed traffic"
+    },
+    {
+      "id": "i",
+      "from": "readiness",
+      "to": "recovered",
+      "variant": "emphasis"
+    },
+    {
+      "id": "j",
+      "from": "recovered",
+      "to": "metrics",
+      "variant": "default",
+      "label": "verify"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Đo cái người dùng cảm nhận",
+      "items": [
+        "RPS / throughput",
+        "error rate",
+        "p50 / p95 / p99 latency",
+        "saturation và queue"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Load vs stress",
+      "items": [
+        "Load: có giữ mục tiêu ở traffic dự kiến?",
+        "Stress: gãy ở đâu, gãy thế nào, có hồi phục không?"
+      ]
+    }
+  ]
+}
