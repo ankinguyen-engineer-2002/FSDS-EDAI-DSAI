@@ -111,3 +111,13 @@ Perceptual screenshots inspected locally:
 - Production HTML contained the new plain-language Database heading.
 - At 1440×900 the online F03 lesson rendered 7 metaphor rows, 9 stress tests, 1 golden takeaway, 14 Archify labs and 43 selected term cards with zero horizontal overflow.
 - The first production Archify iframe reached `complete`, exposed SVG and produced no console errors.
+
+## Concept-card completeness audit · 2026-09-24
+
+A final DOM audit checked all 107 visible core term cards against the beginner contract:
+
+- Linux: 27/27 valid;
+- Python: 37/37 valid;
+- Database: 43/43 valid;
+- every card contains non-empty answers for `Là gì?`, `Tác dụng`, `Ví dụ thật`, `Vì sao học?` and `Nằm ở đâu?`;
+- every core term resolves to either a concrete mechanism step or an explicit term-level mechanism; no generic purpose fallback remains.

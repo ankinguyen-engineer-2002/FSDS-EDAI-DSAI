@@ -3114,17 +3114,27 @@ function beginnerChapterTerms(chapter, guide) {
   return result;
 }
 
-function beginnerTermContext(term, chapter, scene, guide, fallbackGloss) {
+function beginnerTermContext(term, chapter, scene, guide, fallbackGloss, explicitPurpose = '') {
   const needle = String(term).toLowerCase().split(/\s*\/\s*/)[0];
-  const stepIndex = (scene.steps || []).findIndex((step) => {
-    const haystack = `${step.term || ''} ${step.say || ''} ${step.mechanism || ''}`.toLowerCase();
-    return haystack.includes(needle);
-  });
-  const step = stepIndex >= 0 ? scene.steps[stepIndex] : null;
-  const base = `${chapter.label} → ${scene.title}`;
+  let matchedScene = scene;
+  let stepIndex = -1;
+  let step = null;
+  for (const candidate of chapter.scenes || []) {
+    const candidateIndex = (candidate.steps || []).findIndex((item) => {
+      const haystack = `${item.term || ''} ${item.say || ''} ${item.mechanism || ''}`.toLowerCase();
+      return haystack.includes(needle);
+    });
+    if (candidateIndex >= 0) {
+      matchedScene = candidate;
+      stepIndex = candidateIndex;
+      step = candidate.steps[candidateIndex];
+      break;
+    }
+  }
+  const base = `${chapter.label} → ${matchedScene.title}`;
   return {
     location: stepIndex >= 0 ? `${base} → bước ${String(stepIndex + 1).padStart(2, '0')}` : base,
-    purpose: step?.mechanism || `Trong flow “${guide.flow}”, khái niệm này giúp gọi đúng tên vai trò của chặng ${chapter.label.toLowerCase()} thay vì mô tả mơ hồ. ${fallbackGloss}`
+    purpose: explicitPurpose || step?.mechanism || `Trong flow “${guide.flow}”, khái niệm này gọi đúng tên một vai trò cần theo dõi. ${fallbackGloss}`
   };
 }
 
@@ -3133,8 +3143,8 @@ function renderBeginnerDictionary(chapter, guide) {
   if (!terms.length) return '';
   const cards = terms.map((item) => {
     const example = termExamples[item.term] || item.scene.command || guide.flow;
-    const context = beginnerTermContext(item.term, chapter, item.scene, guide, item.gloss);
-    return `<article class="term-card"><h4>${escapeHtml(item.term)}</h4><dl><div><dt>Là gì?</dt><dd>${escapeHtml(item.gloss)}</dd></div><div><dt>Tác dụng</dt><dd>${escapeHtml(context.purpose)}</dd></div><div><dt>Ví dụ thật</dt><dd>${escapeHtml(example)}</dd></div><div><dt>Vì sao học?</dt><dd>Để trả lời câu hỏi của chương: ${renderInlineCode(guide.question)}</dd></div><div><dt>Nằm ở đâu?</dt><dd class="term-location">${escapeHtml(context.location)}</dd></div></dl></article>`;
+    const context = beginnerTermContext(item.term, chapter, item.scene, guide, item.gloss, item.purpose || '');
+    return `<article class="term-card"><h4>${escapeHtml(item.term)}</h4><dl><div><dt>Là gì?</dt><dd>${escapeHtml(item.gloss)}</dd></div><div><dt>Tác dụng</dt><dd>${escapeHtml(context.purpose)}</dd></div><div><dt>Ví dụ thật</dt><dd>${escapeHtml(example)}</dd></div><div><dt>Vì sao học?</dt><dd>Để nhận ra chặng “${escapeHtml(context.location)}” đang làm đúng hay là nơi gây lỗi; nếu bỏ qua, bạn dễ sửa nhầm chỗ khi trả lời: ${renderInlineCode(guide.question)}</dd></div><div><dt>Nằm ở đâu?</dt><dd class="term-location">${escapeHtml(context.location)}</dd></div></dl></article>`;
   }).join('');
   return `<details class="concept-dictionary"><summary><div><span>Từ điển tại chỗ</span><strong>${terms.length} thuật ngữ xuất hiện trong chương này</strong><small>Chỉ giữ các từ khóa cần để kể lại cơ chế. Mỗi từ có nghĩa đơn giản, ví dụ và vị trí trong flow.</small></div></summary><div class="term-grid">${cards}</div></details>`;
 }
@@ -3488,7 +3498,8 @@ const lessons = {
               },
               {
                 "term": "exit status",
-                "gloss": "Mã kết thúc. 0 là xong. Khác 0 là lệnh thất bại."
+                "gloss": "Mã kết thúc. 0 là xong. Khác 0 là lệnh thất bại.",
+                "purpose": "Biến kết quả của process thành một tín hiệu máy đọc được: 0 là thành công, khác 0 là thất bại để bước sau quyết định tiếp tục hay dừng."
               }
             ],
             "actors": [
@@ -4643,7 +4654,8 @@ const lessons = {
               },
               {
                 "term": "name binding",
-                "gloss": "Một mục trong sổ: tên này trỏ tới object kia."
+                "gloss": "Một mục trong sổ: tên này trỏ tới object kia.",
+                "purpose": "Ghi trong namespace rằng một tên đang trỏ tới object nào; phép gán có thể đổi đường trỏ mà không sửa object cũ."
               },
               {
                 "term": "alias",
@@ -4655,7 +4667,8 @@ const lessons = {
               },
               {
                 "term": "mutable",
-                "gloss": "Sửa được tại chỗ. list, dict, set là mutable. tuple thì không đổi vỏ."
+                "gloss": "Sửa được tại chỗ. list, dict, set là mutable. tuple thì không đổi vỏ.",
+                "purpose": "Cho phép object thay đổi tại chỗ, vì vậy mọi tên đang trỏ cùng object đều quan sát thấy thay đổi đó."
               },
               {
                 "term": "mutation",
@@ -4857,7 +4870,8 @@ const lessons = {
             "glossary": [
               {
                 "term": "serialization",
-                "gloss": "Encode: đổi object thành byte theo một format."
+                "gloss": "Encode: đổi object thành byte theo một format.",
+                "purpose": "Đổi giá trị nội bộ thành byte hoặc text theo format đã hẹn để dữ liệu có thể đi qua file, mạng hoặc database."
               },
               {
                 "term": "JSON",
@@ -4873,7 +4887,8 @@ const lessons = {
               },
               {
                 "term": "schema",
-                "gloss": "Hình dạng và kiểu dữ liệu hai phía đã hẹn."
+                "gloss": "Hình dạng và kiểu dữ liệu hai phía đã hẹn.",
+                "purpose": "Quy định hình dạng và kiểu dữ liệu hai bên cùng mong đợi để bên nhận biết dữ liệu có hợp lệ hay không."
               },
               {
                 "term": "buffer",
@@ -4881,11 +4896,13 @@ const lessons = {
               },
               {
                 "term": "decode / parse",
-                "gloss": "Byte thành object mới. Không phải object đã gửi."
+                "gloss": "Byte thành object mới. Không phải object đã gửi.",
+                "purpose": "Đọc byte hoặc text ở phía nhận và dựng một object mới có cấu trúc mà chương trình có thể dùng."
               },
               {
                 "term": "validate",
-                "gloss": "Kiểm tra dữ liệu ngoài đúng schema trước khi tin."
+                "gloss": "Kiểm tra dữ liệu ngoài đúng schema trước khi tin.",
+                "purpose": "Chặn dữ liệu ngoài sai hình dạng hoặc sai luật trước khi nó đi sâu hơn và tạo lỗi khó truy ngược."
               },
               {
                 "term": "contract",
@@ -4975,7 +4992,8 @@ const lessons = {
               },
               {
                 "term": "event loop",
-                "gloss": "Chọn coroutine nào đang sẵn sàng trên cùng một thread."
+                "gloss": "Chọn coroutine nào đang sẵn sàng trên cùng một thread.",
+                "purpose": "Giữ danh sách công việc sẵn sàng và trao luồng cho việc có thể chạy khi một việc khác đang chờ I/O."
               }
             ],
             "tracks": [
@@ -5142,7 +5160,8 @@ const lessons = {
               },
               {
                 "term": "process",
-                "gloss": "Không gian thực thi riêng. Nhiều process cô lập khóa/runtime và thường là cách rõ ràng để chạy CPU task song song."
+                "gloss": "Không gian thực thi riêng. Nhiều process cô lập khóa/runtime và thường là cách rõ ràng để chạy CPU task song song.",
+                "purpose": "Tạo một không gian chạy và memory riêng; nhiều process có thể cô lập lỗi và dùng nhiều CPU core cho việc tính nặng."
               }
             ],
             "tracks": [
@@ -5296,7 +5315,8 @@ const lessons = {
               },
               {
                 "term": "handler",
-                "gloss": "Hàm nghiệp vụ. Chạy sau khi request đã thành dữ liệu."
+                "gloss": "Hàm nghiệp vụ. Chạy sau khi request đã thành dữ liệu.",
+                "purpose": "Nhận request đã được framework chuẩn bị, chạy nghiệp vụ và trả giá trị để server biến thành response."
               },
               {
                 "term": "async def / def",
@@ -5596,7 +5616,8 @@ const lessons = {
             "glossary": [
               {
                 "term": "logical model",
-                "gloss": "Mô hình người dùng thấy: bảng, cột, khóa và ràng buộc."
+                "gloss": "Mô hình người dùng thấy: bảng, cột, khóa và ràng buộc.",
+                "purpose": "Mô tả sự thật và luật ở góc nhìn người dùng trước khi quyết định chúng được lưu bằng page hay index nào."
               },
               {
                 "term": "backend process",
@@ -5616,7 +5637,8 @@ const lessons = {
               },
               {
                 "term": "durability",
-                "gloss": "Commit đã ghi đủ bằng chứng để sống qua crash."
+                "gloss": "Commit đã ghi đủ bằng chứng để sống qua crash.",
+                "purpose": "Bảo đảm lời hứa commit vẫn có thể được dựng lại sau khi process hoặc máy bị tắt đột ngột."
               }
             ],
             "spine": [
@@ -5905,7 +5927,8 @@ const lessons = {
               },
               {
                 "term": "denormalization",
-                "gloss": "Chủ động lưu lặp để đổi lấy đường đọc đơn giản hơn, chỉ làm khi có lý do và bằng chứng."
+                "gloss": "Chủ động lưu lặp để đổi lấy đường đọc đơn giản hơn, chỉ làm khi có lý do và bằng chứng.",
+                "purpose": "Chủ động lưu lặp một phần dữ liệu để đường đọc ngắn hơn, đồng thời chấp nhận thêm trách nhiệm giữ các bản sao đồng bộ."
               }
             ]
           }
@@ -5927,7 +5950,8 @@ const lessons = {
             "glossary": [
               {
                 "term": "postmaster / server process",
-                "gloss": "Process cha khởi tạo server và điều phối kết nối."
+                "gloss": "Process cha khởi tạo server và điều phối kết nối.",
+                "purpose": "Mở cổng, nhận kết nối và tạo hoặc điều phối backend để từng client có nơi xử lý riêng."
               },
               {
                 "term": "backend",
@@ -6081,7 +6105,8 @@ const lessons = {
               },
               {
                 "term": "EXPLAIN ANALYZE",
-                "gloss": "Chạy query thật và ghi actual rows/time; không chỉ ước lượng."
+                "gloss": "Chạy query thật và ghi actual rows/time; không chỉ ước lượng.",
+                "purpose": "Chạy query thật rồi ghi số dòng và thời gian thực tế để so với dự đoán của planner và tìm chỗ lệch."
               }
             ],
             "actors": [
@@ -6210,7 +6235,8 @@ const lessons = {
               },
               {
                 "term": "row lock",
-                "gloss": "Khóa bảo vệ conflict ghi trên tuple hoặc key liên quan."
+                "gloss": "Khóa bảo vệ conflict ghi trên tuple hoặc key liên quan.",
+                "purpose": "Buộc các thao tác ghi xung đột trên cùng bản ghi hoặc key phải xếp lượt thay vì cùng tạo trạng thái sai."
               },
               {
                 "term": "isolation level",
@@ -6218,7 +6244,8 @@ const lessons = {
               },
               {
                 "term": "deadlock",
-                "gloss": "Hai transaction chờ nhau theo vòng; PostgreSQL phải abort một bên."
+                "gloss": "Hai transaction chờ nhau theo vòng; PostgreSQL phải abort một bên.",
+                "purpose": "Gọi tên vòng chờ không thể tự kết thúc để PostgreSQL phát hiện và hủy một transaction, giải phóng các transaction còn lại."
               }
             ],
             "tracks": [
@@ -6518,7 +6545,8 @@ const lessons = {
               },
               {
                 "term": "sequential scan",
-                "gloss": "Đọc lần lượt các page của bảng; thường hợp lý khi cần phần lớn dữ liệu."
+                "gloss": "Đọc lần lượt các page của bảng; thường hợp lý khi cần phần lớn dữ liệu.",
+                "purpose": "Đọc page của bảng theo thứ tự; đây có thể là đường rẻ nhất khi query cần phần lớn dữ liệu."
               },
               {
                 "term": "EXPLAIN ANALYZE",
@@ -6637,7 +6665,8 @@ const lessons = {
               },
               {
                 "term": "replication lag",
-                "gloss": "Khoảng cách WAL/replay giữa primary và standby."
+                "gloss": "Khoảng cách WAL/replay giữa primary và standby.",
+                "purpose": "Đo khoảng cách giữa thay đổi trên primary và phần standby đã nhận hoặc phát lại, cho biết bản sao đang trễ bao xa."
               }
             ],
             "actors": [

@@ -23,17 +23,27 @@ function beginnerChapterTerms(chapter, guide) {
   return result;
 }
 
-function beginnerTermContext(term, chapter, scene, guide, fallbackGloss) {
+function beginnerTermContext(term, chapter, scene, guide, fallbackGloss, explicitPurpose = '') {
   const needle = String(term).toLowerCase().split(/\s*\/\s*/)[0];
-  const stepIndex = (scene.steps || []).findIndex((step) => {
-    const haystack = `${step.term || ''} ${step.say || ''} ${step.mechanism || ''}`.toLowerCase();
-    return haystack.includes(needle);
-  });
-  const step = stepIndex >= 0 ? scene.steps[stepIndex] : null;
-  const base = `${chapter.label} → ${scene.title}`;
+  let matchedScene = scene;
+  let stepIndex = -1;
+  let step = null;
+  for (const candidate of chapter.scenes || []) {
+    const candidateIndex = (candidate.steps || []).findIndex((item) => {
+      const haystack = `${item.term || ''} ${item.say || ''} ${item.mechanism || ''}`.toLowerCase();
+      return haystack.includes(needle);
+    });
+    if (candidateIndex >= 0) {
+      matchedScene = candidate;
+      stepIndex = candidateIndex;
+      step = candidate.steps[candidateIndex];
+      break;
+    }
+  }
+  const base = `${chapter.label} → ${matchedScene.title}`;
   return {
     location: stepIndex >= 0 ? `${base} → bước ${String(stepIndex + 1).padStart(2, '0')}` : base,
-    purpose: step?.mechanism || `Trong flow “${guide.flow}”, khái niệm này giúp gọi đúng tên vai trò của chặng ${chapter.label.toLowerCase()} thay vì mô tả mơ hồ. ${fallbackGloss}`
+    purpose: explicitPurpose || step?.mechanism || `Trong flow “${guide.flow}”, khái niệm này gọi đúng tên một vai trò cần theo dõi. ${fallbackGloss}`
   };
 }
 
@@ -42,8 +52,8 @@ function renderBeginnerDictionary(chapter, guide) {
   if (!terms.length) return '';
   const cards = terms.map((item) => {
     const example = termExamples[item.term] || item.scene.command || guide.flow;
-    const context = beginnerTermContext(item.term, chapter, item.scene, guide, item.gloss);
-    return `<article class="term-card"><h4>${escapeHtml(item.term)}</h4><dl><div><dt>Là gì?</dt><dd>${escapeHtml(item.gloss)}</dd></div><div><dt>Tác dụng</dt><dd>${escapeHtml(context.purpose)}</dd></div><div><dt>Ví dụ thật</dt><dd>${escapeHtml(example)}</dd></div><div><dt>Vì sao học?</dt><dd>Để trả lời câu hỏi của chương: ${renderInlineCode(guide.question)}</dd></div><div><dt>Nằm ở đâu?</dt><dd class="term-location">${escapeHtml(context.location)}</dd></div></dl></article>`;
+    const context = beginnerTermContext(item.term, chapter, item.scene, guide, item.gloss, item.purpose || '');
+    return `<article class="term-card"><h4>${escapeHtml(item.term)}</h4><dl><div><dt>Là gì?</dt><dd>${escapeHtml(item.gloss)}</dd></div><div><dt>Tác dụng</dt><dd>${escapeHtml(context.purpose)}</dd></div><div><dt>Ví dụ thật</dt><dd>${escapeHtml(example)}</dd></div><div><dt>Vì sao học?</dt><dd>Để nhận ra chặng “${escapeHtml(context.location)}” đang làm đúng hay là nơi gây lỗi; nếu bỏ qua, bạn dễ sửa nhầm chỗ khi trả lời: ${renderInlineCode(guide.question)}</dd></div><div><dt>Nằm ở đâu?</dt><dd class="term-location">${escapeHtml(context.location)}</dd></div></dl></article>`;
   }).join('');
   return `<details class="concept-dictionary"><summary><div><span>Từ điển tại chỗ</span><strong>${terms.length} thuật ngữ xuất hiện trong chương này</strong><small>Chỉ giữ các từ khóa cần để kể lại cơ chế. Mỗi từ có nghĩa đơn giản, ví dụ và vị trí trong flow.</small></div></summary><div class="term-grid">${cards}</div></details>`;
 }

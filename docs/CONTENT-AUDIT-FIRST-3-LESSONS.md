@@ -57,7 +57,7 @@ Mỗi section chi tiết vẫn trả lời các câu người mới cần: nó l
 ### Glossary
 
 - Không còn hiển thị mọi từ từng xuất hiện trong nguồn.
-- Chỉ giữ **107 core term card**: Linux 27, Python 37, Database 43.
+- Chỉ giữ **107 core term card**: Linux 27, Python 37, Database 43; mỗi card có cơ chế/tác dụng cụ thể thay vì câu fallback chung.
 - `content/term-examples.json` giữ **182 practical examples** để term card luôn có ví dụ cụ thể và để bài sau có thể dùng lại.
 - Recap không mở thêm glossary; nhiệm vụ của recap là nối kiến thức, không tạo thêm danh sách từ.
 

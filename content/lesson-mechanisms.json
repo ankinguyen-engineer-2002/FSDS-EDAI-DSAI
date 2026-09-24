@@ -180,7 +180,8 @@
               },
               {
                 "term": "exit status",
-                "gloss": "Mã kết thúc. 0 là xong. Khác 0 là lệnh thất bại."
+                "gloss": "Mã kết thúc. 0 là xong. Khác 0 là lệnh thất bại.",
+                "purpose": "Biến kết quả của process thành một tín hiệu máy đọc được: 0 là thành công, khác 0 là thất bại để bước sau quyết định tiếp tục hay dừng."
               }
             ],
             "actors": [
@@ -1335,7 +1336,8 @@
               },
               {
                 "term": "name binding",
-                "gloss": "Một mục trong sổ: tên này trỏ tới object kia."
+                "gloss": "Một mục trong sổ: tên này trỏ tới object kia.",
+                "purpose": "Ghi trong namespace rằng một tên đang trỏ tới object nào; phép gán có thể đổi đường trỏ mà không sửa object cũ."
               },
               {
                 "term": "alias",
@@ -1347,7 +1349,8 @@
               },
               {
                 "term": "mutable",
-                "gloss": "Sửa được tại chỗ. list, dict, set là mutable. tuple thì không đổi vỏ."
+                "gloss": "Sửa được tại chỗ. list, dict, set là mutable. tuple thì không đổi vỏ.",
+                "purpose": "Cho phép object thay đổi tại chỗ, vì vậy mọi tên đang trỏ cùng object đều quan sát thấy thay đổi đó."
               },
               {
                 "term": "mutation",
@@ -1549,7 +1552,8 @@
             "glossary": [
               {
                 "term": "serialization",
-                "gloss": "Encode: đổi object thành byte theo một format."
+                "gloss": "Encode: đổi object thành byte theo một format.",
+                "purpose": "Đổi giá trị nội bộ thành byte hoặc text theo format đã hẹn để dữ liệu có thể đi qua file, mạng hoặc database."
               },
               {
                 "term": "JSON",
@@ -1565,7 +1569,8 @@
               },
               {
                 "term": "schema",
-                "gloss": "Hình dạng và kiểu dữ liệu hai phía đã hẹn."
+                "gloss": "Hình dạng và kiểu dữ liệu hai phía đã hẹn.",
+                "purpose": "Quy định hình dạng và kiểu dữ liệu hai bên cùng mong đợi để bên nhận biết dữ liệu có hợp lệ hay không."
               },
               {
                 "term": "buffer",
@@ -1573,11 +1578,13 @@
               },
               {
                 "term": "decode / parse",
-                "gloss": "Byte thành object mới. Không phải object đã gửi."
+                "gloss": "Byte thành object mới. Không phải object đã gửi.",
+                "purpose": "Đọc byte hoặc text ở phía nhận và dựng một object mới có cấu trúc mà chương trình có thể dùng."
               },
               {
                 "term": "validate",
-                "gloss": "Kiểm tra dữ liệu ngoài đúng schema trước khi tin."
+                "gloss": "Kiểm tra dữ liệu ngoài đúng schema trước khi tin.",
+                "purpose": "Chặn dữ liệu ngoài sai hình dạng hoặc sai luật trước khi nó đi sâu hơn và tạo lỗi khó truy ngược."
               },
               {
                 "term": "contract",
@@ -1667,7 +1674,8 @@
               },
               {
                 "term": "event loop",
-                "gloss": "Chọn coroutine nào đang sẵn sàng trên cùng một thread."
+                "gloss": "Chọn coroutine nào đang sẵn sàng trên cùng một thread.",
+                "purpose": "Giữ danh sách công việc sẵn sàng và trao luồng cho việc có thể chạy khi một việc khác đang chờ I/O."
               }
             ],
             "tracks": [
@@ -1834,7 +1842,8 @@
               },
               {
                 "term": "process",
-                "gloss": "Không gian thực thi riêng. Nhiều process cô lập khóa/runtime và thường là cách rõ ràng để chạy CPU task song song."
+                "gloss": "Không gian thực thi riêng. Nhiều process cô lập khóa/runtime và thường là cách rõ ràng để chạy CPU task song song.",
+                "purpose": "Tạo một không gian chạy và memory riêng; nhiều process có thể cô lập lỗi và dùng nhiều CPU core cho việc tính nặng."
               }
             ],
             "tracks": [
@@ -1988,7 +1997,8 @@
               },
               {
                 "term": "handler",
-                "gloss": "Hàm nghiệp vụ. Chạy sau khi request đã thành dữ liệu."
+                "gloss": "Hàm nghiệp vụ. Chạy sau khi request đã thành dữ liệu.",
+                "purpose": "Nhận request đã được framework chuẩn bị, chạy nghiệp vụ và trả giá trị để server biến thành response."
               },
               {
                 "term": "async def / def",
@@ -2288,7 +2298,8 @@
             "glossary": [
               {
                 "term": "logical model",
-                "gloss": "Mô hình người dùng thấy: bảng, cột, khóa và ràng buộc."
+                "gloss": "Mô hình người dùng thấy: bảng, cột, khóa và ràng buộc.",
+                "purpose": "Mô tả sự thật và luật ở góc nhìn người dùng trước khi quyết định chúng được lưu bằng page hay index nào."
               },
               {
                 "term": "backend process",
@@ -2308,7 +2319,8 @@
               },
               {
                 "term": "durability",
-                "gloss": "Commit đã ghi đủ bằng chứng để sống qua crash."
+                "gloss": "Commit đã ghi đủ bằng chứng để sống qua crash.",
+                "purpose": "Bảo đảm lời hứa commit vẫn có thể được dựng lại sau khi process hoặc máy bị tắt đột ngột."
               }
             ],
             "spine": [
@@ -2597,7 +2609,8 @@
               },
               {
                 "term": "denormalization",
-                "gloss": "Chủ động lưu lặp để đổi lấy đường đọc đơn giản hơn, chỉ làm khi có lý do và bằng chứng."
+                "gloss": "Chủ động lưu lặp để đổi lấy đường đọc đơn giản hơn, chỉ làm khi có lý do và bằng chứng.",
+                "purpose": "Chủ động lưu lặp một phần dữ liệu để đường đọc ngắn hơn, đồng thời chấp nhận thêm trách nhiệm giữ các bản sao đồng bộ."
               }
             ]
           }
@@ -2619,7 +2632,8 @@
             "glossary": [
               {
                 "term": "postmaster / server process",
-                "gloss": "Process cha khởi tạo server và điều phối kết nối."
+                "gloss": "Process cha khởi tạo server và điều phối kết nối.",
+                "purpose": "Mở cổng, nhận kết nối và tạo hoặc điều phối backend để từng client có nơi xử lý riêng."
               },
               {
                 "term": "backend",
@@ -2773,7 +2787,8 @@
               },
               {
                 "term": "EXPLAIN ANALYZE",
-                "gloss": "Chạy query thật và ghi actual rows/time; không chỉ ước lượng."
+                "gloss": "Chạy query thật và ghi actual rows/time; không chỉ ước lượng.",
+                "purpose": "Chạy query thật rồi ghi số dòng và thời gian thực tế để so với dự đoán của planner và tìm chỗ lệch."
               }
             ],
             "actors": [
@@ -2902,7 +2917,8 @@
               },
               {
                 "term": "row lock",
-                "gloss": "Khóa bảo vệ conflict ghi trên tuple hoặc key liên quan."
+                "gloss": "Khóa bảo vệ conflict ghi trên tuple hoặc key liên quan.",
+                "purpose": "Buộc các thao tác ghi xung đột trên cùng bản ghi hoặc key phải xếp lượt thay vì cùng tạo trạng thái sai."
               },
               {
                 "term": "isolation level",
@@ -2910,7 +2926,8 @@
               },
               {
                 "term": "deadlock",
-                "gloss": "Hai transaction chờ nhau theo vòng; PostgreSQL phải abort một bên."
+                "gloss": "Hai transaction chờ nhau theo vòng; PostgreSQL phải abort một bên.",
+                "purpose": "Gọi tên vòng chờ không thể tự kết thúc để PostgreSQL phát hiện và hủy một transaction, giải phóng các transaction còn lại."
               }
             ],
             "tracks": [
@@ -3210,7 +3227,8 @@
               },
               {
                 "term": "sequential scan",
-                "gloss": "Đọc lần lượt các page của bảng; thường hợp lý khi cần phần lớn dữ liệu."
+                "gloss": "Đọc lần lượt các page của bảng; thường hợp lý khi cần phần lớn dữ liệu.",
+                "purpose": "Đọc page của bảng theo thứ tự; đây có thể là đường rẻ nhất khi query cần phần lớn dữ liệu."
               },
               {
                 "term": "EXPLAIN ANALYZE",
@@ -3329,7 +3347,8 @@
               },
               {
                 "term": "replication lag",
-                "gloss": "Khoảng cách WAL/replay giữa primary và standby."
+                "gloss": "Khoảng cách WAL/replay giữa primary và standby.",
+                "purpose": "Đo khoảng cách giữa thay đổi trên primary và phần standby đã nhận hoặc phát lại, cho biết bản sao đang trễ bao xa."
               }
             ],
             "actors": [

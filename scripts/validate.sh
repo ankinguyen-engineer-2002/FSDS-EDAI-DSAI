@@ -54,17 +54,27 @@ core_count = 0
 for code, lesson in guides.items():
     mechanism_chapters = {chapter['id']: chapter for chapter in mechanisms[code]['chapters']}
     for chapter_id, guide in lesson['chapters'].items():
-        available = {
-            item['term']
-            for scene in mechanism_chapters[chapter_id].get('scenes', [])
+        scenes = mechanism_chapters[chapter_id].get('scenes', [])
+        glossary_items = {
+            item['term']: item
+            for scene in scenes
             for item in (scene.get('glossary') or [])
         }
         for term in guide.get('coreTerms', []):
             core_count += 1
-            if term not in available:
+            if term not in glossary_items:
                 raise SystemExit(f'Core term has no glossary definition: {code}/{chapter_id}/{term}')
             if term not in examples:
                 raise SystemExit(f'Core term has no practical example: {code}/{chapter_id}/{term}')
+            needle = term.lower().split(' / ')[0]
+            has_step_mechanism = any(
+                needle in f"{step.get('term', '')} {step.get('say', '')} {step.get('mechanism', '')}".lower()
+                for scene in scenes
+                for step in scene.get('steps', [])
+            )
+            has_explicit_purpose = bool(str(glossary_items[term].get('purpose', '')).strip())
+            if not has_step_mechanism and not has_explicit_purpose:
+                raise SystemExit(f'Core term has no explicit mechanism: {code}/{chapter_id}/{term}')
 if core_count != 107:
     raise SystemExit(f'Expected 107 deliberately selected core term cards, found {core_count}')
 if len(examples) < 182:
@@ -76,7 +86,7 @@ renderer = Path('content/beginner-renderer.js').read_text()
 for label in ('I · Cơn đau nguyên bản', 'II · Bản đồ quy đổi ẩn dụ', 'III · ', 'IV · Bản chất 1 dòng'):
     if label not in renderer:
         raise SystemExit(f'Missing required four-part learning structure: {label}')
-print(f'PASS: four-part learning rule, 27 scenes, 19 chapters, 3 living metaphors, 19 stress tests, {core_count} core term cards, 3 golden takeaways and {len(examples)} example-bank entries.')
+print(f'PASS: four-part learning rule, 27 scenes, 19 chapters, 3 living metaphors, 19 stress tests, {core_count} core term cards with explicit mechanisms, 3 golden takeaways and {len(examples)} example-bank entries.')
 PY
 
 python3 - <<'PY'
