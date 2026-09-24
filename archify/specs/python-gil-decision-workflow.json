@@ -1,0 +1,193 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Chọn thread, async hay process từ bottleneck",
+    "subtitle": "Đầu tiên hỏi đang tính hay đang chờ",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "views": [
+      {
+        "id": "io",
+        "label": "I/O choices",
+        "focus": [
+          "work",
+          "wait",
+          "async",
+          "threads",
+          "measure"
+        ],
+        "note": "Async và thread đều có thể che thời gian chờ theo cách khác nhau."
+      },
+      {
+        "id": "cpu",
+        "label": "CPU choice",
+        "focus": [
+          "work",
+          "cpu",
+          "process",
+          "measure"
+        ],
+        "note": "Process tách interpreter state để dùng nhiều core cho Python CPU work."
+      }
+    ],
+    "output": "python-gil-decision-workflow.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "question",
+      "label": "Workload question"
+    },
+    {
+      "id": "choice",
+      "label": "Execution choice"
+    },
+    {
+      "id": "proof",
+      "label": "Evidence"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "work",
+      "lane": "question",
+      "col": 0,
+      "type": "external",
+      "label": "Đoạn này làm gì?",
+      "sublabel": "CPU work hay I/O wait",
+      "width": 142,
+      "tag": "start"
+    },
+    {
+      "id": "wait",
+      "lane": "question",
+      "col": 1,
+      "type": "messagebus",
+      "label": "Phần lớn chờ",
+      "sublabel": "socket · disk · DB",
+      "width": 142,
+      "tag": "I/O-bound",
+      "yOffset": -41.0
+    },
+    {
+      "id": "cpu",
+      "lane": "question",
+      "col": 1,
+      "type": "cloud",
+      "label": "Phần lớn tính",
+      "sublabel": "Python bytecode",
+      "width": 142,
+      "tag": "CPU-bound",
+      "yOffset": 41.0
+    },
+    {
+      "id": "async",
+      "lane": "choice",
+      "col": 2,
+      "type": "backend",
+      "label": "asyncio",
+      "sublabel": "many waits · one loop",
+      "width": 142,
+      "tag": "cooperative",
+      "yOffset": -82.0,
+      "brand": "python"
+    },
+    {
+      "id": "threads",
+      "lane": "choice",
+      "col": 2,
+      "type": "backend",
+      "label": "Threads",
+      "sublabel": "blocking libraries",
+      "width": 142,
+      "tag": "shared memory",
+      "yOffset": 0.0,
+      "brand": "python"
+    },
+    {
+      "id": "process",
+      "lane": "choice",
+      "col": 2,
+      "type": "backend",
+      "label": "Processes",
+      "sublabel": "parallel CPU",
+      "width": 142,
+      "tag": "separate memory",
+      "yOffset": 82.0,
+      "brand": "python"
+    },
+    {
+      "id": "measure",
+      "lane": "proof",
+      "col": 3,
+      "type": "database",
+      "label": "Benchmark + profile",
+      "sublabel": "throughput · CPU · latency",
+      "width": 142,
+      "tag": "evidence"
+    }
+  ],
+  "edges": [
+    {
+      "id": "a",
+      "from": "work",
+      "to": "wait",
+      "variant": "default",
+      "label": "I/O-bound"
+    },
+    {
+      "id": "b",
+      "from": "work",
+      "to": "cpu",
+      "variant": "default",
+      "label": "CPU-bound"
+    },
+    {
+      "id": "c",
+      "from": "wait",
+      "to": "async",
+      "variant": "emphasis",
+      "label": "async-compatible"
+    },
+    {
+      "id": "e",
+      "from": "cpu",
+      "to": "process",
+      "variant": "emphasis",
+      "label": "parallelism"
+    },
+    {
+      "id": "g",
+      "from": "threads",
+      "to": "measure",
+      "variant": "default",
+      "label": "verify"
+    },
+    {
+      "id": "h",
+      "from": "process",
+      "to": "measure",
+      "variant": "default",
+      "label": "verify"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "GIL là property của build/runtime CPython, không phải định nghĩa của Python",
+        "Free-threaded build vẫn cần ecosystem compatibility"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "py-spy/cProfile xác nhận CPU hotspot",
+        "Load test xác nhận throughput và tail latency"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,206 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Planner chọn access path bằng estimate và cost",
+    "subtitle": "Index chỉ là một ứng viên, không phải mệnh lệnh",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "views": [
+      {
+        "id": "estimate",
+        "label": "Estimate path",
+        "focus": [
+          "sql",
+          "stats",
+          "selectivity",
+          "cost"
+        ],
+        "note": "Planner dự đoán cardinality trước khi chạy."
+      },
+      {
+        "id": "choice",
+        "label": "Plan choice",
+        "focus": [
+          "cost",
+          "seq",
+          "index",
+          "bitmap",
+          "actual"
+        ],
+        "note": "Actual evidence cho biết estimate nào sai."
+      }
+    ],
+    "output": "postgresql-planner-workflow.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "input",
+      "label": "Query inputs"
+    },
+    {
+      "id": "estimate",
+      "label": "Planner reasoning"
+    },
+    {
+      "id": "choice",
+      "label": "Candidate plans"
+    },
+    {
+      "id": "proof",
+      "label": "Runtime evidence"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "sql",
+      "lane": "input",
+      "col": 0,
+      "type": "external",
+      "label": "SQL + predicate",
+      "sublabel": "WHERE status = ...",
+      "width": 142,
+      "tag": "intent",
+      "yOffset": -41.0,
+      "brand": "postgresql"
+    },
+    {
+      "id": "stats",
+      "lane": "input",
+      "col": 0,
+      "type": "database",
+      "label": "Statistics",
+      "sublabel": "histogram · ndistinct",
+      "width": 142,
+      "tag": "evidence",
+      "yOffset": 41.0
+    },
+    {
+      "id": "selectivity",
+      "lane": "estimate",
+      "col": 1,
+      "type": "backend",
+      "label": "Selectivity",
+      "sublabel": "estimated rows",
+      "width": 142,
+      "tag": "assumption"
+    },
+    {
+      "id": "cost",
+      "lane": "estimate",
+      "col": 2,
+      "type": "backend",
+      "label": "Cost model",
+      "sublabel": "I/O + CPU",
+      "width": 142,
+      "tag": "compare"
+    },
+    {
+      "id": "seq",
+      "lane": "choice",
+      "col": 3,
+      "type": "database",
+      "label": "Seq Scan",
+      "sublabel": "read many pages",
+      "width": 142,
+      "tag": "candidate",
+      "yOffset": -82.0
+    },
+    {
+      "id": "index",
+      "lane": "choice",
+      "col": 3,
+      "type": "database",
+      "label": "Index Scan",
+      "sublabel": "random lookup",
+      "width": 142,
+      "tag": "candidate",
+      "yOffset": 0.0
+    },
+    {
+      "id": "bitmap",
+      "lane": "choice",
+      "col": 3,
+      "type": "database",
+      "label": "Bitmap Scan",
+      "sublabel": "batch heap pages",
+      "width": 142,
+      "tag": "candidate",
+      "yOffset": 82.0
+    },
+    {
+      "id": "actual",
+      "lane": "proof",
+      "col": 4,
+      "type": "security",
+      "label": "EXPLAIN ANALYZE",
+      "sublabel": "estimate vs actual",
+      "width": 142,
+      "tag": "measurement",
+      "brand": "postgresql"
+    }
+  ],
+  "edges": [
+    {
+      "id": "a",
+      "from": "sql",
+      "to": "selectivity",
+      "variant": "default",
+      "label": "predicate"
+    },
+    {
+      "id": "b",
+      "from": "stats",
+      "to": "selectivity",
+      "variant": "emphasis",
+      "label": "distribution"
+    },
+    {
+      "id": "c",
+      "from": "selectivity",
+      "to": "cost",
+      "variant": "emphasis",
+      "label": "row estimate"
+    },
+    {
+      "id": "e",
+      "from": "cost",
+      "to": "index",
+      "variant": "default",
+      "label": "candidate cost"
+    },
+    {
+      "id": "h",
+      "from": "index",
+      "to": "actual",
+      "variant": "emphasis",
+      "label": "chosen plan"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "Có index không đồng nghĩa planner phải dùng index",
+        "Sai cardinality thường kéo theo sai join/access path"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "EXPLAIN (ANALYZE, BUFFERS) so estimate và actual",
+        "ANALYZE cập nhật statistics trước khi kết luận"
+      ]
+    }
+  ],
+  "mainPath": [
+    "sql",
+    "selectivity",
+    "cost",
+    "index",
+    "actual"
+  ]
+}

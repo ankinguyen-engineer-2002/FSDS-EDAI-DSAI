@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "File .py chưa chạy ngay khi nhấn Enter",
+    "subtitle": "Shell tạo process; interpreter mới compile và execute",
+    "viewBox": [
+      1000,
+      926
+    ],
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "column_fit": "spread",
+    "views": [
+      {
+        "id": "startup",
+        "label": "Startup path",
+        "focus": [
+          "user",
+          "shell",
+          "os",
+          "python"
+        ],
+        "note": "Process và interpreter tồn tại trước application code."
+      },
+      {
+        "id": "module",
+        "label": "Module execution",
+        "focus": [
+          "python",
+          "import",
+          "module",
+          "main"
+        ],
+        "note": "Import tạo namespace rồi mới đi vào entry point."
+      }
+    ],
+    "output": "python-startup-sequence.html",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    {
+      "id": "user",
+      "type": "external",
+      "label": "Bạn",
+      "sublabel": "command"
+    },
+    {
+      "id": "shell",
+      "type": "backend",
+      "label": "Shell",
+      "sublabel": "argv + env + cwd"
+    },
+    {
+      "id": "os",
+      "type": "cloud",
+      "label": "OS",
+      "sublabel": "process image"
+    },
+    {
+      "id": "python",
+      "type": "backend",
+      "label": "Python",
+      "sublabel": "interpreter startup",
+      "brand": "python"
+    },
+    {
+      "id": "import",
+      "type": "messagebus",
+      "label": "Import system",
+      "sublabel": "module lookup"
+    },
+    {
+      "id": "module",
+      "type": "database",
+      "label": "Module",
+      "sublabel": "namespace + __name__"
+    },
+    {
+      "id": "main",
+      "type": "backend",
+      "label": "main()",
+      "sublabel": "application entry",
+      "brand": "python"
+    }
+  ],
+  "segments": [
+    {
+      "from": 170,
+      "to": 761,
+      "label": "đường chạy quan sát được"
+    }
+  ],
+  "messages": [
+    {
+      "id": "cmd",
+      "from": "user",
+      "to": "shell",
+      "y": 190,
+      "label": "python -m pipeline ...",
+      "variant": "emphasis"
+    },
+    {
+      "id": "spawn",
+      "from": "shell",
+      "to": "os",
+      "y": 278,
+      "label": "exec interpreter",
+      "variant": "default"
+    },
+    {
+      "id": "load",
+      "from": "os",
+      "to": "python",
+      "y": 366,
+      "label": "process + stdio",
+      "variant": "emphasis"
+    },
+    {
+      "id": "compile",
+      "from": "python",
+      "to": "import",
+      "y": 454,
+      "label": "source → AST → bytecode",
+      "variant": "default"
+    },
+    {
+      "id": "lookup",
+      "from": "import",
+      "to": "module",
+      "y": 542,
+      "label": "find + load pipeline",
+      "variant": "emphasis"
+    },
+    {
+      "id": "namespace",
+      "from": "module",
+      "to": "main",
+      "y": 630,
+      "label": "create namespace",
+      "variant": "default"
+    },
+    {
+      "id": "entry",
+      "from": "main",
+      "to": "user",
+      "y": 718,
+      "label": "run application",
+      "variant": "return"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "shell",
+      "from": 178,
+      "to": 316,
+      "type": "backend"
+    },
+    {
+      "participant": "os",
+      "from": 266,
+      "to": 404,
+      "type": "backend"
+    },
+    {
+      "participant": "python",
+      "from": 354,
+      "to": 492,
+      "type": "backend"
+    },
+    {
+      "participant": "import",
+      "from": 442,
+      "to": 580,
+      "type": "backend"
+    },
+    {
+      "participant": "module",
+      "from": 530,
+      "to": 668,
+      "type": "backend"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "Source → AST → bytecode tạo code object trước frame chạy",
+        "Side effect ở import xảy ra trước main"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "sys.executable + os.getcwd() kiểm tra context",
+        "python -X importtime cho evidence import"
+      ]
+    }
+  ]
+}

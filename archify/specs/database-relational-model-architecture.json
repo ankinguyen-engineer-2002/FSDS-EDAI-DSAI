@@ -1,0 +1,190 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Relational model nối fact, key và invariant",
+    "subtitle": "Từ business statement tới relation có nghĩa",
+    "viewBox": [
+      1220,
+      680
+    ],
+    "visual_preset": "editorial",
+    "views": [
+      {
+        "id": "model",
+        "label": "Facts to relations",
+        "focus": [
+          "fact",
+          "customer",
+          "order",
+          "fk"
+        ],
+        "note": "Key và constraint giữ identity và relationship."
+      },
+      {
+        "id": "query",
+        "label": "Use the model",
+        "focus": [
+          "customer",
+          "order",
+          "fk",
+          "join",
+          "access"
+        ],
+        "note": "Access pattern đến sau semantic model, nhưng ảnh hưởng physical design."
+      }
+    ],
+    "output": "database-relational-model-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "fact",
+      "type": "external",
+      "label": "Business fact",
+      "sublabel": "order belongs to customer",
+      "pos": [
+        60,
+        260
+      ],
+      "size": [
+        190,
+        72
+      ],
+      "tag": "meaning"
+    },
+    {
+      "id": "customer",
+      "type": "database",
+      "label": "Customer relation",
+      "sublabel": "customer_id PK",
+      "pos": [
+        340,
+        120
+      ],
+      "size": [
+        190,
+        72
+      ],
+      "tag": "entity",
+      "brand": "postgresql"
+    },
+    {
+      "id": "order",
+      "type": "database",
+      "label": "Order relation",
+      "sublabel": "order_id PK",
+      "pos": [
+        340,
+        330
+      ],
+      "size": [
+        190,
+        72
+      ],
+      "tag": "entity",
+      "brand": "postgresql"
+    },
+    {
+      "id": "fk",
+      "type": "security",
+      "label": "Foreign key",
+      "sublabel": "orders.customer_id",
+      "pos": [
+        640,
+        260
+      ],
+      "size": [
+        190,
+        72
+      ],
+      "tag": "invariant"
+    },
+    {
+      "id": "join",
+      "type": "backend",
+      "label": "Relational join",
+      "sublabel": "PK ↔ FK",
+      "pos": [
+        920,
+        150
+      ],
+      "size": [
+        180,
+        68
+      ],
+      "tag": "query"
+    },
+    {
+      "id": "access",
+      "type": "cloud",
+      "label": "Access pattern",
+      "sublabel": "lookup · range · aggregate",
+      "pos": [
+        920,
+        370
+      ],
+      "size": [
+        180,
+        68
+      ],
+      "tag": "workload"
+    }
+  ],
+  "connections": [
+    {
+      "id": "model1",
+      "from": "fact",
+      "to": "customer",
+      "variant": "default"
+    },
+    {
+      "id": "model2",
+      "from": "fact",
+      "to": "order",
+      "variant": "default"
+    },
+    {
+      "id": "ref1",
+      "from": "customer",
+      "to": "fk",
+      "variant": "security"
+    },
+    {
+      "id": "ref2",
+      "from": "order",
+      "to": "fk",
+      "variant": "security"
+    },
+    {
+      "id": "query",
+      "from": "fk",
+      "to": "join",
+      "variant": "emphasis"
+    },
+    {
+      "id": "use",
+      "from": "join",
+      "to": "access",
+      "variant": "default"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "Primary key định danh fact; foreign key giữ relationship",
+        "Normalization giảm anomaly, không phải chia bảng vô hạn"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "Constraint violation test kiểm tra invariant",
+        "EXPLAIN kiểm tra physical access path"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,204 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Database giữ shared truth cho nhiều actor",
+    "subtitle": "State, invariant, concurrency và recovery là bốn trách nhiệm",
+    "viewBox": [
+      1220,
+      680
+    ],
+    "visual_preset": "editorial",
+    "views": [
+      {
+        "id": "contract",
+        "label": "Database contract",
+        "focus": [
+          "clients",
+          "protocol",
+          "database",
+          "state",
+          "rules"
+        ],
+        "note": "Database không chỉ chứa file; nó giữ shared truth và invariant."
+      },
+      {
+        "id": "multiuser",
+        "label": "Many actors",
+        "focus": [
+          "clients",
+          "database",
+          "concurrency",
+          "recovery"
+        ],
+        "note": "Concurrency và recovery làm state dùng được trong thực tế."
+      }
+    ],
+    "output": "database-responsibility-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "clients",
+      "type": "external",
+      "label": "Nhiều client",
+      "sublabel": "app · analyst · job",
+      "pos": [
+        60,
+        260
+      ],
+      "size": [
+        180,
+        72
+      ],
+      "tag": "concurrent intent"
+    },
+    {
+      "id": "protocol",
+      "type": "messagebus",
+      "label": "Protocol / driver",
+      "sublabel": "request + transaction",
+      "pos": [
+        300,
+        260
+      ],
+      "size": [
+        180,
+        72
+      ],
+      "tag": "boundary"
+    },
+    {
+      "id": "database",
+      "type": "backend",
+      "label": "Database engine",
+      "sublabel": "serialize shared truth",
+      "pos": [
+        550,
+        260
+      ],
+      "size": [
+        190,
+        76
+      ],
+      "tag": "authority",
+      "brand": "postgresql"
+    },
+    {
+      "id": "state",
+      "type": "database",
+      "label": "Durable state",
+      "sublabel": "relations + pages",
+      "pos": [
+        840,
+        90
+      ],
+      "size": [
+        180,
+        68
+      ],
+      "tag": "where"
+    },
+    {
+      "id": "rules",
+      "type": "security",
+      "label": "Invariant",
+      "sublabel": "keys + constraints",
+      "pos": [
+        840,
+        210
+      ],
+      "size": [
+        180,
+        68
+      ],
+      "tag": "validity"
+    },
+    {
+      "id": "concurrency",
+      "type": "cloud",
+      "label": "Concurrency control",
+      "sublabel": "visibility + locks",
+      "pos": [
+        840,
+        330
+      ],
+      "size": [
+        180,
+        68
+      ],
+      "tag": "coordination"
+    },
+    {
+      "id": "recovery",
+      "type": "cloud",
+      "label": "Recovery",
+      "sublabel": "log + backup",
+      "pos": [
+        840,
+        450
+      ],
+      "size": [
+        180,
+        68
+      ],
+      "tag": "survival"
+    }
+  ],
+  "connections": [
+    {
+      "id": "intent",
+      "from": "clients",
+      "to": "protocol",
+      "variant": "default"
+    },
+    {
+      "id": "request",
+      "from": "protocol",
+      "to": "database",
+      "variant": "emphasis"
+    },
+    {
+      "id": "persist",
+      "from": "database",
+      "to": "state",
+      "variant": "emphasis"
+    },
+    {
+      "id": "validate",
+      "from": "database",
+      "to": "rules",
+      "variant": "security"
+    },
+    {
+      "id": "coordinate",
+      "from": "database",
+      "to": "concurrency",
+      "variant": "default"
+    },
+    {
+      "id": "survive",
+      "from": "database",
+      "to": "recovery",
+      "variant": "default"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "Table là representation; trách nhiệm cốt lõi là shared truth",
+        "Constraint gần dữ liệu bảo vệ mọi writer"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "Transaction tests kiểm tra invariant",
+        "Restore drill chứng minh durability"
+      ]
+    }
+  ]
+}

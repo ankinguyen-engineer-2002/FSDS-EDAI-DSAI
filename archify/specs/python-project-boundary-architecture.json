@@ -1,0 +1,211 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Project Python chạy đúng nhờ một ranh giới rõ",
+    "subtitle": "Declaration → resolve → lock → environment → explicit interpreter",
+    "viewBox": [
+      1220,
+      680
+    ],
+    "visual_preset": "editorial",
+    "views": [
+      {
+        "id": "contract",
+        "label": "Dependency contract",
+        "focus": [
+          "repo",
+          "pyproject",
+          "lock",
+          "resolver"
+        ],
+        "note": "Declaration nói cần gì; lock ghi lựa chọn cụ thể."
+      },
+      {
+        "id": "runtime",
+        "label": "Runtime boundary",
+        "focus": [
+          "resolver",
+          "venv",
+          "run",
+          "ci"
+        ],
+        "note": "activate chỉ đổi PATH; interpreter path mới là bằng chứng."
+      }
+    ],
+    "output": "python-project-boundary-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "repo",
+      "type": "frontend",
+      "label": "Project repo",
+      "sublabel": "source + tests",
+      "pos": [
+        60,
+        260
+      ],
+      "size": [
+        170,
+        72
+      ],
+      "tag": "versioned",
+      "brand": "python"
+    },
+    {
+      "id": "pyproject",
+      "type": "messagebus",
+      "label": "pyproject.toml",
+      "sublabel": "dependency contract",
+      "pos": [
+        280,
+        150
+      ],
+      "size": [
+        180,
+        72
+      ],
+      "tag": "declare"
+    },
+    {
+      "id": "lock",
+      "type": "database",
+      "label": "Lockfile",
+      "sublabel": "chosen versions",
+      "pos": [
+        280,
+        370
+      ],
+      "size": [
+        180,
+        72
+      ],
+      "tag": "reproduce"
+    },
+    {
+      "id": "resolver",
+      "type": "backend",
+      "label": "Resolver",
+      "sublabel": "solve graph",
+      "pos": [
+        540,
+        260
+      ],
+      "size": [
+        170,
+        72
+      ],
+      "tag": "decision"
+    },
+    {
+      "id": "venv",
+      "type": "cloud",
+      "label": "Virtual environment",
+      "sublabel": "interpreter + site-packages",
+      "pos": [
+        780,
+        260
+      ],
+      "size": [
+        190,
+        72
+      ],
+      "tag": "boundary",
+      "brand": "python"
+    },
+    {
+      "id": "run",
+      "type": "backend",
+      "label": "Explicit python",
+      "sublabel": ".venv/bin/python",
+      "pos": [
+        1030,
+        150
+      ],
+      "size": [
+        160,
+        72
+      ],
+      "tag": "runtime",
+      "brand": "python"
+    },
+    {
+      "id": "ci",
+      "type": "external",
+      "label": "CI / cron",
+      "sublabel": "same command",
+      "pos": [
+        1030,
+        370
+      ],
+      "size": [
+        160,
+        72
+      ],
+      "tag": "automation"
+    }
+  ],
+  "connections": [
+    {
+      "id": "decl",
+      "from": "repo",
+      "to": "pyproject",
+      "variant": "default"
+    },
+    {
+      "id": "pin",
+      "from": "repo",
+      "to": "lock",
+      "variant": "default"
+    },
+    {
+      "id": "solve1",
+      "from": "pyproject",
+      "to": "resolver",
+      "variant": "emphasis"
+    },
+    {
+      "id": "solve2",
+      "from": "lock",
+      "to": "resolver",
+      "variant": "emphasis"
+    },
+    {
+      "id": "sync",
+      "from": "resolver",
+      "to": "venv",
+      "variant": "emphasis"
+    },
+    {
+      "id": "local",
+      "from": "venv",
+      "to": "run",
+      "variant": "emphasis"
+    },
+    {
+      "id": "auto",
+      "from": "venv",
+      "to": "ci",
+      "variant": "default"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "venv không phải container; nó cô lập interpreter và packages",
+        "Không commit .venv; commit declaration + lock phù hợp"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "python -c import sys; print(sys.executable)",
+        "pip/uv sync + test trên CI xác nhận reproducibility"
+      ]
+    }
+  ]
+}

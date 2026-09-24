@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "dataflow",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/linux-compilation-dataflow.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/linux-compilation-dataflow.html",
+  "specification": {
+    "sha256": "f37bfc757ed30761c530ed9b6001805399ba9f4618d9244799920a050df791c9",
+    "bytes": 3175
+  },
+  "artifact": {
+    "sha256": "fbb194951653bd7bea4e7329c781f19820607809268d4663e64f6fd39ac982a0",
+    "bytes": 802806
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

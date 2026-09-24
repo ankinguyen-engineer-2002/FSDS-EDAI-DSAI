@@ -1,0 +1,289 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "PostgreSQL giữ state như thế nào",
+    "subtitle": "client → backend → shared memory → durable storage",
+    "output": "postgresql-architecture.html",
+    "quality_profile": "showcase",
+    "visual_preset": "editorial",
+    "viewBox": [
+      1320,
+      700
+    ],
+    "views": [
+      {
+        "id": "request-boundary",
+        "label": "Request boundary",
+        "focus": [
+          "app",
+          "driver",
+          "backend",
+          "planner"
+        ],
+        "note": "Một lời gọi ứng dụng đi qua protocol và backend trước khi chạm dữ liệu."
+      },
+      {
+        "id": "durability",
+        "label": "Durability path",
+        "focus": [
+          "backend",
+          "wal",
+          "heap",
+          "checkpoint",
+          "backup"
+        ],
+        "note": "Commit cần WAL, checkpoint và backup/PITR; replica không thay backup."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "app",
+      "type": "external",
+      "label": "Application",
+      "sublabel": "SQLAlchemy / psycopg",
+      "pos": [
+        40,
+        290
+      ],
+      "size": [
+        160,
+        68
+      ],
+      "tag": "CALL"
+    },
+    {
+      "id": "driver",
+      "type": "backend",
+      "label": "Protocol / driver",
+      "sublabel": "wire + transaction",
+      "pos": [
+        270,
+        290
+      ],
+      "size": [
+        175,
+        68
+      ]
+    },
+    {
+      "id": "backend",
+      "type": "backend",
+      "label": "Backend process",
+      "sublabel": "one connection",
+      "pos": [
+        515,
+        290
+      ],
+      "size": [
+        175,
+        68
+      ],
+      "tag": "OWNERSHIP",
+      "brand": "postgresql"
+    },
+    {
+      "id": "planner",
+      "type": "backend",
+      "label": "Planner + executor",
+      "sublabel": "plan → access path",
+      "pos": [
+        760,
+        180
+      ],
+      "size": [
+        190,
+        68
+      ],
+      "brand": "postgresql"
+    },
+    {
+      "id": "shared",
+      "type": "cloud",
+      "label": "Shared buffers",
+      "sublabel": "cached pages",
+      "pos": [
+        760,
+        305
+      ],
+      "size": [
+        190,
+        68
+      ]
+    },
+    {
+      "id": "wal",
+      "type": "messagebus",
+      "label": "WAL",
+      "sublabel": "redo / replication",
+      "pos": [
+        760,
+        430
+      ],
+      "size": [
+        190,
+        68
+      ],
+      "tag": "DURABILITY"
+    },
+    {
+      "id": "heap",
+      "type": "database",
+      "label": "Heap + indexes",
+      "sublabel": "pages on disk",
+      "pos": [
+        1030,
+        250
+      ],
+      "size": [
+        190,
+        68
+      ]
+    },
+    {
+      "id": "checkpoint",
+      "type": "backend",
+      "label": "Checkpoint / vacuum",
+      "sublabel": "recovery + cleanup",
+      "pos": [
+        1030,
+        390
+      ],
+      "size": [
+        190,
+        68
+      ]
+    },
+    {
+      "id": "backup",
+      "type": "cloud",
+      "label": "Backup + PITR",
+      "sublabel": "restore evidence",
+      "pos": [
+        1030,
+        530
+      ],
+      "size": [
+        190,
+        68
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "PostgreSQL instance",
+      "wraps": [
+        "backend",
+        "planner",
+        "shared",
+        "wal",
+        "heap",
+        "checkpoint"
+      ],
+      "pad": 28
+    },
+    {
+      "kind": "region",
+      "label": "Outside boundary",
+      "wraps": [
+        "app",
+        "driver",
+        "backup"
+      ],
+      "pad": 28
+    }
+  ],
+  "connections": [
+    {
+      "id": "call",
+      "from": "app",
+      "to": "driver",
+      "label": "query + params",
+      "variant": "emphasis",
+      "labelDy": -30
+    },
+    {
+      "id": "wire",
+      "from": "driver",
+      "to": "backend",
+      "label": "protocol",
+      "variant": "emphasis"
+    },
+    {
+      "id": "plan",
+      "from": "backend",
+      "to": "planner",
+      "label": "parse / plan / execute",
+      "fromSide": "top",
+      "toSide": "left"
+    },
+    {
+      "id": "buffers",
+      "from": "planner",
+      "to": "shared",
+      "label": "page access",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 30
+    },
+    {
+      "id": "heap",
+      "from": "shared",
+      "to": "heap",
+      "label": "heap / index page",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelAt": [
+        990,
+        387
+      ]
+    },
+    {
+      "id": "wal",
+      "from": "backend",
+      "to": "wal",
+      "label": "write-ahead",
+      "fromSide": "right",
+      "toSide": "left",
+      "variant": "emphasis"
+    },
+    {
+      "id": "checkpoint",
+      "from": "wal",
+      "to": "checkpoint",
+      "label": "replay boundary",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "restore",
+      "from": "checkpoint",
+      "to": "backup",
+      "label": "base + WAL",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "variant": "dashed",
+      "labelDy": 28
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Logical → physical",
+      "items": [
+        "Table là logical relation",
+        "Page / buffer / index là access path vật lý"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Không nhầm",
+      "items": [
+        "WAL là redo evidence, không phải backup",
+        "Replica tăng availability, không chữa xóa nhầm"
+      ]
+    }
+  ]
+}

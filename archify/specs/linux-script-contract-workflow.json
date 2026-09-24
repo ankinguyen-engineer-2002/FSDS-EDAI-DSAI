@@ -1,0 +1,205 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Một script đáng tin có hợp đồng",
+    "subtitle": "Validate trước; chạy có kiểm soát; kết thúc có bằng chứng",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "views": [
+      {
+        "id": "contract",
+        "label": "Happy path",
+        "focus": [
+          "shebang",
+          "strict",
+          "input",
+          "pipeline",
+          "temp",
+          "success"
+        ],
+        "note": "Đi từ interpreter tới output atomically."
+      },
+      {
+        "id": "failure",
+        "label": "Failure contract",
+        "focus": [
+          "strict",
+          "input",
+          "pipeline",
+          "failure"
+        ],
+        "note": "Lỗi phải dừng đúng chỗ và để lại evidence."
+      }
+    ],
+    "output": "linux-script-contract-workflow.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "entry",
+      "label": "Entry contract"
+    },
+    {
+      "id": "work",
+      "label": "Controlled execution"
+    },
+    {
+      "id": "result",
+      "label": "Outcome"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "shebang",
+      "lane": "entry",
+      "col": 0,
+      "type": "frontend",
+      "label": "Shebang",
+      "sublabel": "chọn interpreter",
+      "width": 142,
+      "tag": "entry"
+    },
+    {
+      "id": "strict",
+      "lane": "entry",
+      "col": 1,
+      "type": "security",
+      "label": "Strict mode",
+      "sublabel": "set -Eeuo pipefail",
+      "width": 142,
+      "tag": "guard"
+    },
+    {
+      "id": "input",
+      "lane": "entry",
+      "col": 2,
+      "type": "security",
+      "label": "Input readable?",
+      "sublabel": "path + permission",
+      "width": 142,
+      "tag": "decision"
+    },
+    {
+      "id": "pipeline",
+      "lane": "work",
+      "col": 3,
+      "type": "backend",
+      "label": "Run pipeline",
+      "sublabel": "quote + streams",
+      "width": 142,
+      "tag": "work"
+    },
+    {
+      "id": "temp",
+      "lane": "work",
+      "col": 4,
+      "type": "database",
+      "label": "Write safely",
+      "sublabel": "temp → atomic move",
+      "width": 142,
+      "tag": "artifact"
+    },
+    {
+      "id": "success",
+      "lane": "result",
+      "col": 5,
+      "type": "backend",
+      "label": "Exit 0",
+      "sublabel": "output + log",
+      "width": 142,
+      "tag": "success",
+      "yOffset": -41.0
+    },
+    {
+      "id": "failure",
+      "lane": "result",
+      "col": 5,
+      "type": "security",
+      "label": "Exit non-zero",
+      "sublabel": "stderr + cleanup",
+      "width": 142,
+      "tag": "failure",
+      "yOffset": 41.0
+    }
+  ],
+  "edges": [
+    {
+      "id": "a",
+      "from": "shebang",
+      "to": "strict",
+      "variant": "default",
+      "label": "start"
+    },
+    {
+      "id": "b",
+      "from": "strict",
+      "to": "input",
+      "variant": "security",
+      "label": "validate"
+    },
+    {
+      "id": "c",
+      "from": "input",
+      "to": "pipeline",
+      "variant": "emphasis",
+      "label": "yes"
+    },
+    {
+      "id": "d",
+      "from": "pipeline",
+      "to": "temp",
+      "variant": "emphasis",
+      "label": "produce"
+    },
+    {
+      "id": "e",
+      "from": "temp",
+      "to": "success",
+      "variant": "emphasis",
+      "label": "commit"
+    },
+    {
+      "id": "f",
+      "from": "input",
+      "to": "failure",
+      "variant": "security",
+      "label": "no",
+      "role": "error"
+    },
+    {
+      "id": "g",
+      "from": "pipeline",
+      "to": "failure",
+      "variant": "security",
+      "label": "command failed",
+      "role": "error"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "Quote biến; validate input; giữ stdout sạch",
+        "Strict mode là guardrail, không thay thế error design"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "shellcheck kiểm tra syntax patterns",
+        "exit code + stderr + output checksum kiểm tra run"
+      ]
+    }
+  ],
+  "mainPath": [
+    "shebang",
+    "strict",
+    "input",
+    "pipeline",
+    "temp",
+    "success"
+  ]
+}

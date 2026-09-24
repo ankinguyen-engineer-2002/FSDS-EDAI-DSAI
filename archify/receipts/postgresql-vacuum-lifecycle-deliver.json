@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "lifecycle",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/postgresql-vacuum-lifecycle.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/postgresql-vacuum-lifecycle.html",
+  "specification": {
+    "sha256": "e582245ee0ab7c25c792031b7ebe2758c437a21906028fd0d55f041973c4cdec",
+    "bytes": 2997
+  },
+  "artifact": {
+    "sha256": "88022c4e437aa38a79580396c853172d76d5f5d5917e03739718b13150a4784b",
+    "bytes": 808008
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

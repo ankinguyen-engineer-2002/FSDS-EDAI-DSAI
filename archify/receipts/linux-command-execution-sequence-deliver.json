@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "sequence",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/linux-command-execution-sequence.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/linux-command-execution-sequence.html",
+  "specification": {
+    "sha256": "e639fe3a0e8bdd4a59dbd712ff4815f7e69ab3e489ae20fe4e8c6e676a9c00c6",
+    "bytes": 4338
+  },
+  "artifact": {
+    "sha256": "6adcf65d339be6385a05230443f55a905e74b93922fbc06e5a65e58f6c71a87c",
+    "bytes": 809588
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

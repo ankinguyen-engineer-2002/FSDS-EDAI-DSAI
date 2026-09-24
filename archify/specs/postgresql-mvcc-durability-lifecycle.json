@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Commit tới recovery trong PostgreSQL",
+    "subtitle": "WAL → commit → checkpoint → replay",
+    "output": "postgresql-mvcc-durability-lifecycle.html",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "durability",
+        "label": "Durability path",
+        "focus": [
+          "write",
+          "wal",
+          "commit",
+          "checkpoint",
+          "recovery"
+        ],
+        "note": "WAL đi trước data page; checkpoint làm recovery hữu hạn."
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "main",
+      "label": "Durability path"
+    },
+    {
+      "id": "terminal",
+      "label": "Recovery outcome"
+    }
+  ],
+  "states": [
+    {
+      "id": "write",
+      "type": "start",
+      "label": "UPDATE",
+      "sublabel": "new tuple version",
+      "lane": "main",
+      "col": 0,
+      "step": "01",
+      "tag": "write",
+      "brand": "postgresql"
+    },
+    {
+      "id": "wal",
+      "type": "active",
+      "label": "WAL",
+      "sublabel": "redo record",
+      "lane": "main",
+      "col": 1,
+      "step": "02",
+      "tag": "write-ahead"
+    },
+    {
+      "id": "commit",
+      "type": "success",
+      "label": "Commit",
+      "sublabel": "durability policy",
+      "lane": "main",
+      "col": 2,
+      "step": "03",
+      "tag": "durable",
+      "brand": "postgresql"
+    },
+    {
+      "id": "checkpoint",
+      "type": "decision",
+      "label": "Checkpoint",
+      "sublabel": "recovery boundary",
+      "lane": "main",
+      "col": 3,
+      "step": "04",
+      "tag": "replay"
+    },
+    {
+      "id": "recovery",
+      "type": "success",
+      "label": "Recovery / PITR",
+      "sublabel": "replay WAL",
+      "lane": "terminal",
+      "col": 2,
+      "step": "05",
+      "tag": "restore"
+    }
+  ],
+  "transitions": [
+    {
+      "id": "write-ahead",
+      "from": "write",
+      "to": "wal",
+      "label": "write-ahead",
+      "variant": "emphasis",
+      "labelDy": -26
+    },
+    {
+      "id": "commit",
+      "from": "wal",
+      "to": "commit",
+      "label": "commit record",
+      "variant": "emphasis",
+      "labelDy": -26
+    },
+    {
+      "id": "checkpoint",
+      "from": "commit",
+      "to": "checkpoint",
+      "label": "recovery boundary",
+      "variant": "default",
+      "labelDy": -26
+    },
+    {
+      "id": "restore",
+      "from": "checkpoint",
+      "to": "recovery",
+      "label": "replay / PITR",
+      "variant": "emphasis",
+      "labelDy": -26
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "MVCC",
+      "items": [
+        "Snapshot quyết định version nhìn thấy",
+        "Lock bảo vệ conflict, không chặn mọi đọc"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Durability",
+      "items": [
+        "WAL không phải backup",
+        "Backup + WAL archive mới mở đường PITR"
+      ]
+    }
+  ]
+}

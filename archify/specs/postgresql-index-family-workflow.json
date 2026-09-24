@@ -1,0 +1,209 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Chọn index từ operator và data shape",
+    "subtitle": "Không có một index tốt cho mọi predicate",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "views": [
+      {
+        "id": "operators",
+        "label": "Operator fit",
+        "focus": [
+          "predicate",
+          "shape",
+          "btree",
+          "gin",
+          "gist",
+          "brin"
+        ],
+        "note": "Index family phải hỗ trợ operator class cần dùng."
+      },
+      {
+        "id": "tradeoff",
+        "label": "Cost and proof",
+        "focus": [
+          "btree",
+          "gin",
+          "gist",
+          "brin",
+          "cost",
+          "plan",
+          "evidence"
+        ],
+        "note": "Đọc nhanh hơn đổi lấy write/storage/maintenance cost."
+      }
+    ],
+    "output": "postgresql-index-family-workflow.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "question",
+      "label": "Access question"
+    },
+    {
+      "id": "family",
+      "label": "Index family"
+    },
+    {
+      "id": "tradeoff",
+      "label": "Operational cost"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "predicate",
+      "lane": "question",
+      "col": 0,
+      "type": "external",
+      "label": "Predicate là gì?",
+      "sublabel": "equality · range · contains",
+      "width": 142,
+      "tag": "operator",
+      "yOffset": -41.0
+    },
+    {
+      "id": "shape",
+      "lane": "question",
+      "col": 0,
+      "type": "database",
+      "label": "Data shape",
+      "sublabel": "ordered · array · spatial · huge",
+      "width": 142,
+      "tag": "distribution",
+      "yOffset": 41.0
+    },
+    {
+      "id": "btree",
+      "lane": "family",
+      "col": 1,
+      "type": "database",
+      "label": "B-tree",
+      "sublabel": "equality + range + order",
+      "width": 142,
+      "tag": "default",
+      "yOffset": -123.0
+    },
+    {
+      "id": "gin",
+      "lane": "family",
+      "col": 1,
+      "type": "database",
+      "label": "GIN",
+      "sublabel": "array · JSONB · text",
+      "width": 142,
+      "tag": "inverted",
+      "yOffset": -41.0
+    },
+    {
+      "id": "gist",
+      "lane": "family",
+      "col": 1,
+      "type": "database",
+      "label": "GiST",
+      "sublabel": "spatial · similarity",
+      "width": 142,
+      "tag": "framework",
+      "yOffset": 41.0
+    },
+    {
+      "id": "brin",
+      "lane": "family",
+      "col": 1,
+      "type": "database",
+      "label": "BRIN",
+      "sublabel": "huge correlated table",
+      "width": 142,
+      "tag": "summary",
+      "yOffset": 123.0
+    },
+    {
+      "id": "cost",
+      "lane": "tradeoff",
+      "col": 2,
+      "type": "security",
+      "label": "Write + storage cost",
+      "sublabel": "maintenance overhead",
+      "width": 142,
+      "tag": "tradeoff"
+    },
+    {
+      "id": "plan",
+      "lane": "tradeoff",
+      "col": 3,
+      "type": "backend",
+      "label": "Planner choice",
+      "sublabel": "costed candidate",
+      "width": 142,
+      "tag": "decision",
+      "brand": "postgresql"
+    },
+    {
+      "id": "evidence",
+      "lane": "tradeoff",
+      "col": 4,
+      "type": "external",
+      "label": "EXPLAIN evidence",
+      "sublabel": "actual workload",
+      "width": 142,
+      "tag": "proof"
+    }
+  ],
+  "edges": [
+    {
+      "id": "a",
+      "from": "predicate",
+      "to": "btree",
+      "variant": "emphasis",
+      "label": "equality/range"
+    },
+    {
+      "id": "d",
+      "from": "shape",
+      "to": "brin",
+      "variant": "emphasis",
+      "label": "correlated blocks"
+    },
+    {
+      "id": "h",
+      "from": "brin",
+      "to": "cost",
+      "variant": "default",
+      "label": "maintain"
+    },
+    {
+      "id": "i",
+      "from": "cost",
+      "to": "plan",
+      "variant": "default",
+      "label": "candidate"
+    },
+    {
+      "id": "j",
+      "from": "plan",
+      "to": "evidence",
+      "variant": "emphasis",
+      "label": "measure"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "Composite index còn phụ thuộc column order và predicate shape",
+        "Partial/covering index là workload decision"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "EXPLAIN ANALYZE + BUFFERS xác nhận benefit",
+        "Theo dõi write amplification và index size"
+      ]
+    }
+  ]
+}

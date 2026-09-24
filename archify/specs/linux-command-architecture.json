@@ -1,0 +1,257 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Một command đi qua Linux",
+    "subtitle": "Ý định → shell → process → kernel → tài nguyên",
+    "output": "linux-command-architecture.html",
+    "quality_profile": "showcase",
+    "visual_preset": "editorial",
+    "viewBox": [
+      1220,
+      620
+    ],
+    "views": [
+      {
+        "id": "command-path",
+        "label": "Đường chạy chính",
+        "focus": [
+          "terminal",
+          "shell",
+          "process",
+          "kernel",
+          "storage"
+        ],
+        "note": "Theo một lệnh cat từ ký tự người dùng gõ đến byte được trả về."
+      },
+      {
+        "id": "kernel-resources",
+        "label": "Bốn lời hứa của kernel",
+        "focus": [
+          "kernel",
+          "cpu",
+          "memory",
+          "storage",
+          "process"
+        ],
+        "note": "Nhìn kernel như boundary quản lý process, CPU, RAM và I/O."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "terminal",
+      "type": "external",
+      "label": "Terminal",
+      "sublabel": "nhận chữ + vẽ kết quả",
+      "pos": [
+        50,
+        260
+      ],
+      "size": [
+        150,
+        70
+      ],
+      "tag": "CỬA SỔ"
+    },
+    {
+      "id": "shell",
+      "type": "backend",
+      "label": "Bash / shell",
+      "sublabel": "parse argv + PATH",
+      "pos": [
+        250,
+        260
+      ],
+      "size": [
+        160,
+        70
+      ],
+      "tag": "NGƯỜI PHIÊN DỊCH"
+    },
+    {
+      "id": "process",
+      "type": "backend",
+      "label": "User process",
+      "sublabel": "cat + file descriptors",
+      "pos": [
+        470,
+        260
+      ],
+      "size": [
+        170,
+        70
+      ],
+      "tag": "USER SPACE"
+    },
+    {
+      "id": "kernel",
+      "type": "backend",
+      "label": "Kernel",
+      "sublabel": "permission + syscalls",
+      "pos": [
+        710,
+        260
+      ],
+      "size": [
+        170,
+        70
+      ],
+      "tag": "BOUNDARY"
+    },
+    {
+      "id": "cpu",
+      "type": "cloud",
+      "label": "CPU",
+      "sublabel": "scheduler cho chạy",
+      "pos": [
+        950,
+        120
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "memory",
+      "type": "cloud",
+      "label": "RAM",
+      "sublabel": "address space + buffer",
+      "pos": [
+        950,
+        235
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "storage",
+      "type": "database",
+      "label": "Disk / I/O",
+      "sublabel": "driver đọc byte",
+      "pos": [
+        950,
+        350
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "error",
+      "type": "external",
+      "label": "stderr / exit",
+      "sublabel": "bằng chứng lỗi",
+      "pos": [
+        700,
+        465
+      ],
+      "size": [
+        180,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "User space",
+      "wraps": [
+        "terminal",
+        "shell",
+        "process"
+      ],
+      "pad": 28
+    },
+    {
+      "kind": "region",
+      "label": "Kernel-managed resources",
+      "wraps": [
+        "kernel",
+        "cpu",
+        "memory",
+        "storage"
+      ],
+      "pad": 28
+    }
+  ],
+  "connections": [
+    {
+      "id": "type",
+      "from": "terminal",
+      "to": "shell",
+      "label": "ký tự / command",
+      "variant": "emphasis",
+      "labelDy": -42
+    },
+    {
+      "id": "parse",
+      "from": "shell",
+      "to": "process",
+      "label": "argv + env"
+    },
+    {
+      "id": "syscall",
+      "from": "process",
+      "to": "kernel",
+      "label": "open · read · exec",
+      "variant": "emphasis",
+      "labelDy": -42
+    },
+    {
+      "id": "schedule",
+      "from": "kernel",
+      "to": "cpu",
+      "label": "schedule",
+      "fromSide": "top",
+      "toSide": "left"
+    },
+    {
+      "id": "address",
+      "from": "kernel",
+      "to": "memory",
+      "label": "address space",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "io",
+      "from": "kernel",
+      "to": "storage",
+      "label": "driver / I/O",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "diagnostic",
+      "from": "process",
+      "to": "error",
+      "label": "stderr + exit status",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Nên nhớ",
+      "items": [
+        "Terminal hiển thị; shell mới hiểu cú pháp",
+        "Process không tự chạm đĩa; nó đi qua system call"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Khi debug",
+      "items": [
+        "Sai quyền dừng ở kernel boundary",
+        "stdout là dữ liệu; stderr là chẩn đoán"
+      ]
+    }
+  ]
+}

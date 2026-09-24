@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "workflow",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/linux-script-contract-workflow.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/linux-script-contract-workflow.html",
+  "specification": {
+    "sha256": "6bcce6f9f87b9b2ce33aad4aef143d07d3e495ce35e6c530de6293ca0177ea13",
+    "bytes": 4246
+  },
+  "artifact": {
+    "sha256": "f9f1e3d22a8aa7b1ced573a2cd89699355ae54ca2e7fe49f41f4d88687bd2399",
+    "bytes": 808069
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

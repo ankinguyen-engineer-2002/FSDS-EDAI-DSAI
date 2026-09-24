@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/database-responsibility-architecture.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/database-responsibility-architecture.html",
+  "specification": {
+    "sha256": "b4109b311a5e5f2cc481926435411e31ae6a970a76a096062fb4ed6d28a02455",
+    "bytes": 4035
+  },
+  "artifact": {
+    "sha256": "248f8c6c91b7630dd8cdf9268761ecf7ed7232c87f85a5597f8c9264986cffde",
+    "bytes": 810864
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

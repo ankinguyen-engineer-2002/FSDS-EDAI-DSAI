@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/python-project-boundary-architecture.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/python-project-boundary-architecture.html",
+  "specification": {
+    "sha256": "19704bf08f70495325b7c866cb2f5a0a362e7f06beb60586517acb38ecffb1b6",
+    "bytes": 4096
+  },
+  "artifact": {
+    "sha256": "a8ecc55b8b9a12ff1c9933253cb587654076437165516b2774ce677f74ae03e1",
+    "bytes": 810944
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

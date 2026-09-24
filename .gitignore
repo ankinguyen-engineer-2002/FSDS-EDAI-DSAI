@@ -1,0 +1,13 @@
+# Local source library is intentionally not published to GitHub.
+# It contains large/copyrighted reference material used during synthesis.
+library/
+course-slides/
+
+# Local QA / OS artifacts
+tmp/
+.DS_Store
+*.log
+
+# Local Python caches
+__pycache__/
+*.pyc

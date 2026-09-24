@@ -1,0 +1,225 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "System call là ranh giới",
+    "subtitle": "User space xin; kernel quyết định và điều phối",
+    "viewBox": [
+      1220,
+      680
+    ],
+    "visual_preset": "editorial",
+    "views": [
+      {
+        "id": "boundary",
+        "label": "Privilege boundary",
+        "focus": [
+          "app",
+          "libc",
+          "syscall",
+          "kernel"
+        ],
+        "note": "Không gọi trực tiếp driver từ user space."
+      },
+      {
+        "id": "resources",
+        "label": "Kernel resources",
+        "focus": [
+          "kernel",
+          "sched",
+          "memory",
+          "vfs"
+        ],
+        "note": "Kernel biến request thành CPU, memory hoặc I/O work."
+      }
+    ],
+    "output": "linux-syscall-layer-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "app",
+      "type": "backend",
+      "label": "User process",
+      "sublabel": "cat / python / nginx",
+      "pos": [
+        70,
+        260
+      ],
+      "size": [
+        170,
+        72
+      ],
+      "tag": "user space"
+    },
+    {
+      "id": "libc",
+      "type": "backend",
+      "label": "libc / runtime",
+      "sublabel": "wrapper + ABI",
+      "pos": [
+        300,
+        260
+      ],
+      "size": [
+        170,
+        72
+      ],
+      "tag": "boundary prep"
+    },
+    {
+      "id": "syscall",
+      "type": "security",
+      "label": "System-call gate",
+      "sublabel": "open · read · write",
+      "pos": [
+        530,
+        260
+      ],
+      "size": [
+        180,
+        72
+      ],
+      "tag": "privilege switch"
+    },
+    {
+      "id": "kernel",
+      "type": "backend",
+      "label": "Kernel core",
+      "sublabel": "policy + ownership",
+      "pos": [
+        770,
+        260
+      ],
+      "size": [
+        170,
+        72
+      ],
+      "tag": "kernel space"
+    },
+    {
+      "id": "sched",
+      "type": "cloud",
+      "label": "Scheduler",
+      "sublabel": "CPU time",
+      "pos": [
+        1010,
+        100
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "tag": "resource"
+    },
+    {
+      "id": "memory",
+      "type": "cloud",
+      "label": "VM subsystem",
+      "sublabel": "address space",
+      "pos": [
+        1010,
+        235
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "tag": "resource"
+    },
+    {
+      "id": "vfs",
+      "type": "database",
+      "label": "VFS + driver",
+      "sublabel": "file / device / net",
+      "pos": [
+        1010,
+        370
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "tag": "resource"
+    }
+  ],
+  "connections": [
+    {
+      "id": "call",
+      "from": "app",
+      "to": "libc",
+      "variant": "default"
+    },
+    {
+      "id": "trap",
+      "from": "libc",
+      "to": "syscall",
+      "variant": "emphasis"
+    },
+    {
+      "id": "dispatch",
+      "from": "syscall",
+      "to": "kernel",
+      "variant": "security"
+    },
+    {
+      "id": "cpu",
+      "from": "kernel",
+      "to": "sched",
+      "variant": "default"
+    },
+    {
+      "id": "ram",
+      "from": "kernel",
+      "to": "memory",
+      "variant": "default"
+    },
+    {
+      "id": "io",
+      "from": "kernel",
+      "to": "vfs",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "Library call có thể ở user space; system call đổi quyền thực thi",
+        "Kernel giữ isolation và ownership của tài nguyên"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "strace đo syscall thật",
+        "/proc và perf cho biết CPU/memory/I/O"
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "User space",
+      "wraps": [
+        "app",
+        "libc"
+      ],
+      "pad": 26
+    },
+    {
+      "kind": "region",
+      "label": "Kernel space",
+      "wraps": [
+        "syscall",
+        "kernel",
+        "sched",
+        "memory",
+        "vfs"
+      ],
+      "pad": 26
+    }
+  ]
+}

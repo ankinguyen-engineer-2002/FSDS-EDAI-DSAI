@@ -1,0 +1,157 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Source trở thành executable qua bốn artifact",
+    "subtitle": "Mỗi tool đổi representation và tạo loại lỗi riêng",
+    "viewBox": [
+      1080,
+      720
+    ],
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "views": [
+      {
+        "id": "artifacts",
+        "label": "Artifact chain",
+        "focus": [
+          "c",
+          "i",
+          "s",
+          "o",
+          "bin"
+        ],
+        "note": "Theo representation thay đổi sau mỗi tool."
+      },
+      {
+        "id": "errors",
+        "label": "Failure boundary",
+        "focus": [
+          "c",
+          "i",
+          "s",
+          "o",
+          "bin"
+        ],
+        "note": "Tên artifact cho biết lỗi thuộc stage nào."
+      }
+    ],
+    "output": "linux-compilation-dataflow.html",
+    "quality_profile": "showcase"
+  },
+  "stages": [
+    {
+      "label": "Source"
+    },
+    {
+      "label": "Preprocess"
+    },
+    {
+      "label": "Compile"
+    },
+    {
+      "label": "Assemble"
+    },
+    {
+      "label": "Link"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "c",
+      "type": "frontend",
+      "label": "hello.c",
+      "sublabel": "C source",
+      "stage": 0,
+      "row": 0
+    },
+    {
+      "id": "i",
+      "type": "messagebus",
+      "label": "hello.i",
+      "sublabel": "expanded source",
+      "stage": 1,
+      "row": 0
+    },
+    {
+      "id": "s",
+      "type": "messagebus",
+      "label": "hello.s",
+      "sublabel": "assembly",
+      "stage": 2,
+      "row": 0
+    },
+    {
+      "id": "o",
+      "type": "database",
+      "label": "hello.o",
+      "sublabel": "object code",
+      "stage": 3,
+      "row": 0
+    },
+    {
+      "id": "bin",
+      "type": "backend",
+      "label": "hello",
+      "sublabel": "executable",
+      "stage": 4,
+      "row": 0
+    }
+  ],
+  "flows": [
+    {
+      "id": "cpp",
+      "from": "c",
+      "to": "i",
+      "label": "cpp",
+      "classification": "include + macro",
+      "variant": "emphasis",
+      "route": "straight"
+    },
+    {
+      "id": "cc",
+      "from": "i",
+      "to": "s",
+      "label": "compiler",
+      "classification": "syntax + type",
+      "variant": "emphasis",
+      "route": "straight"
+    },
+    {
+      "id": "as",
+      "from": "s",
+      "to": "o",
+      "label": "assembler",
+      "classification": "machine code",
+      "variant": "emphasis",
+      "route": "straight"
+    },
+    {
+      "id": "ld",
+      "from": "o",
+      "to": "bin",
+      "label": "linker",
+      "classification": "symbols + libraries",
+      "variant": "emphasis",
+      "route": "straight"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "Compiler không trực tiếp tạo mọi executable trong một bước",
+        "Object file chưa chạy được cho tới khi linker giải quyết symbol"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "gcc -E/-S/-c dừng ở từng stage",
+        "file + nm + ldd kiểm tra artifact"
+      ]
+    }
+  ]
+}

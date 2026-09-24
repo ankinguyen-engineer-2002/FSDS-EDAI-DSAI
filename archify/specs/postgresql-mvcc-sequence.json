@@ -1,0 +1,210 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "MVCC quyết định ai nhìn thấy version nào",
+    "subtitle": "Visibility và lock conflict là hai cơ chế khác nhau",
+    "viewBox": [
+      1000,
+      1014
+    ],
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "column_fit": "spread",
+    "views": [
+      {
+        "id": "visibility",
+        "label": "Reader visibility",
+        "focus": [
+          "tx2",
+          "backend2",
+          "heap"
+        ],
+        "note": "Snapshot chọn version phù hợp mà không khóa mọi reader."
+      },
+      {
+        "id": "write",
+        "label": "Writer coordination",
+        "focus": [
+          "tx1",
+          "backend1",
+          "heap",
+          "lock",
+          "wal"
+        ],
+        "note": "Lock xử lý conflict; WAL xử lý durability."
+      }
+    ],
+    "output": "postgresql-mvcc-sequence.html",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    {
+      "id": "tx1",
+      "type": "external",
+      "label": "Transaction A",
+      "sublabel": "writer"
+    },
+    {
+      "id": "backend1",
+      "type": "backend",
+      "label": "Backend A",
+      "sublabel": "snapshot + xid",
+      "brand": "postgresql"
+    },
+    {
+      "id": "heap",
+      "type": "database",
+      "label": "Heap page",
+      "sublabel": "tuple versions"
+    },
+    {
+      "id": "backend2",
+      "type": "backend",
+      "label": "Backend B",
+      "sublabel": "reader snapshot",
+      "brand": "postgresql"
+    },
+    {
+      "id": "tx2",
+      "type": "external",
+      "label": "Transaction B",
+      "sublabel": "reader"
+    },
+    {
+      "id": "lock",
+      "type": "security",
+      "label": "Lock manager",
+      "sublabel": "write conflict"
+    },
+    {
+      "id": "wal",
+      "type": "messagebus",
+      "label": "WAL",
+      "sublabel": "durability"
+    }
+  ],
+  "segments": [
+    {
+      "from": 170,
+      "to": 849,
+      "label": "đường chạy quan sát được"
+    }
+  ],
+  "messages": [
+    {
+      "id": "begin1",
+      "from": "tx1",
+      "to": "backend1",
+      "y": 190,
+      "label": "BEGIN · snapshot S1",
+      "variant": "default"
+    },
+    {
+      "id": "update",
+      "from": "backend1",
+      "to": "heap",
+      "y": 278,
+      "label": "create new tuple version",
+      "variant": "emphasis"
+    },
+    {
+      "id": "record",
+      "from": "backend1",
+      "to": "wal",
+      "y": 366,
+      "label": "append WAL record",
+      "variant": "emphasis"
+    },
+    {
+      "id": "begin2",
+      "from": "tx2",
+      "to": "backend2",
+      "y": 454,
+      "label": "SELECT · snapshot S2",
+      "variant": "default"
+    },
+    {
+      "id": "read",
+      "from": "backend2",
+      "to": "heap",
+      "y": 542,
+      "label": "test xmin/xmax visibility",
+      "variant": "emphasis"
+    },
+    {
+      "id": "visible",
+      "from": "heap",
+      "to": "backend2",
+      "y": 630,
+      "label": "return visible version",
+      "variant": "return"
+    },
+    {
+      "id": "conflict",
+      "from": "backend1",
+      "to": "lock",
+      "y": 718,
+      "label": "second writer waits",
+      "variant": "security"
+    },
+    {
+      "id": "commit",
+      "from": "backend1",
+      "to": "tx1",
+      "y": 806,
+      "label": "COMMIT after WAL flush",
+      "variant": "return"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "backend1",
+      "from": 178,
+      "to": 844,
+      "type": "backend"
+    },
+    {
+      "participant": "heap",
+      "from": 266,
+      "to": 668,
+      "type": "backend"
+    },
+    {
+      "participant": "backend2",
+      "from": 442,
+      "to": 668,
+      "type": "backend"
+    },
+    {
+      "participant": "tx2",
+      "from": 442,
+      "to": 492,
+      "type": "backend"
+    },
+    {
+      "participant": "lock",
+      "from": 706,
+      "to": 756,
+      "type": "backend"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "MVCC tạo version; snapshot quyết định visibility",
+        "Lock conflict không đồng nghĩa mọi read đều bị chặn"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "pg_locks + pg_stat_activity cho wait evidence",
+        "xmin/xmax lab giải thích version lifecycle"
+      ]
+    }
+  ]
+}

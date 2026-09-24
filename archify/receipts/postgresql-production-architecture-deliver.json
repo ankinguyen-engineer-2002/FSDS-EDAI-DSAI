@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/postgresql-production-architecture.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/postgresql-production-architecture.html",
+  "specification": {
+    "sha256": "c6ccfde4ed9d469f6bf42a7b696b75f9fbcb6b5c23e2acbea93ad1f08bc8c457",
+    "bytes": 4349
+  },
+  "artifact": {
+    "sha256": "855ab18902e2bbac3c7560800c8b9b4ed33c0b08b94253db15c478dc93fa4cdb",
+    "bytes": 817821
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

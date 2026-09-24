@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "sequence",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/python-exception-unwinding-sequence.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/python-exception-unwinding-sequence.html",
+  "specification": {
+    "sha256": "1898ca23b316ecc90c00dec14a6f6a8f0d54b4b8c86ad517817db28f53894232",
+    "bytes": 3869
+  },
+  "artifact": {
+    "sha256": "1e96db55205e528af9bae07ca9fcc044b06fb7e40baa9e24d13e091cb964737b",
+    "bytes": 808928
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/python-synthesis-architecture.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/python-synthesis-architecture.html",
+  "specification": {
+    "sha256": "fffbeb371bfcf1fe6ae55f07ac3701932945c0ea66d2e967f376e6dfca254a61",
+    "bytes": 3908
+  },
+  "artifact": {
+    "sha256": "0ac37d136c79ec924562a557414947729cec523f1c6728ec82c0d5d416422ebf",
+    "bytes": 809101
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

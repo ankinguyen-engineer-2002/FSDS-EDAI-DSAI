@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "sequence",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/python-startup-sequence.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/python-startup-sequence.html",
+  "specification": {
+    "sha256": "949b047e0cff49a120d273c8c2251b04c670046a167ca6784ec6a37bd81cbe9a",
+    "bytes": 4147
+  },
+  "artifact": {
+    "sha256": "96d652704503dcdc43a26e9d0139615fb75cc9b56fac942638bf1a4256524813",
+    "bytes": 812571
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

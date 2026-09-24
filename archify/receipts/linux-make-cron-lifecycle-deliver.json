@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "lifecycle",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/linux-make-cron-lifecycle.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/linux-make-cron-lifecycle.html",
+  "specification": {
+    "sha256": "b0cbef0297938a678b4c84338315f7ee1d9b123f73600037da310ddffe24ee32",
+    "bytes": 2844
+  },
+  "artifact": {
+    "sha256": "e376c9a42042c6ed0dcf6a88a13a4af3d2ce2800eb73bdd2e20b7ca419e1d228",
+    "bytes": 802763
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

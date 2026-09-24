@@ -1,0 +1,154 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Object chỉ đi qua boundary sau khi thành byte",
+    "subtitle": "Encode, transport, parse và validate là bốn trách nhiệm",
+    "viewBox": [
+      1080,
+      720
+    ],
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "views": [
+      {
+        "id": "outbound",
+        "label": "Outbound",
+        "focus": [
+          "object",
+          "encode",
+          "bytes"
+        ],
+        "note": "Identity trong RAM không đi qua file/socket."
+      },
+      {
+        "id": "inbound",
+        "label": "Inbound",
+        "focus": [
+          "bytes",
+          "parse",
+          "valid"
+        ],
+        "note": "Parse đúng syntax chưa đồng nghĩa dữ liệu hợp lệ."
+      }
+    ],
+    "output": "python-serialization-dataflow.html",
+    "quality_profile": "showcase"
+  },
+  "stages": [
+    {
+      "label": "Live object"
+    },
+    {
+      "label": "Encode"
+    },
+    {
+      "label": "Transport"
+    },
+    {
+      "label": "Parse"
+    },
+    {
+      "label": "Validated value"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "object",
+      "type": "database",
+      "label": "Python object",
+      "sublabel": "dict / datetime",
+      "stage": 0,
+      "row": 0,
+      "brand": "python"
+    },
+    {
+      "id": "encode",
+      "type": "backend",
+      "label": "Encoder",
+      "sublabel": "JSON / CSV / Arrow",
+      "stage": 1,
+      "row": 0
+    },
+    {
+      "id": "bytes",
+      "type": "messagebus",
+      "label": "Byte buffer",
+      "sublabel": "UTF-8 / binary",
+      "stage": 2,
+      "row": 0
+    },
+    {
+      "id": "parse",
+      "type": "backend",
+      "label": "Parser",
+      "sublabel": "bytes → fields",
+      "stage": 3,
+      "row": 0
+    },
+    {
+      "id": "valid",
+      "type": "database",
+      "label": "Validated model",
+      "sublabel": "types + invariant",
+      "stage": 4,
+      "row": 0
+    }
+  ],
+  "flows": [
+    {
+      "id": "a",
+      "from": "object",
+      "to": "encode",
+      "label": "serialize",
+      "classification": "representation",
+      "variant": "emphasis",
+      "route": "straight"
+    },
+    {
+      "id": "b",
+      "from": "encode",
+      "to": "bytes",
+      "label": "emit bytes",
+      "classification": "wire format",
+      "variant": "emphasis",
+      "route": "straight"
+    },
+    {
+      "id": "c",
+      "from": "bytes",
+      "to": "parse",
+      "label": "read payload",
+      "classification": "I/O boundary",
+      "variant": "emphasis",
+      "route": "straight"
+    },
+    {
+      "id": "d",
+      "from": "parse",
+      "to": "valid",
+      "label": "validate",
+      "classification": "schema + invariant",
+      "variant": "emphasis",
+      "route": "straight"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "Serialization chọn representation; schema giữ meaning",
+        "pickle tiện nhưng không phải boundary tin cậy cho input lạ"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "Round-trip test kiểm tra encode/decode",
+        "Schema validation + checksum kiểm tra payload"
+      ]
+    }
+  ]
+}

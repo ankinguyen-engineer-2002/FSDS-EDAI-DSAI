@@ -1,0 +1,210 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Sync và async khác ở cách dùng thời gian chờ",
+    "subtitle": "Cùng I/O, nhưng ownership của thread khác nhau",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "views": [
+      {
+        "id": "sync",
+        "label": "Blocking path",
+        "focus": [
+          "srun",
+          "swait",
+          "snext",
+          "metric"
+        ],
+        "note": "Thread không làm task khác trong khoảng blocking call."
+      },
+      {
+        "id": "async",
+        "label": "Async path",
+        "focus": [
+          "arun",
+          "await",
+          "other",
+          "resume",
+          "metric"
+        ],
+        "note": "Task yield ở await để loop chạy việc khác."
+      }
+    ],
+    "output": "python-sync-async-workflow.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "sync",
+      "label": "Synchronous path"
+    },
+    {
+      "id": "async",
+      "label": "Async event loop"
+    },
+    {
+      "id": "evidence",
+      "label": "Measurement"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "srun",
+      "lane": "sync",
+      "col": 0,
+      "type": "backend",
+      "label": "Run task A",
+      "sublabel": "owns thread",
+      "width": 142,
+      "tag": "running"
+    },
+    {
+      "id": "swait",
+      "lane": "sync",
+      "col": 1,
+      "type": "security",
+      "label": "Blocking I/O",
+      "sublabel": "thread waits",
+      "width": 142,
+      "tag": "idle"
+    },
+    {
+      "id": "snext",
+      "lane": "sync",
+      "col": 2,
+      "type": "backend",
+      "label": "Run task B",
+      "sublabel": "starts later",
+      "width": 142,
+      "tag": "serialized"
+    },
+    {
+      "id": "arun",
+      "lane": "async",
+      "col": 0,
+      "type": "backend",
+      "label": "Run task A",
+      "sublabel": "until await",
+      "width": 142,
+      "tag": "running",
+      "brand": "python"
+    },
+    {
+      "id": "await",
+      "lane": "async",
+      "col": 1,
+      "type": "messagebus",
+      "label": "await I/O",
+      "sublabel": "register + yield",
+      "width": 142,
+      "tag": "cooperative"
+    },
+    {
+      "id": "other",
+      "lane": "async",
+      "col": 2,
+      "type": "backend",
+      "label": "Run task B",
+      "sublabel": "same thread",
+      "width": 142,
+      "tag": "interleaved"
+    },
+    {
+      "id": "resume",
+      "lane": "async",
+      "col": 3,
+      "type": "backend",
+      "label": "Resume A",
+      "sublabel": "I/O ready",
+      "width": 142,
+      "tag": "continuation"
+    },
+    {
+      "id": "metric",
+      "lane": "evidence",
+      "col": 4,
+      "type": "database",
+      "label": "Timeline evidence",
+      "sublabel": "latency + throughput",
+      "width": 142,
+      "tag": "measure"
+    }
+  ],
+  "edges": [
+    {
+      "id": "s1",
+      "from": "srun",
+      "to": "swait",
+      "variant": "default",
+      "label": "call I/O"
+    },
+    {
+      "id": "s2",
+      "from": "swait",
+      "to": "snext",
+      "variant": "default",
+      "label": "returns"
+    },
+    {
+      "id": "a1",
+      "from": "arun",
+      "to": "await",
+      "variant": "emphasis",
+      "label": "yield"
+    },
+    {
+      "id": "a2",
+      "from": "await",
+      "to": "other",
+      "variant": "emphasis",
+      "label": "loop schedules"
+    },
+    {
+      "id": "a3",
+      "from": "other",
+      "to": "resume",
+      "variant": "emphasis",
+      "label": "readiness event"
+    },
+    {
+      "id": "m1",
+      "from": "snext",
+      "to": "metric",
+      "variant": "default",
+      "label": "compare"
+    },
+    {
+      "id": "m2",
+      "from": "resume",
+      "to": "metric",
+      "variant": "default",
+      "label": "compare"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "Async tối ưu wait-heavy concurrency, không biến CPU work thành parallel",
+        "Blocking library trong async handler có thể chặn cả loop"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "Timeline + p95 latency tốt hơn cảm giác",
+        "Profile CPU riêng với event-loop lag"
+      ]
+    }
+  ],
+  "mainPath": [
+    "arun",
+    "await",
+    "other",
+    "resume",
+    "metric"
+  ]
+}

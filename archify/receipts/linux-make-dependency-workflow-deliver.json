@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "workflow",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/linux-make-dependency-workflow.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/linux-make-dependency-workflow.html",
+  "specification": {
+    "sha256": "32ba9157f73f32508d4aeceff2c7cbee5a78e86dd74c345d0de0f28dfad77e16",
+    "bytes": 4557
+  },
+  "artifact": {
+    "sha256": "08bac574b88db1b4e695d67dcb5a779888910608425a1c2b95e771f2e9b7a9c8",
+    "bytes": 810482
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

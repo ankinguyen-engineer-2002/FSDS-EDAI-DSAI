@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "sequence",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/postgresql-query-sequence.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/postgresql-query-sequence.html",
+  "specification": {
+    "sha256": "6adb4cd1de6971239759ee11527d8a180ce38237cb9a4c9a93094d06af96b20d",
+    "bytes": 4308
+  },
+  "artifact": {
+    "sha256": "0c4cfe6ef27a8ad9570cb000abca750aabae7ba16a9e929e128696ec59880349",
+    "bytes": 826634
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

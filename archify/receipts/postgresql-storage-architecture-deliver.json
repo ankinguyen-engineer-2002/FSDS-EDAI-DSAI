@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/postgresql-storage-architecture.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/postgresql-storage-architecture.html",
+  "specification": {
+    "sha256": "59b3be754dddfed317fe9664516f3c2756c313b1c18fbe94dc383d61e84a4da8",
+    "bytes": 4140
+  },
+  "artifact": {
+    "sha256": "58ef929c3305a66d46528a48cbf710c9996ff4f1aa8665200effb621e57ed04d",
+    "bytes": 817210
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

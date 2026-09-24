@@ -1,0 +1,210 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Tuning bắt đầu bằng câu hỏi và kết thúc bằng đo lại",
+    "subtitle": "Không thay đổi production dựa trên dashboard trang trí",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "views": [
+      {
+        "id": "evidence",
+        "label": "Evidence bundle",
+        "focus": [
+          "symptom",
+          "plan",
+          "buffers",
+          "waits",
+          "hypothesis"
+        ],
+        "note": "Mỗi evidence trả lời một lớp khác nhau."
+      },
+      {
+        "id": "experiment",
+        "label": "Controlled experiment",
+        "focus": [
+          "hypothesis",
+          "change",
+          "compare",
+          "rollback"
+        ],
+        "note": "Một thay đổi, cùng workload, có rollback."
+      }
+    ],
+    "output": "postgresql-evidence-workflow.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "question",
+      "label": "Question"
+    },
+    {
+      "id": "collect",
+      "label": "Collect evidence"
+    },
+    {
+      "id": "diagnose",
+      "label": "Mechanism"
+    },
+    {
+      "id": "change",
+      "label": "Controlled change"
+    },
+    {
+      "id": "verify",
+      "label": "Verify"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "symptom",
+      "lane": "question",
+      "col": 0,
+      "type": "external",
+      "label": "Symptom cụ thể",
+      "sublabel": "slow query · lag · bloat",
+      "width": 142,
+      "tag": "scope"
+    },
+    {
+      "id": "plan",
+      "lane": "collect",
+      "col": 1,
+      "type": "backend",
+      "label": "Query plan",
+      "sublabel": "rows · loops · time",
+      "width": 142,
+      "tag": "EXPLAIN",
+      "yOffset": -82.0,
+      "brand": "postgresql"
+    },
+    {
+      "id": "buffers",
+      "lane": "collect",
+      "col": 1,
+      "type": "database",
+      "label": "Buffers / I/O",
+      "sublabel": "hit · read · dirtied",
+      "width": 142,
+      "tag": "storage",
+      "yOffset": 0.0
+    },
+    {
+      "id": "waits",
+      "lane": "collect",
+      "col": 1,
+      "type": "messagebus",
+      "label": "Wait events",
+      "sublabel": "CPU · lock · I/O",
+      "width": 142,
+      "tag": "blocking",
+      "yOffset": 82.0
+    },
+    {
+      "id": "hypothesis",
+      "lane": "diagnose",
+      "col": 2,
+      "type": "security",
+      "label": "Mechanism hypothesis",
+      "sublabel": "estimate · lock · cache",
+      "width": 142,
+      "tag": "causal"
+    },
+    {
+      "id": "change",
+      "lane": "change",
+      "col": 3,
+      "type": "backend",
+      "label": "One change",
+      "sublabel": "index · query · config",
+      "width": 142,
+      "tag": "controlled"
+    },
+    {
+      "id": "compare",
+      "lane": "verify",
+      "col": 4,
+      "type": "database",
+      "label": "Before / after",
+      "sublabel": "same workload",
+      "width": 142,
+      "tag": "evidence",
+      "yOffset": -41.0
+    },
+    {
+      "id": "rollback",
+      "lane": "verify",
+      "col": 4,
+      "type": "security",
+      "label": "Rollback",
+      "sublabel": "regression guard",
+      "width": 142,
+      "tag": "safety",
+      "yOffset": 41.0
+    }
+  ],
+  "edges": [
+    {
+      "id": "a",
+      "from": "symptom",
+      "to": "plan",
+      "variant": "default",
+      "label": "query evidence"
+    },
+    {
+      "id": "d",
+      "from": "plan",
+      "to": "hypothesis",
+      "variant": "emphasis",
+      "label": "interpret"
+    },
+    {
+      "id": "g",
+      "from": "hypothesis",
+      "to": "change",
+      "variant": "emphasis",
+      "label": "test one cause"
+    },
+    {
+      "id": "h",
+      "from": "change",
+      "to": "compare",
+      "variant": "emphasis",
+      "label": "measure"
+    },
+    {
+      "id": "i",
+      "from": "compare",
+      "to": "rollback",
+      "variant": "security",
+      "label": "regressed",
+      "role": "error"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "Chart không có question/failure model chỉ là decoration",
+        "Estimate vs actual thường là đầu mối quan trọng"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "Lưu query, parameters và workload window",
+        "So p50/p95, buffers, waits và correctness sau change"
+      ]
+    }
+  ],
+  "mainPath": [
+    "symptom",
+    "plan",
+    "hypothesis",
+    "change",
+    "compare"
+  ]
+}

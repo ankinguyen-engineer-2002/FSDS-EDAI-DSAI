@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Một query đi qua PostgreSQL",
+    "subtitle": "intent → plan → access path → evidence",
+    "output": "postgresql-query-sequence.html",
+    "viewBox": [
+      1000,
+      1040
+    ],
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "views": [
+      {
+        "id": "query-path",
+        "label": "Query path",
+        "focus": [
+          "app",
+          "backend",
+          "parser",
+          "planner",
+          "executor",
+          "storage"
+        ],
+        "note": "Planner tạo plan; executor mới chạy access path."
+      },
+      {
+        "id": "evidence",
+        "label": "Evidence",
+        "focus": [
+          "planner",
+          "executor",
+          "explain"
+        ],
+        "note": "EXPLAIN và EXPLAIN ANALYZE trả lời hai câu hỏi khác nhau."
+      }
+    ]
+  },
+  "participants": [
+    {
+      "id": "app",
+      "type": "external",
+      "label": "App / driver",
+      "sublabel": "logical intent"
+    },
+    {
+      "id": "backend",
+      "type": "backend",
+      "label": "Backend",
+      "sublabel": "connection process",
+      "brand": "postgresql"
+    },
+    {
+      "id": "parser",
+      "type": "backend",
+      "label": "Parser",
+      "sublabel": "tree + rules"
+    },
+    {
+      "id": "planner",
+      "type": "backend",
+      "label": "Planner",
+      "sublabel": "stats + cost",
+      "brand": "postgresql"
+    },
+    {
+      "id": "executor",
+      "type": "backend",
+      "label": "Executor",
+      "sublabel": "chosen path",
+      "brand": "postgresql"
+    },
+    {
+      "id": "storage",
+      "type": "database",
+      "label": "Buffer + heap",
+      "sublabel": "pages"
+    },
+    {
+      "id": "explain",
+      "type": "external",
+      "label": "EXPLAIN",
+      "sublabel": "estimate vs actual"
+    }
+  ],
+  "segments": [
+    {
+      "from": 160,
+      "to": 980,
+      "label": "one query lifecycle"
+    }
+  ],
+  "messages": [
+    {
+      "id": "sql",
+      "from": "app",
+      "to": "backend",
+      "y": 190,
+      "label": "SQL + params",
+      "variant": "emphasis"
+    },
+    {
+      "id": "parse",
+      "from": "backend",
+      "to": "parser",
+      "y": 285,
+      "label": "parse / rewrite",
+      "variant": "default"
+    },
+    {
+      "id": "plan",
+      "from": "parser",
+      "to": "planner",
+      "y": 380,
+      "label": "query tree + stats",
+      "variant": "emphasis"
+    },
+    {
+      "id": "path",
+      "from": "planner",
+      "to": "executor",
+      "y": 475,
+      "label": "seq / index / bitmap",
+      "variant": "emphasis",
+      "note": "Tồn tại index không đồng nghĩa planner phải dùng."
+    },
+    {
+      "id": "read",
+      "from": "executor",
+      "to": "storage",
+      "y": 570,
+      "label": "page fetch",
+      "variant": "default"
+    },
+    {
+      "id": "rows",
+      "from": "storage",
+      "to": "executor",
+      "y": 665,
+      "label": "tuples / buffers",
+      "variant": "return"
+    },
+    {
+      "id": "result",
+      "from": "executor",
+      "to": "app",
+      "y": 760,
+      "label": "rows / result",
+      "variant": "return"
+    },
+    {
+      "id": "observe",
+      "from": "planner",
+      "to": "explain",
+      "y": 855,
+      "label": "estimate + actual",
+      "variant": "dashed"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "backend",
+      "from": 186,
+      "to": 812,
+      "type": "backend"
+    },
+    {
+      "participant": "planner",
+      "from": 375,
+      "to": 505,
+      "type": "backend"
+    },
+    {
+      "participant": "executor",
+      "from": 470,
+      "to": 710,
+      "type": "backend"
+    },
+    {
+      "participant": "storage",
+      "from": 565,
+      "to": 680,
+      "type": "database"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Tách hai bước",
+      "items": [
+        "Planner chọn đường đi",
+        "Executor thực hiện đường đi",
+        "Statistics ảnh hưởng cost"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Đo lại",
+      "items": [
+        "EXPLAIN không chạy query",
+        "EXPLAIN ANALYZE chạy thật",
+        "BUFFERS cho thấy page evidence"
+      ]
+    }
+  ]
+}

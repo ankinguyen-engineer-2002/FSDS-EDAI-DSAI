@@ -1,0 +1,220 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Một row vật lý sống trong page và nhiều bản đồ",
+    "subtitle": "Heap, buffer, VM/FSM và WAL phục vụ mục tiêu khác nhau",
+    "viewBox": [
+      1220,
+      680
+    ],
+    "visual_preset": "editorial",
+    "views": [
+      {
+        "id": "row",
+        "label": "Tuple location",
+        "focus": [
+          "executor",
+          "buffer",
+          "heap",
+          "index",
+          "disk"
+        ],
+        "note": "Logical row được chứa trong heap page; index trỏ TID."
+      },
+      {
+        "id": "maintenance",
+        "label": "Maintenance metadata",
+        "focus": [
+          "heap",
+          "vm",
+          "fsm",
+          "wal"
+        ],
+        "note": "VM/FSM hỗ trợ vacuum và placement; WAL bảo vệ redo."
+      }
+    ],
+    "output": "postgresql-storage-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "executor",
+      "type": "backend",
+      "label": "Executor",
+      "sublabel": "tuple operation",
+      "pos": [
+        60,
+        260
+      ],
+      "size": [
+        170,
+        72
+      ],
+      "tag": "logical action",
+      "brand": "postgresql"
+    },
+    {
+      "id": "buffer",
+      "type": "cloud",
+      "label": "Shared buffers",
+      "sublabel": "cached 8 KB pages",
+      "pos": [
+        300,
+        260
+      ],
+      "size": [
+        180,
+        72
+      ],
+      "tag": "memory",
+      "brand": "postgresql"
+    },
+    {
+      "id": "heap",
+      "type": "database",
+      "label": "Heap page",
+      "sublabel": "line pointer + tuple",
+      "pos": [
+        560,
+        120
+      ],
+      "size": [
+        180,
+        72
+      ],
+      "tag": "data"
+    },
+    {
+      "id": "index",
+      "type": "database",
+      "label": "Index page",
+      "sublabel": "key → TID",
+      "pos": [
+        560,
+        330
+      ],
+      "size": [
+        180,
+        72
+      ],
+      "tag": "access path"
+    },
+    {
+      "id": "vm",
+      "type": "messagebus",
+      "label": "Visibility map",
+      "sublabel": "all-visible hints",
+      "pos": [
+        840,
+        80
+      ],
+      "size": [
+        180,
+        68
+      ],
+      "tag": "maintenance"
+    },
+    {
+      "id": "fsm",
+      "type": "messagebus",
+      "label": "Free space map",
+      "sublabel": "space hints",
+      "pos": [
+        840,
+        230
+      ],
+      "size": [
+        180,
+        68
+      ],
+      "tag": "placement"
+    },
+    {
+      "id": "wal",
+      "type": "security",
+      "label": "WAL files",
+      "sublabel": "redo evidence",
+      "pos": [
+        300,
+        480
+      ],
+      "size": [
+        180,
+        68
+      ],
+      "tag": "durability"
+    },
+    {
+      "id": "disk",
+      "type": "database",
+      "label": "Persistent files",
+      "sublabel": "heap + index forks",
+      "pos": [
+        1060,
+        260
+      ],
+      "size": [
+        140,
+        72
+      ],
+      "tag": "storage"
+    }
+  ],
+  "connections": [
+    {
+      "id": "page",
+      "from": "executor",
+      "to": "buffer",
+      "variant": "emphasis"
+    },
+    {
+      "id": "h",
+      "from": "buffer",
+      "to": "heap",
+      "variant": "default"
+    },
+    {
+      "id": "i",
+      "from": "buffer",
+      "to": "index",
+      "variant": "default"
+    },
+    {
+      "id": "v",
+      "from": "heap",
+      "to": "vm",
+      "variant": "default"
+    },
+    {
+      "id": "f",
+      "from": "heap",
+      "to": "fsm",
+      "variant": "default"
+    },
+    {
+      "id": "w",
+      "from": "buffer",
+      "to": "wal",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "Shared buffers cache page, không phải toàn bộ database",
+        "WAL là redo log; heap/index vẫn là data files"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "pageinspect cho page anatomy",
+        "BUFFERS + pg_relation_size đo I/O và footprint"
+      ]
+    }
+  ]
+}

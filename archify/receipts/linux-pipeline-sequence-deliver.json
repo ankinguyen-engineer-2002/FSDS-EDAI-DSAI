@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "sequence",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/linux-pipeline-sequence.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/linux-pipeline-sequence.html",
+  "specification": {
+    "sha256": "e4726b0610b7788ace390fe518a5104230762aa423dd28a1f947dde09dc6af3b",
+    "bytes": 3630
+  },
+  "artifact": {
+    "sha256": "403cf4b6effbe4334c660c94ea8fa26e83ad570337c8d0f84a6b8d40cdf038d8",
+    "bytes": 805712
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

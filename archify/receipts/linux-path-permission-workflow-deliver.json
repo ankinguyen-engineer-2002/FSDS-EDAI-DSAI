@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "workflow",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/linux-path-permission-workflow.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/linux-path-permission-workflow.html",
+  "specification": {
+    "sha256": "304f4e1096b3669b546e219502340afa9e93ccb89c4754a82221da1217de5be0",
+    "bytes": 4313
+  },
+  "artifact": {
+    "sha256": "7a35f4193f4f118b6b763570455b70b786c2435a0d51b515d340b4444c920d8b",
+    "bytes": 809581
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

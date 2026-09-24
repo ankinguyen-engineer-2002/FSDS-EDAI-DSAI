@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/postgresql-synthesis-architecture.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/postgresql-synthesis-architecture.html",
+  "specification": {
+    "sha256": "8be6bb066b33d79cf130f0be87024594e1e51f4f6339666947f92c2120454c83",
+    "bytes": 4028
+  },
+  "artifact": {
+    "sha256": "1e55aed240907de6e5d74ce14c26abb79a11676eaa7693353aba0914a5157816",
+    "bytes": 811317
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

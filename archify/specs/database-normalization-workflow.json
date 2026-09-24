@@ -1,0 +1,190 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Normalization sửa anomaly bằng cách tách fact",
+    "subtitle": "Một nguồn sự thật cho mỗi loại fact",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "views": [
+      {
+        "id": "anomalies",
+        "label": "Three anomalies",
+        "focus": [
+          "table",
+          "update",
+          "insert",
+          "delete"
+        ],
+        "note": "Mixed facts create update, insert and delete anomalies."
+      },
+      {
+        "id": "split",
+        "label": "Normalized design",
+        "focus": [
+          "customer",
+          "orders",
+          "fk"
+        ],
+        "note": "Relations tách fact nhưng vẫn nối bằng constraint."
+      }
+    ],
+    "output": "database-normalization-workflow.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "wide",
+      "label": "Wide table"
+    },
+    {
+      "id": "anomaly",
+      "label": "Observed anomaly"
+    },
+    {
+      "id": "normalized",
+      "label": "Separated facts"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "table",
+      "lane": "wide",
+      "col": 0,
+      "type": "database",
+      "label": "orders_wide",
+      "sublabel": "customer + order repeated",
+      "width": 142,
+      "tag": "mixed facts",
+      "brand": "postgresql"
+    },
+    {
+      "id": "update",
+      "lane": "anomaly",
+      "col": 1,
+      "type": "security",
+      "label": "Update anomaly",
+      "sublabel": "one customer · many rows",
+      "width": 142,
+      "tag": "inconsistent",
+      "yOffset": -82.0
+    },
+    {
+      "id": "insert",
+      "lane": "anomaly",
+      "col": 1,
+      "type": "security",
+      "label": "Insert anomaly",
+      "sublabel": "need order to store customer",
+      "width": 142,
+      "tag": "coupled",
+      "yOffset": 0.0
+    },
+    {
+      "id": "delete",
+      "lane": "anomaly",
+      "col": 1,
+      "type": "security",
+      "label": "Delete anomaly",
+      "sublabel": "last order deletes customer",
+      "width": 142,
+      "tag": "data loss",
+      "yOffset": 82.0
+    },
+    {
+      "id": "customer",
+      "lane": "normalized",
+      "col": 2,
+      "type": "database",
+      "label": "customers",
+      "sublabel": "one row per customer",
+      "width": 142,
+      "tag": "fact A",
+      "yOffset": -41.0,
+      "brand": "postgresql"
+    },
+    {
+      "id": "orders",
+      "lane": "normalized",
+      "col": 2,
+      "type": "database",
+      "label": "orders",
+      "sublabel": "one row per order",
+      "width": 142,
+      "tag": "fact B",
+      "yOffset": 41.0,
+      "brand": "postgresql"
+    },
+    {
+      "id": "fk",
+      "lane": "normalized",
+      "col": 3,
+      "type": "security",
+      "label": "Foreign key",
+      "sublabel": "explicit relationship",
+      "width": 142,
+      "tag": "invariant"
+    }
+  ],
+  "edges": [
+    {
+      "id": "a",
+      "from": "table",
+      "to": "update",
+      "variant": "security",
+      "label": "repeated value"
+    },
+    {
+      "id": "d",
+      "from": "update",
+      "to": "customer",
+      "variant": "emphasis",
+      "label": "separate customer"
+    },
+    {
+      "id": "e",
+      "from": "insert",
+      "to": "orders",
+      "variant": "emphasis",
+      "label": "separate order"
+    },
+    {
+      "id": "f",
+      "from": "customer",
+      "to": "fk",
+      "variant": "default",
+      "label": "referenced"
+    },
+    {
+      "id": "g",
+      "from": "orders",
+      "to": "fk",
+      "variant": "default",
+      "label": "references"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "Tách theo functional dependency, không theo cảm giác",
+        "Denormalize chỉ khi workload + evidence biện minh"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "Test duplicate/update/delete cases",
+        "Constraint + migration test bảo vệ model"
+      ]
+    }
+  ],
+  "mainPath": [
+    "table",
+    "update",
+    "customer",
+    "fk"
+  ]
+}

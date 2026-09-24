@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Linux: sáu câu hỏi để không học vẹt",
+    "subtitle": "Một command được định vị bằng parser, state, resource và evidence",
+    "viewBox": [
+      1220,
+      680
+    ],
+    "visual_preset": "editorial",
+    "views": [
+      {
+        "id": "command",
+        "label": "Command anatomy",
+        "focus": [
+          "parse",
+          "root",
+          "place",
+          "resource",
+          "stream"
+        ],
+        "note": "Đọc một command bằng parser, context, resource và stream."
+      },
+      {
+        "id": "automation",
+        "label": "Repeat safely",
+        "focus": [
+          "root",
+          "repeat",
+          "schedule"
+        ],
+        "note": "Tách build/repeat khỏi scheduled trigger."
+      }
+    ],
+    "output": "linux-synthesis-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "root",
+      "type": "backend",
+      "label": "Một command",
+      "sublabel": "ý định đang chạy",
+      "pos": [
+        500,
+        270
+      ],
+      "size": [
+        210,
+        78
+      ],
+      "tag": "root"
+    },
+    {
+      "id": "parse",
+      "type": "frontend",
+      "label": "Ai parse?",
+      "sublabel": "terminal ≠ shell",
+      "pos": [
+        80,
+        90
+      ],
+      "size": [
+        180,
+        68
+      ],
+      "tag": "language"
+    },
+    {
+      "id": "place",
+      "type": "cloud",
+      "label": "State ở đâu?",
+      "sublabel": "cwd · env · process",
+      "pos": [
+        80,
+        430
+      ],
+      "size": [
+        180,
+        68
+      ],
+      "tag": "context"
+    },
+    {
+      "id": "resource",
+      "type": "cloud",
+      "label": "Tài nguyên nào?",
+      "sublabel": "CPU · RAM · I/O",
+      "pos": [
+        930,
+        90
+      ],
+      "size": [
+        180,
+        68
+      ],
+      "tag": "kernel"
+    },
+    {
+      "id": "stream",
+      "type": "messagebus",
+      "label": "Kênh nào?",
+      "sublabel": "stdin · stdout · stderr",
+      "pos": [
+        930,
+        430
+      ],
+      "size": [
+        180,
+        68
+      ],
+      "tag": "contract"
+    },
+    {
+      "id": "repeat",
+      "type": "database",
+      "label": "Làm lại thế nào?",
+      "sublabel": "script · Make",
+      "pos": [
+        180,
+        540
+      ],
+      "size": [
+        180,
+        68
+      ],
+      "tag": "automation"
+    },
+    {
+      "id": "schedule",
+      "type": "security",
+      "label": "Ai đánh thức?",
+      "sublabel": "cron · timer",
+      "pos": [
+        850,
+        540
+      ],
+      "size": [
+        180,
+        68
+      ],
+      "tag": "operation"
+    }
+  ],
+  "connections": [
+    {
+      "id": "p",
+      "from": "parse",
+      "to": "root",
+      "variant": "emphasis"
+    },
+    {
+      "id": "s",
+      "from": "place",
+      "to": "root",
+      "variant": "default"
+    },
+    {
+      "id": "r",
+      "from": "root",
+      "to": "resource",
+      "variant": "emphasis"
+    },
+    {
+      "id": "st",
+      "from": "root",
+      "to": "stream",
+      "variant": "default"
+    },
+    {
+      "id": "re",
+      "from": "root",
+      "to": "repeat",
+      "variant": "default"
+    },
+    {
+      "id": "sc",
+      "from": "root",
+      "to": "schedule",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "Luôn hỏi ai parse, state ở đâu, kernel giữ gì",
+        "Automation tốt giữ exit status, log và idempotency"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "which/env/pwd/ps định vị context",
+        "strace + logs xác nhận đường chạy"
+      ]
+    }
+  ]
+}

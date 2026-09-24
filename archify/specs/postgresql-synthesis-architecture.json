@@ -1,0 +1,203 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "PostgreSQL: năm câu hỏi chẩn đoán",
+    "subtitle": "Where, visibility, path, durability và evidence nối thành một mental model",
+    "viewBox": [
+      1220,
+      680
+    ],
+    "visual_preset": "editorial",
+    "views": [
+      {
+        "id": "request",
+        "label": "Request reasoning",
+        "focus": [
+          "where",
+          "who",
+          "root",
+          "path"
+        ],
+        "note": "Theo query từ logical intent tới visible tuple và chosen plan."
+      },
+      {
+        "id": "production",
+        "label": "Production proof",
+        "focus": [
+          "root",
+          "durable",
+          "evidence",
+          "operation"
+        ],
+        "note": "Durability và operation phải được chứng minh bằng evidence."
+      }
+    ],
+    "output": "postgresql-synthesis-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "root",
+      "type": "backend",
+      "label": "Một database request",
+      "sublabel": "shared truth",
+      "pos": [
+        500,
+        270
+      ],
+      "size": [
+        220,
+        80
+      ],
+      "tag": "root",
+      "brand": "postgresql"
+    },
+    {
+      "id": "where",
+      "type": "database",
+      "label": "Dữ liệu ở đâu?",
+      "sublabel": "relation → page → disk",
+      "pos": [
+        60,
+        90
+      ],
+      "size": [
+        190,
+        72
+      ],
+      "tag": "storage"
+    },
+    {
+      "id": "who",
+      "type": "security",
+      "label": "Ai nhìn thấy?",
+      "sublabel": "snapshot → MVCC → lock",
+      "pos": [
+        60,
+        430
+      ],
+      "size": [
+        190,
+        72
+      ],
+      "tag": "concurrency"
+    },
+    {
+      "id": "path",
+      "type": "backend",
+      "label": "Đường nào được chọn?",
+      "sublabel": "stats → cost → plan",
+      "pos": [
+        930,
+        90
+      ],
+      "size": [
+        190,
+        72
+      ],
+      "tag": "execution"
+    },
+    {
+      "id": "durable",
+      "type": "cloud",
+      "label": "Commit sống qua crash?",
+      "sublabel": "WAL → checkpoint → replay",
+      "pos": [
+        930,
+        430
+      ],
+      "size": [
+        190,
+        72
+      ],
+      "tag": "recovery"
+    },
+    {
+      "id": "evidence",
+      "type": "messagebus",
+      "label": "Bằng chứng nào?",
+      "sublabel": "plan · waits · restore",
+      "pos": [
+        170,
+        550
+      ],
+      "size": [
+        190,
+        72
+      ],
+      "tag": "proof"
+    },
+    {
+      "id": "operation",
+      "type": "frontend",
+      "label": "Ai vận hành?",
+      "sublabel": "pool · vacuum · backup",
+      "pos": [
+        850,
+        550
+      ],
+      "size": [
+        190,
+        72
+      ],
+      "tag": "ownership"
+    }
+  ],
+  "connections": [
+    {
+      "id": "a",
+      "from": "where",
+      "to": "root",
+      "variant": "default"
+    },
+    {
+      "id": "b",
+      "from": "who",
+      "to": "root",
+      "variant": "security"
+    },
+    {
+      "id": "c",
+      "from": "root",
+      "to": "path",
+      "variant": "emphasis"
+    },
+    {
+      "id": "d",
+      "from": "root",
+      "to": "durable",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e",
+      "from": "root",
+      "to": "evidence",
+      "variant": "default"
+    },
+    {
+      "id": "f",
+      "from": "root",
+      "to": "operation",
+      "variant": "default"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "Logical model, physical pages và operational topology là ba lớp khác nhau",
+        "Mọi câu trả lời tốt đều chỉ ra mechanism + evidence"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "EXPLAIN/locks/pages cho runtime evidence",
+        "Backup restore drill cho recovery evidence"
+      ]
+    }
+  ]
+}

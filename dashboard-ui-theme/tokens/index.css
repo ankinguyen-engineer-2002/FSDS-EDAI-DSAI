@@ -1,0 +1,307 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Anthropic Sans";
+  src: url("/fonts/AnthropicSans-Vietnamese-Regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Anthropic Sans";
+  src: url("/fonts/AnthropicSans-Vietnamese-Medium.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Anthropic Sans";
+  src: url("/fonts/AnthropicSans-Italics.woff2") format("woff2");
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: "Anthropic Sans", sans-serif;
+  --font-display: var(--font-sans);
+  --font-mono: var(--font-sans);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+
+  --color-paper: #f5f4ef;
+  --color-surface: #fffefa;
+  --color-ink: #2c2b28;
+  --color-ink-muted: #706d65;
+  --color-line: #e1ded5;
+  --color-line-strong: #c9c5b9;
+  --color-grid: #eae7df;
+  --color-axis: #928d81;
+  --color-surface-raised: #faf9f5;
+  --color-hover: #eeece4;
+  --color-focus: #b65d40;
+  --color-canvas: #f5f4ef;
+
+  --color-brand: #ad5438;
+  --color-brand-soft: #f3e7df;
+
+  --color-good: #3f7d5c;
+  --color-good-soft: #e2ede5;
+  --color-warn: #c07f1f;
+  --color-warn-soft: #f5ead2;
+  --color-bad: #ad3b2c;
+  --color-bad-soft: #f5dfd9;
+
+  --color-lag-4: #674b40;
+  --color-lag-3: #ad5438;
+  --color-lag-2: #c68a68;
+  --color-lag-1: #8d887b;
+  --color-lag-0: #b5ac95;
+  --color-naive: #2c2b28;
+  --color-chart-accuracy: #ad5438;
+  --color-chart-bias: #847248;
+  --color-chart-lifecycle: #a78470;
+  --color-chart-so: #a08049;
+
+  --motion-fast: 140ms;
+  --motion-base: 220ms;
+  --motion-slow: 360ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+:root {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+  --color-paper: #242422;
+  --color-surface: #2c2c29;
+  --color-ink: #eceae2;
+  --color-ink-muted: #b2aea3;
+  --color-line: #41413b;
+  --color-line-strong: #5d5b52;
+  --color-grid: #383833;
+  --color-axis: #999487;
+  --color-surface-raised: #32322e;
+  --color-hover: #3b3a34;
+  --color-focus: #e19a7c;
+  --color-canvas: #242422;
+  --color-brand: #e19a7c;
+  --color-brand-soft: #44332b;
+  --color-good: #79bd91;
+  --color-good-soft: #1f382a;
+  --color-warn: #d5a25b;
+  --color-warn-soft: #3d321f;
+  --color-bad: #de8178;
+  --color-bad-soft: #422522;
+  --color-naive: #eceae2;
+  --color-chart-accuracy: #e19a7c;
+  --color-chart-bias: #c9b480;
+  --color-chart-lifecycle: #c5a28d;
+  --color-chart-so: #ceb078;
+  --color-lag-4: #e9c7b1;
+  --color-lag-3: #e19a7c;
+  --color-lag-2: #bd7e61;
+  --color-lag-1: #a6a18f;
+  --color-lag-0: #777466;
+}
+
+html,
+body,
+button,
+input,
+select,
+textarea {
+  font-family: var(--font-sans);
+}
+
+/* Native controls, SVG chart labels and code evidence share the same family. */
+svg text, pre, code, kbd, samp { font-family: var(--font-sans); }
+
+body {
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+.dashboard-shell > header { background: var(--color-paper); }
+.dashboard-shell > header a { font-family: var(--font-display); }
+.dashboard-shell main { font-variant-numeric: tabular-nums; }
+.chat-dock [role="log"] { font-variant-numeric: normal; }
+.chat-dock article { font-size: 14px; }
+
+button,
+a,
+select,
+input,
+summary {
+  letter-spacing: 0;
+  transition:
+    color var(--motion-fast) var(--ease-out),
+    background-color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out),
+    opacity var(--motion-fast) var(--ease-out);
+}
+
+::selection {
+  background: var(--color-brand-soft);
+}
+
+@keyframes dashboard-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes selection-pulse {
+  0% {
+    box-shadow: inset 2px 0 0 var(--color-focus);
+  }
+  45% {
+    box-shadow: inset 2px 0 0 var(--color-focus), 0 0 0 3px color-mix(in srgb, var(--color-focus) 12%, transparent);
+  }
+  100% {
+    box-shadow: inset 2px 0 0 var(--color-focus);
+  }
+}
+
+.motion-enter {
+  animation: dashboard-enter var(--motion-slow) var(--ease-out) both;
+}
+
+.motion-stagger > * {
+  animation: dashboard-enter var(--motion-slow) var(--ease-out) both;
+}
+
+.motion-stagger > *:nth-child(2) {
+  animation-delay: 45ms;
+}
+
+.motion-stagger > *:nth-child(3) {
+  animation-delay: 90ms;
+}
+
+.motion-stagger > *:nth-child(4) {
+  animation-delay: 135ms;
+}
+
+.motion-stagger > *:nth-child(5) {
+  animation-delay: 180ms;
+}
+
+.motion-card {
+  transition:
+    border-color var(--motion-base) var(--ease-out),
+    background-color var(--motion-base) var(--ease-out),
+    box-shadow var(--motion-base) var(--ease-out),
+    opacity var(--motion-base) var(--ease-out);
+}
+
+.interactive-row:hover {
+  background-color: var(--color-hover);
+}
+
+.selection-pulse {
+  animation: selection-pulse var(--motion-slow) var(--ease-out) both;
+}
+
+.insight-mark {
+  border-bottom: 1px solid color-mix(in srgb, var(--color-brand) 45%, transparent);
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.focus-context {
+  border-left: 2px solid var(--color-focus);
+  color: var(--color-ink-muted);
+  padding-left: 10px;
+}
+
+.recharts-bar-rectangle path,
+.recharts-line-curve,
+.recharts-dot circle,
+.recharts-reference-dot {
+  transition:
+    opacity var(--motion-base) var(--ease-out),
+    fill-opacity var(--motion-base) var(--ease-out),
+    stroke-width var(--motion-fast) var(--ease-out);
+}
+
+.recharts-default-tooltip { max-width: 280px; white-space: normal !important; overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  /* Touch tooltips stay inside the chart even after a viewport resize. */
+  .recharts-tooltip-wrapper { left: 8px !important; top: 8px !important; transform: none !important; max-width: calc(100% - 16px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+
+  .interactive-row:hover {
+    transform: none;
+  }
+}
+
+/* A companion panel: reserve its width once, without animating chart geometry. */
+.dashboard-content.chat-is-open { margin-right: 416px; }
+.ashley-brand { display: inline-flex; align-items: center; gap: 12px; min-width: 0; }
+.ashley-logo { position: relative; display: block; flex: 0 0 92px; width: 92px; height: 32px; }
+.ashley-brand img { width: 92px; height: 32px; object-fit: contain; }
+.ashley-brand-name { padding-left: 12px; border-left: 1px solid var(--color-line-strong); white-space: nowrap; }
+.chat-launcher { position: fixed; right: 20px; bottom: 20px; z-index: 100; display: flex; align-items: center; gap: 8px; padding: 12px 16px; border: 1px solid var(--color-line-strong); border-radius: 14px; background: var(--color-surface); color: var(--color-brand); box-shadow: 0 6px 24px #0002; font-size: 13px; cursor: pointer; }
+.chat-dock { position: fixed; right: 16px; top: 76px; bottom: 16px; width: 392px; max-height: 840px; margin-top: auto; z-index: 110; display: flex; overflow: hidden; border: 1px solid var(--color-line-strong); border-radius: 16px; background: var(--color-paper); box-shadow: 0 12px 40px #0002; }
+.chat-dock > div { min-height: 0; }
+.chat-dock header { padding: 16px; }
+.chat-dock form { padding: 12px; }
+.chat-dock form > div { border-radius: 12px; align-items: flex-end; }
+.chat-dock article > div > p { border-radius: 12px; }
+.chat-dock article > .justify-end > p { background: var(--color-hover); color: var(--color-ink); }
+.chat-dock form button[type="submit"] { background: var(--color-ink); color: var(--color-surface); border-radius: 8px; }
+
+/* Observed workflow, inspired by AIOS's quiet activity rows and disclosures. */
+.run-flow { min-width: 0; border: 1px solid var(--color-line); border-radius: 12px; background: var(--color-surface-raised); overflow: hidden; }
+.run-flow-summary { display: flex; align-items: center; gap: 8px; width: 100%; padding: 12px; text-align: left; }
+.run-flow-summary:hover { background: var(--color-hover); }
+.run-flow-body { padding: 0 12px 12px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.run-flow-body > * { min-width: 0; }
+.run-flow-evidence { border-left: 1px solid var(--color-line-strong); padding: 4px 0 4px 12px; margin-left: 6px; overflow-wrap: anywhere; }
+.run-flow-timeline { display: grid; gap: 2px; }
+.run-flow-step { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; align-items: start; gap: 8px; padding: 8px 4px; border-radius: 8px; font-size: 12px; line-height: 1.45; }
+.run-flow-step > svg { margin-top: 2px; }
+.run-flow-step.is-active { background: var(--color-brand-soft); }
+.run-flow-disclosure { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-line); }
+.run-flow-disclosure > summary, .run-flow-query > summary { cursor: pointer; font-size: 12px; line-height: 1.5; color: var(--color-ink); }
+.run-flow-query { min-width: 0; border: 1px solid var(--color-line); border-radius: 8px; padding: 8px; background: var(--color-surface); }
+.run-flow-query pre { margin-top: 8px; max-height: 280px; max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; overflow: auto; overscroll-behavior: contain; }
+.chat-history { position: absolute; top: 98px; left: 8px; right: 8px; bottom: 100px; z-index: 2; display: flex; flex-direction: column; border: 1px solid var(--color-line); border-radius: 12px; background: var(--color-surface); box-shadow: 0 8px 24px #0002; }
+.chat-dock button:focus-visible, .chat-dock textarea:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+@media (max-width: 1000px) {
+  .dashboard-content.chat-is-open { margin-right: 0; padding-bottom: 55dvh; }
+  .chat-dock { top: auto; right: 12px; bottom: 12px; width: min(392px, calc(100vw - 24px)); height: 52dvh; }
+}

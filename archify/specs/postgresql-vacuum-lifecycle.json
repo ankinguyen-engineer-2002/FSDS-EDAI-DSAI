@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "VACUUM làm sạch version khi không snapshot nào còn cần",
+    "subtitle": "Dead tuple → reclaim space → freeze → statistics",
+    "viewBox": [
+      1030,
+      680
+    ],
+    "animation": "trace",
+    "views": [
+      {
+        "id": "tuple",
+        "label": "Tuple death",
+        "focus": [
+          "live",
+          "superseded",
+          "dead"
+        ],
+        "note": "Version chỉ dead khi không transaction nào còn nhìn thấy."
+      },
+      {
+        "id": "vacuum",
+        "label": "Vacuum work",
+        "focus": [
+          "dead",
+          "scan",
+          "reclaim"
+        ],
+        "note": "VACUUM reclaim, freeze và cung cấp evidence cho planner."
+      }
+    ],
+    "output": "postgresql-vacuum-lifecycle.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "main",
+      "label": "Tuple → reusable space"
+    }
+  ],
+  "states": [
+    {
+      "id": "live",
+      "type": "start",
+      "label": "Live tuple",
+      "sublabel": "visible version",
+      "lane": "main",
+      "col": 0,
+      "step": "01",
+      "tag": "current"
+    },
+    {
+      "id": "superseded",
+      "type": "active",
+      "label": "Superseded",
+      "sublabel": "UPDATE creates successor",
+      "lane": "main",
+      "col": 1,
+      "step": "02",
+      "tag": "old version"
+    },
+    {
+      "id": "dead",
+      "type": "waiting",
+      "label": "Dead to all",
+      "sublabel": "global xmin passed",
+      "lane": "main",
+      "col": 2,
+      "step": "03",
+      "tag": "reclaimable"
+    },
+    {
+      "id": "scan",
+      "type": "active",
+      "label": "VACUUM scan",
+      "sublabel": "reclaim + freeze",
+      "lane": "main",
+      "col": 3,
+      "step": "04",
+      "tag": "maintenance",
+      "brand": "postgresql"
+    },
+    {
+      "id": "reclaim",
+      "type": "success",
+      "label": "Space reusable",
+      "sublabel": "FSM + stats updated",
+      "lane": "main",
+      "col": 4,
+      "step": "05",
+      "tag": "evidence"
+    }
+  ],
+  "transitions": [
+    {
+      "id": "a",
+      "from": "live",
+      "to": "superseded",
+      "variant": "default"
+    },
+    {
+      "id": "b",
+      "from": "superseded",
+      "to": "dead",
+      "variant": "emphasis"
+    },
+    {
+      "id": "c",
+      "from": "dead",
+      "to": "scan",
+      "variant": "emphasis"
+    },
+    {
+      "id": "d",
+      "from": "scan",
+      "to": "reclaim",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "VACUUM không shrink file mặc định; nó làm space reusable",
+        "Long transaction giữ xmin và cản cleanup"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "n_dead_tup + autovacuum logs theo dõi bloat",
+        "age(datfrozenxid) theo dõi wraparound risk"
+      ]
+    }
+  ]
+}

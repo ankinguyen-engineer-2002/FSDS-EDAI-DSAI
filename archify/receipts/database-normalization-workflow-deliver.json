@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "workflow",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/database-normalization-workflow.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/database-normalization-workflow.html",
+  "specification": {
+    "sha256": "e2025073b9da2aeab016797d6b413e378a13a187f038cbeca86822620db34dd3",
+    "bytes": 4105
+  },
+  "artifact": {
+    "sha256": "cd0b971aeb72d21216e4fd932628eaf62a696095c809c068add94cb39b728aa5",
+    "bytes": 823648
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

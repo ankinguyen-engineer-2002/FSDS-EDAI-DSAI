@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/linux-syscall-layer-architecture.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/linux-syscall-layer-architecture.html",
+  "specification": {
+    "sha256": "c4a4f00b1cfa126a40b54d7afe782d99f1ada60da24483d84862e964032abb70",
+    "bytes": 4176
+  },
+  "artifact": {
+    "sha256": "db8e84c49c0e238a3a5806f0e725738b75007b2f89cdb14b2330cd1edca704f7",
+    "bytes": 804986
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

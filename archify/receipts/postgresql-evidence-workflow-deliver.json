@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "workflow",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/postgresql-evidence-workflow.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/postgresql-evidence-workflow.html",
+  "specification": {
+    "sha256": "20a7e1943ad0f93207dfd3834ac738c151255112d4b04f90af07b867c954ecde",
+    "bytes": 4524
+  },
+  "artifact": {
+    "sha256": "bc1aaafc9a6b9d0380be8832a764fd54790495304bd038867b5860f83d7b2919",
+    "bytes": 815363
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

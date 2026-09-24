@@ -1,0 +1,177 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Pipe nối các process bằng stream",
+    "subtitle": "stdout → stdin, còn stderr đi riêng",
+    "output": "linux-pipeline-sequence.html",
+    "viewBox": [
+      1000,
+      820
+    ],
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "views": [
+      {
+        "id": "happy-path",
+        "label": "Dòng dữ liệu",
+        "focus": [
+          "cat",
+          "grep",
+          "wc",
+          "terminal"
+        ],
+        "note": "Theo dữ liệu qua ba process độc lập."
+      },
+      {
+        "id": "error-path",
+        "label": "Dòng lỗi",
+        "focus": [
+          "cat",
+          "stderr",
+          "terminal"
+        ],
+        "note": "stderr không tự chui vào pipe."
+      }
+    ]
+  },
+  "participants": [
+    {
+      "id": "user",
+      "type": "external",
+      "label": "Bạn",
+      "sublabel": "gõ command"
+    },
+    {
+      "id": "cat",
+      "type": "backend",
+      "label": "cat",
+      "sublabel": "đọc report.log"
+    },
+    {
+      "id": "grep",
+      "type": "backend",
+      "label": "grep ERROR",
+      "sublabel": "lọc dòng"
+    },
+    {
+      "id": "wc",
+      "type": "backend",
+      "label": "wc -l",
+      "sublabel": "đếm dòng"
+    },
+    {
+      "id": "terminal",
+      "type": "external",
+      "label": "Terminal",
+      "sublabel": "hiển thị kết quả"
+    },
+    {
+      "id": "stderr",
+      "type": "security",
+      "label": "stderr",
+      "sublabel": "kênh chẩn đoán"
+    }
+  ],
+  "segments": [
+    {
+      "from": 170,
+      "to": 760,
+      "label": "processes chạy theo flow"
+    }
+  ],
+  "messages": [
+    {
+      "id": "invoke",
+      "from": "user",
+      "to": "cat",
+      "y": 190,
+      "label": "cat report.log",
+      "variant": "emphasis"
+    },
+    {
+      "id": "pipe-one",
+      "from": "cat",
+      "to": "grep",
+      "y": 280,
+      "label": "stdout → stdin",
+      "variant": "emphasis",
+      "note": "grep không cần biết cat mở file nào."
+    },
+    {
+      "id": "pipe-two",
+      "from": "grep",
+      "to": "wc",
+      "y": 370,
+      "label": "stdout → stdin",
+      "variant": "emphasis"
+    },
+    {
+      "id": "result",
+      "from": "wc",
+      "to": "terminal",
+      "y": 460,
+      "label": "một con số",
+      "variant": "return"
+    },
+    {
+      "id": "error",
+      "from": "cat",
+      "to": "stderr",
+      "y": 580,
+      "label": "permission error",
+      "variant": "security",
+      "note": "Lỗi đi riêng, không làm bẩn dòng dữ liệu."
+    },
+    {
+      "id": "show-error",
+      "from": "stderr",
+      "to": "terminal",
+      "y": 680,
+      "label": "in chẩn đoán",
+      "variant": "return"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "cat",
+      "from": 184,
+      "to": 330,
+      "type": "backend"
+    },
+    {
+      "participant": "grep",
+      "from": 282,
+      "to": 420,
+      "type": "backend"
+    },
+    {
+      "participant": "wc",
+      "from": 372,
+      "to": 500,
+      "type": "backend"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Hợp đồng stream",
+      "items": [
+        "stdin = cửa vào số 0",
+        "stdout = dữ liệu kết quả số 1",
+        "stderr = chẩn đoán số 2"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Đổi điểm đến",
+      "items": [
+        "> ghi stdout vào file",
+        "2> ghi stderr vào file",
+        "2>&1 trộn hai kênh có chủ ý"
+      ]
+    }
+  ]
+}

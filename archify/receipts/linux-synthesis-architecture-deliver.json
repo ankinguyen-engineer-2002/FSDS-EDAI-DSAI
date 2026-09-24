@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/linux-synthesis-architecture.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/linux-synthesis-architecture.html",
+  "specification": {
+    "sha256": "572fc51014c58ca3b231ee1057668e760917a3a3eb695c5a0e07538a5f43060c",
+    "bytes": 3859
+  },
+  "artifact": {
+    "sha256": "27fcd178bd88500904816cb1d49f76c1d9c0b99b1bb208c731a778fbc2e0f701",
+    "bytes": 805453
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

@@ -1,0 +1,222 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Make đọc dependency graph, không đoán command",
+    "subtitle": "Timestamp làm bẩn node rồi lan xuống target",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "views": [
+      {
+        "id": "graph",
+        "label": "Dependency graph",
+        "focus": [
+          "c",
+          "h",
+          "maino",
+          "utilo",
+          "binary"
+        ],
+        "note": "Đổi header có thể làm bẩn nhiều object."
+      },
+      {
+        "id": "decision",
+        "label": "Incremental decision",
+        "focus": [
+          "binary",
+          "compare",
+          "skip",
+          "rebuild"
+        ],
+        "note": "Make chỉ chạy recipe khi target thiếu hoặc cũ."
+      }
+    ],
+    "output": "linux-make-dependency-workflow.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "source",
+      "label": "Sources"
+    },
+    {
+      "id": "build",
+      "label": "Derived artifacts"
+    },
+    {
+      "id": "decision",
+      "label": "Incremental decision"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "c",
+      "lane": "source",
+      "col": 0,
+      "type": "frontend",
+      "label": "main.c",
+      "sublabel": "source changed",
+      "width": 142,
+      "tag": "dirty",
+      "yOffset": -41.0
+    },
+    {
+      "id": "h",
+      "lane": "source",
+      "col": 0,
+      "type": "frontend",
+      "label": "common.h",
+      "sublabel": "header changed",
+      "width": 142,
+      "tag": "dirty",
+      "yOffset": 41.0
+    },
+    {
+      "id": "maino",
+      "lane": "build",
+      "col": 1,
+      "type": "database",
+      "label": "main.o",
+      "sublabel": "depends on .c + .h",
+      "width": 142,
+      "tag": "target",
+      "yOffset": -41.0
+    },
+    {
+      "id": "utilo",
+      "lane": "build",
+      "col": 1,
+      "type": "database",
+      "label": "util.o",
+      "sublabel": "depends on util.c + .h",
+      "width": 142,
+      "tag": "target",
+      "yOffset": 41.0
+    },
+    {
+      "id": "binary",
+      "lane": "build",
+      "col": 2,
+      "type": "backend",
+      "label": "app",
+      "sublabel": "links objects",
+      "width": 142,
+      "tag": "target"
+    },
+    {
+      "id": "compare",
+      "lane": "decision",
+      "col": 3,
+      "type": "security",
+      "label": "Timestamp check",
+      "sublabel": "prerequisite newer?",
+      "width": 142,
+      "tag": "decision"
+    },
+    {
+      "id": "skip",
+      "lane": "decision",
+      "col": 4,
+      "type": "external",
+      "label": "Up to date",
+      "sublabel": "skip recipe",
+      "width": 142,
+      "tag": "clean",
+      "yOffset": -41.0
+    },
+    {
+      "id": "rebuild",
+      "lane": "decision",
+      "col": 4,
+      "type": "backend",
+      "label": "Run recipe",
+      "sublabel": "rebuild downstream",
+      "width": 142,
+      "tag": "dirty",
+      "yOffset": 41.0
+    }
+  ],
+  "edges": [
+    {
+      "id": "a",
+      "from": "c",
+      "to": "maino",
+      "variant": "emphasis",
+      "label": "compile"
+    },
+    {
+      "id": "b",
+      "from": "h",
+      "to": "maino",
+      "variant": "default",
+      "label": "invalidate"
+    },
+    {
+      "id": "c2",
+      "from": "h",
+      "to": "utilo",
+      "variant": "default",
+      "label": "invalidate"
+    },
+    {
+      "id": "d",
+      "from": "maino",
+      "to": "binary",
+      "variant": "emphasis",
+      "label": "link"
+    },
+    {
+      "id": "e",
+      "from": "utilo",
+      "to": "binary",
+      "variant": "emphasis",
+      "label": "link"
+    },
+    {
+      "id": "f",
+      "from": "binary",
+      "to": "compare",
+      "variant": "default",
+      "label": "inspect graph"
+    },
+    {
+      "id": "g",
+      "from": "compare",
+      "to": "skip",
+      "variant": "default",
+      "label": "no"
+    },
+    {
+      "id": "h2",
+      "from": "compare",
+      "to": "rebuild",
+      "variant": "emphasis",
+      "label": "yes"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "Dependency quyết định thứ tự; recipe quyết định cách build",
+        "Một source change chỉ invalidate downstream targets liên quan"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "make -n cho biết recipe sẽ chạy",
+        "touch source rồi quan sát target timestamps"
+      ]
+    }
+  ],
+  "mainPath": [
+    "c",
+    "maino",
+    "binary",
+    "compare",
+    "rebuild"
+  ]
+}

@@ -1,0 +1,207 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Một request đi tới hàm Python",
+    "subtitle": "socket → ASGI → router → handler → response",
+    "output": "python-request-sequence.html",
+    "viewBox": [
+      1000,
+      940
+    ],
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "views": [
+      {
+        "id": "request-path",
+        "label": "Request path",
+        "focus": [
+          "client",
+          "uvicorn",
+          "fastapi",
+          "handler",
+          "socket"
+        ],
+        "note": "Framework giữ vòng lặp ngoài; application giữ quyết định."
+      },
+      {
+        "id": "blocking-risk",
+        "label": "Blocking risk",
+        "focus": [
+          "handler",
+          "loop",
+          "socket"
+        ],
+        "note": "Một lệnh blocking trong async handler có thể khóa event loop."
+      }
+    ]
+  },
+  "participants": [
+    {
+      "id": "client",
+      "type": "external",
+      "label": "Client",
+      "sublabel": "HTTP bytes"
+    },
+    {
+      "id": "socket",
+      "type": "cloud",
+      "label": "Socket",
+      "sublabel": "kernel I/O"
+    },
+    {
+      "id": "uvicorn",
+      "type": "backend",
+      "label": "Uvicorn",
+      "sublabel": "ASGI server"
+    },
+    {
+      "id": "fastapi",
+      "type": "backend",
+      "label": "FastAPI",
+      "sublabel": "router + deps",
+      "brand": "fastapi"
+    },
+    {
+      "id": "handler",
+      "type": "backend",
+      "label": "Handler",
+      "sublabel": "application policy",
+      "brand": "python"
+    },
+    {
+      "id": "downstream",
+      "type": "database",
+      "label": "DB / API",
+      "sublabel": "I/O boundary"
+    },
+    {
+      "id": "loop",
+      "type": "messagebus",
+      "label": "Event loop",
+      "sublabel": "await / ready"
+    }
+  ],
+  "segments": [
+    {
+      "from": 170,
+      "to": 880,
+      "label": "request lifecycle"
+    }
+  ],
+  "messages": [
+    {
+      "id": "http",
+      "from": "client",
+      "to": "socket",
+      "y": 190,
+      "label": "HTTP request",
+      "variant": "emphasis"
+    },
+    {
+      "id": "accept",
+      "from": "socket",
+      "to": "uvicorn",
+      "y": 280,
+      "label": "read bytes",
+      "variant": "default"
+    },
+    {
+      "id": "scope",
+      "from": "uvicorn",
+      "to": "fastapi",
+      "y": 370,
+      "label": "scope / receive / send",
+      "variant": "emphasis"
+    },
+    {
+      "id": "route",
+      "from": "fastapi",
+      "to": "handler",
+      "y": 460,
+      "label": "validated input + deps",
+      "variant": "emphasis"
+    },
+    {
+      "id": "await",
+      "from": "handler",
+      "to": "loop",
+      "y": 550,
+      "label": "await I/O",
+      "variant": "dashed",
+      "note": "Handler nhường loop trong lúc chờ."
+    },
+    {
+      "id": "down",
+      "from": "loop",
+      "to": "downstream",
+      "y": 640,
+      "label": "query / call",
+      "variant": "default"
+    },
+    {
+      "id": "back",
+      "from": "downstream",
+      "to": "handler",
+      "y": 730,
+      "label": "result",
+      "variant": "return"
+    },
+    {
+      "id": "response",
+      "from": "handler",
+      "to": "socket",
+      "y": 820,
+      "label": "HTTP response",
+      "variant": "return"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "uvicorn",
+      "from": 276,
+      "to": 342,
+      "type": "backend"
+    },
+    {
+      "participant": "fastapi",
+      "from": 368,
+      "to": 442,
+      "type": "backend"
+    },
+    {
+      "participant": "handler",
+      "from": 456,
+      "to": 780,
+      "type": "backend"
+    },
+    {
+      "participant": "loop",
+      "from": 540,
+      "to": 700,
+      "type": "messagebus"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Boundary",
+      "items": [
+        "Uvicorn đọc socket",
+        "FastAPI chọn route",
+        "Handler quyết định nghiệp vụ"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Async đúng nghĩa",
+      "items": [
+        "await chồng thời gian chờ",
+        "không biến CPU-bound code thành parallelism",
+        "blocking call làm nghẽn loop"
+      ]
+    }
+  ]
+}

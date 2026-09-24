@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "workflow",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/postgresql-index-family-workflow.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/postgresql-index-family-workflow.html",
+  "specification": {
+    "sha256": "a6ad3c990918e3d8d8bf8d96c60b08e4f71bdd896601bd17e6295bb0537cc101",
+    "bytes": 4520
+  },
+  "artifact": {
+    "sha256": "a1a015a7f2746e938de1ee4713ce0bce26d052209012d1d918fd51f3a647342c",
+    "bytes": 815685
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

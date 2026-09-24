@@ -1,0 +1,211 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "cat không tự đọc đĩa",
+    "subtitle": "Từ phím bấm tới byte trên terminal",
+    "viewBox": [
+      1000,
+      1014
+    ],
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "column_fit": "spread",
+    "views": [
+      {
+        "id": "happy",
+        "label": "Đường thành công",
+        "focus": [
+          "user",
+          "terminal",
+          "shell",
+          "process",
+          "kernel",
+          "fs",
+          "output"
+        ],
+        "note": "Theo dữ liệu từ command tới stdout."
+      },
+      {
+        "id": "failure",
+        "label": "Permission failure",
+        "focus": [
+          "process",
+          "kernel",
+          "output"
+        ],
+        "note": "Dừng tại kernel khi identity không có quyền."
+      }
+    ],
+    "output": "linux-command-execution-sequence.html",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    {
+      "id": "user",
+      "type": "external",
+      "label": "Bạn",
+      "sublabel": "ý định"
+    },
+    {
+      "id": "terminal",
+      "type": "external",
+      "label": "Terminal",
+      "sublabel": "nhận ký tự"
+    },
+    {
+      "id": "shell",
+      "type": "backend",
+      "label": "Bash",
+      "sublabel": "parse argv + PATH"
+    },
+    {
+      "id": "process",
+      "type": "backend",
+      "label": "cat process",
+      "sublabel": "file descriptors"
+    },
+    {
+      "id": "kernel",
+      "type": "backend",
+      "label": "Kernel",
+      "sublabel": "permission + syscall"
+    },
+    {
+      "id": "fs",
+      "type": "database",
+      "label": "Filesystem",
+      "sublabel": "inode + bytes"
+    },
+    {
+      "id": "output",
+      "type": "external",
+      "label": "Terminal output",
+      "sublabel": "stdout / stderr"
+    }
+  ],
+  "segments": [
+    {
+      "from": 170,
+      "to": 849,
+      "label": "đường chạy quan sát được"
+    }
+  ],
+  "messages": [
+    {
+      "id": "type",
+      "from": "user",
+      "to": "terminal",
+      "y": 190,
+      "label": "gõ cat /etc/os-release",
+      "variant": "emphasis"
+    },
+    {
+      "id": "line",
+      "from": "terminal",
+      "to": "shell",
+      "y": 278,
+      "label": "giao command line",
+      "variant": "default"
+    },
+    {
+      "id": "parse",
+      "from": "shell",
+      "to": "process",
+      "y": 366,
+      "label": "exec /usr/bin/cat",
+      "variant": "emphasis"
+    },
+    {
+      "id": "open",
+      "from": "process",
+      "to": "kernel",
+      "y": 454,
+      "label": "open(path)",
+      "variant": "default"
+    },
+    {
+      "id": "read",
+      "from": "kernel",
+      "to": "fs",
+      "y": 542,
+      "label": "đọc inode + block",
+      "variant": "emphasis"
+    },
+    {
+      "id": "bytes",
+      "from": "fs",
+      "to": "process",
+      "y": 630,
+      "label": "trả byte",
+      "variant": "return"
+    },
+    {
+      "id": "stdout",
+      "from": "process",
+      "to": "output",
+      "y": 718,
+      "label": "write stdout",
+      "variant": "return"
+    },
+    {
+      "id": "deny",
+      "from": "kernel",
+      "to": "output",
+      "y": 806,
+      "label": "EACCES → stderr",
+      "variant": "security",
+      "note": "Nhánh lỗi kết thúc với exit status khác 0."
+    }
+  ],
+  "activations": [
+    {
+      "participant": "terminal",
+      "from": 178,
+      "to": 316,
+      "type": "backend"
+    },
+    {
+      "participant": "shell",
+      "from": 266,
+      "to": 404,
+      "type": "backend"
+    },
+    {
+      "participant": "process",
+      "from": 354,
+      "to": 756,
+      "type": "backend"
+    },
+    {
+      "participant": "kernel",
+      "from": 442,
+      "to": 844,
+      "type": "backend"
+    },
+    {
+      "participant": "fs",
+      "from": 530,
+      "to": 668,
+      "type": "backend"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "Shell parse; process thực thi; kernel kiểm soát tài nguyên",
+        "stdout và stderr là hai hợp đồng khác nhau"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "strace cho thấy open/read/write",
+        "exit status và stderr chứng minh lỗi"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "workflow",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/postgresql-planner-workflow.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/postgresql-planner-workflow.html",
+  "specification": {
+    "sha256": "155f733ae257fa9381b89506a81380642817f0be8e0af94864b8706e7c20a246",
+    "bytes": 4363
+  },
+  "artifact": {
+    "sha256": "db78f3b8e79267e868dfffa2437d9294e99b522fda2dd3c5ec21296f015001e4",
+    "bytes": 820212
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

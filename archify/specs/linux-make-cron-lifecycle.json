@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Từ source tới job đáng tin",
+    "subtitle": "Make xây đúng phần; cron đánh thức job",
+    "output": "linux-make-cron-lifecycle.html",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "main",
+        "label": "Build → scheduled run",
+        "focus": [
+          "source",
+          "object",
+          "binary",
+          "job",
+          "done"
+        ],
+        "note": "Make tạo artifact đúng phần; cron chỉ kích hoạt job."
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "main",
+      "label": "Main path"
+    },
+    {
+      "id": "terminal",
+      "label": "Outcome"
+    }
+  ],
+  "states": [
+    {
+      "id": "source",
+      "type": "start",
+      "label": "hello.c",
+      "sublabel": "source đổi",
+      "lane": "main",
+      "col": 0,
+      "step": "01",
+      "tag": "input"
+    },
+    {
+      "id": "object",
+      "type": "active",
+      "label": "hello.o",
+      "sublabel": "compile nếu cũ",
+      "lane": "main",
+      "col": 1,
+      "step": "02",
+      "tag": "artifact"
+    },
+    {
+      "id": "binary",
+      "type": "success",
+      "label": "hello",
+      "sublabel": "link nếu cần",
+      "lane": "main",
+      "col": 2,
+      "step": "03",
+      "tag": "artifact"
+    },
+    {
+      "id": "job",
+      "type": "active",
+      "label": "daily.sh",
+      "sublabel": "cron 03:30 → run",
+      "lane": "main",
+      "col": 3,
+      "step": "04",
+      "tag": "work"
+    },
+    {
+      "id": "done",
+      "type": "success",
+      "label": "Log + alert",
+      "sublabel": "exit code + evidence",
+      "lane": "terminal",
+      "col": 2,
+      "step": "05",
+      "tag": "observe"
+    }
+  ],
+  "transitions": [
+    {
+      "id": "compile",
+      "from": "source",
+      "to": "object",
+      "label": "dependency cũ",
+      "variant": "emphasis",
+      "labelDy": -26
+    },
+    {
+      "id": "link",
+      "from": "object",
+      "to": "binary",
+      "label": "link",
+      "variant": "emphasis",
+      "labelDy": -26
+    },
+    {
+      "id": "run",
+      "from": "binary",
+      "to": "job",
+      "label": "cron trigger",
+      "variant": "emphasis",
+      "labelDy": -26
+    },
+    {
+      "id": "success",
+      "from": "job",
+      "to": "done",
+      "label": "exit 0 + log",
+      "variant": "emphasis",
+      "labelDy": -26
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Make",
+      "items": [
+        "Target đứng trước dấu :",
+        "Recipe chỉ chạy khi target thiếu hoặc cũ"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Cron",
+      "items": [
+        "Không tự retry, backfill hay chống overlap",
+        "Job production cần idempotency + log + alert"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "sequence",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/python-request-sequence.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/python-request-sequence.html",
+  "specification": {
+    "sha256": "51fa6c2530fe7f485ac747e156971f076c4177dc77e627bcf1e96f2915000ab0",
+    "bytes": 4252
+  },
+  "artifact": {
+    "sha256": "e20a30c4301540d5d69f7246daec3361daf44dae1ab6f5fdc845ee60b42fa72c",
+    "bytes": 812650
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

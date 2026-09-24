@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "workflow",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/python-gil-decision-workflow.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/python-gil-decision-workflow.html",
+  "specification": {
+    "sha256": "8eaa50d2247926f33119166e54168ea0415264147a3e85aa8fa81339bf630d72",
+    "bytes": 4210
+  },
+  "artifact": {
+    "sha256": "96d3dce9e481053e8ecc5a5c1ed20c2b4f4793f5dce868f155e95f78a684ba11",
+    "bytes": 814291
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

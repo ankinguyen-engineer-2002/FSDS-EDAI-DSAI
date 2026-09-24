@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/python-name-binding-architecture.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/python-name-binding-architecture.html",
+  "specification": {
+    "sha256": "bb0b62cb3e14e59977799f02157705485d0c3ac9c8e7abb3dd8db015fea33130",
+    "bytes": 3926
+  },
+  "artifact": {
+    "sha256": "691ac4876f8b0f50fb3f2add2e70e2587bed07ba986029168853ef791065ba7e",
+    "bytes": 806802
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

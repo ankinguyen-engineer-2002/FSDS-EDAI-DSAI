@@ -1,0 +1,226 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "PostgreSQL production là topology của state và evidence",
+    "subtitle": "Primary, standby, backup và observability có vai trò khác nhau",
+    "viewBox": [
+      1220,
+      680
+    ],
+    "visual_preset": "editorial",
+    "views": [
+      {
+        "id": "availability",
+        "label": "Serve and replicate",
+        "focus": [
+          "app",
+          "pool",
+          "primary",
+          "standby",
+          "observe"
+        ],
+        "note": "Standby hỗ trợ availability/read scale nhưng có replication lag."
+      },
+      {
+        "id": "recovery",
+        "label": "Backup and PITR",
+        "focus": [
+          "primary",
+          "archive",
+          "backup",
+          "restore"
+        ],
+        "note": "Backup chỉ đáng tin khi restore drill thành công."
+      }
+    ],
+    "output": "postgresql-production-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "app",
+      "type": "frontend",
+      "label": "Application",
+      "sublabel": "requests + pool",
+      "pos": [
+        50,
+        260
+      ],
+      "size": [
+        170,
+        72
+      ],
+      "tag": "client"
+    },
+    {
+      "id": "pool",
+      "type": "messagebus",
+      "label": "Connection pooler",
+      "sublabel": "session boundary",
+      "pos": [
+        270,
+        260
+      ],
+      "size": [
+        180,
+        72
+      ],
+      "tag": "capacity"
+    },
+    {
+      "id": "primary",
+      "type": "backend",
+      "label": "Primary",
+      "sublabel": "commit + WAL",
+      "pos": [
+        520,
+        260
+      ],
+      "size": [
+        180,
+        76
+      ],
+      "tag": "authority",
+      "brand": "postgresql"
+    },
+    {
+      "id": "standby",
+      "type": "backend",
+      "label": "Standby",
+      "sublabel": "replay + reads",
+      "pos": [
+        800,
+        100
+      ],
+      "size": [
+        180,
+        72
+      ],
+      "tag": "availability",
+      "brand": "postgresql"
+    },
+    {
+      "id": "archive",
+      "type": "database",
+      "label": "WAL archive",
+      "sublabel": "continuous log",
+      "pos": [
+        800,
+        250
+      ],
+      "size": [
+        180,
+        72
+      ],
+      "tag": "recovery"
+    },
+    {
+      "id": "backup",
+      "type": "database",
+      "label": "Base backup",
+      "sublabel": "restore seed",
+      "pos": [
+        800,
+        400
+      ],
+      "size": [
+        180,
+        72
+      ],
+      "tag": "recovery"
+    },
+    {
+      "id": "observe",
+      "type": "cloud",
+      "label": "Observability",
+      "sublabel": "metrics · logs · traces",
+      "pos": [
+        1040,
+        260
+      ],
+      "size": [
+        150,
+        72
+      ],
+      "tag": "evidence"
+    },
+    {
+      "id": "restore",
+      "type": "security",
+      "label": "Restore environment",
+      "sublabel": "PITR drill",
+      "pos": [
+        1040,
+        400
+      ],
+      "size": [
+        150,
+        72
+      ],
+      "tag": "proof"
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn",
+      "from": "app",
+      "to": "pool",
+      "variant": "default"
+    },
+    {
+      "id": "query",
+      "from": "pool",
+      "to": "primary",
+      "variant": "emphasis"
+    },
+    {
+      "id": "rep",
+      "from": "primary",
+      "to": "standby",
+      "variant": "default"
+    },
+    {
+      "id": "arch",
+      "from": "primary",
+      "to": "archive",
+      "variant": "emphasis"
+    },
+    {
+      "id": "base",
+      "from": "primary",
+      "to": "backup",
+      "variant": "default"
+    },
+    {
+      "id": "drill1",
+      "from": "archive",
+      "to": "restore",
+      "variant": "security"
+    },
+    {
+      "id": "drill2",
+      "from": "backup",
+      "to": "restore",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "Replica không thay backup; backup không tự chứng minh restore",
+        "Pooler bảo vệ connection capacity, không sửa query chậm"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "Lag/waits/throughput là evidence vận hành",
+        "RTO/RPO chỉ có nghĩa sau restore drill"
+      ]
+    }
+  ]
+}

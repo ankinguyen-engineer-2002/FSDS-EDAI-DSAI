@@ -1,0 +1,190 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Exception đi ngược call stack cho tới handler",
+    "subtitle": "Traceback là bằng chứng của quá trình gỡ frame",
+    "viewBox": [
+      1000,
+      926
+    ],
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "column_fit": "spread",
+    "views": [
+      {
+        "id": "call",
+        "label": "Call stack",
+        "focus": [
+          "main",
+          "load",
+          "parse",
+          "codec"
+        ],
+        "note": "Mỗi call tạo frame với locals và instruction pointer."
+      },
+      {
+        "id": "unwind",
+        "label": "Exception unwind",
+        "focus": [
+          "codec",
+          "parse",
+          "load",
+          "handler",
+          "log"
+        ],
+        "note": "Frame không bắt lỗi bị gỡ theo chiều ngược."
+      }
+    ],
+    "output": "python-exception-unwinding-sequence.html",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    {
+      "id": "main",
+      "type": "external",
+      "label": "main frame",
+      "sublabel": "caller",
+      "brand": "python"
+    },
+    {
+      "id": "load",
+      "type": "backend",
+      "label": "load_orders",
+      "sublabel": "frame"
+    },
+    {
+      "id": "parse",
+      "type": "backend",
+      "label": "parse_row",
+      "sublabel": "frame"
+    },
+    {
+      "id": "codec",
+      "type": "messagebus",
+      "label": "json.loads",
+      "sublabel": "library frame"
+    },
+    {
+      "id": "handler",
+      "type": "security",
+      "label": "except handler",
+      "sublabel": "recovery"
+    },
+    {
+      "id": "log",
+      "type": "database",
+      "label": "Log / traceback",
+      "sublabel": "evidence"
+    }
+  ],
+  "segments": [
+    {
+      "from": 170,
+      "to": 761,
+      "label": "đường chạy quan sát được"
+    }
+  ],
+  "messages": [
+    {
+      "id": "a",
+      "from": "main",
+      "to": "load",
+      "y": 190,
+      "label": "load file",
+      "variant": "emphasis"
+    },
+    {
+      "id": "b",
+      "from": "load",
+      "to": "parse",
+      "y": 278,
+      "label": "parse row 42",
+      "variant": "default"
+    },
+    {
+      "id": "c",
+      "from": "parse",
+      "to": "codec",
+      "y": 366,
+      "label": "decode bytes",
+      "variant": "default"
+    },
+    {
+      "id": "d",
+      "from": "codec",
+      "to": "parse",
+      "y": 454,
+      "label": "raise JSONDecodeError",
+      "variant": "security"
+    },
+    {
+      "id": "e",
+      "from": "parse",
+      "to": "load",
+      "y": 542,
+      "label": "no handler → unwind",
+      "variant": "security"
+    },
+    {
+      "id": "f",
+      "from": "load",
+      "to": "handler",
+      "y": 630,
+      "label": "matching except",
+      "variant": "emphasis"
+    },
+    {
+      "id": "g",
+      "from": "handler",
+      "to": "log",
+      "y": 718,
+      "label": "record traceback + context",
+      "variant": "return"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "load",
+      "from": 178,
+      "to": 668,
+      "type": "backend"
+    },
+    {
+      "participant": "parse",
+      "from": 266,
+      "to": 580,
+      "type": "backend"
+    },
+    {
+      "participant": "codec",
+      "from": 354,
+      "to": 492,
+      "type": "backend"
+    },
+    {
+      "participant": "handler",
+      "from": 618,
+      "to": 756,
+      "type": "backend"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "Exception không tự biến mất; nó tìm handler theo stack",
+        "with/finally giữ cleanup ngay cả khi unwind"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "Traceback cho file, line và call chain",
+        "Log input identity nhưng tránh lộ secret"
+      ]
+    }
+  ]
+}

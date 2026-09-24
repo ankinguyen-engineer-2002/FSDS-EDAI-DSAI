@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/database-relational-model-architecture.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/database-relational-model-architecture.html",
+  "specification": {
+    "sha256": "c2dee7a841b62a98100d8d055d81d6d66cc262145d47701b06515b6d77652730",
+    "bytes": 3681
+  },
+  "artifact": {
+    "sha256": "6efe2eeebdd97fa6fcef75e9589c27372fc3f90bbd5d81a1bfc1b24b02e8be18",
+    "bytes": 814284
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

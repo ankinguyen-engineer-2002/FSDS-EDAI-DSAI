@@ -1,0 +1,257 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Một chương trình Python đi qua runtime",
+    "subtitle": "source → AST → bytecode → object → I/O",
+    "output": "python-runtime-architecture.html",
+    "quality_profile": "showcase",
+    "visual_preset": "editorial",
+    "viewBox": [
+      1240,
+      620
+    ],
+    "views": [
+      {
+        "id": "startup",
+        "label": "Startup path",
+        "focus": [
+          "shell",
+          "process",
+          "interpreter",
+          "module"
+        ],
+        "note": "Theo python -m pipeline ingest orders.csv từ shell tới entry point."
+      },
+      {
+        "id": "resources",
+        "label": "Runtime resources",
+        "focus": [
+          "interpreter",
+          "objects",
+          "io",
+          "kernel"
+        ],
+        "note": "Tách phần Python giữ trong RAM khỏi file/socket do kernel phục vụ."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "shell",
+      "type": "external",
+      "label": "Shell",
+      "sublabel": "argv + cwd + env",
+      "pos": [
+        40,
+        260
+      ],
+      "size": [
+        155,
+        68
+      ],
+      "tag": "INPUT"
+    },
+    {
+      "id": "process",
+      "type": "backend",
+      "label": "Python process",
+      "sublabel": "CPython runtime",
+      "pos": [
+        250,
+        260
+      ],
+      "size": [
+        165,
+        68
+      ],
+      "tag": "OS",
+      "brand": "python"
+    },
+    {
+      "id": "interpreter",
+      "type": "backend",
+      "label": "Interpreter",
+      "sublabel": "AST → bytecode",
+      "pos": [
+        475,
+        260
+      ],
+      "size": [
+        170,
+        68
+      ],
+      "tag": "EXECUTION",
+      "brand": "python"
+    },
+    {
+      "id": "module",
+      "type": "backend",
+      "label": "Module namespace",
+      "sublabel": "__main__ + imports",
+      "pos": [
+        705,
+        260
+      ],
+      "size": [
+        175,
+        68
+      ],
+      "tag": "STATE"
+    },
+    {
+      "id": "objects",
+      "type": "database",
+      "label": "Objects + frames",
+      "sublabel": "RAM / identity",
+      "pos": [
+        945,
+        140
+      ],
+      "size": [
+        175,
+        68
+      ]
+    },
+    {
+      "id": "io",
+      "type": "cloud",
+      "label": "File / socket / DB",
+      "sublabel": "bytes + schema",
+      "pos": [
+        945,
+        270
+      ],
+      "size": [
+        175,
+        68
+      ]
+    },
+    {
+      "id": "kernel",
+      "type": "cloud",
+      "label": "Kernel",
+      "sublabel": "CPU + I/O",
+      "pos": [
+        945,
+        400
+      ],
+      "size": [
+        175,
+        68
+      ]
+    },
+    {
+      "id": "evidence",
+      "type": "external",
+      "label": "Traceback / metrics",
+      "sublabel": "evidence",
+      "pos": [
+        700,
+        455
+      ],
+      "size": [
+        180,
+        68
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Python runtime",
+      "wraps": [
+        "process",
+        "interpreter",
+        "module",
+        "objects"
+      ],
+      "pad": 24
+    },
+    {
+      "kind": "region",
+      "label": "Outside the runtime",
+      "wraps": [
+        "shell",
+        "io",
+        "kernel",
+        "evidence"
+      ],
+      "pad": 24
+    }
+  ],
+  "connections": [
+    {
+      "id": "launch",
+      "from": "shell",
+      "to": "process",
+      "label": "exec python -m",
+      "variant": "emphasis",
+      "labelDy": -35
+    },
+    {
+      "id": "compile",
+      "from": "process",
+      "to": "interpreter",
+      "label": "read + compile",
+      "labelDy": -35
+    },
+    {
+      "id": "import",
+      "from": "interpreter",
+      "to": "module",
+      "label": "run module code",
+      "variant": "emphasis",
+      "labelDy": -35
+    },
+    {
+      "id": "store",
+      "from": "module",
+      "to": "objects",
+      "label": "bind names / frames",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "fail",
+      "from": "module",
+      "to": "evidence",
+      "label": "exception → traceback",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 35
+    },
+    {
+      "id": "io-boundary",
+      "from": "module",
+      "to": "io",
+      "label": "encode / decode",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelAt": [
+        913,
+        352
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Câu hỏi chẩn đoán",
+      "items": [
+        "Ai đang giữ quyền chạy?",
+        "Object đang nằm ở namespace nào?",
+        "Đang tính CPU hay đang chờ I/O?"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Không nhầm",
+      "items": [
+        "Bytecode là kế hoạch, không phải một lần chạy",
+        "File/socket nhận bytes theo contract, không nhận object sống"
+      ]
+    }
+  ]
+}

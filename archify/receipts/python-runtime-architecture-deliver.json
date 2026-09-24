@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/python-runtime-architecture.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/python-runtime-architecture.html",
+  "specification": {
+    "sha256": "5116aadae8d081ba6047afb8c8e238d260bcbf5052eb61b63c1ec552d07ece3b",
+    "bytes": 4926
+  },
+  "artifact": {
+    "sha256": "a1cafc9115e1f0905152075c9d5fb71d3b77899abf990ef69a42f6135810f288",
+    "bytes": 812141
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

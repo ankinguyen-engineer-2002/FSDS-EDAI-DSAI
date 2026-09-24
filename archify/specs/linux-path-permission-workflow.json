@@ -1,0 +1,202 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Path và permission được kiểm tra ở đâu",
+    "subtitle": "cwd tạo path; identity quyết định quyền",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "views": [
+      {
+        "id": "path",
+        "label": "Path resolution",
+        "focus": [
+          "cwd",
+          "relative",
+          "absolute"
+        ],
+        "note": "Relative path chỉ có nghĩa khi biết cwd."
+      },
+      {
+        "id": "permission",
+        "label": "Permission decision",
+        "focus": [
+          "identity",
+          "mode",
+          "check",
+          "ok",
+          "deny"
+        ],
+        "note": "Kernel đối chiếu subject với mode bits."
+      }
+    ],
+    "output": "linux-path-permission-workflow.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "resolve",
+      "label": "Resolve path"
+    },
+    {
+      "id": "authorize",
+      "label": "Kernel authorization"
+    },
+    {
+      "id": "outcome",
+      "label": "Observed outcome"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "cwd",
+      "lane": "resolve",
+      "col": 0,
+      "type": "external",
+      "label": "cwd",
+      "sublabel": "/home/student",
+      "width": 142,
+      "tag": "điểm xuất phát"
+    },
+    {
+      "id": "relative",
+      "lane": "resolve",
+      "col": 1,
+      "type": "frontend",
+      "label": "report.log",
+      "sublabel": "relative path",
+      "width": 142,
+      "tag": "cwd + name"
+    },
+    {
+      "id": "absolute",
+      "lane": "resolve",
+      "col": 2,
+      "type": "frontend",
+      "label": "Absolute path",
+      "sublabel": "/home/student/report.log",
+      "width": 142,
+      "tag": "canonical intent"
+    },
+    {
+      "id": "identity",
+      "lane": "authorize",
+      "col": 1,
+      "type": "security",
+      "label": "uid / gid",
+      "sublabel": "owner · group · other",
+      "width": 142,
+      "tag": "subject"
+    },
+    {
+      "id": "mode",
+      "lane": "authorize",
+      "col": 2,
+      "type": "security",
+      "label": "r w x bits",
+      "sublabel": "permission matrix",
+      "width": 142,
+      "tag": "object"
+    },
+    {
+      "id": "check",
+      "lane": "authorize",
+      "col": 3,
+      "type": "backend",
+      "label": "Kernel check",
+      "sublabel": "path walk + access",
+      "width": 142,
+      "tag": "decision"
+    },
+    {
+      "id": "ok",
+      "lane": "outcome",
+      "col": 4,
+      "type": "database",
+      "label": "File opened",
+      "sublabel": "fd returned",
+      "width": 142,
+      "tag": "read allowed",
+      "yOffset": -41.0
+    },
+    {
+      "id": "deny",
+      "lane": "outcome",
+      "col": 4,
+      "type": "security",
+      "label": "EACCES",
+      "sublabel": "stderr + exit != 0",
+      "width": 142,
+      "tag": "denied",
+      "yOffset": 41.0
+    }
+  ],
+  "edges": [
+    {
+      "id": "resolve-rel",
+      "from": "cwd",
+      "to": "relative",
+      "variant": "default",
+      "label": "join"
+    },
+    {
+      "id": "normalize",
+      "from": "relative",
+      "to": "absolute",
+      "variant": "emphasis",
+      "label": "resolve"
+    },
+    {
+      "id": "who",
+      "from": "identity",
+      "to": "check",
+      "variant": "security",
+      "label": "subject"
+    },
+    {
+      "id": "what",
+      "from": "mode",
+      "to": "check",
+      "variant": "security",
+      "label": "mode bits"
+    },
+    {
+      "id": "allow",
+      "from": "check",
+      "to": "ok",
+      "variant": "emphasis",
+      "label": "allowed"
+    },
+    {
+      "id": "reject",
+      "from": "check",
+      "to": "deny",
+      "variant": "security",
+      "label": "denied",
+      "role": "error"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "Absolute path bắt đầu từ /; relative path bắt đầu từ cwd",
+        "x trên directory cho phép traverse, không đồng nghĩa đọc nội dung file"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "pwd + realpath xác nhận vị trí",
+        "id + ls -ld từng directory xác nhận quyền"
+      ]
+    }
+  ],
+  "mainPath": [
+    "cwd",
+    "relative",
+    "absolute"
+  ]
+}

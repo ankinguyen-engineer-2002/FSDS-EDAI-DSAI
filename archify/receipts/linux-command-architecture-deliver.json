@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/linux-command-architecture.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/linux-command-architecture.html",
+  "specification": {
+    "sha256": "d9d746cd4f826a4daa0574d8474e85225753648ecad6bb043d572444c6295c13",
+    "bytes": 4946
+  },
+  "artifact": {
+    "sha256": "d602bb6a30489ad35ea4cc1e5a881da6831b1acb14847f928582c5234dcbc6e8",
+    "bytes": 809087
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

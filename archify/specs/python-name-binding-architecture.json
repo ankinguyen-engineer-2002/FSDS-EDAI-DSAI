@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Tên không chứa object; namespace giữ đường trỏ",
+    "subtitle": "Assignment, alias, mutation và copy là bốn quan hệ khác nhau",
+    "viewBox": [
+      1220,
+      680
+    ],
+    "visual_preset": "editorial",
+    "views": [
+      {
+        "id": "alias",
+        "label": "Alias",
+        "focus": [
+          "ns",
+          "records",
+          "backup",
+          "list"
+        ],
+        "note": "Hai name có thể trỏ cùng một mutable object."
+      },
+      {
+        "id": "copy",
+        "label": "Shallow copy",
+        "focus": [
+          "list",
+          "item1",
+          "item2",
+          "copy"
+        ],
+        "note": "Outer list mới nhưng phần tử vẫn có thể dùng chung."
+      }
+    ],
+    "output": "python-name-binding-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "ns",
+      "type": "backend",
+      "label": "Local namespace",
+      "sublabel": "records · backup",
+      "pos": [
+        70,
+        260
+      ],
+      "size": [
+        190,
+        76
+      ],
+      "tag": "name table",
+      "brand": "python"
+    },
+    {
+      "id": "records",
+      "type": "frontend",
+      "label": "name: records",
+      "sublabel": "binding",
+      "pos": [
+        330,
+        150
+      ],
+      "size": [
+        170,
+        68
+      ],
+      "tag": "label"
+    },
+    {
+      "id": "backup",
+      "type": "frontend",
+      "label": "name: backup",
+      "sublabel": "alias",
+      "pos": [
+        330,
+        370
+      ],
+      "size": [
+        170,
+        68
+      ],
+      "tag": "label"
+    },
+    {
+      "id": "list",
+      "type": "database",
+      "label": "List object",
+      "sublabel": "mutable identity",
+      "pos": [
+        590,
+        260
+      ],
+      "size": [
+        190,
+        76
+      ],
+      "tag": "heap object"
+    },
+    {
+      "id": "item1",
+      "type": "messagebus",
+      "label": "Item object A",
+      "sublabel": "record 1",
+      "pos": [
+        860,
+        130
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "tag": "element"
+    },
+    {
+      "id": "item2",
+      "type": "messagebus",
+      "label": "Item object B",
+      "sublabel": "record 2",
+      "pos": [
+        860,
+        260
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "tag": "element"
+    },
+    {
+      "id": "copy",
+      "type": "database",
+      "label": "Shallow copy",
+      "sublabel": "new outer list",
+      "pos": [
+        860,
+        420
+      ],
+      "size": [
+        170,
+        68
+      ],
+      "tag": "copy boundary"
+    }
+  ],
+  "connections": [
+    {
+      "id": "nr",
+      "from": "ns",
+      "to": "records",
+      "variant": "default"
+    },
+    {
+      "id": "nb",
+      "from": "ns",
+      "to": "backup",
+      "variant": "default"
+    },
+    {
+      "id": "rlist",
+      "from": "records",
+      "to": "list",
+      "variant": "emphasis"
+    },
+    {
+      "id": "blist",
+      "from": "backup",
+      "to": "list",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e1",
+      "from": "list",
+      "to": "item1",
+      "variant": "default"
+    },
+    {
+      "id": "e2",
+      "from": "list",
+      "to": "item2",
+      "variant": "default"
+    },
+    {
+      "id": "cp",
+      "from": "list",
+      "to": "copy",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "= bind name; append mutates object; is kiểm tra identity",
+        "Shallow copy không tự clone graph bên trong"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "id() chỉ dùng như evidence cục bộ",
+        "Test mutation ở nested item để phát hiện shared reference"
+      ]
+    }
+  ]
+}

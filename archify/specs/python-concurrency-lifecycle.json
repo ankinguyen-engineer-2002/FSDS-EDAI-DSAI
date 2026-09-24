@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Async I/O trong Python",
+    "subtitle": "await nhường thread; CPU parallel là câu chuyện khác",
+    "output": "python-concurrency-lifecycle.html",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "async-io",
+        "label": "Async I/O",
+        "focus": [
+          "run-a",
+          "wait-a",
+          "run-b",
+          "ready-a",
+          "done"
+        ],
+        "note": "Task A nhường thread tại await để task B dùng trong lúc A chờ."
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "main",
+      "label": "Async path"
+    },
+    {
+      "id": "terminal",
+      "label": "Outcome"
+    }
+  ],
+  "states": [
+    {
+      "id": "run-a",
+      "type": "start",
+      "label": "Task A chạy",
+      "sublabel": "CPU đoạn ngắn",
+      "lane": "main",
+      "col": 0,
+      "step": "01"
+    },
+    {
+      "id": "wait-a",
+      "type": "waiting",
+      "label": "A chờ I/O",
+      "sublabel": "await",
+      "lane": "main",
+      "col": 1,
+      "step": "02"
+    },
+    {
+      "id": "run-b",
+      "type": "active",
+      "label": "Task B chạy",
+      "sublabel": "cùng thread",
+      "lane": "main",
+      "col": 2,
+      "step": "03"
+    },
+    {
+      "id": "ready-a",
+      "type": "active",
+      "label": "A sẵn sàng",
+      "sublabel": "resume sau await",
+      "lane": "main",
+      "col": 3,
+      "step": "04"
+    },
+    {
+      "id": "done",
+      "type": "success",
+      "label": "Hoàn tất",
+      "sublabel": "không CPU parallel",
+      "lane": "terminal",
+      "col": 2,
+      "step": "05"
+    }
+  ],
+  "transitions": [
+    {
+      "id": "await",
+      "from": "run-a",
+      "to": "wait-a",
+      "label": "await",
+      "variant": "emphasis",
+      "labelDy": -26
+    },
+    {
+      "id": "yield",
+      "from": "wait-a",
+      "to": "run-b",
+      "label": "nhường thread",
+      "variant": "emphasis",
+      "labelDy": -26
+    },
+    {
+      "id": "ready",
+      "from": "run-b",
+      "to": "ready-a",
+      "label": "I/O xong",
+      "variant": "default",
+      "labelDy": -26
+    },
+    {
+      "id": "finish",
+      "from": "ready-a",
+      "to": "done",
+      "label": "resume / complete",
+      "variant": "emphasis",
+      "labelDy": -26
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Async",
+      "items": [
+        "Tối ưu thời gian chờ",
+        "Không tự tạo thêm thread",
+        "Cần thư viện async thật"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "CPU",
+      "items": [
+        "CPU-bound không được giải quyết bằng await",
+        "Cân nhắc native engine hoặc process"
+      ]
+    }
+  ]
+}

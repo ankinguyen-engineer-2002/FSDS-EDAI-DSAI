@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "dataflow",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/python-serialization-dataflow.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/python-serialization-dataflow.html",
+  "specification": {
+    "sha256": "11dc669c9fd4d604f4c79d971233f0e931cc01c8e2887173cebf7d1e4b6095a3",
+    "bytes": 3268
+  },
+  "artifact": {
+    "sha256": "56e10c5a9a7217ff261268408b832a9b454c4a4d832e1c2659c67d02dfacdb86",
+    "bytes": 804918
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

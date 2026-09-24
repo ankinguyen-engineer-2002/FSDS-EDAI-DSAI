@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "sequence",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/postgresql-mvcc-sequence.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/postgresql-mvcc-sequence.html",
+  "specification": {
+    "sha256": "57b2a417b8b6e22beec8aa27023544e37dc21d4a73b6920757cf310ce85d2785",
+    "bytes": 4381
+  },
+  "artifact": {
+    "sha256": "1cc7e6df4b66d0ad5e1622a3d54353cb33794d10016c07fdc0e9267428ad77cc",
+    "bytes": 821405
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

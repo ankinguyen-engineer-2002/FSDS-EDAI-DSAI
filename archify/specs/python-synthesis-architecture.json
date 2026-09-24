@@ -1,0 +1,204 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Python: theo một lần chạy bằng ba câu hỏi",
+    "subtitle": "Ai giữ quyền chạy, dữ liệu ở đâu, evidence nào đủ",
+    "viewBox": [
+      1220,
+      680
+    ],
+    "visual_preset": "editorial",
+    "views": [
+      {
+        "id": "run",
+        "label": "One run",
+        "focus": [
+          "project",
+          "runtime",
+          "root",
+          "objects",
+          "errors"
+        ],
+        "note": "Định vị project, process, object và failure."
+      },
+      {
+        "id": "system",
+        "label": "External work",
+        "focus": [
+          "root",
+          "boundary",
+          "time"
+        ],
+        "note": "I/O boundary và time model quyết định concurrency."
+      }
+    ],
+    "output": "python-synthesis-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "root",
+      "type": "backend",
+      "label": "Một lần chạy Python",
+      "sublabel": "python -m pipeline",
+      "pos": [
+        500,
+        270
+      ],
+      "size": [
+        220,
+        80
+      ],
+      "tag": "root",
+      "brand": "python"
+    },
+    {
+      "id": "project",
+      "type": "frontend",
+      "label": "Project boundary",
+      "sublabel": "env + dependencies",
+      "pos": [
+        70,
+        90
+      ],
+      "size": [
+        185,
+        70
+      ],
+      "tag": "before run"
+    },
+    {
+      "id": "runtime",
+      "type": "cloud",
+      "label": "Runtime",
+      "sublabel": "process + interpreter",
+      "pos": [
+        70,
+        430
+      ],
+      "size": [
+        185,
+        70
+      ],
+      "tag": "execution",
+      "brand": "python"
+    },
+    {
+      "id": "objects",
+      "type": "database",
+      "label": "Objects",
+      "sublabel": "namespace + identity",
+      "pos": [
+        930,
+        90
+      ],
+      "size": [
+        185,
+        70
+      ],
+      "tag": "memory"
+    },
+    {
+      "id": "errors",
+      "type": "security",
+      "label": "Errors",
+      "sublabel": "frame + traceback",
+      "pos": [
+        930,
+        430
+      ],
+      "size": [
+        185,
+        70
+      ],
+      "tag": "control flow"
+    },
+    {
+      "id": "boundary",
+      "type": "messagebus",
+      "label": "Byte boundary",
+      "sublabel": "file · socket · DB",
+      "pos": [
+        170,
+        550
+      ],
+      "size": [
+        185,
+        70
+      ],
+      "tag": "I/O"
+    },
+    {
+      "id": "time",
+      "type": "backend",
+      "label": "Time model",
+      "sublabel": "sync · async · process",
+      "pos": [
+        850,
+        550
+      ],
+      "size": [
+        185,
+        70
+      ],
+      "tag": "scheduling"
+    }
+  ],
+  "connections": [
+    {
+      "id": "a",
+      "from": "project",
+      "to": "root",
+      "variant": "emphasis"
+    },
+    {
+      "id": "b",
+      "from": "runtime",
+      "to": "root",
+      "variant": "default"
+    },
+    {
+      "id": "c",
+      "from": "root",
+      "to": "objects",
+      "variant": "default"
+    },
+    {
+      "id": "d",
+      "from": "root",
+      "to": "errors",
+      "variant": "security"
+    },
+    {
+      "id": "e",
+      "from": "root",
+      "to": "boundary",
+      "variant": "emphasis"
+    },
+    {
+      "id": "f",
+      "from": "root",
+      "to": "time",
+      "variant": "default"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cơ chế cần giữ",
+      "items": [
+        "Không bắt đầu từ syntax; bắt đầu từ boundary và execution",
+        "Mọi tối ưu phải gắn với CPU, memory hoặc wait evidence"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bằng chứng để kiểm tra",
+      "items": [
+        "sys.executable/cwd xác nhận runtime",
+        "traceback/profile/metrics xác nhận behavior"
+      ]
+    }
+  ]
+}
