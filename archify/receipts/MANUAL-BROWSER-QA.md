@@ -138,3 +138,12 @@ After synthesizing slide 04 with the related networking, distributed-systems, cl
 - at 1440px the article measured 1084px with the rail open and 1388px with the rail collapsed;
 - light/dark, rail expansion, note autosave, Escape close and focus return to the note button passed;
 - the final local reload reported 44 visual labs in the top bar, 9 F04 labs, 10 F04 scenes, 60 F04 term cards and zero console errors.
+
+## F04 production verification · 2026-09-24
+
+- Content commit: `f4cf0b4` (`Complete F04 Web API beginner-first lesson`).
+- GitHub Pages workflow run `35962973237` completed successfully for the same full SHA.
+- Production root and both new API-style Archify artifacts returned HTTP 200 with `Last-Modified: Thu, 24 Sep 2026 06:07:22 GMT`.
+- Online F04 rendered 9 Archify labs, 10 mechanism scenes and 60 term cards; the page contained the SOAP and GraphQL mechanism prose.
+- All 9 production iframes exposed SVG, including “Bốn cách đặt một yêu cầu API” and “Bốn cách nhận dữ liệu mới”.
+- Production had zero horizontal overflow at 1440×1000, 1024×900, 768×900 and 390×844, and emitted no console errors.
