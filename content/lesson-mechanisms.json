@@ -4319,5 +4319,785 @@
         ]
       }
     ]
+  },
+  "F05": {
+    "promise": "Bắt đầu từ một tính năng có rủi ro, ta tách verification khỏi validation, đi qua V-Model, scope, evidence và kết thúc bằng regression loop.",
+    "chapters": [
+      {
+        "id": "problem",
+        "label": "Hai câu hỏi chất lượng xuất hiện từ một nỗi đau thật",
+        "hint": "verification",
+        "scenes": [
+          {
+            "kind": "process",
+            "eyebrow": "Cơ chế 01",
+            "title": "Hai câu hỏi chất lượng xuất hiện từ một nỗi đau thật",
+            "lead": "Code chạy được chỉ là điểm bắt đầu; chất lượng còn phải đúng mục tiêu.",
+            "predict": "Nếu chương trình chạy được thì vì sao vẫn có thể là sản phẩm sai?",
+            "conclusion": "Verification hỏi “xây đúng cách chưa”; validation hỏi “xây đúng thứ người dùng cần chưa”.",
+            "reading": "Một chương trình có thể chạy không lỗi nhưng tính sai tiền, bỏ sót yêu cầu hoặc trả lời điều người dùng không cần. Vì vậy ta tách câu hỏi “làm đúng bản thiết kế chưa?” khỏi “đã giải quyết đúng việc người dùng chưa?”. Nếu chỉ nhìn vào việc code không crash, ta có thể giao một hệ thống hợp lệ về kỹ thuật nhưng vô dụng về mục tiêu.",
+            "steps": [
+              {
+                "say": "Đặt câu hỏi của chặng này trước khi chạy code.",
+                "mechanism": "Một chương trình có thể chạy không lỗi nhưng tính sai tiền, bỏ sót yêu cầu hoặc trả lời điều người dùng không cần. Vì vậy ta tách câu hỏi “làm đúng bản thiết kế chưa?” khỏi “đã giải quyết đúng việc người dùng chưa?”.",
+                "term": "verification"
+              },
+              {
+                "say": "Đặt input và expected thành điều quan sát được.",
+                "mechanism": "nỗi đau thực tế → hai câu hỏi chất lượng → verification và validation",
+                "term": "validation"
+              },
+              {
+                "say": "Chạy test ở scope phù hợp.",
+                "mechanism": "Đây là điểm neo của toàn bài: yêu cầu → thiết kế → code → bằng chứng chạy → nhu cầu người dùng.",
+                "term": "requirement"
+              },
+              {
+                "say": "Đọc actual cùng log/artifact, không chỉ màu xanh.",
+                "mechanism": "Một tính năng chuyển tiền chạy qua unit test nhưng cho phép chuyển vượt số dư trong tình huống thật.",
+                "term": "quality assurance"
+              },
+              {
+                "say": "Sửa và giữ lại bằng chứng chống tái phát.",
+                "mechanism": "Đưa invariant nghiệp vụ vào functional/acceptance test; không coi coverage hay green build là bằng chứng đủ.",
+                "term": "quality assurance"
+              }
+            ],
+            "glossary": [
+              {
+                "term": "verification",
+                "gloss": "Kiểm thiết kế, quy trình hoặc artifact trước khi chạy.",
+                "purpose": "Gọi đúng tên điều đang cần kiểm, để chọn evidence và scope không bị lẫn."
+              },
+              {
+                "term": "validation",
+                "gloss": "Kiểm phần mềm chạy có đúng nhu cầu thật không.",
+                "purpose": "Gọi đúng tên điều đang cần kiểm, để chọn evidence và scope không bị lẫn."
+              },
+              {
+                "term": "requirement",
+                "gloss": "Điều người dùng/hệ thống cần đạt, viết thành điều có thể quan sát.",
+                "purpose": "Gọi đúng tên điều đang cần kiểm, để chọn evidence và scope không bị lẫn."
+              },
+              {
+                "term": "quality assurance",
+                "gloss": "Hoạt động có hệ thống để ngăn lỗi và tạo niềm tin vào chất lượng.",
+                "purpose": "Gọi đúng tên điều đang cần kiểm, để chọn evidence và scope không bị lẫn."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "vmodel",
+        "label": "V-Model nối thiết kế với bằng chứng",
+        "hint": "V-Model",
+        "scenes": [
+          {
+            "kind": "process",
+            "eyebrow": "Cơ chế 02",
+            "title": "V-Model nối thiết kế với bằng chứng",
+            "lead": "Bên trái nói điều phải xây; bên phải chứng minh điều đã xây có đúng không.",
+            "predict": "Vì sao V-Model ghép mỗi tầng thiết kế với một tầng kiểm tra?",
+            "conclusion": "Mỗi tầng thiết kế cần một bài kiểm tra tương ứng; càng sớm đặt câu hỏi, càng rẻ để sửa.",
+            "reading": "Bên trái V-Model đi từ câu hỏi lớn xuống chi tiết; đáy là coding; bên phải đi ngược từ unit lên acceptance để kiểm tra từng lời hứa đã định hình. Ghép sai tầng kiểm tra khiến lỗi chỉ lộ ở cuối, lúc sửa đắt và khó truy nguyên.",
+            "steps": [
+              {
+                "say": "Đặt câu hỏi của chặng này trước khi chạy code.",
+                "mechanism": "Bên trái V-Model đi từ câu hỏi lớn xuống chi tiết; đáy là coding; bên phải đi ngược từ unit lên acceptance để kiểm tra từng lời hứa đã định hình.",
+                "term": "V-Model"
+              },
+              {
+                "say": "Đặt input và expected thành điều quan sát được.",
+                "mechanism": "requirement → design → code → unit → integration/system → acceptance",
+                "term": "unit test"
+              },
+              {
+                "say": "Chạy test ở scope phù hợp.",
+                "mechanism": "Yêu cầu ghép UAT; functional design ghép system/functional; internal design ghép integration; module design ghép unit.",
+                "term": "integration test"
+              },
+              {
+                "say": "Đọc actual cùng log/artifact, không chỉ màu xanh.",
+                "mechanism": "Requirement nói “không mất tiền”; unit test pass nhưng integration với ledger làm ghi hai lần.",
+                "term": "acceptance test"
+              },
+              {
+                "say": "Sửa và giữ lại bằng chứng chống tái phát.",
+                "mechanism": "Tạo test ở đúng boundary và chạy contract/integration sớm, thay vì đợi UAT mới phát hiện.",
+                "term": "acceptance test"
+              }
+            ],
+            "glossary": [
+              {
+                "term": "V-Model",
+                "gloss": "Bản đồ ghép tầng định nghĩa với tầng kiểm tra tương ứng.",
+                "purpose": "Gọi đúng tên điều đang cần kiểm, để chọn evidence và scope không bị lẫn."
+              },
+              {
+                "term": "unit test",
+                "gloss": "Test một đơn vị nhỏ trong isolation.",
+                "purpose": "Gọi đúng tên điều đang cần kiểm, để chọn evidence và scope không bị lẫn."
+              },
+              {
+                "term": "integration test",
+                "gloss": "Test các module hoặc hệ thống ngoài khi chúng kết nối.",
+                "purpose": "Gọi đúng tên điều đang cần kiểm, để chọn evidence và scope không bị lẫn."
+              },
+              {
+                "term": "acceptance test",
+                "gloss": "Test sản phẩm theo tiêu chí người dùng chấp nhận.",
+                "purpose": "Gọi đúng tên điều đang cần kiểm, để chọn evidence và scope không bị lẫn."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "levels",
+        "label": "Chọn đúng scope trước khi viết test",
+        "hint": "unit test",
+        "scenes": [
+          {
+            "kind": "process",
+            "eyebrow": "Cơ chế 03",
+            "title": "Chọn đúng scope trước khi viết test",
+            "lead": "Không có một loại test nào đủ; scope phải khớp với câu hỏi đang cần trả lời.",
+            "predict": "Một test đang kiểm tra việc gì: logic nhỏ, kết nối hay hành vi người dùng?",
+            "conclusion": "Test nhỏ bảo vệ logic; test tích hợp bảo vệ hợp đồng giữa phần; acceptance bảo vệ mục tiêu.",
+            "reading": "Test có nhiều góc nhìn. Unit cô lập một phần nhỏ; integration kiểm tra các phần nối nhau; system/functional nhìn hành vi toàn ứng dụng; acceptance hỏi người dùng có nhận đúng giá trị không. Chọn sai scope làm test nhanh nhưng mù lỗi ở ranh giới hoặc ngược lại khiến feedback quá chậm.",
+            "steps": [
+              {
+                "say": "Đặt câu hỏi của chặng này trước khi chạy code.",
+                "mechanism": "Test có nhiều góc nhìn. Unit cô lập một phần nhỏ; integration kiểm tra các phần nối nhau; system/functional nhìn hành vi toàn ứng dụng; acceptance hỏi người dùng có nhận đúng giá trị không.",
+                "term": "unit test"
+              },
+              {
+                "say": "Đặt input và expected thành điều quan sát được.",
+                "mechanism": "isolated unit → integrated modules → full system → user acceptance",
+                "term": "integration test"
+              },
+              {
+                "say": "Chạy test ở scope phù hợp.",
+                "mechanism": "Từ hàm → module kết nối → hệ thống → kịch bản end-to-end/nghiệm thu.",
+                "term": "functional testing"
+              },
+              {
+                "say": "Đọc actual cùng log/artifact, không chỉ màu xanh.",
+                "mechanism": "Black-box test login pass nhưng không thấy token bị ghi log; white-box review thấy secret leak.",
+                "term": "user acceptance testing"
+              },
+              {
+                "say": "Sửa và giữ lại bằng chứng chống tái phát.",
+                "mechanism": "Kết hợp phương pháp theo rủi ro: hành vi bên ngoài, boundary, và logic nhạy cảm đều cần bằng chứng.",
+                "term": "user acceptance testing"
+              }
+            ],
+            "glossary": [
+              {
+                "term": "unit test",
+                "gloss": "Test một đơn vị nhỏ trong isolation.",
+                "purpose": "Gọi đúng tên điều đang cần kiểm, để chọn evidence và scope không bị lẫn."
+              },
+              {
+                "term": "integration test",
+                "gloss": "Test các module hoặc hệ thống ngoài khi chúng kết nối.",
+                "purpose": "Gọi đúng tên điều đang cần kiểm, để chọn evidence và scope không bị lẫn."
+              },
+              {
+                "term": "functional testing",
+                "gloss": "Đối chiếu hành vi thực tế với chức năng được yêu cầu.",
+                "purpose": "Gọi đúng tên điều đang cần kiểm, để chọn evidence và scope không bị lẫn."
+              },
+              {
+                "term": "user acceptance testing",
+                "gloss": "Người dùng/đại diện nghiệp vụ xác nhận hệ thống đáp ứng mục tiêu.",
+                "purpose": "Gọi đúng tên điều đang cần kiểm, để chọn evidence và scope không bị lẫn."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "evidence",
+        "label": "Bằng chứng làm verdict có thể kiểm lại",
+        "hint": "test case",
+        "scenes": [
+          {
+            "kind": "process",
+            "eyebrow": "Cơ chế 04",
+            "title": "Bằng chứng làm verdict có thể kiểm lại",
+            "lead": "Đừng hỏi “test có xanh không?” trước khi hỏi “nó đã kiểm đúng điều gì?”.",
+            "predict": "Test pass nghĩa là đã có bằng chứng đủ chưa?",
+            "conclusion": "Một verdict đáng tin phải truy ngược được nó đã kiểm gì, ở đâu, với dữ liệu nào.",
+            "reading": "Một kết quả test chỉ có ý nghĩa khi biết input, expected behavior, environment, test type và failure evidence. Green không thay thế việc đọc log, coverage, assertion và điều kiện chạy. Thiếu bằng chứng khiến team tranh luận bằng cảm giác và sửa nhầm chỗ.",
+            "steps": [
+              {
+                "say": "Đặt câu hỏi của chặng này trước khi chạy code.",
+                "mechanism": "Một kết quả test chỉ có ý nghĩa khi biết input, expected behavior, environment, test type và failure evidence. Green không thay thế việc đọc log, coverage, assertion và điều kiện chạy.",
+                "term": "test case"
+              },
+              {
+                "say": "Đặt input và expected thành điều quan sát được.",
+                "mechanism": "specification → test data → execution → actual/expected → report → decision",
+                "term": "expected behavior"
+              },
+              {
+                "say": "Chạy test ở scope phù hợp.",
+                "mechanism": "Sau mỗi test: input → action → actual → expected → verdict → artifact/log.",
+                "term": "coverage"
+              },
+              {
+                "say": "Đọc actual cùng log/artifact, không chỉ màu xanh.",
+                "mechanism": "CI xanh vì chỉ chạy happy path; production nhận payload rỗng và 500.",
+                "term": "regression test"
+              },
+              {
+                "say": "Sửa và giữ lại bằng chứng chống tái phát.",
+                "mechanism": "Thêm negative cases, boundary cases, deterministic fixtures và lưu artifact/log đủ để tái hiện.",
+                "term": "regression test"
+              }
+            ],
+            "glossary": [
+              {
+                "term": "test case",
+                "gloss": "Một kịch bản có input, action và expected result.",
+                "purpose": "Gọi đúng tên điều đang cần kiểm, để chọn evidence và scope không bị lẫn."
+              },
+              {
+                "term": "expected behavior",
+                "gloss": "Kết quả cần xảy ra theo contract/requirement.",
+                "purpose": "Gọi đúng tên điều đang cần kiểm, để chọn evidence và scope không bị lẫn."
+              },
+              {
+                "term": "coverage",
+                "gloss": "Mức độ các dòng, nhánh hoặc hành vi đã được test chạm tới.",
+                "purpose": "Gọi đúng tên điều đang cần kiểm, để chọn evidence và scope không bị lẫn."
+              },
+              {
+                "term": "regression test",
+                "gloss": "Test giữ một lỗi cũ không quay lại.",
+                "purpose": "Gọi đúng tên điều đang cần kiểm, để chọn evidence và scope không bị lẫn."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "practice",
+        "label": "Từ yêu cầu tới test có thể tái hiện",
+        "hint": "TDD",
+        "scenes": [
+          {
+            "kind": "process",
+            "eyebrow": "Cơ chế 05",
+            "title": "Từ yêu cầu tới test có thể tái hiện",
+            "lead": "Một test đáng giá biến một kỳ vọng thành bằng chứng lặp lại được.",
+            "predict": "Làm sao biến một yêu cầu thành một test có thể chạy?",
+            "conclusion": "Viết điều kiện quan sát được trước; sau đó chọn test nhỏ nhất chứng minh điều đó.",
+            "reading": "Bắt đầu từ câu người dùng cần, viết điều kiện quan sát được, chọn dữ liệu đại diện và cả dữ liệu xấu, rồi tự động hóa phần lặp lại. TDD chỉ là một cách đưa feedback sớm hơn, không phải mục tiêu tự thân. Một test tốt gắn với behavior, không gắn chặt vào chi tiết nội bộ dễ thay đổi.",
+            "steps": [
+              {
+                "say": "Đặt câu hỏi của chặng này trước khi chạy code.",
+                "mechanism": "Bắt đầu từ câu người dùng cần, viết điều kiện quan sát được, chọn dữ liệu đại diện và cả dữ liệu xấu, rồi tự động hóa phần lặp lại. TDD chỉ là một cách đưa feedback sớm hơn, không phải mục tiêu tự thân.",
+                "term": "TDD"
+              },
+              {
+                "say": "Đặt input và expected thành điều quan sát được.",
+                "mechanism": "Nhìn flow từ yêu cầu đến test case và quay lại thành regression evidence sau khi sửa.",
+                "term": "fixture"
+              },
+              {
+                "say": "Chạy test ở scope phù hợp.",
+                "mechanism": "acceptance criterion → test case → fixture → run → failure message → fix → regression",
+                "term": "CI"
+              },
+              {
+                "say": "Đọc actual cùng log/artifact, không chỉ màu xanh.",
+                "mechanism": "Một bug ngày 1 sửa bằng tay nhưng không thêm test; ngày 10 quay lại và không ai nhớ rule.",
+                "term": "regression test"
+              },
+              {
+                "say": "Sửa và giữ lại bằng chứng chống tái phát.",
+                "mechanism": "Luôn thêm regression test cho bug đã gặp và giữ test đọc được như một phần của contract.",
+                "term": "regression test"
+              }
+            ],
+            "glossary": [
+              {
+                "term": "TDD",
+                "gloss": "Viết test diễn đạt behavior trước hoặc rất sớm rồi mới triển khai.",
+                "purpose": "Gọi đúng tên điều đang cần kiểm, để chọn evidence và scope không bị lẫn."
+              },
+              {
+                "term": "fixture",
+                "gloss": "Dữ liệu/trạng thái chuẩn bị để test chạy ổn định.",
+                "purpose": "Gọi đúng tên điều đang cần kiểm, để chọn evidence và scope không bị lẫn."
+              },
+              {
+                "term": "CI",
+                "gloss": "Máy tự chạy build/test/check mỗi khi thay đổi được đưa vào pipeline.",
+                "purpose": "Gọi đúng tên điều đang cần kiểm, để chọn evidence và scope không bị lẫn."
+              },
+              {
+                "term": "regression test",
+                "gloss": "Test giữ một lỗi cũ không quay lại.",
+                "purpose": "Gọi đúng tên điều đang cần kiểm, để chọn evidence và scope không bị lẫn."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "F06": {
+    "promise": "Bắt đầu từ lỗi “chạy trên máy tôi”, ta theo một artifact Docker từ Dockerfile tới image, runtime, isolation, state, topology và rollback.",
+    "chapters": [
+      {
+        "id": "pain",
+        "label": "Vấn đề thật: cùng source nhưng không cùng môi trường",
+        "hint": "container",
+        "scenes": [
+          {
+            "kind": "process",
+            "eyebrow": "Cơ chế 01",
+            "title": "Vấn đề thật: cùng source nhưng không cùng môi trường",
+            "lead": "Container bắt đầu từ nỗi đau tái lập, không phải từ một lệnh Docker.",
+            "predict": "Vì sao “chạy trên máy tôi” không đủ để giao một ứng dụng?",
+            "conclusion": "Image là khuôn đóng gói; container là một lần chạy khuôn đó trên runtime.",
+            "reading": "Ứng dụng phụ thuộc code, thư viện, phiên bản runtime, cấu hình và hệ điều hành. Hai máy có thể nhận cùng source nhưng cho kết quả khác nhau. Không đóng gói môi trường, lỗi triển khai bị đẩy sang người vận hành đoán mò.",
+            "steps": [
+              {
+                "say": "Bắt đầu bằng nỗi đau môi trường hoặc lifecycle.",
+                "mechanism": "Ứng dụng phụ thuộc code, thư viện, phiên bản runtime, cấu hình và hệ điều hành. Hai máy có thể nhận cùng source nhưng cho kết quả khác nhau.",
+                "term": "container"
+              },
+              {
+                "say": "Đổi representation: hướng dẫn → artifact → process.",
+                "mechanism": "source + dependency + config → image → container trên runtime",
+                "term": "image"
+              },
+              {
+                "say": "Đặt boundary runtime và resource trước khi chạy.",
+                "mechanism": "Từ laptop → artifact → runtime đích là đường biên của bài.",
+                "term": "runtime"
+              },
+              {
+                "say": "Kiểm state/network/health, không chỉ process còn sống.",
+                "mechanism": "Image dùng latest trôi phiên bản; build hôm nay và tuần sau khác nhau dù source không đổi.",
+                "term": "Docker"
+              },
+              {
+                "say": "Giữ artifact và bằng chứng để sửa/rollback.",
+                "mechanism": "Pin base/dependencies, build có context rõ, scan artifact và ghi digest khi cần.",
+                "term": "Docker"
+              }
+            ],
+            "glossary": [
+              {
+                "term": "container",
+                "gloss": "Process đang chạy với filesystem/network/config riêng từ image.",
+                "purpose": "Giúp định vị đúng boundary và failure point trong flow source + dependency + config → image → container trên runtime"
+              },
+              {
+                "term": "image",
+                "gloss": "Artifact read-only theo lớp dùng để tạo container.",
+                "purpose": "Giúp định vị đúng boundary và failure point trong flow source + dependency + config → image → container trên runtime"
+              },
+              {
+                "term": "runtime",
+                "gloss": "Engine đọc image, xin kernel tạo và quản lý container lifecycle.",
+                "purpose": "Giúp định vị đúng boundary và failure point trong flow source + dependency + config → image → container trên runtime"
+              },
+              {
+                "term": "Docker",
+                "gloss": "Nền tảng/tooling để build, ship và run container.",
+                "purpose": "Giúp định vị đúng boundary và failure point trong flow source + dependency + config → image → container trên runtime"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "vm-container",
+        "label": "VM và container chia sẻ hay tách gì",
+        "hint": "virtual machine",
+        "scenes": [
+          {
+            "kind": "process",
+            "eyebrow": "Cơ chế 02",
+            "title": "VM và container chia sẻ hay tách gì?",
+            "lead": "Container nhẹ hơn vì không mang theo một guest OS đầy đủ.",
+            "predict": "Nếu VM đã cô lập được ứng dụng, container thêm điều gì?",
+            "conclusion": "VM cô lập bằng guest OS; container cô lập process bằng cơ chế của kernel.",
+            "reading": "VM mang theo cả guest OS qua hypervisor; container cô lập process nhưng dùng chung kernel host. Vì vậy container thường khởi động nhanh và nhẹ hơn, còn VM cho boundary hệ điều hành mạnh hơn. Chọn sai boundary khiến workload cần kernel/driver riêng chạy không phù hợp.",
+            "steps": [
+              {
+                "say": "Bắt đầu bằng nỗi đau môi trường hoặc lifecycle.",
+                "mechanism": "VM mang theo cả guest OS qua hypervisor; container cô lập process nhưng dùng chung kernel host. Vì vậy container thường khởi động nhanh và nhẹ hơn, còn VM cho boundary hệ điều hành mạnh hơn.",
+                "term": "virtual machine"
+              },
+              {
+                "say": "Đổi representation: hướng dẫn → artifact → process.",
+                "mechanism": "bare metal → hypervisor/guest OS → app  hoặc  host kernel → isolated process",
+                "term": "hypervisor"
+              },
+              {
+                "say": "Đặt boundary runtime và resource trước khi chạy.",
+                "mechanism": "So sánh app, libraries, guest OS, hypervisor và host kernel.",
+                "term": "kernel"
+              },
+              {
+                "say": "Kiểm state/network/health, không chỉ process còn sống.",
+                "mechanism": "Container “root” tưởng có quyền host; process trong container thoát boundary do cấu hình sai.",
+                "term": "namespaces"
+              },
+              {
+                "say": "Giữ artifact và bằng chứng để sửa/rollback.",
+                "mechanism": "Giới hạn capability, dùng user không phải root, profile seccomp/AppArmor và không mount socket tùy tiện.",
+                "term": "namespaces"
+              }
+            ],
+            "glossary": [
+              {
+                "term": "virtual machine",
+                "gloss": "Máy tính emulated có guest OS riêng trên hypervisor.",
+                "purpose": "Giúp định vị đúng boundary và failure point trong flow bare metal → hypervisor/guest OS → app  hoặc  host kernel → isolated process"
+              },
+              {
+                "term": "hypervisor",
+                "gloss": "Lớp tạo và quản lý virtual machines.",
+                "purpose": "Giúp định vị đúng boundary và failure point trong flow bare metal → hypervisor/guest OS → app  hoặc  host kernel → isolated process"
+              },
+              {
+                "term": "kernel",
+                "gloss": "Phần OS điều phối process, memory, network và device.",
+                "purpose": "Giúp định vị đúng boundary và failure point trong flow bare metal → hypervisor/guest OS → app  hoặc  host kernel → isolated process"
+              },
+              {
+                "term": "namespaces",
+                "gloss": "Cơ chế cho process một view riêng về tài nguyên hệ thống.",
+                "purpose": "Giúp định vị đúng boundary và failure point trong flow bare metal → hypervisor/guest OS → app  hoặc  host kernel → isolated process"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "image-build",
+        "label": "Từ hướng dẫn tới process đang chạy",
+        "hint": "Dockerfile",
+        "scenes": [
+          {
+            "kind": "process",
+            "eyebrow": "Cơ chế 03",
+            "title": "Từ hướng dẫn tới process đang chạy",
+            "lead": "Docker không chạy một Dockerfile trực tiếp; nó build image rồi tạo container từ image.",
+            "predict": "Dockerfile, image và container khác nhau như thế nào?",
+            "conclusion": "Dockerfile nói cách build; image lưu artifact; container là lần chạy cụ thể.",
+            "reading": "Dockerfile là bản hướng dẫn; image là artifact bất biến theo lớp; container là process + filesystem/network/config được tạo khi chạy image. Lẫn image với container làm bạn không biết nên rebuild artifact hay restart process.",
+            "steps": [
+              {
+                "say": "Bắt đầu bằng nỗi đau môi trường hoặc lifecycle.",
+                "mechanism": "Dockerfile là bản hướng dẫn; image là artifact bất biến theo lớp; container là process + filesystem/network/config được tạo khi chạy image.",
+                "term": "Dockerfile"
+              },
+              {
+                "say": "Đổi representation: hướng dẫn → artifact → process.",
+                "mechanism": "Dockerfile → image layers → registry → runtime → container process",
+                "term": "image"
+              },
+              {
+                "say": "Đặt boundary runtime và resource trước khi chạy.",
+                "mechanism": "Dockerfile → build context → builder/cache → image layers → run → container.",
+                "term": "container"
+              },
+              {
+                "say": "Kiểm state/network/health, không chỉ process còn sống.",
+                "mechanism": "Build context gửi cả `.env` và secret vào builder; image layer vẫn giữ secret dù xóa ở layer sau.",
+                "term": "build context"
+              },
+              {
+                "say": "Giữ artifact và bằng chứng để sửa/rollback.",
+                "mechanism": "`.dockerignore`, multi-stage build, secret mounts và image scan giảm dữ liệu thừa/rủi ro.",
+                "term": "build context"
+              }
+            ],
+            "glossary": [
+              {
+                "term": "Dockerfile",
+                "gloss": "File text mô tả các instruction để build image.",
+                "purpose": "Giúp định vị đúng boundary và failure point trong flow Dockerfile → image layers → registry → runtime → container process"
+              },
+              {
+                "term": "image",
+                "gloss": "Artifact read-only theo lớp dùng để tạo container.",
+                "purpose": "Giúp định vị đúng boundary và failure point trong flow Dockerfile → image layers → registry → runtime → container process"
+              },
+              {
+                "term": "container",
+                "gloss": "Process đang chạy với filesystem/network/config riêng từ image.",
+                "purpose": "Giúp định vị đúng boundary và failure point trong flow Dockerfile → image layers → registry → runtime → container process"
+              },
+              {
+                "term": "build context",
+                "gloss": "Tập file được gửi cho builder khi build.",
+                "purpose": "Giúp định vị đúng boundary và failure point trong flow Dockerfile → image layers → registry → runtime → container process"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "isolation",
+        "label": "Isolation có hai mặt: view và budget",
+        "hint": "namespaces",
+        "scenes": [
+          {
+            "kind": "process",
+            "eyebrow": "Cơ chế 04",
+            "title": "Isolation có hai mặt: view và budget",
+            "lead": "Cô lập tốt vừa giới hạn điều process thấy, vừa giới hạn lượng tài nguyên nó tiêu.",
+            "predict": "Container “nhìn thấy” và “được dùng” bao nhiêu tài nguyên?",
+            "conclusion": "Namespace trả lời view; cgroup trả lời budget; runtime ghép chúng trước khi process bắt đầu.",
+            "reading": "Namespaces cho mỗi container một view riêng về process, network, mount và user; cgroups giới hạn CPU, RAM và I/O. Đây là isolation ở mức process, không phải phép thuật. Không có giới hạn, một container ăn hết RAM; không có namespace, process/network dễ lộ sang nhau.",
+            "steps": [
+              {
+                "say": "Bắt đầu bằng nỗi đau môi trường hoặc lifecycle.",
+                "mechanism": "Namespaces cho mỗi container một view riêng về process, network, mount và user; cgroups giới hạn CPU, RAM và I/O. Đây là isolation ở mức process, không phải phép thuật.",
+                "term": "namespaces"
+              },
+              {
+                "say": "Đổi representation: hướng dẫn → artifact → process.",
+                "mechanism": "kernel → namespaces (thấy gì) + cgroups (dùng bao nhiêu) → container",
+                "term": "cgroups"
+              },
+              {
+                "say": "Đặt boundary runtime và resource trước khi chạy.",
+                "mechanism": "kernel → namespace view → cgroup budget → process work.",
+                "term": "writable layer"
+              },
+              {
+                "say": "Kiểm state/network/health, không chỉ process còn sống.",
+                "mechanism": "Container restart và dữ liệu trong writable layer biến mất; hai container dùng localhost tưởng cùng network.",
+                "term": "resource limit"
+              },
+              {
+                "say": "Giữ artifact và bằng chứng để sửa/rollback.",
+                "mechanism": "Mount volume cho state cần sống lâu, dùng user-defined network/service name, đặt limit và healthcheck.",
+                "term": "resource limit"
+              }
+            ],
+            "glossary": [
+              {
+                "term": "namespaces",
+                "gloss": "Cơ chế cho process một view riêng về tài nguyên hệ thống.",
+                "purpose": "Giúp định vị đúng boundary và failure point trong flow kernel → namespaces (thấy gì) + cgroups (dùng bao nhiêu) → container"
+              },
+              {
+                "term": "cgroups",
+                "gloss": "Cơ chế giới hạn và theo dõi CPU, RAM, I/O.",
+                "purpose": "Giúp định vị đúng boundary và failure point trong flow kernel → namespaces (thấy gì) + cgroups (dùng bao nhiêu) → container"
+              },
+              {
+                "term": "writable layer",
+                "gloss": "Lớp ghi tạm của container, mất khi container bị xóa nếu không mount state.",
+                "purpose": "Giúp định vị đúng boundary và failure point trong flow kernel → namespaces (thấy gì) + cgroups (dùng bao nhiêu) → container"
+              },
+              {
+                "term": "resource limit",
+                "gloss": "Mức CPU/RAM/I/O runtime cho container dùng.",
+                "purpose": "Giúp định vị đúng boundary và failure point trong flow kernel → namespaces (thấy gì) + cgroups (dùng bao nhiêu) → container"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "network-storage",
+        "label": "Process có thể thay mới nhưng dữ liệu cần một nơi sống lâu hơn container.",
+        "hint": "N",
+        "scenes": [
+          {
+            "kind": "process",
+            "eyebrow": "Cơ chế 05",
+            "title": "Process có thể thay mới nhưng dữ liệu cần một nơi sống lâu hơn container.",
+            "lead": "Container có network namespace và filesystem writable riêng. Network do Docker nối qua bridge/user-defined network; dữ liệu cần sống lâu phải đi ra volume hoặc bind mount.",
+            "predict": "Làm sao container nói chuyện và giữ dữ liệu sau khi bị xóa?",
+            "conclusion": "Dùng khi chạy app + database, local development và thiết kế backup/restore.",
+            "reading": "Container có network namespace và filesystem writable riêng. Network do Docker nối qua bridge/user-defined network; dữ liệu cần sống lâu phải đi ra volume hoặc bind mount. Nhầm localhost, dùng container IP cố định hoặc lưu DB trong writable layer đều tạo sự cố khó đoán.",
+            "steps": [
+              {
+                "say": "Bắt đầu bằng hai tài nguyên khác nhau.",
+                "mechanism": "Network namespace nối process qua bridge/user-defined network; filesystem writable chỉ là lớp ghi tạm của container.",
+                "term": "Docker network"
+              },
+              {
+                "say": "Đặt state ra ngoài vòng đời process.",
+                "mechanism": "Named volume giữ dữ liệu database qua recreate; bind mount phù hợp source/dev khi host cần thấy file.",
+                "term": "volume"
+              },
+              {
+                "say": "Cho service tìm nhau bằng tên ổn định.",
+                "mechanism": "Trong user-defined network, app gọi `db:5432`; không hard-code container IP và không nhầm `localhost`.",
+                "term": "localhost"
+              },
+              {
+                "say": "Kiểm tra readiness và backup, không chỉ process sống.",
+                "mechanism": "Healthcheck xác nhận service sẵn sàng; backup/restore chứng minh state có thể phục hồi.",
+                "term": "bind mount"
+              },
+              {
+                "say": "Khi container mới, network và volume vẫn giữ đúng contract.",
+                "mechanism": "Process có thể bị thay mới; state và đường gọi phải có nơi sống lâu hơn một container.",
+                "term": "Docker network"
+              }
+            ],
+            "glossary": [
+              {
+                "term": "Docker network",
+                "gloss": "Mạng ảo nối các container bằng service/name và port.",
+                "purpose": "Giúp app tìm database ổn định thay vì phụ thuộc container IP."
+              },
+              {
+                "term": "volume",
+                "gloss": "Storage do Docker quản lý, tách dữ liệu khỏi lifecycle container.",
+                "purpose": "Giữ state database khi container bị recreate."
+              },
+              {
+                "term": "bind mount",
+                "gloss": "Một path của host được mount vào container.",
+                "purpose": "Hữu ích cho development hoặc file cần host quản lý; phải kiểm soát quyền."
+              },
+              {
+                "term": "localhost",
+                "gloss": "Loopback của network namespace hiện tại.",
+                "purpose": "Nhắc rằng localhost trong web container không tự trỏ sang database container."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "compose",
+        "label": "Compose là bản đồ vận hành nhóm service, không biến chúng thành một process duy nhất.",
+        "hint": "M",
+        "scenes": [
+          {
+            "kind": "process",
+            "eyebrow": "Cơ chế 06",
+            "title": "Compose là bản đồ vận hành nhóm service, không biến chúng thành một process duy nhất.",
+            "lead": "Compose là bản khai báo nhiều service, network, volume, environment và health dependency để một nhóm container được tạo cùng nhau.",
+            "predict": "Khi app có web, database và worker, làm sao khởi động nhất quán?",
+            "conclusion": "Dùng cho local multi-container, integration test và demo reproducible.",
+            "reading": "Compose là bản khai báo nhiều service, network, volume, environment và health dependency để một nhóm container được tạo cùng nhau. Chạy từng lệnh tay dễ lệch tên, port, volume và thứ tự readiness giữa máy dev/CI.",
+            "steps": [
+              {
+                "say": "Đặt câu hỏi Docker Compose.",
+                "mechanism": "Định vị Docker Compose trong lifecycle để biết cần kiểm gì và evidence nào.",
+                "term": "Docker Compose"
+              },
+              {
+                "say": "Đặt câu hỏi service.",
+                "mechanism": "Định vị service trong lifecycle để biết cần kiểm gì và evidence nào.",
+                "term": "service"
+              },
+              {
+                "say": "Đặt câu hỏi healthcheck.",
+                "mechanism": "Định vị healthcheck trong lifecycle để biết cần kiểm gì và evidence nào.",
+                "term": "healthcheck"
+              },
+              {
+                "say": "Đặt câu hỏi environment variable.",
+                "mechanism": "Định vị environment variable trong lifecycle để biết cần kiểm gì và evidence nào.",
+                "term": "environment variable"
+              }
+            ],
+            "glossary": [
+              {
+                "term": "Docker Compose",
+                "gloss": "Công cụ khai báo và chạy nhóm service liên quan.",
+                "purpose": "Giúp chọn đúng boundary và failure evidence trong chặng compose."
+              },
+              {
+                "term": "service",
+                "gloss": "Một vai trò/container definition trong Compose.",
+                "purpose": "Giúp chọn đúng boundary và failure evidence trong chặng compose."
+              },
+              {
+                "term": "healthcheck",
+                "gloss": "Lệnh kiểm tra process/service có sẵn sàng theo điều kiện đã định không.",
+                "purpose": "Giúp chọn đúng boundary và failure evidence trong chặng compose."
+              },
+              {
+                "term": "environment variable",
+                "gloss": "Giá trị cấu hình đưa vào process lúc run.",
+                "purpose": "Giúp chọn đúng boundary và failure evidence trong chặng compose."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "workflow",
+        "label": "Container là một process được tạo từ artifact; vận hành đáng tin cần cả lifecycle và evidence.",
+        "hint": "V",
+        "scenes": [
+          {
+            "kind": "process",
+            "eyebrow": "Cơ chế 07",
+            "title": "Container là một process được tạo từ artifact; vận hành đáng tin cần cả lifecycle và evidence.",
+            "lead": "Build image có kiểm soát, tag/digest, push registry, pull ở môi trường đích, run với config/limits, observe logs/metrics, rồi rollback hoặc rebuild khi lỗi.",
+            "predict": "Một vòng đời Docker đáng tin đi từ code tới failure recovery thế nào?",
+            "conclusion": "Dùng cho CI/CD, release, incident response và production readiness review.",
+            "reading": "Build image có kiểm soát, tag/digest, push registry, pull ở môi trường đích, run với config/limits, observe logs/metrics, rồi rollback hoặc rebuild khi lỗi. Không có registry, provenance, health signal và rollback plan thì “đã deploy” không có nghĩa là “đáng tin”.",
+            "steps": [
+              {
+                "say": "Đặt câu hỏi registry.",
+                "mechanism": "Định vị registry trong lifecycle để biết cần kiểm gì và evidence nào.",
+                "term": "registry"
+              },
+              {
+                "say": "Đặt câu hỏi tag / digest.",
+                "mechanism": "Định vị tag / digest trong lifecycle để biết cần kiểm gì và evidence nào.",
+                "term": "tag / digest"
+              },
+              {
+                "say": "Đặt câu hỏi healthcheck.",
+                "mechanism": "Định vị healthcheck trong lifecycle để biết cần kiểm gì và evidence nào.",
+                "term": "healthcheck"
+              },
+              {
+                "say": "Đặt câu hỏi rollback.",
+                "mechanism": "Định vị rollback trong lifecycle để biết cần kiểm gì và evidence nào.",
+                "term": "rollback"
+              }
+            ],
+            "glossary": [
+              {
+                "term": "registry",
+                "gloss": "Kho push/pull image artifact.",
+                "purpose": "Giúp chọn đúng boundary và failure evidence trong chặng workflow."
+              },
+              {
+                "term": "tag / digest",
+                "gloss": "Tag là nhãn có thể đổi; digest định danh nội dung bất biến.",
+                "purpose": "Giúp chọn đúng boundary và failure evidence trong chặng workflow."
+              },
+              {
+                "term": "healthcheck",
+                "gloss": "Lệnh kiểm tra process/service có sẵn sàng theo điều kiện đã định không.",
+                "purpose": "Giúp chọn đúng boundary và failure evidence trong chặng workflow."
+              },
+              {
+                "term": "rollback",
+                "gloss": "Quay deployment về artifact/config version trước.",
+                "purpose": "Giúp chọn đúng boundary và failure evidence trong chặng workflow."
+              }
+            ]
+          }
+        ]
+      }
+    ]
   }
 }

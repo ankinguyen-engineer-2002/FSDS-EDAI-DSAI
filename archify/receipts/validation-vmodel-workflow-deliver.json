@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "workflow",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/validation-vmodel-workflow.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/validation-vmodel-workflow.html",
+  "specification": {
+    "sha256": "b6a004a3b528c9a5fbbbfb8f5e215a2c57ab4fcd45e007cfa48ad1bb64c850af",
+    "bytes": 5306
+  },
+  "artifact": {
+    "sha256": "3c3ff3df84e5c82bd9d15855d61bed636a31c2a1424a218672b45115b6dc62bd",
+    "bytes": 811445
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

@@ -1,0 +1,243 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "V-Model: từ lời hứa tới bằng chứng",
+    "subtitle": "Verification kiểm đường xây; validation kiểm kết quả người dùng nhận",
+    "viewBox": [
+      1294,
+      640
+    ],
+    "visual_preset": "editorial",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "left",
+        "label": "Định nghĩa điều đúng",
+        "focus": [
+          "requirement",
+          "functional",
+          "internal",
+          "module"
+        ],
+        "note": "Bên trái phân rã yêu cầu thành các mức thiết kế có thể kiểm."
+      },
+      {
+        "id": "right",
+        "label": "Tạo bằng chứng",
+        "focus": [
+          "unit",
+          "integration",
+          "system",
+          "acceptance"
+        ],
+        "note": "Bên phải chạy test tương ứng để đối chiếu actual với expected."
+      },
+      {
+        "id": "risk",
+        "label": "Lỗi muộn đắt hơn",
+        "focus": [
+          "requirement",
+          "acceptance",
+          "failure"
+        ],
+        "note": "Một lỗi trong requirement nếu chỉ lộ ở acceptance đã kéo theo nhiều giả định sai."
+      }
+    ],
+    "output": "validation-vmodel-workflow.html"
+  },
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Đọc V-Model",
+      "items": [
+        "Trái: requirement và design tạo lời hứa",
+        "Đáy: coding biến lời hứa thành code",
+        "Phải: test tạo bằng chứng ở từng scope",
+        "Mũi tên về requirement: UAT kiểm đúng nhu cầu"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Không nhầm green build với quality",
+      "items": [
+        "Unit pass không chứng minh integration pass",
+        "Coverage không chứng minh behavior đúng",
+        "Acceptance mới chạm mục tiêu người dùng",
+        "Failure evidence phải truy nguyên được"
+      ]
+    }
+  ],
+  "lanes": [
+    {
+      "id": "define",
+      "label": "Define the promise"
+    },
+    {
+      "id": "build",
+      "label": "Implementation"
+    },
+    {
+      "id": "prove",
+      "label": "Create evidence"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "requirement",
+      "lane": "define",
+      "col": 0,
+      "type": "external",
+      "label": "Requirement",
+      "width": 190,
+      "tag": "promise"
+    },
+    {
+      "id": "functional",
+      "lane": "define",
+      "col": 1,
+      "type": "backend",
+      "label": "Functional design",
+      "width": 190,
+      "tag": "design"
+    },
+    {
+      "id": "internal",
+      "lane": "define",
+      "col": 2,
+      "type": "backend",
+      "label": "Internal design",
+      "width": 190,
+      "tag": "design"
+    },
+    {
+      "id": "module",
+      "lane": "define",
+      "col": 3,
+      "type": "backend",
+      "label": "Module design",
+      "width": 190,
+      "tag": "design"
+    },
+    {
+      "id": "coding",
+      "lane": "build",
+      "col": 4,
+      "type": "database",
+      "label": "Coding",
+      "width": 190,
+      "tag": "pivot"
+    },
+    {
+      "id": "unit",
+      "lane": "prove",
+      "col": 3,
+      "type": "security",
+      "label": "Unit test",
+      "width": 190,
+      "tag": "test"
+    },
+    {
+      "id": "integration",
+      "lane": "prove",
+      "col": 2,
+      "type": "security",
+      "label": "Integration test",
+      "width": 190,
+      "tag": "test"
+    },
+    {
+      "id": "system",
+      "lane": "prove",
+      "col": 1,
+      "type": "security",
+      "label": "Functional / system",
+      "width": 190,
+      "tag": "test"
+    },
+    {
+      "id": "acceptance",
+      "lane": "prove",
+      "col": 0,
+      "type": "external",
+      "label": "Acceptance / UAT",
+      "width": 190,
+      "tag": "user"
+    },
+    {
+      "id": "failure",
+      "lane": "prove",
+      "col": 4,
+      "type": "security",
+      "label": "Failure evidence",
+      "width": 190,
+      "tag": "failure"
+    }
+  ],
+  "edges": [
+    {
+      "id": "c1",
+      "from": "requirement",
+      "to": "functional",
+      "label": "decompose",
+      "variant": "default"
+    },
+    {
+      "id": "c2",
+      "from": "functional",
+      "to": "internal",
+      "label": "design",
+      "variant": "default"
+    },
+    {
+      "id": "c3",
+      "from": "internal",
+      "to": "module",
+      "label": "detail",
+      "variant": "default"
+    },
+    {
+      "id": "c4",
+      "from": "module",
+      "to": "coding",
+      "label": "implement",
+      "variant": "emphasis"
+    },
+    {
+      "id": "c5",
+      "from": "coding",
+      "to": "unit",
+      "label": "run",
+      "variant": "security"
+    },
+    {
+      "id": "c6",
+      "from": "unit",
+      "to": "integration",
+      "label": "compose",
+      "variant": "security"
+    },
+    {
+      "id": "c7",
+      "from": "integration",
+      "to": "system",
+      "label": "exercise",
+      "variant": "security"
+    },
+    {
+      "id": "c8",
+      "from": "system",
+      "to": "acceptance",
+      "label": "user scenario",
+      "variant": "security"
+    },
+    {
+      "id": "c9",
+      "from": "acceptance",
+      "to": "requirement",
+      "label": "validate promise",
+      "variant": "emphasis",
+      "role": "return"
+    }
+  ]
+}

@@ -1,0 +1,286 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Docker: từ hướng dẫn đóng kiện tới process",
+    "subtitle": "Dockerfile tạo image; runtime dùng image tạo container bị cô lập",
+    "viewBox": [
+      1240,
+      600
+    ],
+    "animation": "trace",
+    "visual_preset": "editorial",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "build",
+        "label": "Build artifact",
+        "focus": [
+          "source",
+          "dockerfile",
+          "builder",
+          "image"
+        ],
+        "note": "Dockerfile và build context tạo image layers; đây là artifact, chưa phải process sống."
+      },
+      {
+        "id": "run",
+        "label": "Run process",
+        "focus": [
+          "image",
+          "runtime",
+          "container",
+          "kernel"
+        ],
+        "note": "Runtime đọc image và nhờ kernel tạo process với filesystem/network riêng."
+      },
+      {
+        "id": "limits",
+        "label": "Boundary thật",
+        "focus": [
+          "container",
+          "namespaces",
+          "cgroups",
+          "kernel"
+        ],
+        "note": "Namespaces giới hạn view; cgroups giới hạn budget. Cả hai cùng tham gia isolation."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "source",
+      "type": "external",
+      "label": "Application source",
+      "sublabel": "code · dependencies · config",
+      "pos": [
+        55,
+        290
+      ],
+      "size": [
+        200,
+        76
+      ]
+    },
+    {
+      "id": "dockerfile",
+      "type": "backend",
+      "label": "Dockerfile",
+      "sublabel": "FROM · COPY · RUN · CMD",
+      "pos": [
+        300,
+        140
+      ],
+      "size": [
+        205,
+        76
+      ],
+      "brand": "docker"
+    },
+    {
+      "id": "builder",
+      "type": "backend",
+      "label": "Builder + cache",
+      "sublabel": "instructions → layers",
+      "pos": [
+        545,
+        140
+      ],
+      "size": [
+        205,
+        76
+      ],
+      "brand": "docker"
+    },
+    {
+      "id": "image",
+      "type": "database",
+      "label": "Docker image",
+      "sublabel": "read-only layers · digest",
+      "pos": [
+        790,
+        140
+      ],
+      "size": [
+        205,
+        76
+      ],
+      "brand": "docker"
+    },
+    {
+      "id": "registry",
+      "type": "cloud",
+      "label": "Registry",
+      "sublabel": "push / pull artifact",
+      "pos": [
+        1035,
+        140
+      ],
+      "size": [
+        160,
+        76
+      ]
+    },
+    {
+      "id": "runtime",
+      "type": "backend",
+      "label": "Container runtime",
+      "sublabel": "Docker Engine · containerd",
+      "pos": [
+        545,
+        330
+      ],
+      "size": [
+        205,
+        76
+      ],
+      "brand": "docker"
+    },
+    {
+      "id": "container",
+      "type": "frontend",
+      "label": "Container",
+      "sublabel": "live process + writable layer",
+      "pos": [
+        820,
+        330
+      ],
+      "size": [
+        205,
+        76
+      ],
+      "brand": "docker"
+    },
+    {
+      "id": "kernel",
+      "type": "security",
+      "label": "Host kernel",
+      "sublabel": "process · network · filesystem",
+      "pos": [
+        1035,
+        330
+      ],
+      "size": [
+        160,
+        76
+      ]
+    },
+    {
+      "id": "namespaces",
+      "type": "security",
+      "label": "Namespaces",
+      "sublabel": "view: PID · net · mount · user",
+      "pos": [
+        545,
+        515
+      ],
+      "size": [
+        205,
+        76
+      ]
+    },
+    {
+      "id": "cgroups",
+      "type": "security",
+      "label": "cgroups",
+      "sublabel": "budget: CPU · RAM · I/O",
+      "pos": [
+        820,
+        515
+      ],
+      "size": [
+        205,
+        76
+      ]
+    },
+    {
+      "id": "failure",
+      "type": "security",
+      "label": "Failure check",
+      "sublabel": "secret · OOM · not ready",
+      "pos": [
+        1035,
+        515
+      ],
+      "size": [
+        160,
+        76
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1",
+      "from": "source",
+      "to": "dockerfile",
+      "label": "build context",
+      "variant": "default"
+    },
+    {
+      "id": "c2",
+      "from": "dockerfile",
+      "to": "builder",
+      "variant": "emphasis"
+    },
+    {
+      "id": "c3",
+      "from": "builder",
+      "to": "image",
+      "label": "layers",
+      "variant": "emphasis"
+    },
+    {
+      "id": "c4",
+      "from": "image",
+      "to": "registry",
+      "variant": "default"
+    },
+    {
+      "id": "c5",
+      "from": "image",
+      "to": "runtime",
+      "label": "run image",
+      "variant": "emphasis"
+    },
+    {
+      "id": "c6",
+      "from": "runtime",
+      "to": "container",
+      "variant": "emphasis"
+    },
+    {
+      "id": "c8",
+      "from": "container",
+      "to": "namespaces",
+      "variant": "security"
+    },
+    {
+      "id": "c9",
+      "from": "container",
+      "to": "cgroups",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Ba representation khác nhau",
+      "items": [
+        "Dockerfile là hướng dẫn text",
+        "Image là artifact read-only theo lớp",
+        "Container là một lần chạy cụ thể",
+        "Runtime là engine điều phối lifecycle"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Container không phải VM nhỏ",
+      "items": [
+        "Không mang guest kernel riêng",
+        "Namespaces cô lập view",
+        "cgroups giới hạn budget",
+        "State cần volume; service cần network/health"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/docker-image-to-container-architecture.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/docker-image-to-container-architecture.html",
+  "specification": {
+    "sha256": "8a6b624f53fc1ff254aba05add4c7e2ec4487a059d0aa51806410b5fc7773a2e",
+    "bytes": 5664
+  },
+  "artifact": {
+    "sha256": "2b82584dba461a8b10f952fd11be4f73c363829a0dc8fa1c5efa672b34b7abf7",
+    "bytes": 819869
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}
