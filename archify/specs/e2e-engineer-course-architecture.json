@@ -1,0 +1,509 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "FSDS E2E Engineer Architecture",
+    "subtitle": "Toàn bộ syllabus nối thành một hệ thống Data/AI có thể xây, chạy, quan sát và tiến hoá",
+    "visual_preset": "blueprint",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1360,
+      620
+    ],
+    "views": [
+      {
+        "id": "engineer-loop",
+        "label": "Engineer loop",
+        "focus": [
+          "intent",
+          "engineer",
+          "quality",
+          "api",
+          "state",
+          "container",
+          "observe"
+        ],
+        "note": "Từ yêu cầu đến service chạy được, có test, có container và có bằng chứng vận hành."
+      },
+      {
+        "id": "data-ai-path",
+        "label": "Data → AI path",
+        "focus": [
+          "state",
+          "ingest",
+          "storage",
+          "batch",
+          "stream",
+          "consumption",
+          "ml",
+          "orchestration"
+        ],
+        "note": "Theo dữ liệu từ source/CDC qua lakehouse, batch/stream, feature và model serving."
+      },
+      {
+        "id": "platform-run",
+        "label": "Platform run",
+        "focus": [
+          "container",
+          "platform",
+          "cloud",
+          "api",
+          "ml",
+          "observe"
+        ],
+        "note": "Nhìn các lớp đóng gói, điều phối, cloud, gateway và observability giữ hệ thống sống."
+      }
+    ],
+    "legend": {
+      "mode": "all",
+      "entries": {
+        "frontend": {
+          "label": "Engineer / application",
+          "visible": true
+        },
+        "backend": {
+          "label": "Compute / service",
+          "visible": true
+        },
+        "database": {
+          "label": "State / analytical data",
+          "visible": true
+        },
+        "cloud": {
+          "label": "Infrastructure / platform",
+          "visible": true
+        },
+        "security": {
+          "label": "Quality / trust boundary",
+          "visible": true
+        },
+        "messagebus": {
+          "label": "Event / pipeline movement",
+          "visible": true
+        },
+        "external": {
+          "label": "Human / outside system",
+          "visible": true
+        }
+      }
+    }
+  },
+  "components": [
+    {
+      "id": "intent",
+      "type": "external",
+      "label": "Intent",
+      "sublabel": "Define success",
+      "tag": "F05 · validation",
+      "pos": [
+        30,
+        60
+      ],
+      "size": [
+        135,
+        76
+      ]
+    },
+    {
+      "id": "engineer",
+      "type": "frontend",
+      "label": "Engineer",
+      "sublabel": "Build reliably",
+      "brand": "python",
+      "tag": "F01–F02 · Linux + Python",
+      "pos": [
+        195,
+        60
+      ],
+      "size": [
+        135,
+        76
+      ]
+    },
+    {
+      "id": "quality",
+      "type": "security",
+      "label": "Quality",
+      "sublabel": "Prove behavior",
+      "brand": "github",
+      "tag": "F05 · pytest + CI",
+      "pos": [
+        360,
+        60
+      ],
+      "size": [
+        135,
+        76
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "API",
+      "sublabel": "Serve contract",
+      "brand": "fastapi",
+      "tag": "F04 · FastAPI",
+      "pos": [
+        525,
+        60
+      ],
+      "size": [
+        135,
+        76
+      ]
+    },
+    {
+      "id": "state",
+      "type": "database",
+      "label": "State",
+      "sublabel": "Keep truth",
+      "brand": "postgresql",
+      "tag": "F03 · PostgreSQL",
+      "pos": [
+        690,
+        60
+      ],
+      "size": [
+        135,
+        76
+      ]
+    },
+    {
+      "id": "ingest",
+      "type": "messagebus",
+      "label": "CDC",
+      "sublabel": "Move changes",
+      "brand": "apache-kafka",
+      "tag": "DE · Kafka + CDC",
+      "pos": [
+        855,
+        60
+      ],
+      "size": [
+        135,
+        76
+      ]
+    },
+    {
+      "id": "storage",
+      "type": "database",
+      "label": "Lake",
+      "sublabel": "Keep history",
+      "brand": "minio",
+      "tag": "DE · Delta/Trino/MinIO",
+      "pos": [
+        1020,
+        60
+      ],
+      "size": [
+        135,
+        76
+      ]
+    },
+    {
+      "id": "batch",
+      "type": "backend",
+      "label": "Batch",
+      "sublabel": "Process scale",
+      "brand": "apache-spark",
+      "tag": "DE · Spark",
+      "pos": [
+        1185,
+        60
+      ],
+      "size": [
+        135,
+        76
+      ]
+    },
+    {
+      "id": "stream",
+      "type": "messagebus",
+      "label": "Stream",
+      "sublabel": "Handle time",
+      "tag": "DE · Flink",
+      "pos": [
+        1020,
+        235
+      ],
+      "size": [
+        135,
+        76
+      ]
+    },
+    {
+      "id": "consumption",
+      "type": "database",
+      "label": "Feature",
+      "sublabel": "Serve features",
+      "brand": "clickhouse",
+      "tag": "DE · ClickHouse/Feast",
+      "pos": [
+        1185,
+        235
+      ],
+      "size": [
+        135,
+        76
+      ]
+    },
+    {
+      "id": "ml",
+      "type": "backend",
+      "label": "ML",
+      "sublabel": "Predict + retrieve",
+      "brand": "pytorch",
+      "tag": "DS · PyTorch + LLM",
+      "pos": [
+        855,
+        235
+      ],
+      "size": [
+        135,
+        76
+      ]
+    },
+    {
+      "id": "orchestration",
+      "type": "cloud",
+      "label": "Orch",
+      "sublabel": "Schedule + lineage",
+      "brand": "airflow",
+      "tag": "DE · Airflow/DataHub",
+      "pos": [
+        690,
+        235
+      ],
+      "size": [
+        135,
+        76
+      ]
+    },
+    {
+      "id": "container",
+      "type": "backend",
+      "label": "Docker",
+      "sublabel": "Package runtime",
+      "brand": "docker",
+      "tag": "F06 · Docker/Compose",
+      "pos": [
+        525,
+        235
+      ],
+      "size": [
+        135,
+        76
+      ]
+    },
+    {
+      "id": "platform",
+      "type": "cloud",
+      "label": "K8s",
+      "sublabel": "Place workloads",
+      "brand": "kubernetes",
+      "tag": "Platform · K8s/Kubeflow",
+      "pos": [
+        360,
+        235
+      ],
+      "size": [
+        135,
+        76
+      ]
+    },
+    {
+      "id": "cloud",
+      "type": "cloud",
+      "label": "Cloud",
+      "sublabel": "Provision safely",
+      "brand": "terraform",
+      "tag": "Cloud · GCP/Terraform",
+      "pos": [
+        195,
+        235
+      ],
+      "size": [
+        135,
+        76
+      ]
+    },
+    {
+      "id": "observe",
+      "type": "security",
+      "label": "Observe",
+      "sublabel": "Find failures",
+      "brand": "grafana",
+      "tag": "SRE · OTel/Grafana",
+      "pos": [
+        30,
+        235
+      ],
+      "size": [
+        135,
+        76
+      ]
+    },
+    {
+      "id": "consumer",
+      "type": "external",
+      "label": "Outcome",
+      "sublabel": "Guide decisions",
+      "tag": "Final coursework",
+      "pos": [
+        30,
+        410
+      ],
+      "size": [
+        135,
+        76
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "01 · Intent, code and quality",
+      "wraps": [
+        "intent",
+        "engineer",
+        "quality"
+      ],
+      "pad": 14
+    },
+    {
+      "kind": "region",
+      "label": "02 · Application and operational state",
+      "wraps": [
+        "api",
+        "state"
+      ],
+      "pad": 14
+    },
+    {
+      "kind": "region",
+      "label": "03 · Data engineering plane",
+      "wraps": [
+        "ingest",
+        "storage",
+        "batch",
+        "stream",
+        "consumption"
+      ],
+      "pad": 14
+    },
+    {
+      "kind": "region",
+      "label": "04 · AI product and control plane",
+      "wraps": [
+        "ml",
+        "orchestration"
+      ],
+      "pad": 14
+    },
+    {
+      "kind": "region",
+      "label": "05 · Platform and infrastructure",
+      "wraps": [
+        "container",
+        "platform",
+        "cloud"
+      ],
+      "pad": 14
+    },
+    {
+      "kind": "region",
+      "label": "FSDS runtime region · build to operate",
+      "wraps": [
+        "quality",
+        "api",
+        "state",
+        "ingest",
+        "storage",
+        "batch",
+        "stream",
+        "consumption",
+        "ml",
+        "orchestration",
+        "container",
+        "platform",
+        "cloud",
+        "observe"
+      ],
+      "pad": 14
+    },
+    {
+      "kind": "security-group",
+      "label": "Private state + data plane",
+      "wraps": [
+        "state",
+        "storage",
+        "consumption"
+      ],
+      "pad": 14
+    }
+  ],
+  "connections": [
+    {
+      "from": "intent",
+      "to": "engineer",
+      "variant": "emphasis"
+    },
+    {
+      "from": "engineer",
+      "to": "quality",
+      "variant": "security"
+    },
+    {
+      "from": "quality",
+      "to": "api",
+      "variant": "emphasis"
+    },
+    {
+      "from": "api",
+      "to": "state"
+    },
+    {
+      "from": "state",
+      "to": "ingest",
+      "variant": "dashed"
+    },
+    {
+      "from": "ingest",
+      "to": "storage",
+      "variant": "emphasis"
+    },
+    {
+      "from": "storage",
+      "to": "batch"
+    },
+    {
+      "from": "storage",
+      "to": "stream",
+      "variant": "dashed"
+    },
+    {
+      "from": "stream",
+      "to": "consumption",
+      "variant": "emphasis"
+    },
+    {
+      "from": "batch",
+      "to": "consumption"
+    },
+    {
+      "from": "orchestration",
+      "to": "ml",
+      "variant": "dashed"
+    },
+    {
+      "from": "cloud",
+      "to": "platform",
+      "variant": "security"
+    },
+    {
+      "from": "platform",
+      "to": "container",
+      "variant": "emphasis"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/e2e-engineer-course-architecture.json",
+  "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/e2e-engineer-course-architecture.html",
+  "specification": {
+    "sha256": "6e8e6715b25ec1923fb26822ee264d8fa5531cd62087926740eb21febf637858",
+    "bytes": 9642
+  },
+  "artifact": {
+    "sha256": "46ef4004ba066e27e81992af14502e4f8f5113c6ca03da0d97b3c75d38a60409",
+    "bytes": 857236
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}
