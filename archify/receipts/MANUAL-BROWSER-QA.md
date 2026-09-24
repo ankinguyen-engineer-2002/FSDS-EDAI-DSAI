@@ -102,3 +102,12 @@ Perceptual screenshots inspected locally:
 - 1920px Linux opening: hero and pain card fill the row without the previous dead whitespace;
 - loaded Database Archify lab: the artifact is readable directly in the article at full width;
 - 390px Python opening: heading hierarchy, metadata and long Vietnamese title wrap without clipping.
+
+## Production verification after beginner-first rewrite
+
+- Commit: `6dc223d` (`Rewrite first lessons with beginner-first learning rule`).
+- GitHub Pages workflow: `35955242395`, completed successfully on 2026-09-24.
+- Production root returned HTTP 200 with `Last-Modified: Thu, 24 Sep 2026 04:21:01 GMT`.
+- Production HTML contained the new plain-language Database heading.
+- At 1440×900 the online F03 lesson rendered 7 metaphor rows, 9 stress tests, 1 golden takeaway, 14 Archify labs and 43 selected term cards with zero horizontal overflow.
+- The first production Archify iframe reached `complete`, exposed SVG and produced no console errors.
