@@ -1,202 +1,150 @@
 # Audit nội dung — F01 Linux, F02 Python, F03 Database
 
 Ngày audit: 2026-09-24
-Phạm vi: `fsds-learning-hub.html`, ba learning digest, ba slide gốc, syllabus và sách liên quan trong `library/`.
+Rule đánh giá duy nhất: `LEARNING-DESIGN-METHOD.md`
 
-## Kết luận điều hành
+## 1. Kết luận thẳng
 
-Ba bài đầu **đã vượt xa cách chuyển slide thành card**. Chúng đã có một trục suy luận rõ: nhìn một hành vi thật → dự đoán → lần theo state/boundary → gọi tên cơ chế → nối sang nghề. Chất lượng nội dung hiện tại phù hợp với một bài viết kỹ thuật dạng editorial/field note hơn là slide bài giảng truyền thống.
+Bản beginner rewrite đầu tiên **đúng cấu trúc nhưng chưa thật sự dễ học**. Nó đã thêm tình huống, glossary và visual guide, nhưng vẫn còn bốn lỗi:
 
-Điểm mạnh nhất là **bóc tách ownership và boundary**: Linux tách terminal/shell/process/kernel; Python tách shell/process/interpreter/object/I/O; Database tách logical intent/backend/planner/executor/page/WAL. Đây là lớp kiến thức nền có khả năng tái sử dụng khi học API, container, pipeline và distributed systems.
+1. Phần “cơ chế thật” còn nén nhiều jargon vào một đoạn.
+2. Ẩn dụ đổi thế giới giữa các chương, làm mental model bị đứt.
+3. 179 thuật ngữ được đưa lên giao diện như một mục tiêu coverage, trái với tinh thần cắt phần thừa.
+4. Nhiều visual dùng chung một câu tự kiểm cấp chương, chưa buộc người học kể lại đúng sơ đồ vừa xem.
 
-Điểm yếu chung trước lần chỉnh này:
+Vòng sửa hiện tại đã xây lại cả ba bài theo đúng bốn rule:
 
-1. Visual trong bài chưa đạt chất lượng và khả năng khám phá như sản phẩm Archify.
-2. Hub chưa thật sự là công cụ học cá nhân: chưa có note drawer, autosave và reading progress.
-3. Python thiếu một đoạn nền tảng quan trọng từ slide gốc: virtual environment và dependency reproducibility.
-4. Database rất giàu nội dung nhưng dễ tạo cảm giác “đúng nhưng quá nhiều” với người mới; cần bản đồ, câu hỏi dẫn đường và progressive disclosure mạnh.
-5. Chưa có catalog visual và quy chuẩn nhúng visual để những bài sau giữ được cùng ngôn ngữ thiết kế.
+- pain trước solution;
+- hình dung hữu hình trước tên kỹ thuật;
+- một physical metaphor xuyên suốt mỗi bài;
+- cơ chế có failure/stress test;
+- chỉ giữ glossary cốt lõi;
+- visual và prose có nhiệm vụ riêng nhưng nối trực tiếp với nhau;
+- cuối bài có golden takeaway một dòng.
 
-Các điểm 1–3 đã được xử lý trong lần nâng cấp này. Điểm 4–5 được chuẩn hóa trong UI và tài liệu authoring.
+## 2. Audit theo bốn core rules
 
-## Thang đánh giá
+| Rule | Trước vòng sửa này | Sau vòng sửa này |
+| :--- | :--- | :--- |
+| Zero Jargon First | Hero tốt hơn nhưng heading, primer và mechanism vẫn mở bằng term tiếng Anh. | Heading dùng câu hỏi đời thường; card đầu tiên là physical metaphor; tên kỹ thuật xuất hiện sau; mechanism prose được viết lại câu ngắn và plain-first. |
+| First Principles Anchor | Có scenario nhưng Linux chưa cho thấy rõ hậu quả của thao tác thủ công. | Cả ba bài mở bằng một sự cố có hậu quả: báo cáo đêm sai, “máy tôi chạy được”, oversell + mất điện. |
+| Physical Metaphor System | Metaphor nhảy giữa công ty, nhà hát, tàu điện, bác sĩ và bếp. | Linux chỉ dùng căn bếp; Python chỉ dùng xưởng; Database chỉ dùng nhà hàng + sổ kho. |
+| No Academic Fluff | Cơ chế nhồi chi tiết như coreutils/glibc, nhiều index family, free-threaded version note; 179 term card trên màn hình. | 27 scene được viết lại quanh cơ chế nền; chi tiết tra cứu rời khỏi mạch chính; giao diện chỉ hiện 107 core term card, còn bank 182 ví dụ giữ làm nguồn dự phòng. |
 
-| Trục | Câu hỏi audit |
-|---|---|
-| Nền tảng | Có giữ đúng kiến thức lõi, không chạy theo mẹo/công cụ nhất thời? |
-| Vĩ mô → vi mô | Người học có biết mình đang ở đâu trước khi zoom sâu? |
-| Cơ chế bản chất | Có giải thích state, boundary, ownership, flow và failure không? |
-| Dễ hiểu | Non-tech hoặc người yếu tiếng Anh có theo được không? |
-| Editorial | Có mạch dẫn như bài viết công nghệ, thay vì danh sách định nghĩa? |
-| Visual-first | Visual có mang quan hệ chính, text không chỉ lặp lại visual? |
-| Transfer | Mental model có dùng lại được trong lab/công việc không? |
-| Evidence | Có chỉ ra cách biết kết luận đúng hay sai? |
-| Coverage | Có phủ deck/syllabus và chắt lọc sách liên quan? |
-| Cognitive load | Có tránh dồn quá nhiều thuật ngữ trước khi tạo mental model? |
+## 3. Những thay đổi có tác động lớn
 
-## F01 — Linux Fundamentals
+### Mạch bài
 
-### Đánh giá
-
-| Trục | Điểm | Nhận xét |
-|---|---:|---|
-| Nền tảng | 9.2/10 | Tập trung đúng vào shell, process, kernel, stream, build và scheduled execution. |
-| Vĩ mô → vi mô | 9.4/10 | Trục “ý định → shell → process/kernel → flow → tự động hóa” rất rõ. |
-| Cơ chế bản chất | 9.3/10 | Tách terminal khỏi shell; tách user space, syscall, kernel và resource; giải thích exit status/stderr. |
-| Dễ hiểu | 8.7/10 | Tiếng Việt gần gũi, mỗi thuật ngữ có nghĩa. Một số đoạn về glibc/fork/exec vẫn cần visual để giảm tải. |
-| Editorial | 9.0/10 | Mở bằng `cat /etc/os-release`, có câu hỏi và nhịp kể chuyện. |
-| Visual-first | 8.2 → 9.2/10 | Sketch tốt; sau nâng cấp có architecture, sequence và lifecycle Archify. |
-| Transfer | 9.1/10 | Dùng lại được cho container, Airflow, cron/systemd, CI và debugging. |
-| Evidence | 8.8/10 | stderr, exit status, log và artifact là evidence rõ. |
-| Coverage | 8.8/10 | Phủ đúng syllabus; chủ động bỏ phần lịch sử distro dài của slide để ưu tiên cơ chế. |
-| Cognitive load | 8.8/10 | Tốt, dù cảnh kernel có mật độ thuật ngữ cao. |
-
-### Điều làm tốt
-
-- Không bắt đầu bằng “Linux là gì?” hay lịch sử GNU/Linux; bắt đầu bằng một command có kết quả quan sát được.
-- Phân biệt chính xác:
-  - terminal hiển thị;
-  - shell parse;
-  - process thực thi;
-  - kernel cấp dịch vụ/tài nguyên.
-- Pipe được dạy như contract của stream (`stdin/stdout/stderr`), không như một ký tự `|` phải nhớ.
-- Make được đặt đúng vai trò: dependency scheduler cho build, không phải compiler.
-- Cron được giải ảo: trigger theo thời gian, không phải orchestrator có retry/backfill/overlap control.
-- Ngôn ngữ có “cầu nối” cho người mới nhưng luôn quay về cơ chế thật.
-
-### Điểm cần giữ kỷ luật
-
-- `fork/exec` là mental model Unix phổ biến nhưng implementation path có thể khác theo shell/runtime; bài nên tiếp tục nói ở mức boundary, không hứa mọi command luôn tạo process theo cùng một chuỗi nội bộ.
-- `set -Eeuo pipefail` là policy mạnh, không phải template áp dụng mù quáng. Khi mở rộng lab cần có ví dụ edge case của `errexit`.
-- Không mở rộng bài thành catalog command, distro hoặc package manager. Các phần này nên là reference/lab, không chen vào trục chính.
-
-### Visual đã nâng cấp
-
-1. `linux-command-architecture` — architecture: command từ terminal xuống kernel/resource.
-2. `linux-pipeline-sequence` — sequence: stdout → stdin, stderr đi riêng.
-3. `linux-make-cron-lifecycle` — lifecycle: source → artifact → scheduled job → evidence.
-
-## F02 — Python Fundamentals
-
-### Đánh giá
-
-| Trục | Điểm | Nhận xét |
-|---|---:|---|
-| Nền tảng | 9.1/10 | Sau bổ sung project boundary, bài cân bằng runtime, object model, error, I/O và concurrency. |
-| Vĩ mô → vi mô | 9.3/10 | Trục mới: “project → runtime → object/lỗi → I/O → thời gian → web”. |
-| Cơ chế bản chất | 9.4/10 | Name binding, frame/unwinding, serialization boundary và async đều được giải thích bằng state. |
-| Dễ hiểu | 8.6/10 | Rõ hơn đa số bài nhập môn; AST/bytecode/GIL vẫn là đoạn khó và cần giữ progressive disclosure. |
-| Editorial | 9.0/10 | Theo một lệnh `python -m pipeline ingest orders.csv`, không đi theo chương mục syntax. |
-| Visual-first | 8.1 → 9.2/10 | Sau nâng cấp có architecture runtime, async lifecycle và request sequence. |
-| Transfer | 9.5/10 | Dùng trực tiếp cho FastAPI, Airflow, data pipelines, crawler và model serving. |
-| Evidence | 8.8/10 | Traceback, cProfile/tracemalloc, exit/HTTP status và metrics là evidence đúng tầng. |
-| Coverage | 8.1 → 9.0/10 | Gap virtual environment/dependency đã được bổ sung; syntax cơ bản vẫn được cố ý đẩy ra reference. |
-| Cognitive load | 8.5/10 | Nhiều khái niệm sâu trong một bài; map và sectioning giúp nhưng lab cần chia thời gian. |
-
-### Điều làm tốt
-
-- Không đồng nhất Python với syntax; bài dạy “một chương trình sống như thế nào”.
-- Name binding và mutation được giải bằng “hai nhãn, một object”, tốt hơn cách nói mơ hồ “biến chứa giá trị”.
-- Exception được nối với frame, call stack, unwinding và cleanup; người học biết traceback là bản đồ chứ không phải một khối chữ đỏ.
-- Serialization được đặt ở boundary: object trong RAM không tự đi qua file/socket/DB.
-- Async được giải đúng bản chất: chồng thời gian chờ; không tự tạo thread và không biến CPU work thành parallelism.
-- GIL được nói có điều kiện theo CPython build/runtime, tránh biến implementation detail thành chân lý ngôn ngữ.
-- Request web tách Uvicorn/ASGI/FastAPI/router/handler/downstream; ownership rõ.
-
-### Gap đã sửa
-
-Slide gốc dành dung lượng lớn cho virtualenv, Poetry và uv, trong khi bản bài viết trước đó chưa có section tương ứng. Bản mới thêm **“Chạy đúng code bằng đúng môi trường”**:
+Mỗi bài hiện đi đúng bốn phần:
 
 ```text
-pyproject.toml
-  → resolver
-  → lockfile (nếu workflow dùng lock)
-  → .venv / site-packages
-  → test và run bằng đúng interpreter
+I. Cơn đau nguyên bản
+→ II. Bản đồ quy đổi ẩn dụ
+→ III. Cơ chế vận hành + thử lửa
+→ IV. Bản chất một dòng
 ```
 
-Nội dung không biến thành tutorial công cụ. `venv`, uv và Poetry được đặt dưới một mental model chung: declaration, resolution, lock, environment và reproducibility.
+Mỗi section chi tiết vẫn trả lời các câu người mới cần: nó là gì, vì sao phải biết, nằm ở đâu, dùng ở đâu và hỏng thì sao; đây là nội dung bên trong phần III, không phải một framework viết bài thứ hai.
 
-### Điểm cần giữ kỷ luật
+### Prose
 
-- Không đưa toàn bộ syntax, OOP và standard library vào mạch chính. Chúng thuộc reference/lab sau khi mental model hình thành.
-- Khi dạy performance, luôn đo trước khi chọn async/thread/process.
-- Không nói “async nhanh hơn”; phải nói workload nào đang chờ và boundary nào hỗ trợ non-blocking.
-- Free-threaded CPython và ecosystem compatibility có thể thay đổi; nội dung phải ghi rõ runtime/build thay vì đưa lời hứa tuyệt đối.
+- Viết lại toàn bộ **27 scene** của 19 chương.
+- Bỏ các đoạn liệt kê thuật ngữ liên tục.
+- Câu đầu mỗi chương là một vấn đề đời thường, không phải tên implementation.
+- Thuật ngữ chuẩn được giữ để người học đi làm có thể tra cứu, nhưng xuất hiện sau hình dung và vai trò.
+- Database modeling đã được bổ sung flow 5 bước; trước đó section này không có mechanism steps hay glossary.
 
-### Visual đã nâng cấp
+### Glossary
 
-1. `python-runtime-architecture` — architecture: shell/process/interpreter/module/object/I/O.
-2. `python-concurrency-lifecycle` — lifecycle: task chạy → await → task khác → resume.
-3. `python-request-sequence` — sequence: socket → Uvicorn → FastAPI → handler → downstream.
+- Không còn hiển thị mọi từ từng xuất hiện trong nguồn.
+- Chỉ giữ **107 core term card**: Linux 27, Python 37, Database 43.
+- `content/term-examples.json` giữ **182 practical examples** để term card luôn có ví dụ cụ thể và để bài sau có thể dùng lại.
+- Recap không mở thêm glossary; nhiệm vụ của recap là nối kiến thức, không tạo thêm danh sách từ.
 
-## F03 — Database Fundamentals / PostgreSQL
+### Visual ↔ text
 
-### Đánh giá
+- 35 Archify visual được giữ sau audit vì mỗi visual trả lời một câu hỏi cơ chế khác nhau; không có visual mới được thêm để đạt quota.
+- Trước cụm visual có câu hỏi và reading order.
+- Sau **từng** visual, người học phải kể lại đúng title + route của visual đó rồi mới trả lời câu hỏi cấp chương.
+- Prose không đọc lại toàn bộ box; prose giải thích “vì sao”, failure và bằng chứng.
 
-| Trục | Điểm | Nhận xét |
-|---|---:|---|
-| Nền tảng | 9.5/10 | Relation/invariant, architecture, query path, MVCC, storage, planner và recovery đều đúng trục. |
-| Vĩ mô → vi mô | 9.4/10 | Năm câu hỏi chẩn đoán giữ toàn bài không bị rơi thành catalog. |
-| Cơ chế bản chất | 9.6/10 | Logical/physical, visibility/conflict, planner/executor, WAL/checkpoint/backup được tách chính xác. |
-| Dễ hiểu | 8.2/10 | Câu chữ tốt nhưng mật độ cao; đây là bài dễ quá tải nhất cho non-tech. |
-| Editorial | 8.9/10 | Mở bằng “nơi giữ sự thật cho nhiều người”, sau đó đào xuống implementation. |
-| Visual-first | 8.5 → 9.3/10 | Đã thay toàn bộ 14 visual học tập bằng Archify; system, model, query, MVCC, storage, planner và production đều có visual lab riêng. |
-| Transfer | 9.7/10 | Dùng trực tiếp cho ORM, tuning, lock, bloat, replication và restore. |
-| Evidence | 9.6/10 | EXPLAIN ANALYZE, BUFFERS, wait event, lag, bloat và restore drill. |
-| Coverage | 9.4/10 | Chắt lọc deck + sách database internals/modeling/PostgreSQL; bỏ syntax-first đúng chủ ý. |
-| Cognitive load | 7.9/10 | Cần đọc theo lớp; người mới không nên cố nuốt toàn bộ page/WAL/MVCC trong một lượt. |
+## 4. Đánh giá từng bài
 
-### Điều làm tốt
+### F01 — Linux Fundamentals
 
-- Định nghĩa database bằng trách nhiệm giữ shared truth, invariant và durability; gần với nhu cầu thực tế hơn định nghĩa “collection of data”.
-- Relational model không bị thu gọn thành table/row/column; có fact, key, constraint, normalization và access pattern.
-- Backend process được tách khỏi toàn server; shared buffers không bị gọi là “toàn bộ cache”.
-- Planner và executor được tách đúng vai trò. “Có index” không đồng nghĩa “dùng index”.
-- MVCC visibility và lock conflict được dạy như hai cơ chế phối hợp, không nói sai rằng transaction “lock mọi thứ”.
-- WAL, checkpoint, replica và backup/PITR được phân biệt rõ.
-- Bài kết thúc bằng năm câu hỏi chẩn đoán thay vì checklist command.
+**Cơn đau:** thao tác log mỗi đêm dễ sót, báo cáo sai nhưng không ai biết.
+**Ẩn dụ xuyên suốt:** căn bếp nhà hàng.
+**Spine:** ý định → người đọc lệnh → ca làm → quản lý tài nguyên → băng chuyền → làm lại/hẹn giờ.
+**Golden takeaway:** Linux biến yêu cầu thành các công việc nhỏ có người làm, có quyền, có tài nguyên và có dấu vết.
 
-### Rủi ro sư phạm
+Đã sửa:
 
-- Một buổi duy nhất khó đủ cho cả modeling, PostgreSQL architecture, query planning, MVCC, WAL, vacuum, replication và backup.
-- Người mới có thể nhớ từ khóa nhưng chưa tạo được mô hình nếu visual không được đọc theo chapter.
-- Phần “production posture” chỉ thật sự có nghĩa sau lab quan sát `EXPLAIN`, lock và restore.
+- bỏ việc mở đầu bằng `argv`, `glibc`, `fork/exec` và file descriptor;
+- giải thích terminal/shell/process/kernel bằng vai trò trong bếp trước;
+- tách CPU, RAM và I/O thành ba kiểu triệu chứng;
+- giải thích pipe/script bằng cửa nhận, cửa giao và chuông lỗi;
+- tách rõ Make quyết định **làm lại gì**, cron quyết định **gọi lúc nào**.
 
-### Quyết định biên tập
+**Đánh giá:** đạt beginner-first. Người học vẫn cần mini-lab để biến mental model thành kỹ năng command thực tế.
 
-- Giữ bài như **bản đồ nền**; không biến thành tutorial SQL.
-- Cho phép người mới dừng sau system/model/process; phần query/transaction/storage là lượt đọc sâu.
-- Mỗi section tiếp tục có: câu hỏi dẫn đường, claim, visual, flow steps, takeaway và thuật ngữ cốt lõi.
-- Lab sau bài là bắt buộc để biến kiến thức thành evidence.
+### F02 — Python Fundamentals
 
-### Visual đã nâng cấp
+**Cơn đau:** cùng code nhưng hai máy cho hai kết quả; dữ liệu đổi ngoài ý muốn; chương trình lúc nhanh lúc đứng.
+**Ẩn dụ xuyên suốt:** xưởng sản xuất.
+**Spine:** hồ sơ dụng cụ → ca làm → vật liệu/state → cửa giao nhận → chia thời gian → request web.
+**Golden takeaway:** Python là một ca làm có môi trường rõ, dữ liệu có nơi sống, lỗi có đường đi và thời gian được điều phối theo việc đang tính hay đang chờ.
 
-1. `postgresql-architecture` — architecture: app/driver/backend/planner/buffer/heap/WAL/recovery.
-2. `postgresql-query-sequence` — sequence: SQL → parser → planner → executor → pages → EXPLAIN evidence.
-3. `postgresql-mvcc-durability-lifecycle` — lifecycle: update → WAL → commit → checkpoint → recovery/PITR.
+Đã sửa:
 
-## Đánh giá phong cách viết kiểu technology Substack
+- project/environment được dạy trước runtime;
+- source, interpreter và process không còn bị trộn;
+- name/object/mutation dùng một hệ nhãn–thùng nhất quán;
+- exception dùng chồng phiếu việc và traceback là đường lỗi;
+- serialization được giải thích là đóng hàng thành byte qua cửa;
+- sync/async/thread/process bắt đầu từ hai loại thời gian: tính và chờ;
+- bỏ mốc version Python khỏi mạch chính để tránh chi tiết nhanh lỗi thời;
+- request web đi từ socket → server → framework → handler bằng ngôn ngữ plain-first.
 
-### Đã đạt
+**Đánh giá:** đạt beginner-first. Chương time vẫn là phần khó nhất và nên đọc chậm cùng visual trace.
 
-- Có thesis rõ ở đầu bài.
-- Dùng một tình huống xuyên suốt thay vì glossary.
-- Mỗi section có headline mang kết luận, không chỉ tên chủ đề.
-- Câu chữ ưu tiên active voice và quan hệ nguyên nhân–kết quả.
-- Có nhịp “zoom out → zoom in → quay lại bản đồ”.
-- Có các câu phá ngộ nhận: terminal không phải shell; async không phải CPU parallel; replica không phải backup.
+### F03 — Database Fundamentals / PostgreSQL
 
-### Chưa nên bắt chước Substack theo nghĩa hình thức
+**Cơn đau:** hai khách cùng mua món cuối, dữ liệu có thể âm; máy tắt sau chữ “thành công”; người vận hành cần biết query chậm ở đâu.
+**Ẩn dụ xuyên suốt:** nhà hàng có sổ kho và nhiều quầy.
+**Spine:** sự thật và luật → người xử lý → đường lấy dữ liệu → phiên bản/khóa → lưu bền → vận hành.
+**Golden takeaway:** Database là người giữ sổ chung: chặn điều sai, điều phối nhiều người, chọn đường lấy dữ liệu và giữ bằng chứng để phục hồi.
 
-- Không kéo dài bằng anecdote không phục vụ cơ chế.
-- Không dùng giọng opinion quá mạnh thay cho evidence.
-- Không tối ưu tiêu đề giật gân.
-- Không đưa quá nhiều aside khiến flow kỹ thuật bị đứt.
+Đã sửa:
 
-## Kết luận chất lượng sau nâng cấp
+- modeling đi từ fact đời thường rồi mới tới relation/key/constraint;
+- bổ sung 5 mechanism steps cho modeling;
+- backend riêng và memory chung được giải thích bằng quầy phục vụ + kho chung;
+- planner và executor tách thành người chọn đường và người đi lấy hàng;
+- MVCC/snapshot/lock bắt đầu từ nhiều bản sổ và người ghi xung đột;
+- page/WAL/checkpoint/vacuum bắt đầu từ trang sổ, nhật ký và mốc kiểm kê;
+- planner chỉ giữ B-tree, selectivity, estimate, sequential scan và evidence; bỏ danh sách index family khỏi mạch chính;
+- replica và backup được tách bằng quầy dự phòng với kho hồ sơ lịch sử.
 
-- **Linux:** sẵn sàng làm bài mở đầu engineering foundation.
-- **Python:** sẵn sàng sau khi đã bổ sung project/dependency boundary; cần lab crawler nhỏ để khóa kiến thức.
-- **Database:** chất lượng kỹ thuật cao; nên dạy theo hai lượt hoặc một buổi bản đồ + một lab evidence.
-- **Hub:** đã chuyển từ “visual syllabus” sang “personal visual study desk” có note, autosave, progress, canvas gần full-width và 35/35 Archify visual labs.
+**Đánh giá:** đạt beginner-first ở mức bản đồ nền. Vì bài có 9 chương, người mới nên học hai lượt: `system → model → process → query`, sau đó `transaction → storage → planner → operations`.
+
+## 5. Quyết định về 35 visual
+
+Không loại visual nào trong vòng này vì audit theo câu hỏi nhận thức cho thấy:
+
+- Linux: 10 visual tách command, permission, syscall, pipeline, script, build, Make, schedule và synthesis.
+- Python: 11 visual tách project boundary, runtime, object/error/boundary, timing/GIL, request path và synthesis.
+- Database: 14 visual tách system/model/process/query, concurrency, durability, planner, operations và synthesis.
+
+Visual chỉ được tiếp tục giữ nếu browser QA chứng minh:
+
+1. đọc trực tiếp được trong article rộng;
+2. có reading cue trước;
+3. có câu tự kể lại riêng sau;
+4. không lặp cùng một kết luận với visual khác.
+
+## 6. Rủi ro còn lại và cách dùng đúng
+
+- Bài dễ hiểu hơn không có nghĩa chỉ đọc là thành kỹ năng; mini-lab và self-check vẫn bắt buộc.
+- Glossary là công cụ mở khi gặp từ lạ, không phải danh sách phải học thuộc.
+- Database dài hơn hai bài còn lại vì phạm vi rộng; không ép người mới đọc một lượt.
+- Nếu feedback người mới vẫn dừng ở một thuật ngữ, sửa ngay câu trước thuật ngữ đó; không thêm một framework giải thích mới.

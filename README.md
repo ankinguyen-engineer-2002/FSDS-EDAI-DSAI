@@ -2,6 +2,15 @@
 
 Repository này biến slide khóa học và sách tham khảo thành một **visual-first personal study desk** bằng tiếng Việt.
 
+## Source nội dung beginner-first
+
+- `content/lesson-mechanisms.json`: source of truth cho 27 scene cơ chế của Linux, Python và Database.
+- `content/beginner-guides.json`: pain, living metaphor, hướng dẫn đọc, stress test và synthesis của 19 chương.
+- `content/term-examples.json`: ví dụ thực tế cho toàn bộ thuật ngữ được hiển thị.
+- `content/beginner-layout.css`: layout bài học đã được duyệt theo phong cách Anthropic.
+- `content/beginner-renderer.js`: renderer nối prose, glossary và Archify.
+- `scripts/embed_beginner_content.py`: nhúng năm source trên vào HTML duy nhất; `--check` được chạy trong validation.
+
 ## Xem online
 
 ```text
@@ -34,6 +43,8 @@ Hub có:
 - reading progress theo bài;
 - ghi chú cá nhân autosave bằng localStorage;
 - 35/35 learning visuals được dựng bằng Archify, có pan/zoom, guided focus, brand mark chuẩn và full-screen;
+- ba bài đầu dùng format beginner-first: việc thật → giải thích đời thường → cơ chế → thuật ngữ → ứng dụng công việc → tự kiểm;
+- 19 chương hiển thị 107 thuật ngữ cốt lõi, được hỗ trợ bởi bank 182 ví dụ thực tế; từng visual có hướng dẫn đọc và câu tự kể lại riêng;
 - bài đọc theo mạch vĩ mô → vi mô.
 
 ## Cấu trúc chính
@@ -46,14 +57,14 @@ library/                        # thư viện sách tham khảo
 archify/specs/                  # 35 JSON specs — source of truth
 archify/rendered/               # 35 Archify HTML đã deliver
 archify/receipts/               # validation/delivery/browser receipts
-docs/                           # audit, visual catalog, authoring standard
+docs/                           # audit, visual catalog, technical/UI standard
 LEARNING-DESIGN-METHOD.md       # phương pháp học nền
 ```
 
 ## Tài liệu bắt buộc đọc trước khi thêm bài
 
-1. `LEARNING-DESIGN-METHOD.md`
-2. `docs/FSDS-LEARNING-HUB-STANDARD.md`
+1. `LEARNING-DESIGN-METHOD.md` — rule nội dung duy nhất: pain → living metaphor → mechanism/stress test → golden takeaway.
+2. `docs/FSDS-LEARNING-HUB-STANDARD.md` — contract kỹ thuật cho Archify, UI và publish.
 3. `docs/VISUAL-CATALOG-FIRST-3-LESSONS.md`
 
 ## Lưu ý

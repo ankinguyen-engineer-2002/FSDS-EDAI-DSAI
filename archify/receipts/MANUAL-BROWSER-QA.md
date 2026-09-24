@@ -55,3 +55,50 @@ After adding the digest-pinned mark captured from the official `kernel.org` site
 - all five reported zero page errors and zero horizontal overflow;
 - the vendored audit copy `archify/brand-assets/linux-kernel-org.png` matches SHA-256 `9bfb70bf96004ac694b4ed902e634d029df9cc3b0ca50ce06d0608d29afa6d37`;
 - the only console request observed during direct local opening was the static server's missing `/favicon.ico`; it is unrelated to the artifact and no runtime brand request was made.
+
+## Beginner-first content and layout re-audit · 2026-09-24
+
+After applying the four-part learning rule and rewriting the prose:
+
+- 27 mechanism scenes across 19 chapters render from `content/lesson-mechanisms.json`;
+- all three lessons render the required sequence: original pain → living metaphor → mechanism/stress test → one-line takeaway;
+- each lesson renders 7 physical-to-technical metaphor mappings;
+- F01/F02/F03 render 5/5/9 stress-test blocks and one golden takeaway each;
+- the visible dictionary was deliberately pruned to 27/37/43 core term cards (107 total), backed by 182 practical examples;
+- first chapter headings are plain-language questions and the first primer card is the physical metaphor, before the technical explanation;
+- every Archify lab now has a visual-specific say-back line using that artifact's title and route.
+
+Responsive matrix passed with zero horizontal overflow for F01, F02 and F03 at:
+
+- 1920×1080;
+- 1440×900;
+- 1024×768;
+- 768×1024;
+- 390×844.
+
+Canvas measurements:
+
+- 1920 desktop with rail open: article width 1552px;
+- 1440 desktop with rail open: article width 1084px;
+- 1440 desktop with rail collapsed: article width 1388px;
+- 390 mobile: article width 362px.
+
+Archify runtime check:
+
+- F01 10/10, F02 11/11 and F03 14/14 lazy iframes were scrolled into view;
+- all 35 reached `document.readyState = complete` and exposed SVG;
+- each iframe matched its viewport width with no internal horizontal overflow.
+
+Interaction check:
+
+- light/dark toggle changed the rendered theme without overflow;
+- desktop rail collapse returned width to the article;
+- note drawer opened, autosaved to the correct per-lesson localStorage key and closed with Escape;
+- mobile syllabus opened with backdrop and closed with Escape;
+- no JavaScript or browser console errors were present after the final reload.
+
+Perceptual screenshots inspected locally:
+
+- 1920px Linux opening: hero and pain card fill the row without the previous dead whitespace;
+- loaded Database Archify lab: the artifact is readable directly in the article at full width;
+- 390px Python opening: heading hierarchy, metadata and long Vietnamese title wrap without clipping.

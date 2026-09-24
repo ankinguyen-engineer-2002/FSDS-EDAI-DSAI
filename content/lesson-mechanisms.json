@@ -1,0 +1,3542 @@
+{
+  "F01": {
+    "promise": "Bắt đầu từ việc người dùng muốn làm, rồi đi xuống shell, process, kernel và tài nguyên; cuối bài mới ghép việc, build và hẹn giờ.",
+    "chapters": [
+      {
+        "id": "watch",
+        "label": "Nhìn một lệnh",
+        "hint": "cat chạy thật",
+        "scenes": [
+          {
+            "kind": "sequence",
+            "eyebrow": "Việc xảy ra · 01",
+            "title": "Gõ cat và chữ hiện ra",
+            "lead": "Bạn đưa một phiếu yêu cầu vào quầy. Bây giờ hãy theo xem ai đọc phiếu, ai làm việc và ai được quyền mở kho.",
+            "command": "cat /etc/os-release",
+            "predict": "cat tự mở file, hay phải nhờ một phần khác của máy?",
+            "conclusion": "Terminal nhận chữ, shell hiểu yêu cầu, process thực hiện, còn kernel kiểm quyền và chạm vào tài nguyên.",
+            "reading": "Dòng bạn gõ trước hết chỉ là chữ trong cửa sổ. Cửa sổ nhận và hiển thị chữ gọi là terminal; nó không tự hiểu công việc. Người đọc dòng chữ gọi là shell, ở đây là Bash. Shell tách tên chương trình khỏi phần dữ liệu đi kèm, tìm chương trình `cat`, rồi nhờ hệ điều hành mở một ca làm riêng gọi là process. Process không tự chạm vào đĩa. Nó đi qua một cửa xin phép gọi là system call; kernel kiểm tra đường dẫn và quyền, đọc các byte của tệp rồi trả lại. Kết quả bình thường đi qua stdout để terminal hiển thị, còn lỗi có một đường riêng là stderr.",
+            "glossary": [
+              {
+                "term": "terminal",
+                "gloss": "Cửa sổ nhận chữ và vẽ kết quả. Nó chưa hiểu lệnh."
+              },
+              {
+                "term": "shell",
+                "gloss": "Chương trình hiểu dòng lệnh. Ở đây là Bash."
+              },
+              {
+                "term": "PATH",
+                "gloss": "Danh sách thư mục shell dùng để tìm chương trình."
+              },
+              {
+                "term": "argv",
+                "gloss": "Tên chương trình và các đối số sau khi shell đã tách."
+              },
+              {
+                "term": "coreutils",
+                "gloss": "Bộ lệnh nhỏ của GNU. cat, ls, cp nằm ở đây."
+              },
+              {
+                "term": "glibc",
+                "gloss": "Thư viện C mà lệnh gọi trước khi vào kernel."
+              },
+              {
+                "term": "fork / exec",
+                "gloss": "fork nhân process. exec nạp chương trình mới vào process đó."
+              },
+              {
+                "term": "file descriptor",
+                "gloss": "Số hiệu một cửa đang mở. 0 vào, 1 ra thường, 2 ra lỗi."
+              },
+              {
+                "term": "system call",
+                "gloss": "Cửa xin phép để chương trình nhờ kernel dùng file, memory, process hoặc thiết bị."
+              },
+              {
+                "term": "process",
+                "gloss": "Một lần chương trình đang chạy, có bộ nhớ và các cửa vào/ra riêng."
+              },
+              {
+                "term": "stdout",
+                "gloss": "Đường số 1 dành cho kết quả bình thường của chương trình."
+              }
+            ],
+            "actors": [
+              {
+                "id": "you",
+                "name": "Bạn",
+                "role": "gõ lệnh"
+              },
+              {
+                "id": "term",
+                "name": "Terminal",
+                "role": "cửa sổ chữ"
+              },
+              {
+                "id": "bash",
+                "name": "Bash",
+                "role": "hiểu lệnh"
+              },
+              {
+                "id": "kernel",
+                "name": "Kernel",
+                "role": "mở file"
+              },
+              {
+                "id": "disk",
+                "name": "File",
+                "role": "os-release"
+              }
+            ],
+            "steps": [
+              {
+                "from": "you",
+                "to": "term",
+                "label": "gõ cat /etc/os-release",
+                "say": "Bạn gửi một dòng chữ vào cửa sổ.",
+                "mechanism": "Terminal mới chỉ giữ các ký tự. Nó chưa biết cat là chương trình.",
+                "term": "terminal"
+              },
+              {
+                "from": "term",
+                "to": "bash",
+                "label": "giao cả dòng",
+                "say": "Cửa sổ đưa nguyên dòng cho Bash.",
+                "mechanism": "Bash là chương trình đọc dòng lệnh và hiểu cú pháp.",
+                "term": "shell"
+              },
+              {
+                "from": "bash",
+                "to": "bash",
+                "label": "tách tên và đối số",
+                "say": "Bash thấy chương trình là cat, phần còn lại là đường dẫn.",
+                "mechanism": "Dòng chữ thành danh sách: tên chương trình, rồi đường dẫn file.",
+                "term": "argv"
+              },
+              {
+                "from": "bash",
+                "to": "kernel",
+                "label": "xin một lần chạy cat",
+                "say": "Bash nhờ máy tạo một lần chạy riêng cho cat.",
+                "mechanism": "Kernel tạo process và nạp /usr/bin/cat.",
+                "term": "process"
+              },
+              {
+                "from": "kernel",
+                "to": "disk",
+                "label": "mở và đọc byte",
+                "say": "Kernel kiểm tra quyền, rồi đọc file.",
+                "mechanism": "cat gọi open và read. Đĩa không nằm trong tay cat.",
+                "term": "system call"
+              },
+              {
+                "from": "disk",
+                "to": "term",
+                "label": "chữ hiện ra",
+                "say": "Nội dung file đi ngược lên cửa sổ.",
+                "mechanism": "cat ghi stdout. Terminal vẽ những byte đó.",
+                "term": "stdout"
+              }
+            ]
+          },
+          {
+            "kind": "sequence",
+            "eyebrow": "Việc xảy ra · 02",
+            "title": "Cùng lệnh, nhưng bị từ chối",
+            "lead": "Đổi sang ngăn kho mà đầu bếp không được phép mở. Dây chuyền vẫn chạy, nhưng dừng ở cửa kiểm quyền.",
+            "command": "cat /root/secret",
+            "predict": "Dòng báo lỗi có đi chung đường với nội dung file không?",
+            "conclusion": "Quyền bị chặn ở kernel; stderr nói điều gì hỏng và exit status cho máy khác biết job có thành công hay không.",
+            "reading": "Shell vẫn tạo một process cho `cat`, nhưng lần này kernel thấy người chạy không có quyền đọc tệp. Kernel không đưa dữ liệu ra ngoài; nó trả tín hiệu bị từ chối. `cat` gửi lời báo lỗi qua stderr và kết thúc bằng một mã khác 0. Mã kết thúc này giống dấu đỏ trên phiếu: công cụ chạy sau biết việc đã thất bại thay vì tưởng rằng kết quả rỗng là hợp lệ. Khi sửa lỗi, trước hết kiểm tra đúng đường dẫn và đúng quyền; mở toàn bộ quyền bằng `chmod 777` chỉ che vấn đề và thường tạo rủi ro mới.",
+            "glossary": [
+              {
+                "term": "absolute path",
+                "gloss": "Đường dẫn bắt đầu từ /, không phụ thuộc chỗ đang đứng."
+              },
+              {
+                "term": "relative path",
+                "gloss": "Đường dẫn tính từ cwd, thư mục hiện tại."
+              },
+              {
+                "term": "cwd",
+                "gloss": "Current working directory. pwd in ra, cd đổi nó."
+              },
+              {
+                "term": "permission",
+                "gloss": "owner, group, others. Mỗi bên có r đọc, w ghi, x chạy."
+              },
+              {
+                "term": "chmod",
+                "gloss": "Lệnh đổi permission. ls -l để xem trước khi đổi."
+              },
+              {
+                "term": "EACCES",
+                "gloss": "Mã kernel trả khi open bị từ chối vì thiếu quyền."
+              },
+              {
+                "term": "stderr",
+                "gloss": "File descriptor 2. Kênh lỗi, tách khỏi stdout."
+              },
+              {
+                "term": "exit status",
+                "gloss": "Mã kết thúc. 0 là xong. Khác 0 là lệnh thất bại."
+              }
+            ],
+            "actors": [
+              {
+                "id": "you",
+                "name": "Bạn",
+                "role": "gõ lệnh"
+              },
+              {
+                "id": "bash",
+                "name": "Bash",
+                "role": "hiểu lệnh"
+              },
+              {
+                "id": "kernel",
+                "name": "Kernel",
+                "role": "kiểm tra quyền"
+              },
+              {
+                "id": "term",
+                "name": "Terminal",
+                "role": "hiện lỗi"
+              }
+            ],
+            "steps": [
+              {
+                "from": "you",
+                "to": "bash",
+                "label": "gõ cat /root/secret",
+                "say": "Lệnh giống lần trước. Chỉ đường dẫn đổi.",
+                "mechanism": "Bash vẫn tách cat và một đường dẫn.",
+                "term": "path"
+              },
+              {
+                "from": "bash",
+                "to": "kernel",
+                "label": "xin mở file",
+                "say": "cat được tạo và xin mở file.",
+                "mechanism": "Kernel đối chiếu user với quyền của file.",
+                "term": "permission"
+              },
+              {
+                "from": "kernel",
+                "to": "bash",
+                "label": "từ chối",
+                "say": "Kernel không đọc file. Nó trả lời là không được phép.",
+                "mechanism": "open thất bại. Không có byte nội dung nào đi ra.",
+                "term": "EACCES",
+                "bad": true
+              },
+              {
+                "from": "bash",
+                "to": "term",
+                "label": "báo trên đường lỗi",
+                "say": "Câu từ chối hiện ở cửa sổ, tách khỏi kết quả thường.",
+                "mechanism": "cat ghi stderr và thoát với status khác 0.",
+                "term": "stderr",
+                "bad": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "place",
+        "label": "Mỗi việc nằm ở đâu",
+        "hint": "cột xuống kernel",
+        "scenes": [
+          {
+            "kind": "layers",
+            "eyebrow": "Tầng · 03",
+            "title": "Lệnh đi xuống, rồi tách ba chân",
+            "lead": "Một đầu bếp muốn làm việc cần ba thứ khác nhau: thời gian đứng bếp, mặt bàn và cửa lấy nguyên liệu.",
+            "command": "cat /etc/os-release",
+            "predict": "Byte của file nằm ở CPU, ở RAM, hay ở đĩa?",
+            "conclusion": "CPU làm phép tính, RAM giữ dữ liệu đang dùng, I/O trao đổi với bên ngoài; kernel điều phối cả ba cho từng process.",
+            "reading": "Một chương trình đang chạy gọi là process. Kernel giống quản lý bếp: nó không làm thay món ăn, nhưng quyết định process nào được dùng tài nguyên nào. CPU là thời gian process thật sự được tính toán. RAM là mặt bàn giữ dữ liệu đang dùng; mỗi process có vùng riêng gọi là address space. I/O là lúc process phải trao đổi với thứ bên ngoài như đĩa, mạng hoặc bàn phím. Bộ điều phối của kernel (scheduler) chia lượt CPU; driver giúp kernel nói chuyện với thiết bị. Vì vậy “chương trình chậm” chưa đủ để kết luận: nó có thể đang thiếu lượt CPU, thiếu chỗ trong RAM hoặc chỉ đang chờ I/O.",
+            "glossary": [
+              {
+                "term": "user space",
+                "gloss": "Phía trên kernel. Terminal, Bash, coreutils, glibc, GCC nằm ở đây."
+              },
+              {
+                "term": "user process",
+                "gloss": "Một lần chạy ở user space. Terminal, Bash và cat là process."
+              },
+              {
+                "term": "glibc",
+                "gloss": "Thư viện đứng trên system call. Lệnh gọi nó trước khi vào kernel."
+              },
+              {
+                "term": "kernel",
+                "gloss": "Nhận system call. Giữ process, rồi dùng CPU, RAM và I/O."
+              },
+              {
+                "term": "system call",
+                "gloss": "Cửa có kiểm soát từ user space xuống kernel."
+              },
+              {
+                "term": "CPU",
+                "gloss": "Chỗ scheduler cho process được chạy."
+              },
+              {
+                "term": "RAM",
+                "gloss": "Chỗ address space nằm: buffer và bảng file descriptor."
+              },
+              {
+                "term": "I/O",
+                "gloss": "Đĩa và thiết bị. Driver trong kernel mới đọc byte."
+              },
+              {
+                "term": "scheduler",
+                "gloss": "Phần kernel chọn process nào được dùng CPU."
+              },
+              {
+                "term": "address space",
+                "gloss": "Vùng nhớ riêng của một process. Process khác không đọc tùy ý."
+              },
+              {
+                "term": "PID",
+                "gloss": "Số của một process. ps liệt kê, kill gửi tín hiệu theo số này."
+              },
+              {
+                "term": "driver",
+                "gloss": "Code trong kernel nói chuyện với đĩa, mạng và thiết bị."
+              },
+              {
+                "term": "pwd · cd · ls · find",
+                "gloss": "Hỏi đang ở đâu và file nào nằm ở đó."
+              },
+              {
+                "term": "cp · mv · rm",
+                "gloss": "Sao chép, đổi chỗ, xóa. rm khó lấy lại."
+              },
+              {
+                "term": "man",
+                "gloss": "Trang giải thích hợp đồng của một lệnh."
+              }
+            ],
+            "spine": [
+              {
+                "id": "you",
+                "name": "Bạn",
+                "holds": "ý định: đọc file này"
+              },
+              {
+                "id": "user",
+                "name": "User process",
+                "holds": "terminal, Bash, cat"
+              },
+              {
+                "id": "lib",
+                "name": "glibc",
+                "holds": "thư viện xin dịch vụ"
+              },
+              {
+                "id": "call",
+                "name": "System call",
+                "holds": "open, read, fork, exec"
+              },
+              {
+                "id": "kernel",
+                "name": "Kernel",
+                "holds": "nhận việc, giữ quyền"
+              }
+            ],
+            "links": [
+              "gõ lệnh",
+              "gọi thư viện",
+              "xin vào kernel",
+              "kernel nhận"
+            ],
+            "feet": [
+              {
+                "id": "cpu",
+                "name": "CPU",
+                "holds": "scheduler cho chạy"
+              },
+              {
+                "id": "ram",
+                "name": "RAM",
+                "holds": "vùng nhớ riêng"
+              },
+              {
+                "id": "io",
+                "name": "I/O",
+                "holds": "đĩa, qua driver"
+              }
+            ],
+            "footNote": "Ba tài nguyên kernel dùng cùng lúc. Hạt đi thăm từng chân để thấy mỗi chân giữ việc gì.",
+            "steps": [
+              {
+                "focus": "you",
+                "say": "Việc bắt đầu bằng ý định: đọc file này.",
+                "mechanism": "Dòng lệnh là cách nói ý định đó.",
+                "term": "user process"
+              },
+              {
+                "focus": "user",
+                "say": "Terminal, Bash và cat là user process, phía trên kernel.",
+                "mechanism": "Chúng ở user space, cùng tầng với coreutils và GCC.",
+                "term": "user space"
+              },
+              {
+                "focus": "lib",
+                "say": "cat gọi glibc khi cần việc mà nó không tự làm.",
+                "mechanism": "Thư viện này đứng trên cửa, trước kernel.",
+                "term": "glibc"
+              },
+              {
+                "focus": "call",
+                "say": "glibc đi qua system call để xin open và read.",
+                "mechanism": "Đây là cửa có kiểm soát. Thiếu quyền thì lần trước dừng ở đây.",
+                "term": "system call"
+              },
+              {
+                "focus": "kernel",
+                "say": "Kernel nhận lời xin, kiểm tra quyền, giữ process.",
+                "mechanism": "Bên dưới là ba tài nguyên. Mỗi thứ một việc, cùng một lúc.",
+                "term": "kernel"
+              },
+              {
+                "focus": "cpu",
+                "say": "CPU là chỗ scheduler cho process cat được chạy.",
+                "mechanism": "Chưa tới lượt CPU thì lệnh đứng im, dù file vẫn nằm trên đĩa.",
+                "term": "scheduler"
+              },
+              {
+                "focus": "ram",
+                "say": "RAM giữ address space: vùng nhớ riêng của process.",
+                "mechanism": "Buffer vừa đọc và bảng file descriptor nằm ở đây.",
+                "term": "address space"
+              },
+              {
+                "focus": "io",
+                "say": "I/O là đĩa. Driver trong kernel mới đọc byte của file.",
+                "mechanism": "cat nhận byte kernel đưa lên. Nó không điều khiển đĩa.",
+                "term": "driver"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "compose",
+        "label": "Ghép nhiều việc",
+        "hint": "pipe và script",
+        "scenes": [
+          {
+            "kind": "pipe",
+            "eyebrow": "Ghép · 04",
+            "title": "Ba chương trình, một dòng chữ",
+            "lead": "Thay vì một đầu bếp làm tất cả, mỗi trạm làm một việc nhỏ rồi đặt kết quả lên băng chuyền.",
+            "command": "cat report.log | grep ERROR | wc -l",
+            "predict": "grep có cần biết cat đang đọc file gì không?",
+            "conclusion": "Pipe nối cửa ra bình thường của trạm trước với cửa vào của trạm sau; đường lỗi vẫn tách riêng.",
+            "reading": "Mỗi chương trình Linux có ba cửa quen thuộc. stdin là cửa nhận dữ liệu, stdout là cửa giao kết quả bình thường, stderr là chuông báo lỗi. Pipe nối stdout của chương trình trước vào stdin của chương trình sau. Nhờ vậy `cat`, `grep` và `wc` không cần biết mã nguồn của nhau; chúng chỉ thống nhất rằng thứ đi qua là byte. Nếu muốn đổi nơi nhận hoặc nơi giao, shell dùng redirect. Lỗi không tự đi vào pipe, nên automation phải xử lý stderr và mã kết thúc một cách có chủ đích.",
+            "glossary": [
+              {
+                "term": "stdin",
+                "gloss": "Cửa vào của process, số 0. Keyboard, file hoặc pipe."
+              },
+              {
+                "term": "stdout",
+                "gloss": "Cửa kết quả thường, số 1."
+              },
+              {
+                "term": "stderr",
+                "gloss": "Cửa lỗi, số 2. Tách khỏi dữ liệu đang chảy trong ống."
+              },
+              {
+                "term": "pipe",
+                "gloss": "Nối stdout của lệnh này với stdin của lệnh sau."
+              },
+              {
+                "term": "redirect",
+                "gloss": "Đổi một cửa sang file hoặc chỗ khác."
+              }
+            ],
+            "boxes": [
+              {
+                "name": "cat",
+                "role": "đọc file, nhả từng dòng"
+              },
+              {
+                "name": "grep ERROR",
+                "role": "giữ dòng có ERROR"
+              },
+              {
+                "name": "wc -l",
+                "role": "đếm số dòng còn lại"
+              }
+            ],
+            "links": [
+              "stdout → stdin",
+              "stdout → stdin"
+            ],
+            "steps": [
+              {
+                "say": "cat đọc file và đẩy dòng chữ ra cửa thường.",
+                "mechanism": "Cửa đó là stdout, số 1.",
+                "term": "stdout"
+              },
+              {
+                "say": "Ống đưa đúng những dòng đó vào grep.",
+                "mechanism": "grep đọc stdin. Nó không mở report.log.",
+                "term": "pipe"
+              },
+              {
+                "say": "wc nhận phần grep còn giữ và đếm.",
+                "mechanism": "Kết quả cuối là một số, đi ra terminal.",
+                "term": "stdin"
+              }
+            ]
+          },
+          {
+            "kind": "sequence",
+            "eyebrow": "Ghép · 05",
+            "title": "Script kiểm tra rồi mới chạy",
+            "lead": "Dán quy trình lên tường để ca sau làm giống ca trước, nhưng phải ghi rõ khi nào được dừng và báo lỗi.",
+            "command": "daily.sh report.log",
+            "predict": "Nếu file không đọc được, pipeline có còn chạy không?",
+            "conclusion": "Script tốt kiểm tra trước, thất bại rõ và để lại mã kết thúc mà cron hay CI có thể hiểu.",
+            "reading": "Script là một tệp chứa các bước cần lặp lại. Dòng shebang cho hệ thống biết chương trình nào sẽ đọc tệp đó. Một script đáng tin không chỉ gom lệnh: nó kiểm tra đầu vào trước, đặt quy tắc dừng khi có lỗi, giữ giá trị có dấu cách bằng quote và trả exit status rõ ràng. Nếu tệp đầu vào không đọc được, script phải báo qua stderr và dừng trước khi tạo ra kết quả giả. Đây là lý do script là một hợp đồng, không chỉ là cách viết nhiều lệnh trên nhiều dòng.",
+            "glossary": [
+              {
+                "term": "shebang",
+                "gloss": "Dòng đầu tiên chọn trình thông dịch cho file script."
+              },
+              {
+                "term": "set -euo pipefail",
+                "gloss": "Dừng khi có lỗi, khi thiếu biến, hoặc khi pipe hỏng."
+              },
+              {
+                "term": "quote",
+                "gloss": "Giữ một giá trị là một đối số, không bị tách bởi dấu cách."
+              },
+              {
+                "term": "exit status",
+                "gloss": "Mã script trả về. 1 ở đây nghĩa là input không dùng được."
+              }
+            ],
+            "actors": [
+              {
+                "id": "you",
+                "name": "Bạn",
+                "role": "gọi script"
+              },
+              {
+                "id": "bash",
+                "name": "Bash",
+                "role": "đọc script"
+              },
+              {
+                "id": "file",
+                "name": "File vào",
+                "role": "report.log"
+              },
+              {
+                "id": "pipe",
+                "name": "Pipeline",
+                "role": "cat | grep | wc"
+              }
+            ],
+            "steps": [
+              {
+                "from": "you",
+                "to": "bash",
+                "label": "chạy daily.sh",
+                "say": "Bạn gọi script, kèm đường dẫn file.",
+                "mechanism": "Dòng shebang chọn Bash để đọc file script.",
+                "term": "shebang"
+              },
+              {
+                "from": "bash",
+                "to": "file",
+                "label": "thử đọc file",
+                "say": "Script hỏi file có đọc được không, trước khi làm việc.",
+                "mechanism": "Kiểm tra này là cửa vào. Không có file thì không có pipeline.",
+                "term": ""
+              },
+              {
+                "from": "file",
+                "to": "bash",
+                "label": "không đọc được",
+                "say": "File thiếu. Script nói lỗi và dừng.",
+                "mechanism": "stderr nhận câu lỗi. Exit status là 1. Lệnh sau không chạy.",
+                "term": "exit status",
+                "bad": true
+              },
+              {
+                "from": "bash",
+                "to": "pipe",
+                "label": "chỉ chạy khi file tốt",
+                "say": "Đường kia: file đọc được thì pipeline mới bắt đầu.",
+                "mechanism": "cat, grep và wc đi đúng đường ống đã xem.",
+                "term": ""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "automate",
+        "label": "Làm lại và hẹn giờ",
+        "hint": "Make, cron",
+        "scenes": [
+          {
+            "kind": "dag",
+            "eyebrow": "Làm lại · 06",
+            "title": "Make chỉ làm phần đã cũ",
+            "lead": "Khi một nguyên liệu thay đổi, bếp chỉ nên làm lại những món thật sự phụ thuộc vào nguyên liệu đó.",
+            "command": "make",
+            "predict": "Sửa một file nguồn thì mọi lệnh build chạy lại, hay chỉ phần bị cũ?",
+            "conclusion": "Make nhìn quan hệ phụ thuộc để chỉ làm lại phần đã cũ; nó không phải trình biên dịch và không chỉ là danh sách lệnh.",
+            "reading": "Make đọc một bản đồ phụ thuộc. Thứ cần tạo ra gọi là target; thứ target dựa vào gọi là dependency; lệnh để tạo target gọi là recipe. Nếu dependency mới hơn target, Make chạy recipe tương ứng. Vì thế sửa một tệp nguồn không bắt buộc làm lại mọi thứ. Trong ví dụ C, mã nguồn lần lượt được xử lý, dịch, lắp thành tệp trung gian rồi ghép thành chương trình chạy được. Chi tiết từng công cụ có thể tra cứu sau; điều cần giữ là mỗi chặng tạo một sản phẩm mới và lỗi ở chặng nào phải sửa ở chặng đó.",
+            "glossary": [
+              {
+                "term": "target",
+                "gloss": "Thứ Make cần tạo ra, đứng trước dấu hai chấm."
+              },
+              {
+                "term": "dependency",
+                "gloss": "Thứ target dựa vào, đứng sau dấu hai chấm."
+              },
+              {
+                "term": "recipe",
+                "gloss": "Lệnh Make chạy khi target đã cũ. Trong Makefile bắt đầu bằng tab."
+              },
+              {
+                "term": "preprocessor",
+                "gloss": "Bước ra file .i: mở macro và header."
+              },
+              {
+                "term": "compiler",
+                "gloss": "Dịch C thành assembly, file .s."
+              },
+              {
+                "term": "assembler",
+                "gloss": "Dịch assembly thành object file .o."
+              },
+              {
+                "term": "linker",
+                "gloss": "Ghép .o và thư viện thành executable."
+              }
+            ],
+            "nodes": [
+              {
+                "id": "c",
+                "label": "hello.c",
+                "sub": "file bạn sửa"
+              },
+              {
+                "id": "o",
+                "label": "hello.o",
+                "sub": "bản đã dịch"
+              },
+              {
+                "id": "bin",
+                "label": "hello",
+                "sub": "file chạy được"
+              }
+            ],
+            "edges": [
+              {
+                "label": "gcc -c"
+              },
+              {
+                "label": "gcc"
+              }
+            ],
+            "steps": [
+              {
+                "stale": [],
+                "running": null,
+                "say": "Cả ba đều mới. Make không chạy lệnh nào.",
+                "mechanism": "Target không cũ hơn dependency thì recipe nghỉ.",
+                "term": "target"
+              },
+              {
+                "stale": [
+                  "o",
+                  "bin"
+                ],
+                "running": null,
+                "say": "Bạn sửa hello.c. Hai phần phía sau thành cũ.",
+                "mechanism": "hello.o phụ thuộc hello.c. hello phụ thuộc hello.o.",
+                "term": "dependency"
+              },
+              {
+                "stale": [
+                  "bin"
+                ],
+                "running": "o",
+                "say": "Make dịch lại hello.o.",
+                "mechanism": "Chỉ recipe của hello.o chạy ở bước này.",
+                "term": "recipe"
+              },
+              {
+                "stale": [],
+                "running": "bin",
+                "say": "Rồi Make nối lại file hello.",
+                "mechanism": "hello.o vừa mới hơn hello, nên tới lượt link.",
+                "term": ""
+              },
+              {
+                "stale": [],
+                "running": null,
+                "say": "Mọi phần đều mới trở lại.",
+                "mechanism": "Lần make sau, nếu không sửa gì, không có recipe nào chạy.",
+                "term": ""
+              }
+            ]
+          },
+          {
+            "kind": "sequence",
+            "eyebrow": "Hẹn giờ · 07",
+            "title": "Cron bấm cò, không chữa lỗi",
+            "lead": "Đồng hồ có thể gọi đầu bếp lúc 03:30, nhưng nó không biết món đã nấu đúng hay chưa.",
+            "command": "30 3 * * * /opt/job/daily.sh /data/report.log",
+            "predict": "Job thất bại thì cron có tự chạy lại giúp không?",
+            "conclusion": "Cron quyết định khi nào gọi việc; chính script hoặc hệ thống điều phối mới chịu trách nhiệm việc đó có chạy đúng hay không.",
+            "reading": "Cron chỉ làm một việc: đến giờ thì phát lệnh. Nó mở một môi trường chạy khá mỏng, nên đường tìm chương trình và thư mục hiện tại có thể khác terminal bạn dùng ban ngày. Vì vậy job nên dùng đường dẫn rõ, tự ghi cả kết quả lẫn lỗi và trả mã kết thúc chính xác. Cron không tự chạy lại, không chạy bù và không ngăn hai lần chạy chồng nhau. Nếu công việc cần các khả năng đó, phải dùng thêm khóa hoặc một công cụ điều phối mạnh hơn.",
+            "glossary": [
+              {
+                "term": "crontab",
+                "gloss": "Bảng các dòng lịch. Mỗi dòng là một cron expression cộng một lệnh."
+              },
+              {
+                "term": "cron expression",
+                "gloss": "Năm ô: phút, giờ, ngày, tháng, thứ."
+              },
+              {
+                "term": "daemon",
+                "gloss": "Tiến trình nền canh đồng hồ rồi mở shell."
+              },
+              {
+                "term": "environment",
+                "gloss": "Biến môi trường của shell cron mở, thường rất ít."
+              },
+              {
+                "term": "absolute path",
+                "gloss": "Đường đầy đủ từ /. Tránh lệ thuộc PATH mỏng của cron."
+              },
+              {
+                "term": "idempotent",
+                "gloss": "Chạy lại vẫn an toàn, không nhân đôi kết quả hỏng."
+              },
+              {
+                "term": "lock",
+                "gloss": "Chặn lần chạy sau nếu lần trước chưa xong. Cron không làm giúp."
+              },
+              {
+                "term": "backfill",
+                "gloss": "Chạy bù lần đã lỡ. Cron không làm. Orchestrator mới làm."
+              },
+              {
+                "term": "orchestrator",
+                "gloss": "Chương trình giữ dependency, retry, lịch sử. Ví dụ Airflow."
+              }
+            ],
+            "actors": [
+              {
+                "id": "clock",
+                "name": "Đồng hồ",
+                "role": "03:30"
+              },
+              {
+                "id": "cron",
+                "name": "Cron",
+                "role": "đối biểu thức"
+              },
+              {
+                "id": "shell",
+                "name": "Shell",
+                "role": "môi trường mỏng"
+              },
+              {
+                "id": "job",
+                "name": "daily.sh",
+                "role": "việc thật"
+              }
+            ],
+            "steps": [
+              {
+                "from": "clock",
+                "to": "cron",
+                "label": "tới 03:30",
+                "say": "Đồng hồ tới phút cron đang canh.",
+                "mechanism": "Năm ô 30 3 * * * là phút, giờ, ngày, tháng, thứ.",
+                "term": "cron expression"
+              },
+              {
+                "from": "cron",
+                "to": "shell",
+                "label": "mở một shell",
+                "say": "Cron mở shell để chạy lệnh.",
+                "mechanism": "Shell này ít biến môi trường hơn shell bạn đang ngồi.",
+                "term": "environment"
+              },
+              {
+                "from": "shell",
+                "to": "job",
+                "label": "chạy script",
+                "say": "Script đi đúng đường đã học: kiểm tra file, rồi pipeline.",
+                "mechanism": "PATH và thư mục hiện tại có thể khác terminal của bạn.",
+                "term": ""
+              },
+              {
+                "from": "job",
+                "to": "cron",
+                "label": "trả trạng thái rồi thôi",
+                "say": "Xong hoặc lỗi, cron ghi nhận và dừng.",
+                "mechanism": "Cron không retry, không backfill, không biết job khác đang chạy.",
+                "term": "",
+                "bad": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "recap",
+        "label": "Tóm lại",
+        "hint": "một bản đồ",
+        "scenes": [
+          {
+            "kind": "mindmap",
+            "eyebrow": "Tóm lại",
+            "title": "Linux của bài này",
+            "lead": "Quay lại đúng một phiếu yêu cầu và nhìn toàn bộ căn bếp thay vì nhớ từng lệnh rời rạc.",
+            "predict": "Mở một nhánh khi cần ôn đúng chỗ đó.",
+            "conclusion": "Linux biến ý định thành một chuỗi công việc có người làm, có tài nguyên, có quyền và có dấu vết.",
+            "reading": "Bạn gõ một ý định vào terminal. Shell hiểu dòng chữ và tạo process. Process nhờ kernel cấp CPU, RAM và I/O. Dữ liệu đi qua stdin, stdout và stderr; pipe nối nhiều process thành dây chuyền; script biến dây chuyền thành việc có thể lặp. Make quyết định phần nào cần làm lại, còn cron quyết định lúc nào gọi việc. Khi có lỗi, hãy hỏi dây chuyền dừng ở vai trò nào và bằng chứng nằm ở stderr, exit status hay log.",
+            "root": "Linux",
+            "rootNote": "một lệnh chạy",
+            "branches": [
+              {
+                "id": "run",
+                "title": "Một lệnh chạy",
+                "summary": "Từ dòng chữ tới file",
+                "detail": "Terminal nhận chữ. Bash tách lệnh và tìm chương trình trong PATH. Kernel tạo process bằng fork và exec, rồi open và read. Kết quả về stdout, lỗi về stderr.",
+                "leaves": [
+                  {
+                    "term": "terminal",
+                    "gloss": "Cửa sổ chữ, chưa hiểu lệnh."
+                  },
+                  {
+                    "term": "shell",
+                    "gloss": "Bash hiểu cú pháp, quote, biến."
+                  },
+                  {
+                    "term": "PATH",
+                    "gloss": "Nơi tìm cat, thường có /usr/bin."
+                  },
+                  {
+                    "term": "fork / exec",
+                    "gloss": "Tạo process và nạp chương trình."
+                  },
+                  {
+                    "term": "stdout / stderr",
+                    "gloss": "File descriptor 1 và 2."
+                  }
+                ]
+              },
+              {
+                "id": "base",
+                "title": "Nền dưới mọi lệnh",
+                "summary": "Đường dẫn, quyền, lệnh hỏi việc",
+                "detail": "Absolute path đi từ /. Relative path đi từ cwd. Permission là owner, group, others với rwx, xem bằng ls -l, đổi bằng chmod. pwd, cd, ls, find hỏi chỗ. cp, mv, rm đổi file. ps, top, kill nhìn process. man đọc hợp đồng của lệnh. Exit status nói lệnh xong hay hỏng.",
+                "leaves": [
+                  {
+                    "term": "absolute path",
+                    "gloss": "Bắt đầu từ /."
+                  },
+                  {
+                    "term": "cwd",
+                    "gloss": "Thư mục hiện tại. pwd in, cd đổi."
+                  },
+                  {
+                    "term": "permission",
+                    "gloss": "owner, group, others và r/w/x."
+                  },
+                  {
+                    "term": "chmod",
+                    "gloss": "Đổi quyền. Đừng dùng 777 làm cách sửa."
+                  },
+                  {
+                    "term": "ps / kill",
+                    "gloss": "Xem PID và gửi tín hiệu cho process."
+                  },
+                  {
+                    "term": "exit status",
+                    "gloss": "0 là xong. Khác 0 là thất bại."
+                  }
+                ]
+              },
+              {
+                "id": "kernel",
+                "title": "Kernel giữ gì",
+                "summary": "Bốn lời hứa dưới lệnh",
+                "detail": "User process xin qua glibc và system call. Kernel nhận việc. Scheduler cho CPU. Address space nằm ở RAM. Driver đọc đĩa ở chân I/O. Ba chân dùng cùng lúc.",
+                "leaves": [
+                  {
+                    "term": "scheduler",
+                    "gloss": "Chọn process nào được CPU."
+                  },
+                  {
+                    "term": "address space",
+                    "gloss": "Vùng nhớ riêng của process."
+                  },
+                  {
+                    "term": "PID",
+                    "gloss": "Số của một lần chạy."
+                  },
+                  {
+                    "term": "system call",
+                    "gloss": "open, read, fork, exec, write."
+                  },
+                  {
+                    "term": "driver",
+                    "gloss": "Kernel nói chuyện với phần cứng."
+                  }
+                ]
+              },
+              {
+                "id": "join",
+                "title": "Ghép việc",
+                "summary": "Ống và script",
+                "detail": "Pipe nối stdout với stdin. stderr không tự đi vào ống. Script thêm shebang, strict mode và cửa kiểm tra input.",
+                "leaves": [
+                  {
+                    "term": "stdin / stdout / stderr",
+                    "gloss": "Ba cửa, số 0, 1 và 2."
+                  },
+                  {
+                    "term": "pipe",
+                    "gloss": "Lệnh không cần biết nhau."
+                  },
+                  {
+                    "term": "shebang",
+                    "gloss": "Dòng #! chọn Bash."
+                  },
+                  {
+                    "term": "set -euo pipefail",
+                    "gloss": "Lỗi phải dừng, không âm thầm đi tiếp."
+                  }
+                ]
+              },
+              {
+                "id": "again",
+                "title": "Làm lại đúng phần",
+                "summary": "Make nhìn tuổi file",
+                "detail": "Target cũ hơn dependency thì recipe chạy. gcc -c tạo object. Link tạo file chạy. Phần còn mới thì nghỉ.",
+                "leaves": [
+                  {
+                    "term": "target",
+                    "gloss": "Thứ cần tạo, trước dấu hai chấm."
+                  },
+                  {
+                    "term": "dependency",
+                    "gloss": "Thứ target dựa vào."
+                  },
+                  {
+                    "term": "recipe",
+                    "gloss": "Lệnh chạy khi target đã cũ."
+                  },
+                  {
+                    "term": "link",
+                    "gloss": "Ghép .o thành executable."
+                  }
+                ]
+              },
+              {
+                "id": "time",
+                "title": "Đúng giờ",
+                "summary": "Cron chỉ bấm cò",
+                "detail": "Đúng biểu thức thời gian thì mở shell mỏng và chạy lệnh. Không retry, không backfill. Job nên idempotent và tự ghi log.",
+                "leaves": [
+                  {
+                    "term": "cron expression",
+                    "gloss": "phút giờ ngày tháng thứ."
+                  },
+                  {
+                    "term": "environment",
+                    "gloss": "Shell cron mở thì rất mỏng."
+                  },
+                  {
+                    "term": "idempotent",
+                    "gloss": "Chạy lại vẫn an toàn."
+                  },
+                  {
+                    "term": "backfill",
+                    "gloss": "Cron không chạy bù lần đã lỡ."
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "F02": {
+    "promise": "Bắt đầu từ ranh giới project tái lập được, rồi theo một chương trình Python sống dậy, đi xuống object, lỗi, byte, thời gian và request web.",
+    "chapters": [
+      {
+        "id": "project",
+        "label": "Ranh giới project",
+        "hint": "interpreter + dependency",
+        "scenes": [
+          {
+            "kind": "boundary",
+            "eyebrow": "Project · 00",
+            "title": "Chạy đúng code bằng đúng môi trường",
+            "lead": "Cùng một bản hướng dẫn nhưng hai xưởng dùng máy và linh kiện khác phiên bản thì sản phẩm có thể khác nhau.",
+            "command": "python -m venv .venv && . .venv/bin/activate",
+            "predict": "Hai project cần hai version khác nhau của cùng thư viện thì nên dùng chung site-packages không?",
+            "conclusion": "Project chạy ổn định khi bản kê khai, phiên bản đã chọn và interpreter thực tế cùng trỏ về một môi trường rõ ràng.",
+            "reading": "Trước khi chạy code, project phải nói rõ mình cần phiên bản Python nào và cần những gói nào. Tệp `pyproject.toml` là bản kê khai đó. Công cụ giải phụ thuộc (resolver) tìm một bộ phiên bản có thể cùng tồn tại; lockfile ghi lại bộ đã chọn để máy khác lắp gần giống. Môi trường ảo (virtual environment) tạo một ngăn riêng chứa Python và các gói của project, tránh trộn với project khác. Lệnh activate chỉ giúp shell tìm đúng Python thuận tiện hơn; bằng chứng thật vẫn là test bằng chính interpreter sẽ dùng khi chạy thật.",
+            "glossary": [
+              {
+                "term": "virtual environment",
+                "gloss": "Ranh giới interpreter và site-packages theo project; không phải container."
+              },
+              {
+                "term": "pyproject.toml",
+                "gloss": "Dependency contract và metadata ở mức project."
+              },
+              {
+                "term": "resolver",
+                "gloss": "Tìm một tập version thỏa các constraint."
+              },
+              {
+                "term": "lockfile",
+                "gloss": "Ghi graph đã resolve để sync lặp lại ổn định hơn."
+              },
+              {
+                "term": "site-packages",
+                "gloss": "Nơi dependency đã cài của interpreter/environment."
+              },
+              {
+                "term": "reproducibility",
+                "gloss": "Người khác có thể dựng lại environment đủ gần để chạy và kiểm tra cùng behavior."
+              }
+            ],
+            "steps": [
+              {
+                "say": "Project khai báo Python range và dependency trực tiếp.",
+                "mechanism": "pyproject.toml là contract; nó chưa phải các package đã cài.",
+                "term": "pyproject.toml"
+              },
+              {
+                "say": "Resolver dựng graph version thỏa constraint.",
+                "mechanism": "Dependency trực tiếp kéo theo dependency gián tiếp.",
+                "term": "resolver"
+              },
+              {
+                "say": "Lockfile giữ lựa chọn cụ thể nếu workflow dùng lock.",
+                "mechanism": "Declaration nói cần gì; lock ghi đã chọn artifact/version nào.",
+                "term": "lockfile"
+              },
+              {
+                "say": "Environment nhận interpreter và site-packages riêng.",
+                "mechanism": "PATH hoặc đường dẫn tuyệt đối quyết định process dùng Python nào.",
+                "term": "virtual environment"
+              },
+              {
+                "say": "Chạy test bằng chính environment sẽ deploy.",
+                "mechanism": "Bằng chứng tốt hơn câu “máy tôi chạy được”.",
+                "term": "reproducibility"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "boot",
+        "label": "Một lệnh sống dậy",
+        "hint": "từ file tới ba chân",
+        "scenes": [
+          {
+            "kind": "sequence",
+            "eyebrow": "Khởi động · 01",
+            "title": "Nhấn Enter, file .py chưa chạy ngay",
+            "lead": "Trước khi công nhân làm bước đầu tiên, xưởng phải mở một ca làm, đặt đúng máy và đưa bản hướng dẫn vào máy.",
+            "command": "python -m pipeline ingest orders.csv",
+            "predict": "CPU có chạy thẳng file pipeline.py ngay khi nhận dòng lệnh không?",
+            "conclusion": "Process và interpreter tồn tại trước; code của bạn được đọc và chạy bên trong ca làm đó.",
+            "reading": "Dòng lệnh của bạn được shell tách thành tên chương trình Python và các phần đi kèm. Hệ điều hành mở một ca làm riêng gọi là process, gắn cho nó bộ nhớ, thư mục hiện tại và các cửa vào/ra. Chương trình thực thi Python gọi là interpreter được nạp trước; tệp `.py` chỉ là phần chữ hướng dẫn. Interpreter đọc chữ thành một cây biểu diễn cấu trúc (AST), rồi đổi thành chỉ dẫn gọn hơn gọi là bytecode. Sau khi môi trường chạy đã sẵn sàng, Python mới tìm module, chạy phần code ở mức module và gọi điểm bắt đầu của chương trình.",
+            "glossary": [
+              {
+                "term": "shell",
+                "gloss": "Tách dòng lệnh thành tên chương trình và đối số."
+              },
+              {
+                "term": "argv",
+                "gloss": "Danh sách đối số process nhận khi được tạo."
+              },
+              {
+                "term": "process",
+                "gloss": "Chỗ làm riêng: bộ nhớ, file, và ba cửa vào ra."
+              },
+              {
+                "term": "environment",
+                "gloss": "Biến môi trường của process. PATH nằm ở đây."
+              },
+              {
+                "term": "cwd",
+                "gloss": "Thư mục hiện tại của process. Khác terminal là dễ hỏng đường dẫn."
+              },
+              {
+                "term": "interpreter",
+                "gloss": "Chương trình python thật sự được nạp và chạy trước file của bạn."
+              },
+              {
+                "term": "source",
+                "gloss": "Chữ trong file .py, bản con người đọc."
+              },
+              {
+                "term": "AST",
+                "gloss": "Cây cú pháp sau khi Python hiểu cấu trúc câu lệnh."
+              },
+              {
+                "term": "bytecode",
+                "gloss": "Các lệnh nhỏ Python sẽ đọc. Nằm trong code object."
+              },
+              {
+                "term": "code object",
+                "gloss": "Kế hoạch tĩnh. Chưa chứa trạng thái của một lần gọi."
+              },
+              {
+                "term": "import",
+                "gloss": "Tìm module, tạo namespace, chạy code cấp module, rồi nhớ trong cache."
+              },
+              {
+                "term": "__main__",
+                "gloss": "Tên module khi nó là chương trình được chạy, không phải lúc bị import."
+              },
+              {
+                "term": "entry point",
+                "gloss": "Chỗ gọi main sau khi module đã nạp."
+              }
+            ],
+            "actors": [
+              {
+                "id": "you",
+                "name": "Bạn",
+                "role": "gõ lệnh"
+              },
+              {
+                "id": "shell",
+                "name": "Shell",
+                "role": "tách lệnh"
+              },
+              {
+                "id": "os",
+                "name": "Hệ điều hành",
+                "role": "tạo process"
+              },
+              {
+                "id": "py",
+                "name": "Python",
+                "role": "bộ máy chạy"
+              },
+              {
+                "id": "app",
+                "name": "pipeline",
+                "role": "việc của bạn"
+              }
+            ],
+            "steps": [
+              {
+                "from": "you",
+                "to": "shell",
+                "label": "gõ dòng lệnh",
+                "say": "Bạn gửi một dòng: chương trình, cờ -m, tên module, và file dữ liệu.",
+                "mechanism": "Shell tách tên chương trình python khỏi các đối số.",
+                "term": "shell"
+              },
+              {
+                "from": "shell",
+                "to": "os",
+                "label": "xin tạo process",
+                "say": "Hệ điều hành mở một chỗ làm riêng.",
+                "mechanism": "Process nhận argv, env, thư mục hiện tại, và ba cửa vào ra.",
+                "term": "process"
+              },
+              {
+                "from": "os",
+                "to": "py",
+                "label": "nạp python",
+                "say": "Thứ chạy đầu tiên là chương trình Python, không phải file pipeline.py.",
+                "mechanism": "Runtime dựng sổ module, lỗi, và chuỗi gọi.",
+                "term": "runtime"
+              },
+              {
+                "from": "py",
+                "to": "app",
+                "label": "tìm module rồi gọi main",
+                "say": "Cờ -m bảo Python tìm pipeline và chạy như chương trình chính.",
+                "mechanism": "Code của bạn bắt đầu sau bước này. Làm nặng lúc import sẽ chạy trước main.",
+                "term": "import"
+              }
+            ]
+          },
+          {
+            "kind": "layers",
+            "eyebrow": "Tầng · 02",
+            "title": "File đứng trên, ba chân đứng dưới",
+            "lead": "Một ca làm dùng thời gian máy để tính, mặt bàn để giữ vật liệu và cửa kho để đọc hoặc gửi dữ liệu.",
+            "command": "python -m pipeline ingest orders.csv",
+            "predict": "Danh sách records nằm ở CPU, ở RAM, hay trong file?",
+            "conclusion": "Muốn biết Python chậm vì sao, trước hết phân biệt đang tính, đang giữ dữ liệu hay đang chờ bên ngoài.",
+            "reading": "Interpreter là chương trình điều khiển việc chạy code Python. Bên trong process, CPU thực hiện các bước tính toán, RAM giữ object và frame đang sống, còn I/O là lúc chương trình chờ file, mạng hoặc database. Ba thứ này tạo ra ba kiểu vấn đề khác nhau. CPU cao nghĩa là máy đang bận tính; RAM tăng liên tục nghĩa là dữ liệu đang bị giữ; CPU thấp nhưng chương trình lâu xong thường là dấu hiệu đang chờ I/O. Chẩn đoán đúng loại công việc quan trọng hơn chọn `async`, thread hay process theo thói quen.",
+            "glossary": [
+              {
+                "term": "CPython",
+                "gloss": "Một Python runtime phổ biến. Hành vi GIL phụ thuộc build; free-threaded build là tùy chọn từ Python 3.13."
+              },
+              {
+                "term": "interpreter",
+                "gloss": "Chương trình đọc bytecode và làm từng lệnh trên CPU."
+              },
+              {
+                "term": "bytecode",
+                "gloss": "Lệnh nhỏ interpreter chạy. CPU task là lúc đang làm việc này."
+              },
+              {
+                "term": "process",
+                "gloss": "Chỗ hệ điều hành giữ máy ảo: bộ nhớ riêng, PID, ba cửa vào ra."
+              },
+              {
+                "term": "CPU",
+                "gloss": "Chân tính. Interpreter bận ở đây thì đó là CPU task."
+              },
+              {
+                "term": "RAM",
+                "gloss": "Chân nhớ. Object, frame và namespace nằm trong address space."
+              },
+              {
+                "term": "I/O",
+                "gloss": "Chân file và socket. Khoảng chờ ở đây là IO task."
+              },
+              {
+                "term": "CPU task",
+                "gloss": "Đoạn bytecode đang chạy, chiếm thread."
+              },
+              {
+                "term": "IO task",
+                "gloss": "Đoạn chờ kernel. Async chồng các đoạn này trên một thread."
+              }
+            ],
+            "spine": [
+              {
+                "id": "src",
+                "name": "pipeline.py",
+                "holds": "source, chữ người đọc"
+              },
+              {
+                "id": "vm",
+                "name": "CPython",
+                "holds": "interpreter đọc bytecode"
+              },
+              {
+                "id": "os",
+                "name": "Process",
+                "holds": "kernel giữ lần chạy này"
+              }
+            ],
+            "links": [
+              "đọc và dịch",
+              "chạy bên trong"
+            ],
+            "feet": [
+              {
+                "id": "cpu",
+                "name": "CPU",
+                "holds": "bytecode đang tính"
+              },
+              {
+                "id": "ram",
+                "name": "RAM",
+                "holds": "object, frame, tên"
+              },
+              {
+                "id": "io",
+                "name": "I/O",
+                "holds": "file, socket, qua kernel"
+              }
+            ],
+            "footNote": "Ba chân của một process. CPU task ở chân CPU. IO task ở chân I/O.",
+            "steps": [
+              {
+                "focus": "src",
+                "say": "File .py mới là chữ. CPU chưa chạy dòng nào của bạn.",
+                "mechanism": "Source là bản người đọc. Nó chưa phải bytecode.",
+                "term": "source"
+              },
+              {
+                "focus": "vm",
+                "say": "CPython đọc chữ, dựng AST, dịch thành bytecode, rồi interpreter đọc từng lệnh.",
+                "mechanism": "Máy ảo là chương trình đang chạy. File của bạn là dữ liệu của nó.",
+                "term": "bytecode"
+              },
+              {
+                "focus": "os",
+                "say": "Máy ảo nằm trong một process. Kernel giữ process đó.",
+                "mechanism": "Process có bộ nhớ riêng, PID, và ba cửa vào ra.",
+                "term": "process"
+              },
+              {
+                "focus": "cpu",
+                "say": "Interpreter bận trên CPU khi đang chạy bytecode. Đó là CPU task.",
+                "mechanism": "Đoạn tính chiếm thread. Cảnh thời gian phía sau vẽ các khối này.",
+                "term": "CPU task"
+              },
+              {
+                "focus": "ram",
+                "say": "Danh sách, frame và tên nằm trong RAM của process.",
+                "mechanism": "Address space là vùng này. Hai nhãn có thể trỏ cùng một object ở đây.",
+                "term": "RAM"
+              },
+              {
+                "focus": "io",
+                "say": "orders.csv và socket nằm ở chân I/O. Máy ảo chờ kernel.",
+                "mechanism": "Khoảng chờ là IO task. Async chồng các khoảng này. Lời gọi chờ thường nhả GIL, tùy implementation.",
+                "term": "IO task"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "state",
+        "label": "Tên, lỗi, cửa ra",
+        "hint": "object và byte",
+        "scenes": [
+          {
+            "kind": "binding",
+            "eyebrow": "Tên · 03",
+            "title": "Hai nhãn, một danh sách",
+            "lead": "Trong xưởng, nhãn tên có thể được dán lên cùng một thùng vật liệu; đổi đồ trong thùng thì mọi nhãn đều dẫn tới đồ đã đổi.",
+            "command": "backup = records; records.append(\"C\")",
+            "predict": "Gán backup = records có tạo một danh sách mới không?",
+            "conclusion": "Hai tên có thể cùng trỏ một object; sửa object không giống gán một tên sang object khác.",
+            "reading": "Trong Python, tên không phải là chiếc hộp chứa giá trị. Tên là một nhãn trỏ tới object trong bộ nhớ; việc nối tên với object gọi là name binding. Phép gán `backup = records` không sao chép danh sách, nó chỉ tạo nhãn thứ hai cùng trỏ vào một object. Nếu object đó có thể sửa tại chỗ (mutable) và bạn `append`, cả hai tên đều thấy thay đổi. Muốn một bản độc lập, bạn phải tạo bản sao phù hợp và hiểu object con bên trong có còn dùng chung hay không.",
+            "glossary": [
+              {
+                "term": "namespace",
+                "gloss": "Sổ tên của một chỗ: hàm, module, hoặc builtins."
+              },
+              {
+                "term": "name binding",
+                "gloss": "Một mục trong sổ: tên này trỏ tới object kia."
+              },
+              {
+                "term": "alias",
+                "gloss": "Hai tên cùng trỏ một object."
+              },
+              {
+                "term": "object",
+                "gloss": "Vật trong bộ nhớ. Có identity, type và value."
+              },
+              {
+                "term": "mutable",
+                "gloss": "Sửa được tại chỗ. list, dict, set là mutable. tuple thì không đổi vỏ."
+              },
+              {
+                "term": "mutation",
+                "gloss": "Đổi object tại chỗ, ví dụ append. Nhãn không đổi."
+              },
+              {
+                "term": "rebinding",
+                "gloss": "Gán tên sang object khác. Object cũ không bị sửa."
+              },
+              {
+                "term": "identity",
+                "gloss": "Cùng một vật hay không. Toán tử is so identity, == so giá trị."
+              },
+              {
+                "term": "shallow copy",
+                "gloss": "copy.copy tạo vỏ mới. Object con bên trong vẫn dùng chung."
+              },
+              {
+                "term": "reference counting",
+                "gloss": "CPython đếm đường đang giữ object. Về 0 thì thường thu hồi ngay."
+              },
+              {
+                "term": "cyclic GC",
+                "gloss": "Bộ thu gom các vòng object trỏ lẫn nhau, khi reference count không về 0."
+              }
+            ],
+            "left": "records",
+            "right": "backup",
+            "box": [
+              "A",
+              "B",
+              "C"
+            ],
+            "steps": [
+              {
+                "say": "records đang chỉ một danh sách A, B.",
+                "mechanism": "Tên là nhãn. Danh sách là vật nằm trong bộ nhớ.",
+                "term": "name"
+              },
+              {
+                "say": "backup trở thành nhãn thứ hai trên đúng vật đó.",
+                "mechanism": "Phép gán không sao chép danh sách.",
+                "term": "binding"
+              },
+              {
+                "say": "Thêm C vào danh sách. Cả hai nhãn đều thấy A, B, C.",
+                "mechanism": "append đổi vật, không đổi nhãn.",
+                "term": "object"
+              }
+            ]
+          },
+          {
+            "kind": "stack",
+            "eyebrow": "Lỗi · 04",
+            "title": "parse lỗi, lỗi đi ngược lên",
+            "lead": "Mỗi công đoạn giữ một phiếu việc. Khi công đoạn cuối báo hỏng, chuông đi ngược chồng phiếu để tìm nơi biết xử lý.",
+            "command": "main() → load() → parse()",
+            "predict": "parse lỗi mà không bắt, thì lỗi dừng ở parse hay đi tiếp?",
+            "conclusion": "Exception đi ngược call stack; traceback là bản đồ cho biết lỗi sinh ở đâu và đã đi qua những hàm nào.",
+            "reading": "Mỗi lần gọi hàm, Python mở một hồ sơ đang làm gọi là frame. Các frame xếp thành call stack; frame trên cùng là hàm đang chạy. Khi code phát hiện không thể đi tiếp, nó tạo exception. Nếu frame hiện tại không biết xử lý, Python gỡ frame đó và đưa exception về hàm đã gọi nó. Chuỗi đường đi được ghi lại thành traceback. Đọc traceback từ dòng lỗi rồi lần ngược các frame giúp tìm nguyên nhân; bắt lỗi quá sớm chỉ làm mất dấu. Tài nguyên như file hoặc transaction phải được đóng bằng `with` hoặc `finally` trên cả đường thành công lẫn đường lỗi.",
+            "glossary": [
+              {
+                "term": "frame",
+                "gloss": "Hồ sơ một lần gọi: local, instruction pointer, và nơi quay về."
+              },
+              {
+                "term": "instruction pointer",
+                "gloss": "Vị trí lệnh bytecode đang chạy trong frame."
+              },
+              {
+                "term": "call stack",
+                "gloss": "Các frame chồng lên nhau. Frame trên cùng đang chạy."
+              },
+              {
+                "term": "exception",
+                "gloss": "Báo flow bình thường không đi tiếp được."
+              },
+              {
+                "term": "unwinding",
+                "gloss": "Gỡ frame từ trên xuống cho tới handler hoặc hết stack."
+              },
+              {
+                "term": "traceback",
+                "gloss": "Chuỗi frame lỗi vừa đi ngược. Bằng chứng của đường lỗi."
+              },
+              {
+                "term": "handler",
+                "gloss": "Khối except bắt một loại lỗi và quyết định bước tiếp."
+              },
+              {
+                "term": "context manager",
+                "gloss": "Object có __enter__ và __exit__. with gọi chúng để mở và đóng."
+              },
+              {
+                "term": "cProfile",
+                "gloss": "Đo thời gian theo hàm và theo người gọi."
+              },
+              {
+                "term": "tracemalloc",
+                "gloss": "Chụp chỗ nào trong code đang cấp bộ nhớ Python."
+              }
+            ],
+            "frames": [
+              {
+                "id": "main",
+                "name": "main",
+                "role": "nhận lệnh và chờ kết quả"
+              },
+              {
+                "id": "load",
+                "name": "load",
+                "role": "mở file và gọi parse"
+              },
+              {
+                "id": "parse",
+                "name": "parse",
+                "role": "đang đọc dòng hỏng"
+              }
+            ],
+            "steps": [
+              {
+                "alive": [
+                  "main"
+                ],
+                "top": "main",
+                "error": null,
+                "say": "main đang giữ quyền chạy.",
+                "mechanism": "Một hồ sơ gọi hàm đang mở cho main.",
+                "term": "frame"
+              },
+              {
+                "alive": [
+                  "main",
+                  "load"
+                ],
+                "top": "load",
+                "error": null,
+                "say": "main gọi load rồi đứng chờ.",
+                "mechanism": "Hồ sơ load nằm trên hồ sơ main.",
+                "term": ""
+              },
+              {
+                "alive": [
+                  "main",
+                  "load",
+                  "parse"
+                ],
+                "top": "parse",
+                "error": null,
+                "say": "load gọi parse. parse đang làm.",
+                "mechanism": "Hồ sơ trên cùng là chỗ lệnh đang chạy.",
+                "term": ""
+              },
+              {
+                "alive": [
+                  "main",
+                  "load",
+                  "parse"
+                ],
+                "top": "parse",
+                "error": "parse",
+                "say": "parse gặp dòng hỏng và báo lỗi.",
+                "mechanism": "Lỗi xuất hiện tại hồ sơ trên cùng.",
+                "term": "exception",
+                "bad": true
+              },
+              {
+                "alive": [
+                  "main",
+                  "load"
+                ],
+                "top": "load",
+                "error": "load",
+                "say": "parse biến mất. load cũng không bắt lỗi.",
+                "mechanism": "Lỗi đi xuống hồ sơ đang chờ.",
+                "term": ""
+              },
+              {
+                "alive": [
+                  "main"
+                ],
+                "top": "main",
+                "error": "main",
+                "say": "main nhận lỗi, in đường đi, và lần chạy kết thúc khác 0.",
+                "mechanism": "Traceback là chuỗi hồ sơ vừa đi ngược.",
+                "term": "traceback"
+              }
+            ]
+          },
+          {
+            "kind": "boundary",
+            "eyebrow": "Cửa · 05",
+            "title": "Danh sách đi ra file",
+            "lead": "Vật liệu trên bàn không thể chui nguyên trạng qua cửa giao hàng; nó phải được đóng thành kiện theo mẫu chung.",
+            "command": "save(records, \"orders.csv\")",
+            "predict": "File CSV có phải chính cái danh sách trong bộ nhớ không?",
+            "conclusion": "Qua ranh giới process, dữ liệu trở thành byte; phía nhận kiểm tra rồi dựng một object mới.",
+            "reading": "Object chỉ có ý nghĩa bên trong process đang giữ nó. Muốn gửi qua file, mạng hoặc database, chương trình phải đổi giá trị thành chữ hoặc byte theo một format; bước đó gọi là serialization. Bên nhận đọc byte, kiểm tra schema rồi tạo object mới. Hai bên không dùng chung object cũ, dù dữ liệu nhìn giống nhau. JSON và CSV dễ quan sát; các format khác có thể tối ưu tốc độ hoặc kích thước. Điều quan trọng nhất là hai phía thống nhất format, schema và cách báo lỗi.",
+            "glossary": [
+              {
+                "term": "serialization",
+                "gloss": "Encode: đổi object thành byte theo một format."
+              },
+              {
+                "term": "JSON",
+                "gloss": "Chữ có cấu trúc, dễ đọc, tốn chỗ hơn dạng cột."
+              },
+              {
+                "term": "CSV",
+                "gloss": "Bảng chữ, mỗi record một dòng. File orders.csv ở cảnh này."
+              },
+              {
+                "term": "Arrow",
+                "gloss": "Format cột. Giảm copy khi đưa dữ liệu sang engine khác."
+              },
+              {
+                "term": "schema",
+                "gloss": "Hình dạng và kiểu dữ liệu hai phía đã hẹn."
+              },
+              {
+                "term": "buffer",
+                "gloss": "Vùng đệm kernel dùng khi read, write hoặc socket."
+              },
+              {
+                "term": "decode / parse",
+                "gloss": "Byte thành object mới. Không phải object đã gửi."
+              },
+              {
+                "term": "validate",
+                "gloss": "Kiểm tra dữ liệu ngoài đúng schema trước khi tin."
+              },
+              {
+                "term": "contract",
+                "gloss": "Format, schema và cách báo lỗi của một cửa dữ liệu."
+              }
+            ],
+            "door": "file · csv",
+            "steps": [
+              {
+                "hot": "in",
+                "insideTitle": "records",
+                "inside": "Danh sách ba đơn, sống trong process.",
+                "outsideTitle": "orders.csv",
+                "outside": "File chưa nhận gì từ lần ghi này.",
+                "say": "Danh sách đang ở trong process.",
+                "mechanism": "Code đang giữ nhãn tới object.",
+                "term": "object"
+              },
+              {
+                "hot": "in",
+                "insideTitle": "đang đóng gói",
+                "inside": "Mỗi đơn thành một dòng chữ.",
+                "outsideTitle": "orders.csv",
+                "outside": "Vẫn chưa có byte mới.",
+                "say": "Code biến danh sách thành dòng chữ.",
+                "mechanism": "Bước này là serialize: object thành text.",
+                "term": "serialize"
+              },
+              {
+                "hot": "out",
+                "insideTitle": "records",
+                "inside": "Danh sách cũ vẫn còn trong bộ nhớ.",
+                "outsideTitle": "đã ghi byte",
+                "outside": "File giữ các dòng chữ, không giữ object Python.",
+                "say": "Byte đi qua cửa file.",
+                "mechanism": "Process ghi byte. File không thấy nhãn records.",
+                "term": "bytes"
+              },
+              {
+                "hot": "in",
+                "insideTitle": "danh sách mới",
+                "inside": "Đọc lại sẽ tạo object mới, dù nội dung giống.",
+                "outsideTitle": "orders.csv",
+                "outside": "Nguồn là byte trong file.",
+                "say": "Đọc file dựng một danh sách khác.",
+                "mechanism": "Cùng nội dung không có nghĩa cùng một vật.",
+                "term": "parse"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "time",
+        "label": "Chờ và người giữ lái",
+        "hint": "sync, async, request",
+        "scenes": [
+          {
+            "kind": "timeline",
+            "eyebrow": "Thời gian · 06",
+            "title": "Việc tính và việc chờ",
+            "lead": "Một công nhân có thể bật máy rồi làm việc khác trong lúc máy chờ nước nóng; không cần đứng nhìn đồng hồ.",
+            "command": "fetch(A); fetch(B)",
+            "predict": "await có làm hai đoạn tính chạy cùng một lúc không, hay chỉ chồng được lúc chờ?",
+            "conclusion": "Async cho nhiều việc chia sẻ một luồng bằng cách nhường quyền lúc chờ; nó không làm CPU task tự chạy song song.",
+            "reading": "Có hai loại thời gian. CPU task là lúc Python thật sự tính; I/O task là lúc chương trình chờ file, mạng hoặc database trả lời. Với cách đồng bộ, một luồng đứng yên ở việc A cho tới khi A chờ xong rồi mới sang B. Với async, khi A gặp `await`, nó trả quyền cho event loop để B dùng luồng trong lúc A đang chờ. Các khoảng chờ có thể chồng lên nhau, nhưng các đoạn tính trên một luồng vẫn chạy lần lượt. Async tiết kiệm thời gian chờ chết; nó không tự tạo thêm sức tính toán.",
+            "glossary": [
+              {
+                "term": "CPU task",
+                "gloss": "Đoạn Python đang tính. Thread bị chiếm suốt đoạn đó."
+              },
+              {
+                "term": "IO task",
+                "gloss": "Đoạn đang chờ mạng, đĩa hoặc database. CPU của thread không bận."
+              },
+              {
+                "term": "synchronous",
+                "gloss": "Xong cả phần tính lẫn phần chờ của việc này rồi mới sang việc kia."
+              },
+              {
+                "term": "blocking I/O",
+                "gloss": "Lời gọi chờ chưa trả về thì thread chưa chạy được dòng sau."
+              },
+              {
+                "term": "await",
+                "gloss": "Nhả thread trong lúc IO. Không tạo thread và không tạo nhân CPU."
+              },
+              {
+                "term": "event loop",
+                "gloss": "Chọn coroutine nào đang sẵn sàng trên cùng một thread."
+              }
+            ],
+            "tracks": [
+              {
+                "name": "Đứng chờ hết việc này mới sang việc kia",
+                "lanes": [
+                  {
+                    "label": "một mạch",
+                    "blocks": [
+                      {
+                        "from": 0,
+                        "to": 1,
+                        "label": "A tính",
+                        "kind": "cpu"
+                      },
+                      {
+                        "from": 1,
+                        "to": 4,
+                        "label": "A chờ",
+                        "kind": "wait"
+                      },
+                      {
+                        "from": 4,
+                        "to": 5,
+                        "label": "A tính",
+                        "kind": "cpu"
+                      },
+                      {
+                        "from": 5,
+                        "to": 6,
+                        "label": "B tính",
+                        "kind": "cpu"
+                      },
+                      {
+                        "from": 6,
+                        "to": 9,
+                        "label": "B chờ",
+                        "kind": "wait"
+                      },
+                      {
+                        "from": 9,
+                        "to": 10,
+                        "label": "B tính",
+                        "kind": "cpu"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "Nhường luồng khi phải chờ",
+                "lanes": [
+                  {
+                    "label": "việc A",
+                    "blocks": [
+                      {
+                        "from": 0,
+                        "to": 1,
+                        "label": "A tính",
+                        "kind": "cpu"
+                      },
+                      {
+                        "from": 1,
+                        "to": 4,
+                        "label": "A chờ",
+                        "kind": "wait"
+                      },
+                      {
+                        "from": 4,
+                        "to": 5,
+                        "label": "A tiếp",
+                        "kind": "cpu"
+                      }
+                    ]
+                  },
+                  {
+                    "label": "việc B",
+                    "blocks": [
+                      {
+                        "from": 1,
+                        "to": 2,
+                        "label": "B tính",
+                        "kind": "cpu"
+                      },
+                      {
+                        "from": 2,
+                        "to": 5,
+                        "label": "B chờ",
+                        "kind": "wait"
+                      },
+                      {
+                        "from": 5,
+                        "to": 6,
+                        "label": "B tiếp",
+                        "kind": "cpu"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "steps": [
+              {
+                "at": 0,
+                "say": "Cả hai cách đều bắt đầu bằng A đang tính.",
+                "mechanism": "Đoạn tính này giữ luồng.",
+                "term": ""
+              },
+              {
+                "at": 1,
+                "say": "A phải chờ mạng.",
+                "mechanism": "Cách trên: luồng đứng tại A. Cách dưới: A nhường, B được tính.",
+                "term": "blocking"
+              },
+              {
+                "at": 2,
+                "say": "Ở cách dưới, B cũng bắt đầu chờ. Luồng rảnh nếu không còn việc sẵn.",
+                "mechanism": "await không tạo luồng mới.",
+                "term": "await"
+              },
+              {
+                "at": 5,
+                "say": "A chờ xong và tính nốt. Ở cách trên, B còn chưa bắt đầu lúc này.",
+                "mechanism": "Tổng thời gian đứng chờ gần bằng tổng hai lần chờ.",
+                "term": ""
+              },
+              {
+                "at": 6,
+                "say": "Cách dưới xong sớm hơn vì hai lần chờ nằm chồng lên nhau.",
+                "mechanism": "Phần tính của A và B vẫn lần lượt. Chồng lên nhau là phần chờ.",
+                "term": "IO task"
+              }
+            ]
+          },
+          {
+            "kind": "timeline",
+            "eyebrow": "Khóa · 07",
+            "title": "GIL chỉ khóa lúc đang tính",
+            "lead": "Hai công nhân dùng chung một bàn chỉ có thể thao tác Python trên bàn đó theo lượt; người đang chờ giao hàng có thể rời bàn.",
+            "command": "Thread(target=tính); Thread(target=chờ)",
+            "predict": "Thread đang chờ mạng có bị GIL giữ lại, hay chỉ thread đang chạy bytecode mới phải xếp hàng?",
+            "conclusion": "GIL chủ yếu giới hạn các thread cùng chạy bytecode Python; thời gian chờ I/O thường vẫn có thể được tận dụng.",
+            "reading": "Trong bản CPython có GIL, nhiều thread trong cùng process phải thay phiên khi chạy bytecode Python. Vì vậy thêm thread không làm hai đoạn tính nặng bằng Python tự chạy song song như hai phòng riêng. Khi một thread đang chờ I/O, thư viện thường nhả GIL để thread khác làm tiếp. GIL là chi tiết của runtime/build, không phải định luật của mọi Python. Với việc chờ nhiều, async hoặc thread có thể hữu ích; với việc tính nặng, nhiều process hoặc code native thường là hướng rõ hơn. Luôn chọn từ loại tải thật thay vì từ khẩu hiệu.",
+            "glossary": [
+              {
+                "term": "GIL",
+                "gloss": "Global interpreter lock. Cơ chế điều phối bytecode trong build CPython có GIL; không phải mọi Python runtime đều giống nhau."
+              },
+              {
+                "term": "bytecode",
+                "gloss": "Việc Python thật sự làm khi đang tính. Đây là thứ GIL khóa."
+              },
+              {
+                "term": "CPU task",
+                "gloss": "Đoạn bytecode Python đang tính. Trong build có GIL, các thread phải thay phiên ở đoạn này."
+              },
+              {
+                "term": "IO task",
+                "gloss": "Đoạn đang chờ mạng, file hoặc database. Lời gọi của thư viện thường nhả GIL, nhưng chi tiết phụ thuộc implementation."
+              },
+              {
+                "term": "thread",
+                "gloss": "Mạch thực thi chung process memory; có thể dùng GIL, hoặc free-threaded mode tùy build/runtime."
+              },
+              {
+                "term": "process",
+                "gloss": "Không gian thực thi riêng. Nhiều process cô lập khóa/runtime và thường là cách rõ ràng để chạy CPU task song song."
+              }
+            ],
+            "tracks": [
+              {
+                "name": "Hai CPU task trên hai thread",
+                "lanes": [
+                  {
+                    "label": "T1",
+                    "blocks": [
+                      {
+                        "from": 0,
+                        "to": 2,
+                        "label": "tính",
+                        "kind": "cpu"
+                      },
+                      {
+                        "from": 4,
+                        "to": 6,
+                        "label": "tính",
+                        "kind": "cpu"
+                      },
+                      {
+                        "from": 8,
+                        "to": 10,
+                        "label": "tính",
+                        "kind": "cpu"
+                      }
+                    ]
+                  },
+                  {
+                    "label": "T2",
+                    "blocks": [
+                      {
+                        "from": 2,
+                        "to": 4,
+                        "label": "tính",
+                        "kind": "cpu"
+                      },
+                      {
+                        "from": 6,
+                        "to": 8,
+                        "label": "tính",
+                        "kind": "cpu"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "Một CPU task và một IO task",
+                "lanes": [
+                  {
+                    "label": "tính",
+                    "blocks": [
+                      {
+                        "from": 0,
+                        "to": 3,
+                        "label": "tính",
+                        "kind": "cpu"
+                      }
+                    ]
+                  },
+                  {
+                    "label": "chờ",
+                    "blocks": [
+                      {
+                        "from": 0,
+                        "to": 7,
+                        "label": "chờ IO",
+                        "kind": "wait"
+                      },
+                      {
+                        "from": 7,
+                        "to": 8,
+                        "label": "tính",
+                        "kind": "cpu"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "steps": [
+              {
+                "at": 0,
+                "say": "T1 đang tính nên T1 đang cầm GIL. Thread chờ đã nhả khóa ngay từ đầu.",
+                "mechanism": "Khóa đi theo bytecode, không đi theo khoảng chờ.",
+                "term": "GIL"
+              },
+              {
+                "at": 2,
+                "say": "T1 nhả khóa, T2 mới được tính. Hai khối đậm không bao giờ chồng.",
+                "mechanism": "Hai CPU task thay phiên trên một GIL.",
+                "term": "CPU task"
+              },
+              {
+                "at": 3,
+                "say": "Ở hàng dưới, việc tính đã xong trong khi việc kia vẫn đang chờ.",
+                "mechanism": "IO task không giữ GIL, nên CPU task không phải đợi khoảng chờ.",
+                "term": "IO task"
+              },
+              {
+                "at": 7,
+                "say": "Chờ xong. Thread đó lấy lại GIL chỉ để chạy nốt đoạn Python ngắn.",
+                "mechanism": "Trước và sau khoảng chờ vẫn là bytecode, vẫn phải xếp hàng nếu có thread khác đang tính.",
+                "term": "bytecode"
+              }
+            ]
+          },
+          {
+            "kind": "sequence",
+            "eyebrow": "Request · 08",
+            "title": "Một request đi tới hàm của bạn",
+            "lead": "Khách đưa đơn ở cửa xưởng; nhân viên giữ cửa biến nó thành phiếu việc rồi mới chuyển đến đúng bàn xử lý.",
+            "command": "POST /orders",
+            "predict": "FastAPI có tự đọc socket mạng không?",
+            "conclusion": "Server giữ socket, framework chọn handler, còn code của bạn chỉ chạy sau khi request đã được biến thành dữ liệu có cấu trúc.",
+            "reading": "Client gửi byte HTTP qua một cửa mạng gọi là socket. Uvicorn giữ cửa đó và nói chuyện với ứng dụng qua hợp đồng ASGI. FastAPI nhìn phương thức cùng đường dẫn để chọn route, chuẩn bị các dependency cần thiết rồi gọi handler của bạn. Nếu handler chờ database bằng một lời gọi có thể nhường quyền, event loop có thể phục vụ việc khác. Nếu handler chặn luồng, các request cùng luồng phải xếp hàng. Kết quả đi ngược qua framework và server, được đóng thành HTTP response rồi gửi về client.",
+            "glossary": [
+              {
+                "term": "HTTP",
+                "gloss": "Giao thức của request và response: phương thức, đường dẫn, header, body."
+              },
+              {
+                "term": "socket",
+                "gloss": "Cửa mạng của hệ điều hành. Server giữ cửa này."
+              },
+              {
+                "term": "Uvicorn",
+                "gloss": "ASGI server hay đứng trước FastAPI. Nó nói chuyện với socket."
+              },
+              {
+                "term": "ASGI",
+                "gloss": "Hợp đồng server với ứng dụng: scope, receive, send."
+              },
+              {
+                "term": "scope",
+                "gloss": "Thông tin một kết nối hoặc một request mà server đưa cho ứng dụng."
+              },
+              {
+                "term": "decorator",
+                "gloss": "Lời đăng ký chạy lúc import, ví dụ @app.post(\"/orders\")."
+              },
+              {
+                "term": "route",
+                "gloss": "Đường dẫn cộng phương thức, trỏ tới một handler."
+              },
+              {
+                "term": "dependency",
+                "gloss": "Thứ FastAPI dựng và đưa vào hàm, như session hoặc user."
+              },
+              {
+                "term": "handler",
+                "gloss": "Hàm nghiệp vụ. Chạy sau khi request đã thành dữ liệu."
+              },
+              {
+                "term": "async def / def",
+                "gloss": "async def chạy trên loop. def đồng bộ có thể chiếm thread pool."
+              },
+              {
+                "term": "middleware",
+                "gloss": "Trạm dùng chung, như auth, tracing, CORS, bọc quanh ứng dụng."
+              }
+            ],
+            "actors": [
+              {
+                "id": "client",
+                "name": "Client",
+                "role": "gửi request"
+              },
+              {
+                "id": "server",
+                "name": "Server",
+                "role": "giữ socket"
+              },
+              {
+                "id": "api",
+                "name": "FastAPI",
+                "role": "chọn hàm"
+              },
+              {
+                "id": "handler",
+                "name": "Hàm của bạn",
+                "role": "quyết định"
+              },
+              {
+                "id": "db",
+                "name": "Database",
+                "role": "dữ liệu"
+              }
+            ],
+            "steps": [
+              {
+                "from": "client",
+                "to": "server",
+                "label": "POST /orders",
+                "say": "Client gửi request trên socket.",
+                "mechanism": "Byte HTTP tới server trước khi vào code của bạn.",
+                "term": "socket"
+              },
+              {
+                "from": "server",
+                "to": "api",
+                "label": "đưa request đã tách",
+                "say": "Server biến byte thành một request có đường dẫn và thân.",
+                "mechanism": "Ứng dụng nhận scope và các sự kiện, không tự đọc socket.",
+                "term": "ASGI"
+              },
+              {
+                "from": "api",
+                "to": "handler",
+                "label": "chọn đúng hàm",
+                "say": "FastAPI tìm hàm đã đăng ký cho /orders.",
+                "mechanism": "Decorator lúc import chỉ đăng ký. Hàm chạy lúc request tới.",
+                "term": "route"
+              },
+              {
+                "from": "handler",
+                "to": "db",
+                "label": "xin đơn hàng",
+                "say": "Hàm chờ database.",
+                "mechanism": "Nếu lời gọi này chặn luồng, mọi request khác trên luồng đó phải đợi.",
+                "term": "await"
+              },
+              {
+                "from": "db",
+                "to": "client",
+                "label": "trả response",
+                "say": "Kết quả đi ngược: hàm, framework, server, rồi client.",
+                "mechanism": "Server ghi byte response ra socket.",
+                "term": "response"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "recap",
+        "label": "Tóm lại",
+        "hint": "một bản đồ",
+        "scenes": [
+          {
+            "kind": "mindmap",
+            "eyebrow": "Tóm lại",
+            "title": "Python của bài này",
+            "lead": "Theo một đơn hàng từ hồ sơ project, qua ca làm, bàn vật liệu, cửa giao nhận tới người điều phối thời gian.",
+            "predict": "Mở từng nhánh. Mỗi nhánh là một chỗ trên lệnh python -m pipeline.",
+            "conclusion": "Python là một ca làm có môi trường rõ, dữ liệu có nơi sống, lỗi có đường đi và thời gian được điều phối theo việc đang tính hay đang chờ.",
+            "reading": "Project xác định đúng dụng cụ. Process và interpreter mở ca làm. Tên trỏ tới object; frame giữ trạng thái gọi hàm; exception đi ngược khi công việc hỏng. Qua file hoặc mạng, object phải đổi thành byte. Khi chạy nhiều việc, hãy tách thời gian tính khỏi thời gian chờ để chọn sync, async, thread hay process. Trong web app, server nhận byte trước, framework chọn đường rồi mới tới handler của bạn.",
+            "root": "Một lần chạy",
+            "rootNote": "python -m pipeline",
+            "branches": [
+              {
+                "id": "boot",
+                "title": "Process mở trước",
+                "summary": "File, máy ảo, ba chân",
+                "detail": "Shell tách argv. Process nhận env và cwd. Interpreter mở trước. Source được dịch qua AST thành bytecode. Bytecode chạy trên CPU, object nằm ở RAM, file và socket là I/O.",
+                "leaves": [
+                  {
+                    "term": "argv",
+                    "gloss": "Đối số process nhận."
+                  },
+                  {
+                    "term": "cwd",
+                    "gloss": "Thư mục hiện tại của lần chạy."
+                  },
+                  {
+                    "term": "interpreter",
+                    "gloss": "Chương trình python được nạp trước."
+                  },
+                  {
+                    "term": "AST",
+                    "gloss": "Cây cú pháp của source."
+                  },
+                  {
+                    "term": "bytecode",
+                    "gloss": "Lệnh nhỏ trong code object."
+                  },
+                  {
+                    "term": "code object",
+                    "gloss": "Kế hoạch tĩnh, chưa phải frame."
+                  },
+                  {
+                    "term": "__main__",
+                    "gloss": "Tên module khi chạy như chương trình."
+                  },
+                  {
+                    "term": "CPU / RAM / I/O",
+                    "gloss": "Ba chân của process: tính, nhớ, chờ."
+                  }
+                ]
+              },
+              {
+                "id": "name",
+                "title": "Tên trỏ tới vật",
+                "summary": "Gán không tự sao chép",
+                "detail": "Namespace giữ name binding. Alias là hai tên một object. List mutable nên append là mutation. is so identity. Shallow copy chỉ nhân vỏ. Reference counting và cyclic GC là cách CPython thu hồi object.",
+                "leaves": [
+                  {
+                    "term": "name binding",
+                    "gloss": "Tên trong namespace trỏ tới object."
+                  },
+                  {
+                    "term": "alias",
+                    "gloss": "Hai nhãn, một danh sách."
+                  },
+                  {
+                    "term": "mutable",
+                    "gloss": "Sửa được tại chỗ."
+                  },
+                  {
+                    "term": "identity",
+                    "gloss": "is so cùng vật. == so giá trị."
+                  },
+                  {
+                    "term": "reference counting",
+                    "gloss": "CPython đếm đường đang giữ object."
+                  }
+                ]
+              },
+              {
+                "id": "error",
+                "title": "Lỗi đi ngược",
+                "summary": "Ai không bắt thì lỗi đi tiếp",
+                "detail": "Frame giữ instruction pointer. Exception không có handler thì unwinding gỡ frame. Traceback là bản đồ. with gọi context manager để dọn. cProfile đo thời gian. tracemalloc đo chỗ cấp object.",
+                "leaves": [
+                  {
+                    "term": "frame",
+                    "gloss": "Hồ sơ một lần gọi hàm."
+                  },
+                  {
+                    "term": "traceback",
+                    "gloss": "Đường lỗi vừa đi ngược."
+                  },
+                  {
+                    "term": "context manager",
+                    "gloss": "with mở và đóng tài nguyên."
+                  },
+                  {
+                    "term": "cProfile",
+                    "gloss": "Thời gian nằm ở hàm nào."
+                  },
+                  {
+                    "term": "tracemalloc",
+                    "gloss": "Dòng nào đang cấp bộ nhớ Python."
+                  }
+                ]
+              },
+              {
+                "id": "door",
+                "title": "Qua cửa thành byte",
+                "summary": "File không giữ object",
+                "detail": "Serialize đổi object thành byte theo schema. Buffer đưa byte qua cửa. Parse dựng object mới và validate.",
+                "leaves": [
+                  {
+                    "term": "serialization",
+                    "gloss": "Object thành CSV, JSON hoặc Arrow."
+                  },
+                  {
+                    "term": "schema",
+                    "gloss": "Hình dạng hai phía đã hẹn."
+                  },
+                  {
+                    "term": "buffer",
+                    "gloss": "Khối byte kernel chuyển."
+                  },
+                  {
+                    "term": "validate",
+                    "gloss": "Kiểm tra trước khi tin dữ liệu ngoài."
+                  }
+                ]
+              },
+              {
+                "id": "wait",
+                "title": "Lúc chờ",
+                "summary": "IO chồng được, CPU thì không",
+                "detail": "CPU task là bytecode, chiếm thread; build CPython có GIL sẽ điều phối các thread ở đoạn này. IO task là lúc chờ. Async chồng các khoảng chờ trên một thread. Thread đang chờ IO thường nhả GIL.",
+                "leaves": [
+                  {
+                    "term": "CPU task",
+                    "gloss": "Bytecode đang tính. Trong build có GIL, các thread phải thay phiên ở đoạn này."
+                  },
+                  {
+                    "term": "IO task",
+                    "gloss": "Đang chờ. Async nhả thread; lời gọi I/O thường nhả GIL tùy implementation."
+                  },
+                  {
+                    "term": "await",
+                    "gloss": "Chồng khoảng chờ, không thêm nhân."
+                  },
+                  {
+                    "term": "GIL",
+                    "gloss": "Cơ chế điều phối bytecode trong build CPython có GIL; không khóa khoảng chờ I/O."
+                  },
+                  {
+                    "term": "process",
+                    "gloss": "Không gian thực thi riêng; nhiều process là cách rõ ràng để tách CPU task song song."
+                  }
+                ]
+              },
+              {
+                "id": "loop",
+                "title": "Ai giữ lái",
+                "summary": "Server và framework ở ngoài",
+                "detail": "HTTP tới socket. Uvicorn là ASGI server, đưa scope cho FastAPI. Decorator đăng ký route lúc import. Dependency dựng đồ hàm cần. Handler mới là nghiệp vụ. Middleware bọc ngoài.",
+                "leaves": [
+                  {
+                    "term": "Uvicorn",
+                    "gloss": "Server đọc socket trước FastAPI."
+                  },
+                  {
+                    "term": "ASGI",
+                    "gloss": "scope, receive, send."
+                  },
+                  {
+                    "term": "decorator",
+                    "gloss": "Đăng ký route lúc import."
+                  },
+                  {
+                    "term": "handler",
+                    "gloss": "Hàm nghiệp vụ chạy sau."
+                  },
+                  {
+                    "term": "middleware",
+                    "gloss": "Auth, log, CORS bọc ngoài route."
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "F03": {
+    "promise": "Đi từ câu hỏi “database là gì?” tới PostgreSQL thật: mô hình dữ liệu, kiến trúc, cơ chế chạy, tối ưu và phục hồi trong production.",
+    "chapters": [
+      {
+        "id": "system",
+        "label": "Bức tranh hệ thống",
+        "hint": "logical → physical",
+        "scenes": [
+          {
+            "kind": "layers",
+            "eyebrow": "Bản chất · 01",
+            "title": "Database là nơi giữ sự thật cho nhiều người",
+            "lead": "Nhiều quầy cùng bán từ một kho chung: phải có một nơi nhận yêu cầu, giữ luật và để lại bằng chứng sau mỗi thay đổi.",
+            "predict": "Nếu không phải chỉ là một file CSV, database còn phải làm những việc gì?",
+            "conclusion": "Database giữ sự thật chung bằng luật, điều phối người dùng, chọn đường truy cập và lưu bằng chứng để phục hồi.",
+            "reading": "Database là người giữ sổ chung, không chỉ là chiếc tủ cất dữ liệu. Ở lớp người dùng nhìn thấy, ta có bảng, cột, mối quan hệ và luật dữ liệu. Ở lớp máy vận hành, một process nhận yêu cầu, bộ chọn đường quyết định cách tìm, bộ thực thi đọc các trang dữ liệu và nhật ký ghi lại thay đổi. Bộ nhớ đệm giữ các trang đang dùng để đỡ đọc đĩa nhiều lần. Nhật ký ghi trước (WAL) giúp hệ thống làm lại thay đổi nếu máy tắt trước khi trang dữ liệu kịp được lưu. Toàn bộ cỗ máy phục vụ bốn việc: dữ liệu đúng, nhiều người cùng dùng, trả lời đủ nhanh và sống qua sự cố.",
+            "glossary": [
+              {
+                "term": "logical model",
+                "gloss": "Mô hình người dùng thấy: bảng, cột, khóa và ràng buộc."
+              },
+              {
+                "term": "backend process",
+                "gloss": "Process PostgreSQL phục vụ một kết nối và chạy query."
+              },
+              {
+                "term": "shared buffers",
+                "gloss": "Vùng shared memory giữ các page PostgreSQL đang dùng."
+              },
+              {
+                "term": "WAL",
+                "gloss": "Write-ahead log: ghi thay đổi tuần tự trước khi page dữ liệu được ghi."
+              },
+              {
+                "term": "heap page",
+                "gloss": "Trang vật lý chứa tuple của table trong PostgreSQL."
+              },
+              {
+                "term": "durability",
+                "gloss": "Commit đã ghi đủ bằng chứng để sống qua crash."
+              }
+            ],
+            "spine": [
+              {
+                "id": "client",
+                "name": "Ứng dụng gửi yêu cầu",
+                "holds": "client · protocol · dữ liệu",
+                "icon": "client"
+              },
+              {
+                "id": "backend",
+                "name": "Bộ máy PostgreSQL",
+                "holds": "backend · phân tích · chạy",
+                "icon": "postgres"
+              },
+              {
+                "id": "memory",
+                "name": "Bộ nhớ dùng chung",
+                "holds": "shared buffers · khóa · WAL",
+                "icon": "buffer"
+              },
+              {
+                "id": "files",
+                "name": "Các tệp của cluster",
+                "holds": "heap · index · catalog",
+                "icon": "database"
+              },
+              {
+                "id": "durable",
+                "name": "Nơi lưu bền vững",
+                "holds": "fsync · sống qua sự cố",
+                "icon": "wal"
+              }
+            ],
+            "links": [
+              "wire protocol",
+              "executor asks",
+              "page reads / writes",
+              "filesystem I/O"
+            ],
+            "feet": [
+              {
+                "id": "cpu",
+                "name": "CPU",
+                "holds": "parse + plan + execute",
+                "icon": "server"
+              },
+              {
+                "id": "ram",
+                "name": "RAM",
+                "holds": "buffers + process state",
+                "icon": "memory"
+              },
+              {
+                "id": "disk",
+                "name": "SSD / disk",
+                "holds": "WAL + data pages",
+                "icon": "wal"
+              },
+              {
+                "id": "net",
+                "name": "Network",
+                "holds": "client ↔ server",
+                "icon": "network"
+              }
+            ],
+            "footNote": "Đường đi của một query là đường đi của state: protocol → process → memory → page/WAL → storage.",
+            "steps": [
+              {
+                "focus": "client",
+                "say": "Client gửi ý định qua protocol, không gửi trực tiếp vào file.",
+                "mechanism": "Driver đóng câu lệnh và parameter thành message mà server hiểu.",
+                "term": "client & protocol"
+              },
+              {
+                "focus": "backend",
+                "say": "Backend process nhận kết nối và giữ quyền chạy query.",
+                "mechanism": "PostgreSQL backend parse, bind, plan rồi execute trong process này.",
+                "term": "backend process"
+              },
+              {
+                "focus": "memory",
+                "say": "Executor tìm page qua shared buffers trước khi đụng disk.",
+                "mechanism": "Buffer hit rẻ hơn read vật lý; miss mới tạo I/O.",
+                "term": "shared buffers"
+              },
+              {
+                "focus": "files",
+                "say": "Table và index là các page vật lý, không phải object Python.",
+                "mechanism": "Heap, index và catalog được quản lý theo page trên cluster filesystem.",
+                "term": "heap page"
+              },
+              {
+                "focus": "durable",
+                "say": "Ghi thay đổi phải có WAL trước khi commit được tin.",
+                "mechanism": "WAL giúp redo thay đổi sau crash trước khi data page được flush.",
+                "term": "WAL"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "model",
+        "label": "Mô hình dữ liệu",
+        "hint": "quan hệ + ràng buộc",
+        "scenes": [
+          {
+            "kind": "mindmap",
+            "eyebrow": "Mô hình · 02",
+            "title": "Từ sự thật nghiệp vụ tới trạng thái quan hệ",
+            "lead": "Trước khi kẻ bảng, hãy nói rõ sự thật nào cần giữ, điều gì phải duy nhất và trạng thái nào không bao giờ được phép xảy ra.",
+            "predict": "Nếu bỏ constraint khỏi database và chỉ kiểm tra ở application, boundary nào còn bảo vệ dữ liệu?",
+            "reading": "Hãy bắt đầu từ câu “một đơn hàng thuộc về một khách hàng”, không bắt đầu từ số cột. Mỗi loại sự thật được đặt vào một quan hệ (relation); mỗi bản ghi là một tuple. Khóa (key) nhận diện một bản ghi, còn khóa ngoại (foreign key) nối hai loại sự thật. Ràng buộc (constraint) chặn trạng thái vô lý, ví dụ số lượng âm hoặc đơn hàng trỏ tới khách không tồn tại. Chuẩn hóa (normalization) giảm việc chép cùng một sự thật ở nhiều nơi, nhờ đó sửa một chỗ không làm nơi khác mâu thuẫn. Chỉ khi bằng chứng hiệu năng cho thấy cần thiết mới chủ động lưu lặp, gọi là denormalization.",
+            "conclusion": "Mô hình tốt đặt mỗi sự thật đúng chỗ và đặt luật cạnh dữ liệu để trạng thái sai không thể âm thầm tồn tại.",
+            "root": "Cơ sở dữ liệu quan hệ",
+            "rootNote": "fact + invariant + access path",
+            "branches": [
+              {
+                "id": "relation",
+                "title": "Bảng và dòng dữ liệu (relation)",
+                "summary": "Các dòng cùng một hình dạng",
+                "detail": "Table là cách PostgreSQL biểu diễn các fact cùng loại. Tuple là một dòng; attribute là một cột với kiểu dữ liệu và quy tắc rõ.",
+                "leaves": [
+                  {
+                    "term": "relation",
+                    "gloss": "Tập các dòng có cùng các cột."
+                  },
+                  {
+                    "term": "tuple",
+                    "gloss": "Một dòng dữ liệu."
+                  },
+                  {
+                    "term": "attribute",
+                    "gloss": "Một cột mô tả thuộc tính."
+                  }
+                ]
+              },
+              {
+                "id": "keys",
+                "title": "Khóa nhận diện (key)",
+                "summary": "Biết một fact là ai",
+                "detail": "Primary key đặt danh tính ổn định cho một bảng. Candidate key là các cách nhận diện tối thiểu; unique bảo vệ không trùng.",
+                "leaves": [
+                  {
+                    "term": "primary key",
+                    "gloss": "Danh tính chính, không rỗng và duy nhất."
+                  },
+                  {
+                    "term": "candidate key",
+                    "gloss": "Một cách tối thiểu để nhận diện dòng."
+                  },
+                  {
+                    "term": "unique",
+                    "gloss": "Ràng buộc không cho hai giá trị trùng."
+                  }
+                ]
+              },
+              {
+                "id": "links",
+                "title": "Khóa liên kết (foreign key)",
+                "summary": "Nối dữ liệu giữa các bảng",
+                "detail": "Foreign key nói giá trị ở bảng con phải trỏ tới danh tính hợp lệ ở bảng cha. Database nhờ vậy tự bảo vệ mối liên hệ nghiệp vụ.",
+                "leaves": [
+                  {
+                    "term": "foreign key",
+                    "gloss": "Liên kết tới khóa của bảng khác."
+                  },
+                  {
+                    "term": "referential integrity",
+                    "gloss": "Không để liên kết trỏ tới dòng không tồn tại."
+                  },
+                  {
+                    "term": "cascade",
+                    "gloss": "Chính sách thay đổi liên kết theo bảng cha."
+                  }
+                ]
+              },
+              {
+                "id": "normal",
+                "title": "Tách đúng rồi mới đo",
+                "summary": "Giảm sai lệch trước khi tối ưu đọc",
+                "detail": "Chuẩn hóa giảm dữ liệu lặp và lỗi khi sửa/xóa. Khi workload chứng minh join là nút nghẽn, có thể lặp có chủ đích nhưng phải có cách làm mới.",
+                "leaves": [
+                  {
+                    "term": "normalization",
+                    "gloss": "Tách fact để giảm lặp và lỗi."
+                  },
+                  {
+                    "term": "denormalization",
+                    "gloss": "Lặp có chủ đích để đổi chi phí ghi lấy đọc nhanh."
+                  },
+                  {
+                    "term": "anomaly",
+                    "gloss": "Sai lệch khi thêm, sửa hoặc xóa."
+                  }
+                ]
+              },
+              {
+                "id": "physical",
+                "title": "Nhìn logic, hiểu vật lý",
+                "summary": "Một bảng gồm nhiều trang lưu trữ",
+                "detail": "Một table logic có heap page, index page, visibility map, free space map và catalog metadata. Planner chọn cách chạm các cấu trúc này.",
+                "leaves": [
+                  {
+                    "term": "catalog",
+                    "gloss": "Metadata PostgreSQL dùng để biết object và thống kê."
+                  },
+                  {
+                    "term": "access path",
+                    "gloss": "Đường planner đi tới dòng: tuần tự, index hoặc bitmap."
+                  },
+                  {
+                    "term": "invariant",
+                    "gloss": "Điều kiện dữ liệu luôn phải đúng."
+                  }
+                ]
+              }
+            ],
+            "steps": [
+              {
+                "from": "fact",
+                "to": "relation",
+                "label": "gom cùng loại sự thật",
+                "say": "Tách khách hàng, sản phẩm và đơn hàng thành các nhóm sự thật riêng.",
+                "mechanism": "Mỗi nhóm trở thành một relation có các thuộc tính rõ ràng.",
+                "term": "relation"
+              },
+              {
+                "from": "relation",
+                "to": "key",
+                "label": "nhận diện",
+                "say": "Mỗi bản ghi cần một mã không nhập nhằng.",
+                "mechanism": "Key cho phép tham chiếu đúng một tuple thay vì đoán bằng tên.",
+                "term": "key"
+              },
+              {
+                "from": "key",
+                "to": "link",
+                "label": "nối sự thật",
+                "say": "Đơn hàng giữ mã khách thay vì chép lại toàn bộ hồ sơ khách.",
+                "mechanism": "Foreign key giữ mối nối và chặn tham chiếu tới bản ghi không tồn tại.",
+                "term": "foreign key"
+              },
+              {
+                "from": "link",
+                "to": "rule",
+                "label": "chặn state sai",
+                "say": "Số lượng âm bị từ chối ngay tại nơi giữ dữ liệu.",
+                "mechanism": "Constraint biến luật nghiệp vụ cốt lõi thành luật database có thể thực thi.",
+                "term": "constraint"
+              },
+              {
+                "from": "rule",
+                "to": "normal",
+                "label": "giảm lặp",
+                "say": "Một sự thật chỉ có một nơi chuẩn để sửa.",
+                "mechanism": "Normalization giảm anomaly khi thêm, sửa hoặc xóa dữ liệu.",
+                "term": "normalization"
+              }
+            ],
+            "glossary": [
+              {
+                "term": "relation",
+                "gloss": "Một tập bản ghi cùng ý nghĩa và cùng cấu trúc; thường được thể hiện thành bảng."
+              },
+              {
+                "term": "tuple",
+                "gloss": "Một bản ghi cụ thể trong relation, ví dụ một đơn hàng."
+              },
+              {
+                "term": "key",
+                "gloss": "Giá trị dùng để nhận diện duy nhất một bản ghi."
+              },
+              {
+                "term": "foreign key",
+                "gloss": "Giá trị nối sang key của relation khác và bảo vệ mối liên hệ."
+              },
+              {
+                "term": "constraint",
+                "gloss": "Luật database tự kiểm tra để chặn trạng thái không hợp lệ."
+              },
+              {
+                "term": "normalization",
+                "gloss": "Cách sắp sự thật để giảm lưu lặp và giảm mâu thuẫn khi sửa."
+              },
+              {
+                "term": "denormalization",
+                "gloss": "Chủ động lưu lặp để đổi lấy đường đọc đơn giản hơn, chỉ làm khi có lý do và bằng chứng."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "process",
+        "label": "Các tiến trình PostgreSQL",
+        "hint": "server + bộ nhớ dùng chung",
+        "scenes": [
+          {
+            "kind": "layers",
+            "eyebrow": "Bộ máy chạy · 03",
+            "title": "Một cluster, nhiều tiến trình, một vùng state chung",
+            "lead": "Nhà hàng có một cửa nhận khách, mỗi bàn có nhân viên phụ trách, còn kho và đội hậu cần được dùng chung.",
+            "predict": "Hai ứng dụng đồng thời có dùng chung một backend process không?",
+            "conclusion": "Mỗi kết nối thường có backend riêng; memory chung và process nền giúp tất cả cùng làm trên một database nhất quán.",
+            "reading": "PostgreSQL không phải một process khổng lồ làm mọi việc. Process chính mở cổng và nhận kết nối. Mỗi kết nối thường có một backend riêng giữ trạng thái phiên làm việc và chạy câu hỏi của khách đó. Các backend không cất trang dữ liệu riêng cho mình; chúng phối hợp qua vùng nhớ chung như shared buffers và bảng khóa. Một số process nền lo ghi nhật ký, tạo mốc phục hồi và dọn phiên bản dữ liệu cũ. Cách chia này giúp ta biết lỗi thuộc phiên khách hiện tại, vùng state chung hay công việc hậu cần.",
+            "glossary": [
+              {
+                "term": "postmaster / server process",
+                "gloss": "Process cha khởi tạo server và điều phối kết nối."
+              },
+              {
+                "term": "backend",
+                "gloss": "Process phục vụ một client connection."
+              },
+              {
+                "term": "shared memory",
+                "gloss": "Vùng state nhiều process PostgreSQL cùng truy cập có kiểm soát."
+              },
+              {
+                "term": "WAL writer",
+                "gloss": "Process nền đẩy WAL buffers ra log files."
+              },
+              {
+                "term": "checkpointer",
+                "gloss": "Đảm bảo checkpoint tạo mốc recovery và flush dirty pages."
+              },
+              {
+                "term": "autovacuum",
+                "gloss": "Worker dọn dead tuples, cập nhật stats và chống transaction ID wraparound."
+              }
+            ],
+            "spine": [
+              {
+                "id": "server",
+                "name": "Tiến trình máy chủ",
+                "holds": "server · lắng nghe · vòng đời",
+                "icon": "server"
+              },
+              {
+                "id": "backend",
+                "name": "Tiến trình phục vụ kết nối",
+                "holds": "backend · mỗi kết nối một context",
+                "icon": "postgres"
+              },
+              {
+                "id": "shared",
+                "name": "Vùng bộ nhớ dùng chung",
+                "holds": "shared memory · buffers · khóa",
+                "icon": "buffer"
+              },
+              {
+                "id": "workers",
+                "name": "Các việc chạy nền",
+                "holds": "WAL · checkpoint · vacuum",
+                "icon": "vacuum"
+              },
+              {
+                "id": "cluster",
+                "name": "Cụm cơ sở dữ liệu",
+                "holds": "catalog · heap · index",
+                "icon": "database"
+              }
+            ],
+            "links": [
+              "accept connection",
+              "coordinate",
+              "flush / clean",
+              "persist pages"
+            ],
+            "feet": [
+              {
+                "id": "cpu",
+                "name": "Scheduler",
+                "holds": "nhiều process chạy",
+                "icon": "server"
+              },
+              {
+                "id": "ram",
+                "name": "Shared RAM",
+                "holds": "state nóng",
+                "icon": "memory"
+              },
+              {
+                "id": "disk",
+                "name": "Storage",
+                "holds": "WAL + relation files",
+                "icon": "wal"
+              }
+            ],
+            "footNote": "Boundary process là chìa khóa: session state riêng, shared state có protocol đồng bộ.",
+            "steps": [
+              {
+                "focus": "server",
+                "say": "Server giữ lifecycle và cổng lắng nghe.",
+                "mechanism": "Nó khởi tạo cluster, nhận kết nối và quản lý process con.",
+                "term": "server process"
+              },
+              {
+                "focus": "backend",
+                "say": "Mỗi connection có backend context để chạy query.",
+                "mechanism": "Backend giữ session state, transaction state và executor state riêng.",
+                "term": "backend"
+              },
+              {
+                "focus": "shared",
+                "say": "Backend không tự giữ bản sao page độc lập.",
+                "mechanism": "Các process phối hợp qua shared buffers, lock table và WAL buffers.",
+                "term": "shared memory"
+              },
+              {
+                "focus": "workers",
+                "say": "Việc nền giữ hệ thống không phình và không mất durability.",
+                "mechanism": "WAL writer, checkpointer và autovacuum xử lý hậu cần.",
+                "term": "autovacuum"
+              },
+              {
+                "focus": "cluster",
+                "say": "Tất cả hội tụ về một cluster state có catalog và relation files.",
+                "mechanism": "Catalog mô tả object; heap/index chứa dữ liệu và access path.",
+                "term": "catalog"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "query",
+        "label": "Đường đi của truy vấn",
+        "hint": "đọc → chọn kế hoạch → chạy",
+        "scenes": [
+          {
+            "kind": "sequence",
+            "eyebrow": "Luồng chạy · 04",
+            "title": "Một SELECT đi qua PostgreSQL như thế nào?",
+            "lead": "Khách hỏi một món; người tiếp nhận hiểu yêu cầu, người lập tuyến chọn đường vào kho, rồi người lấy hàng mới đi thật.",
+            "command": "SELECT customer_id, sum(amount) FROM orders GROUP BY customer_id;",
+            "predict": "Bộ chọn kế hoạch có đọc từng dòng ngay khi nhận câu SQL không?",
+            "conclusion": "Planner chọn đường dự kiến; executor đi theo đường đó; EXPLAIN ANALYZE cho biết dự kiến lệch thực tế ở đâu.",
+            "reading": "Driver gửi câu SQL và dữ liệu đi kèm qua giao thức mạng. Backend đọc cú pháp, kiểm tra tên bảng, kiểu dữ liệu và quyền. Planner chưa lấy dữ liệu; nó so các đường có thể đi dựa trên số liệu thống kê và chi phí ước lượng. Executor mới chạy kế hoạch đã chọn, xin các trang dữ liệu qua buffer và trả các dòng kết quả về client. `EXPLAIN` cho thấy kế hoạch dự tính; `EXPLAIN ANALYZE` chạy thật để so dự tính với số dòng và thời gian thực tế. Nhờ đó tối ưu query bắt đầu từ bằng chứng thay vì từ mẹo “cứ thêm index”.",
+            "glossary": [
+              {
+                "term": "wire protocol",
+                "gloss": "Quy ước message giữa client driver và server."
+              },
+              {
+                "term": "parse tree",
+                "gloss": "Cấu trúc cú pháp sau khi parser đọc SQL."
+              },
+              {
+                "term": "rewrite",
+                "gloss": "Bước mở rộng view/rule và biến query thành dạng planner dùng."
+              },
+              {
+                "term": "planner / optimizer",
+                "gloss": "Bộ chọn plan dựa trên statistics và cost model."
+              },
+              {
+                "term": "executor",
+                "gloss": "Bộ chạy plan node và trả tuple."
+              },
+              {
+                "term": "EXPLAIN ANALYZE",
+                "gloss": "Chạy query thật và ghi actual rows/time; không chỉ ước lượng."
+              }
+            ],
+            "actors": [
+              {
+                "id": "client",
+                "name": "Ứng dụng / driver",
+                "role": "gửi yêu cầu"
+              },
+              {
+                "id": "backend",
+                "name": "Backend PostgreSQL",
+                "role": "một kết nối"
+              },
+              {
+                "id": "parse",
+                "name": "Đọc và viết lại câu lệnh",
+                "role": "parse / rewrite"
+              },
+              {
+                "id": "plan",
+                "name": "Bộ chọn đường chạy",
+                "role": "planner · cost"
+              },
+              {
+                "id": "exec",
+                "name": "Bộ thực thi",
+                "role": "executor · plan"
+              },
+              {
+                "id": "buffer",
+                "name": "Bộ quản lý trang",
+                "role": "buffer manager"
+              },
+              {
+                "id": "storage",
+                "name": "Bảng và chỉ mục",
+                "role": "heap / index"
+              }
+            ],
+            "steps": [
+              {
+                "from": "client",
+                "to": "backend",
+                "label": "query message",
+                "say": "Driver gửi statement và parameter qua protocol.",
+                "mechanism": "Server nhận bytes và gắn chúng vào session backend.",
+                "term": "wire protocol"
+              },
+              {
+                "from": "backend",
+                "to": "parse",
+                "label": "parse + analyze",
+                "say": "Backend dựng cây cú pháp rồi kiểm tra object, type và quyền.",
+                "mechanism": "Parse/rewrite biến SQL thành input có nghĩa cho planner.",
+                "term": "parse tree"
+              },
+              {
+                "from": "parse",
+                "to": "plan",
+                "label": "rewrite tree",
+                "say": "Planner nhận query đã được phân tích.",
+                "mechanism": "Statistics và index là evidence, không phải guarantee plan cố định.",
+                "term": "planner / optimizer"
+              },
+              {
+                "from": "plan",
+                "to": "exec",
+                "label": "chosen plan",
+                "say": "Planner trả một cây plan cho executor.",
+                "mechanism": "Seq scan, index scan, join và aggregate là các node có cost.",
+                "term": "access path"
+              },
+              {
+                "from": "exec",
+                "to": "buffer",
+                "label": "request page",
+                "say": "Executor xin tuple thông qua buffer manager.",
+                "mechanism": "Buffer hit tránh disk; miss đọc page vào shared buffers.",
+                "term": "shared buffers"
+              },
+              {
+                "from": "buffer",
+                "to": "storage",
+                "label": "heap / index read",
+                "say": "Page được lấy từ heap hoặc index.",
+                "mechanism": "Visibility và index condition quyết định tuple nào được trả.",
+                "term": "heap page"
+              },
+              {
+                "from": "exec",
+                "to": "client",
+                "label": "rows + status",
+                "say": "Executor trả rows về driver qua protocol.",
+                "mechanism": "Backend encode tuple thành message; client dựng result.",
+                "term": "wire protocol"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "transactions",
+        "label": "Giao dịch và nhiều người cùng làm",
+        "hint": "visibility + concurrency",
+        "scenes": [
+          {
+            "kind": "timeline",
+            "eyebrow": "Đồng thời · 05",
+            "title": "Commit không chỉ là “xong câu lệnh”",
+            "lead": "Hai quầy cùng nhìn sổ kho vào hai thời điểm khác nhau; khi cùng sửa một món, hệ thống phải ngăn kết quả vô lý.",
+            "predict": "T2 đọc row T1 vừa sửa trước khi T1 commit sẽ thấy gì?",
+            "conclusion": "Snapshot quyết định phiên bản được nhìn thấy; lock phân xử ghi xung đột; WAL bảo vệ lời hứa commit.",
+            "reading": "PostgreSQL giữ nhiều phiên bản của một bản ghi thay vì luôn sửa đè. Cơ chế đó gọi là MVCC. Mỗi transaction có một quy tắc nhìn gọi là snapshot, nhờ vậy một người có thể tiếp tục đọc phiên bản phù hợp trong lúc người khác đang sửa. Khi hai người cùng ghi vào chỗ xung đột, lock buộc họ xếp lượt. Isolation level quyết định loại thay đổi nào một transaction được phép quan sát. Khi commit, hệ thống phải ghi đủ bằng chứng vào WAL trước khi báo thành công. Nếu các lock tạo thành vòng chờ, PostgreSQL phát hiện deadlock và hủy một bên để hệ thống tiếp tục.",
+            "glossary": [
+              {
+                "term": "MVCC",
+                "gloss": "Multi-version concurrency control: nhiều version để đọc và ghi ít chặn nhau."
+              },
+              {
+                "term": "snapshot",
+                "gloss": "Ảnh visibility transaction dùng để quyết định tuple nào nhìn thấy."
+              },
+              {
+                "term": "xmin / xmax",
+                "gloss": "Transaction ID tạo version và transaction ID kết thúc version."
+              },
+              {
+                "term": "row lock",
+                "gloss": "Khóa bảo vệ conflict ghi trên tuple hoặc key liên quan."
+              },
+              {
+                "term": "isolation level",
+                "gloss": "Mức anomaly transaction được phép quan sát."
+              },
+              {
+                "term": "deadlock",
+                "gloss": "Hai transaction chờ nhau theo vòng; PostgreSQL phải abort một bên."
+              }
+            ],
+            "tracks": [
+              {
+                "name": "Transaction timeline",
+                "lanes": [
+                  {
+                    "label": "T1",
+                    "blocks": [
+                      {
+                        "from": 0,
+                        "to": 2,
+                        "label": "read snapshot",
+                        "kind": "cpu"
+                      },
+                      {
+                        "from": 2,
+                        "to": 5,
+                        "label": "update + WAL",
+                        "kind": "cpu"
+                      },
+                      {
+                        "from": 5,
+                        "to": 7,
+                        "label": "commit",
+                        "kind": "cpu"
+                      }
+                    ]
+                  },
+                  {
+                    "label": "T2",
+                    "blocks": [
+                      {
+                        "from": 1,
+                        "to": 3,
+                        "label": "read old version",
+                        "kind": "wait"
+                      },
+                      {
+                        "from": 3,
+                        "to": 5,
+                        "label": "write conflict",
+                        "kind": "cpu"
+                      },
+                      {
+                        "from": 5,
+                        "to": 8,
+                        "label": "retry / wait",
+                        "kind": "wait"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "Visibility",
+                "lanes": [
+                  {
+                    "label": "tuple",
+                    "blocks": [
+                      {
+                        "from": 0,
+                        "to": 3,
+                        "label": "old version visible",
+                        "kind": "cpu"
+                      },
+                      {
+                        "from": 3,
+                        "to": 7,
+                        "label": "new version pending",
+                        "kind": "wait"
+                      },
+                      {
+                        "from": 7,
+                        "to": 9,
+                        "label": "new version visible",
+                        "kind": "cpu"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "steps": [
+              {
+                "at": 0,
+                "say": "T1 lấy snapshot và đọc version hiện tại.",
+                "mechanism": "Snapshot là mốc visibility của statement/transaction.",
+                "term": "snapshot"
+              },
+              {
+                "at": 2,
+                "say": "T1 update tạo version mới và ghi WAL record.",
+                "mechanism": "Data page chưa cần flush ngay, nhưng WAL phải có trước commit.",
+                "term": "WAL"
+              },
+              {
+                "at": 4,
+                "say": "T2 vẫn có thể thấy version cũ nếu snapshot chưa thấy T1.",
+                "mechanism": "MVCC cho đọc nhất quán mà không cần chặn mọi read.",
+                "term": "MVCC"
+              },
+              {
+                "at": 6,
+                "say": "T1 commit; version mới trở thành candidate visible.",
+                "mechanism": "Commit status + snapshot quyết định thời điểm reader thấy version mới.",
+                "term": "isolation level"
+              },
+              {
+                "at": 8,
+                "say": "Vacuum chỉ dọn version cũ khi không còn snapshot cần nó.",
+                "mechanism": "Long transaction có thể giữ dead tuples và làm bloat tăng.",
+                "term": "xmin / xmax"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "storage",
+        "label": "Lưu trữ và sống qua sự cố",
+        "hint": "page · WAL · vacuum",
+        "scenes": [
+          {
+            "kind": "layers",
+            "eyebrow": "Vật lý · 06",
+            "title": "Page là đơn vị suy luận, WAL là bằng chứng",
+            "lead": "Sổ kho được chia thành trang; trước khi sửa trang, nhà hàng ghi nhật ký để có thể dựng lại sau mất điện.",
+            "predict": "Nếu database crash sau commit nhưng data page chưa flush, điều gì cứu state?",
+            "conclusion": "Page giữ dữ liệu, WAL giữ bằng chứng, checkpoint rút ngắn đường phục hồi và vacuum tái sử dụng chỗ của phiên bản cũ.",
+            "reading": "Dữ liệu vật lý được gom thành các page; một page chứa nhiều bản ghi. Khi update, PostgreSQL tạo phiên bản mới và để phiên bản cũ lại cho những snapshot còn cần nó. WAL ghi mô tả thay đổi trước khi page dữ liệu bắt buộc xuống đĩa, nên sau crash hệ thống có thể làm lại phần đã cam kết. Checkpoint tạo một mốc gần để recovery không phải đọc nhật ký từ đầu. Vacuum dọn các phiên bản cũ khi không ai còn cần và đánh dấu chỗ có thể tái sử dụng. Nếu transaction sống quá lâu, việc dọn bị trì hoãn và dữ liệu vật lý có thể phình ra thành bloat.",
+            "glossary": [
+              {
+                "term": "heap page",
+                "gloss": "Page vật lý của table, thường chứa nhiều tuple."
+              },
+              {
+                "term": "line pointer",
+                "gloss": "Offset trong page trỏ tới tuple location."
+              },
+              {
+                "term": "visibility map",
+                "gloss": "Bitmap cho biết page có toàn tuple visible với mọi transaction cần thiết."
+              },
+              {
+                "term": "free space map",
+                "gloss": "Metadata ước lượng chỗ trống để tìm page nhận tuple mới."
+              },
+              {
+                "term": "checkpoint",
+                "gloss": "Mốc WAL và dirty page giúp recovery bắt đầu từ vị trí hữu hạn."
+              },
+              {
+                "term": "bloat",
+                "gloss": "Không gian phình do dead tuple, page split hoặc cập nhật không được tái sử dụng."
+              },
+              {
+                "term": "WAL",
+                "gloss": "Nhật ký ghi mô tả thay đổi trước khi trang dữ liệu bắt buộc được lưu."
+              },
+              {
+                "term": "vacuum",
+                "gloss": "Công việc xác nhận phiên bản cũ không còn ai cần để không gian được dùng lại."
+              }
+            ],
+            "spine": [
+              {
+                "id": "tuple",
+                "name": "Phiên bản một dòng dữ liệu",
+                "holds": "xmin · xmax · nội dung",
+                "icon": "database"
+              },
+              {
+                "id": "page",
+                "name": "Trang chứa dữ liệu",
+                "holds": "heap page · vị trí · tuple",
+                "icon": "database"
+              },
+              {
+                "id": "maps",
+                "name": "Bản đồ nhìn thấy & chỗ trống",
+                "holds": "VM + FSM · visibility · free space",
+                "icon": "index"
+              },
+              {
+                "id": "wal",
+                "name": "Dòng nhật ký thay đổi",
+                "holds": "WAL · bằng chứng để làm lại",
+                "icon": "wal"
+              },
+              {
+                "id": "checkpoint",
+                "name": "Mốc khôi phục",
+                "holds": "checkpoint · recovery",
+                "icon": "server"
+              }
+            ],
+            "links": [
+              "pack into",
+              "summarize",
+              "log before flush",
+              "replay after crash"
+            ],
+            "feet": [
+              {
+                "id": "cpu",
+                "name": "Executor",
+                "holds": "creates versions",
+                "icon": "postgres"
+              },
+              {
+                "id": "ram",
+                "name": "Buffers",
+                "holds": "dirty + clean pages",
+                "icon": "buffer"
+              },
+              {
+                "id": "disk",
+                "name": "Persistent files",
+                "holds": "heap + WAL",
+                "icon": "wal"
+              }
+            ],
+            "footNote": "Page layout giải thích access path; WAL + checkpoint giải thích durability; vacuum giải thích lifecycle của version.",
+            "steps": [
+              {
+                "focus": "tuple",
+                "say": "Update không đè vô điều kiện; nó tạo version và metadata visibility.",
+                "mechanism": "xmin/xmax nối tuple vật lý với transaction snapshot.",
+                "term": "xmin / xmax"
+              },
+              {
+                "focus": "page",
+                "say": "Các version sống trong heap page.",
+                "mechanism": "Tuple location và line pointer là nền cho heap access.",
+                "term": "heap page"
+              },
+              {
+                "focus": "maps",
+                "say": "VM/FSM giúp PostgreSQL biết page nào sạch và page nào còn chỗ.",
+                "mechanism": "Metadata này giảm công việc cho index-only scan, vacuum và insert.",
+                "term": "visibility map"
+              },
+              {
+                "focus": "wal",
+                "say": "WAL ghi record thay đổi trước khi dirty page bắt buộc ra disk.",
+                "mechanism": "Đó là write-ahead rule: redo từ log nếu data page chưa kịp flush.",
+                "term": "WAL"
+              },
+              {
+                "focus": "checkpoint",
+                "say": "Checkpoint tạo mốc để crash recovery không phải đọc vô hạn.",
+                "mechanism": "Sau recovery, vacuum/autovacuum dọn version đủ cũ và giảm bloat.",
+                "term": "checkpoint"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "planner",
+        "label": "Chỉ mục và bộ chọn kế hoạch",
+        "hint": "access path + cost",
+        "scenes": [
+          {
+            "kind": "dag",
+            "eyebrow": "Tối ưu · 07",
+            "title": "Index không phải nút “nhanh hơn”",
+            "lead": "Mục lục giúp tìm vài món nhanh; nếu phải kiểm gần cả kho, đi lần lượt từng kệ có thể rẻ hơn nhảy qua lại.",
+            "predict": "Có index trên cột filter thì planner luôn dùng index scan không?",
+            "conclusion": "Index chỉ có ích khi giúp bỏ đủ công việc; planner chọn từ ước lượng và ta phải kiểm lại bằng số liệu thực tế.",
+            "reading": "Index là một đường truy cập bổ sung, không phải nút “nhanh hơn”. Planner ước lượng câu hỏi sẽ giữ lại bao nhiêu dòng; tỷ lệ đó gọi là selectivity. Nó dùng thống kê để đoán số dòng (cardinality estimate), rồi so chi phí đọc tuần tự với đi qua index. B-tree là loại index nền cho so sánh bằng, khoảng và sắp thứ tự. Nếu query cần phần lớn bảng, sequential scan có thể hợp lý hơn. Hãy dùng `EXPLAIN ANALYZE` để so số dòng ước lượng với số dòng thật trước khi sửa index hoặc cấu hình.",
+            "glossary": [
+              {
+                "term": "selectivity",
+                "gloss": "Tỷ lệ dữ liệu còn lại sau predicate; càng thấp thường càng hấp dẫn index."
+              },
+              {
+                "term": "cardinality estimate",
+                "gloss": "Số row planner dự đoán sẽ đi qua một plan node."
+              },
+              {
+                "term": "B-tree",
+                "gloss": "Index mặc định cho equality, range và order."
+              },
+              {
+                "term": "GIN / GiST / BRIN",
+                "gloss": "Các họ index cho membership, search strategy và dữ liệu có correlation."
+              },
+              {
+                "term": "bitmap heap scan",
+                "gloss": "Gom tuple locations rồi đọc heap theo page."
+              },
+              {
+                "term": "index-only scan",
+                "gloss": "Trả kết quả từ index khi visibility map cho phép bỏ heap fetch."
+              },
+              {
+                "term": "sequential scan",
+                "gloss": "Đọc lần lượt các page của bảng; thường hợp lý khi cần phần lớn dữ liệu."
+              },
+              {
+                "term": "EXPLAIN ANALYZE",
+                "gloss": "Chạy query thật và cho thấy plan, số dòng cùng thời gian thực tế."
+              }
+            ],
+            "nodes": [
+              {
+                "id": "stats",
+                "label": "Thống kê dữ liệu",
+                "sub": "histogram · ndistinct"
+              },
+              {
+                "id": "predicate",
+                "label": "Điều kiện lọc",
+                "sub": "predicate · selectivity"
+              },
+              {
+                "id": "access",
+                "label": "Đường truy cập",
+                "sub": "tuần tự · index · bitmap"
+              },
+              {
+                "id": "cost",
+                "label": "Cách tính chi phí",
+                "sub": "I/O + CPU · cost model"
+              },
+              {
+                "id": "evidence",
+                "label": "Đo kế hoạch thật",
+                "sub": "EXPLAIN ANALYZE"
+              }
+            ],
+            "edges": [
+              {
+                "label": "estimate"
+              },
+              {
+                "label": "candidate"
+              },
+              {
+                "label": "compare"
+              },
+              {
+                "label": "verify"
+              }
+            ],
+            "steps": [
+              {
+                "running": "stats",
+                "say": "Planner bắt đầu từ statistics, không từ intuition của người viết SQL.",
+                "mechanism": "ANALYZE cập nhật mô tả phân phối dữ liệu trong catalog.",
+                "term": "cardinality estimate"
+              },
+              {
+                "running": "predicate",
+                "say": "Predicate được ước lượng selectivity.",
+                "mechanism": "Nếu ước lượng sai, mọi cost phía sau cũng lệch.",
+                "term": "selectivity"
+              },
+              {
+                "running": "access",
+                "say": "Planner dựng các access path khả dĩ.",
+                "mechanism": "Seq, B-tree, GIN/GiST/BRIN, bitmap hoặc index-only có điều kiện riêng.",
+                "term": "access path"
+              },
+              {
+                "running": "cost",
+                "say": "Cost model chọn phương án rẻ nhất theo giả định hiện tại.",
+                "mechanism": "Random I/O, cache, CPU và parallelism đều ảnh hưởng.",
+                "term": "planner / optimizer"
+              },
+              {
+                "running": "evidence",
+                "say": "EXPLAIN ANALYZE đối chiếu ước lượng với actual.",
+                "mechanism": "Mọi tuning phải quay lại evidence: rows, loops, buffers và timing.",
+                "term": "EXPLAIN ANALYZE"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "operations",
+        "label": "Vận hành thực tế (production)",
+        "hint": "backup · replica · evidence",
+        "scenes": [
+          {
+            "kind": "sequence",
+            "eyebrow": "Production · 08",
+            "title": "Từ commit tới khả năng phục hồi",
+            "lead": "Nhiều quầy cần được giới hạn, cửa hàng dự phòng phải nhận thay đổi, và kho hồ sơ lịch sử phải cho phép quay về trước lỗi.",
+            "predict": "Replication có thay thế backup không?",
+            "conclusion": "Pool bảo vệ số kết nối, replica bảo vệ khả năng phục vụ, còn backup + PITR mới tạo đường quay lại sau lỗi logic.",
+            "reading": "Pool giữ số kết nối database thật trong giới hạn để server không phải mở quá nhiều backend cùng lúc. Replica nhận thay đổi từ máy chính để tiếp tục phục vụ hoặc chia tải đọc, nhưng nó cũng có thể sao chép ngay một lệnh xóa nhầm. Backup giữ lịch sử độc lập; kết hợp bản lưu nền với WAL cho phép phục hồi tới một thời điểm (PITR). Autovacuum phải chạy đều để dọn version cũ và cập nhật thống kê. Monitoring không phải một bức tường biểu đồ: hãy theo đúng câu hỏi bằng latency, wait event, replication lag, tốc độ WAL, tiến độ vacuum và bài diễn tập restore.",
+            "glossary": [
+              {
+                "term": "connection pooling",
+                "gloss": "Tái sử dụng ít backend cho nhiều client request."
+              },
+              {
+                "term": "streaming replication",
+                "gloss": "Standby nhận và replay WAL từ primary."
+              },
+              {
+                "term": "logical replication",
+                "gloss": "Phân phối thay đổi logical theo publication/subscription."
+              },
+              {
+                "term": "PITR",
+                "gloss": "Point-in-time recovery: restore backup rồi replay WAL tới mốc chọn."
+              },
+              {
+                "term": "wait event",
+                "gloss": "Bằng chứng backend đang chờ I/O, lock, client hoặc resource nào."
+              },
+              {
+                "term": "replication lag",
+                "gloss": "Khoảng cách WAL/replay giữa primary và standby."
+              }
+            ],
+            "actors": [
+              {
+                "id": "app",
+                "name": "Ứng dụng / bộ gom kết nối",
+                "role": "requests · pooler"
+              },
+              {
+                "id": "primary",
+                "name": "Máy chính",
+                "role": "primary · commit + WAL"
+              },
+              {
+                "id": "vacuum",
+                "name": "Việc dọn nền",
+                "role": "autovacuum · stats"
+              },
+              {
+                "id": "standby",
+                "name": "Máy dự phòng",
+                "role": "standby · replay / read"
+              },
+              {
+                "id": "backup",
+                "name": "Bản sao + nhật ký",
+                "role": "backup · PITR"
+              },
+              {
+                "id": "observe",
+                "name": "Theo dõi hệ thống",
+                "role": "metrics · evidence"
+              }
+            ],
+            "steps": [
+              {
+                "from": "app",
+                "to": "primary",
+                "label": "borrow backend",
+                "say": "App mượn connection từ pooler thay vì tạo backend vô hạn.",
+                "mechanism": "Pool giới hạn concurrency thật và làm rõ ownership session state.",
+                "term": "connection pooling"
+              },
+              {
+                "from": "primary",
+                "to": "primary",
+                "label": "commit → WAL",
+                "say": "Primary ghi WAL rồi mới xác nhận commit theo durability policy.",
+                "mechanism": "WAL là nguồn replay cho recovery và replication.",
+                "term": "WAL"
+              },
+              {
+                "from": "primary",
+                "to": "standby",
+                "label": "stream WAL",
+                "say": "Standby nhận và replay WAL, tạo read copy gần primary.",
+                "mechanism": "Lag là khoảng cách giữa write và replay, không phải mất dữ liệu ngay lập tức.",
+                "term": "streaming replication"
+              },
+              {
+                "from": "primary",
+                "to": "backup",
+                "label": "archive WAL",
+                "say": "Backup giữ base image và archive WAL để quay lại một mốc.",
+                "mechanism": "Replica không bảo vệ khỏi thao tác xóa hợp lệ nhưng sai ý định.",
+                "term": "PITR"
+              },
+              {
+                "from": "primary",
+                "to": "vacuum",
+                "label": "dọn version",
+                "say": "Autovacuum dọn dead tuples và refresh statistics.",
+                "mechanism": "Long transaction có thể giữ xmin khiến cleanup bị trì hoãn.",
+                "term": "autovacuum"
+              },
+              {
+                "from": "observe",
+                "to": "primary",
+                "label": "measure",
+                "say": "Metrics và wait events biến vận hành thành evidence.",
+                "mechanism": "Không có latency, WAL rate, bloat, lag và plan evidence thì tuning chỉ là đoán.",
+                "term": "wait event"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "recap",
+        "label": "Bản đồ suy luận",
+        "hint": "đọc hệ thống",
+        "scenes": [
+          {
+            "kind": "mindmap",
+            "eyebrow": "Tổng kết · 09",
+            "title": "Năm câu hỏi để đọc PostgreSQL",
+            "lead": "Khi cửa hàng chậm hoặc sổ kho có vấn đề, quay lại cùng một chuỗi câu hỏi thay vì thử mẹo ngẫu nhiên.",
+            "predict": "Bắt đầu chẩn đoán ở câu hỏi nào để không nhảy ngay vào đổi index?",
+            "reading": "Hỏi sự thật nào phải được giữ và luật nào chặn trạng thái sai. Hỏi backend nào đang làm việc và đang chờ điều gì. Hỏi planner đã chọn đường nào, executor phải đọc bao nhiêu page và estimate có đúng không. Hỏi transaction nào nhìn thấy phiên bản nào, lock nào đang xung đột và commit được WAL bảo vệ ra sao. Cuối cùng hỏi bằng chứng nằm ở plan, wait event, log, metric hay restore drill. Năm nhóm câu hỏi nối mô hình dữ liệu, runtime, storage và vận hành thành một hệ thống.",
+            "conclusion": "Đừng chữa database bằng mẹo: đi từ sự thật, người đang làm, đường truy cập, lời hứa commit tới bằng chứng.",
+            "root": "PostgreSQL",
+            "rootNote": "logical intent → physical evidence",
+            "branches": [
+              {
+                "id": "where",
+                "title": "Dữ liệu ở đâu?",
+                "summary": "relation → page → buffer → disk",
+                "detail": "Phân biệt logical table với heap/index page, shared buffers, VM/FSM và WAL files. Đây là câu hỏi đầu tiên cho I/O và bloat.",
+                "leaves": [
+                  {
+                    "term": "heap page",
+                    "gloss": "Đơn vị chứa tuple vật lý."
+                  },
+                  {
+                    "term": "shared buffers",
+                    "gloss": "Cache page trong shared memory."
+                  },
+                  {
+                    "term": "WAL",
+                    "gloss": "Log redo bảo vệ thay đổi."
+                  }
+                ]
+              },
+              {
+                "id": "who",
+                "title": "Ai nhìn thấy?",
+                "summary": "snapshot → MVCC → lock",
+                "detail": "Snapshot quyết định visibility; xmin/xmax giải thích version; lock giải thích write conflict; isolation level giới hạn anomaly.",
+                "leaves": [
+                  {
+                    "term": "snapshot",
+                    "gloss": "Mốc visibility của transaction."
+                  },
+                  {
+                    "term": "MVCC",
+                    "gloss": "Đọc version phù hợp thay vì chặn mọi đọc."
+                  },
+                  {
+                    "term": "deadlock",
+                    "gloss": "Vòng chờ khiến một transaction phải abort."
+                  }
+                ]
+              },
+              {
+                "id": "path",
+                "title": "Đường nào được chọn?",
+                "summary": "stats → cost → access path",
+                "detail": "Planner không “thích index”; nó so cost dựa trên statistics. EXPLAIN ANALYZE cho biết assumption nào đã sai.",
+                "leaves": [
+                  {
+                    "term": "selectivity",
+                    "gloss": "Tỷ lệ row còn lại sau predicate."
+                  },
+                  {
+                    "term": "B-tree / GIN / BRIN",
+                    "gloss": "Index family cho access pattern khác nhau."
+                  },
+                  {
+                    "term": "cardinality",
+                    "gloss": "Số row ước lượng ở mỗi node."
+                  }
+                ]
+              },
+              {
+                "id": "durable",
+                "title": "Commit được bảo vệ ra sao?",
+                "summary": "WAL → checkpoint → recovery",
+                "detail": "Write-ahead rule, checkpoint và replay nối commit với crash survival. Backup + WAL archive nối durability với PITR.",
+                "leaves": [
+                  {
+                    "term": "checkpoint",
+                    "gloss": "Mốc làm recovery hữu hạn."
+                  },
+                  {
+                    "term": "PITR",
+                    "gloss": "Quay database về một thời điểm."
+                  },
+                  {
+                    "term": "replica",
+                    "gloss": "Bản sao cho availability/read scale, không phải backup."
+                  }
+                ]
+              },
+              {
+                "id": "evidence",
+                "title": "Bằng chứng nào?",
+                "summary": "plan · waits · metrics · restore",
+                "detail": "Tuning tốt bắt đầu từ câu hỏi cụ thể và kết thúc bằng đo lại. Query plan, buffers, wait event, bloat, lag và restore drill là evidence khác nhau.",
+                "leaves": [
+                  {
+                    "term": "EXPLAIN ANALYZE",
+                    "gloss": "Đo actual plan, rows và timing."
+                  },
+                  {
+                    "term": "wait event",
+                    "gloss": "Cho biết backend đang chờ gì."
+                  },
+                  {
+                    "term": "restore drill",
+                    "gloss": "Bằng chứng backup thật sự dùng được."
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

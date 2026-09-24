@@ -18,11 +18,14 @@ https://ankinguyen-engineer-2002.github.io/FSDS-EDAI-DSAI/
    ./scripts/rebuild-archify.sh
    ```
 
-4. Nếu chỉ sửa prose/UI, chạy:
+4. Nếu sửa prose/layout beginner-first, sửa `content/lesson-mechanisms.json`, `content/beginner-guides.json`, `content/term-examples.json`, renderer hoặc CSS trong `content/`, rồi chạy:
 
    ```bash
+   python3 scripts/embed_beginner_content.py
    ./scripts/validate.sh
    ```
+
+   Không sửa trực tiếp block generated trong `fsds-learning-hub.html`. Nếu chỉ sửa UI ngoài block generated, vẫn phải chạy `./scripts/validate.sh`.
 
 5. Khi một đơn vị thay đổi đã hoàn thành và QA pass, publish ngay:
 

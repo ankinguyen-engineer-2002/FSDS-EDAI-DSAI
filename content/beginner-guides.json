@@ -1,0 +1,936 @@
+{
+  "F01": {
+    "hero": {
+      "kicker": "Linux cho người mới · đi từ một việc thật",
+      "title": "Linux không phải một danh sách lệnh. Nó là dây chuyền biến ý định thành công việc.",
+      "dek": "Ta bắt đầu bằng việc rất đời thường: mở một tệp, giữ lại vài dòng, ghép thành một công việc và cho máy tự chạy mỗi ngày. Mỗi tên kỹ thuật chỉ xuất hiện sau khi bạn đã thấy việc nó giải quyết.",
+      "scenarioTitle": "Tình huống xuyên suốt",
+      "scenario": "Mỗi đêm bạn phải mở tệp ghi hoạt động, tự tìm các dòng báo lỗi rồi đếm lại. Chỉ cần quên một bước hoặc đọc nhầm cột, báo cáo sáng hôm sau sai mà không ai biết. Bạn cần biến chuỗi thao tác đó thành một bản hướng dẫn máy có thể lặp đúng vào 03:30 mỗi ngày.",
+      "analogy": "Hãy hình dung một căn bếp: quầy nhận phiếu đưa yêu cầu vào; người điều phối đọc phiếu; đầu bếp làm việc; quản lý bếp kiểm quyền và cấp chỗ, dụng cụ, nguyên liệu. Sau khi thấy các vai trò này, ta mới gọi chúng là terminal, shell, process và kernel.",
+      "outcomes": [
+        "Phân biệt terminal, shell, chương trình đang chạy và kernel.",
+        "Giải thích dữ liệu đi qua stdin, stdout và stderr như thế nào.",
+        "Biết vì sao permission denied, command not found hoặc sai đường dẫn xảy ra.",
+        "Hiểu pipe và script ghép các chương trình nhỏ thành một quy trình.",
+        "Phân biệt Make làm lại phần cần thiết và cron chỉ kích hoạt đúng giờ."
+      ],
+      "path": [
+        {
+          "label": "Ý định",
+          "plain": "Bạn muốn máy làm gì?"
+        },
+        {
+          "label": "Phiên dịch",
+          "plain": "Shell hiểu dòng lệnh."
+        },
+        {
+          "label": "Thực thi",
+          "plain": "Process làm việc, kernel cấp quyền."
+        },
+        {
+          "label": "Ghép việc",
+          "plain": "Pipe và script nối đầu ra với đầu vào."
+        },
+        {
+          "label": "Tự động hóa",
+          "plain": "Make quyết định làm lại; cron chọn thời điểm."
+        }
+      ],
+      "metaphorWorld": "Căn bếp nhà hàng",
+      "metaphorMap": [
+        {
+          "technical": "Terminal",
+          "physical": "Quầy nhận phiếu",
+          "role": "Nhận chữ bạn gõ và đưa kết quả ra trước mắt; không tự hiểu công việc."
+        },
+        {
+          "technical": "Shell",
+          "physical": "Người điều phối",
+          "role": "Đọc phiếu, tách yêu cầu, tìm đúng người làm và nối các đường vào/ra."
+        },
+        {
+          "technical": "Process",
+          "physical": "Một đầu bếp trong một ca làm",
+          "role": "Một lần chương trình đang thực hiện, có bàn làm việc và dụng cụ riêng."
+        },
+        {
+          "technical": "Kernel",
+          "physical": "Quản lý bếp và kho",
+          "role": "Kiểm tra quyền, chia bếp, mặt bàn, kho và cửa giao nhận cho mọi đầu bếp."
+        },
+        {
+          "technical": "stdin / stdout / stderr",
+          "physical": "Cửa nhận món / cửa giao món / chuông báo lỗi",
+          "role": "Tách dữ liệu vào, kết quả bình thường và thông báo sự cố."
+        },
+        {
+          "technical": "Pipe / script",
+          "physical": "Băng chuyền / quy trình dán trên tường",
+          "role": "Nối nhiều trạm nhỏ thành một công việc có thể lặp lại."
+        },
+        {
+          "technical": "Make / cron",
+          "physical": "Người kiểm phần cần làm lại / đồng hồ báo thức",
+          "role": "Một bên quyết định làm lại gì; một bên quyết định gọi việc lúc nào."
+        }
+      ]
+    },
+    "chapters": {
+      "watch": {
+        "question": "Khi bạn gõ `cat file.txt`, ai nhận chữ, ai hiểu lệnh và ai thật sự mở file?",
+        "plain": "Không có một nhân vật tên “Linux” làm tất cả. Cửa sổ chữ (terminal) chỉ nhận và hiển thị. Người đọc lệnh (shell) hiểu yêu cầu. Một ca làm (process) chạy `cat`. Người quản lý hệ thống (kernel) kiểm quyền rồi mới đọc tệp giúp process.",
+        "analogy": "Giống một căn bếp: quầy nhận phiếu chỉ tiếp nhận; người điều phối đọc phiếu; đầu bếp làm món; quản lý kho mới quyết định ai được lấy nguyên liệu.",
+        "analogyLimit": "Máy tính trao byte và quyền qua giao diện chặt chẽ; không có người thật cầm phiếu.",
+        "why": "Nếu gom bốn vai trò này thành một, bạn sẽ sửa sai chỗ: câu lệnh viết sai phải nhìn shell, chương trình không tìm thấy phải nhìn đường tìm kiếm, còn tệp bị từ chối phải nhìn đường dẫn và quyền.",
+        "place": "Đây là cửa vào của toàn bài: ý định của bạn được chuyển thành một công việc có thể xin tài nguyên từ hệ điều hành.",
+        "flow": "Bạn gõ chữ → terminal nhận → shell hiểu → process làm → kernel kiểm quyền/đọc tệp → kết quả hoặc lỗi",
+        "visualLook": "Đi từ trái sang phải. Dừng ở cửa giữa process và kernel; sau đó so đường kết quả bình thường với đường báo lỗi.",
+        "sayBack": "Hãy kể lại bằng vai trò đời thường trước, rồi mới gọi tên terminal, shell, process và kernel.",
+        "job": "Bản đồ này giúp tìm lỗi khi lệnh chạy tay được nhưng hỏng trong CI, SSH, container hoặc job chạy theo lịch.",
+        "bridge": "Biết ai làm gì rồi, câu hỏi tiếp theo là mỗi việc sống ở đâu và đang dùng CPU, RAM hay I/O.",
+        "stress": "Bạn đổi sang tệp bí mật và nhận thông báo “không được phép”. Nếu kết quả và lỗi bị trộn, bước sau còn có thể tưởng lời báo lỗi là dữ liệu thật.",
+        "response": "Kernel chặn ở cửa kiểm quyền; process trả mã thất bại và gửi thông báo qua đường lỗi riêng để hệ thống tự động nhận ra job không thành công.",
+        "coreTerms": [
+          "terminal",
+          "shell",
+          "process",
+          "system call",
+          "stdout",
+          "permission",
+          "stderr",
+          "exit status"
+        ],
+        "heading": "Ai thật sự làm việc khi bạn gõ một lệnh?",
+        "headingLead": "Theo một phiếu yêu cầu từ bàn phím tới lúc nội dung tệp hiện lên màn hình."
+      },
+      "place": {
+        "question": "Một chương trình đang chạy nằm ở đâu, và CPU, RAM, đĩa tham gia khác nhau thế nào?",
+        "plain": "Một ca làm đang sống gọi là process. CPU là lúc nó thực sự tính, RAM là chỗ giữ dữ liệu đang dùng, còn I/O là lúc nó chờ hoặc trao đổi với tệp, mạng hay thiết bị. Kernel chia các tài nguyên này và ngăn process đụng bừa vào nhau.",
+        "analogy": "Đầu bếp cần thời gian đứng bếp, mặt bàn và cửa lấy nguyên liệu. CPU giống lượt dùng bếp, RAM giống mặt bàn, I/O giống lúc đi qua cửa kho.",
+        "analogyLimit": "CPU, RAM và I/O có thể hoạt động xen kẽ; đây không phải ba bước cố định.",
+        "why": "Khi chương trình chậm, bạn phải biết nó đang bận tính, thiếu bộ nhớ hay đang chờ đĩa/mạng. Ba nguyên nhân cần ba cách xử lý khác nhau.",
+        "place": "Đây là nền nằm dưới mọi lệnh Linux, chương trình Python, database và container.",
+        "flow": "process xin việc → kernel phân lượt → CPU tính / RAM giữ / I/O trao đổi",
+        "visualLook": "Nhìn cửa user space/kernel trước, rồi tách ba nhánh tính, giữ dữ liệu và trao đổi bên ngoài. Không đọc chúng như ba bước tuần tự.",
+        "sayBack": "Chọn một chương trình chậm và nói rõ: nó đang bận tính, đang giữ quá nhiều dữ liệu hay đang chờ bên ngoài?",
+        "job": "Dùng khi đọc biểu đồ CPU/RAM/disk, đặt giới hạn container hoặc tìm nút nghẽn của một job.",
+        "bridge": "Khi một process đã có đầu vào và đầu ra rõ ràng, ta có thể nối nhiều process mà không buộc chúng biết nhau.",
+        "stress": "Một job chậm gấp mười nhưng CPU vẫn thấp, trong khi thời gian chờ đĩa tăng mạnh.",
+        "response": "Xếp triệu chứng vào đúng nhóm: đây là chờ I/O, nên thêm sức tính hoặc tăng số thread chưa chắc chạm đúng nút nghẽn.",
+        "coreTerms": [
+          "user process",
+          "kernel",
+          "CPU",
+          "RAM",
+          "I/O",
+          "scheduler",
+          "address space",
+          "driver"
+        ],
+        "heading": "Một chương trình cần gì để sống và làm việc?",
+        "headingLead": "Tách ba loại tài nguyên để biết chương trình đang bận tính, giữ dữ liệu hay chờ bên ngoài."
+      },
+      "compose": {
+        "question": "Làm sao ghép nhiều chương trình nhỏ thành một quy trình đáng tin?",
+        "plain": "Mỗi chương trình có cửa nhận dữ liệu, cửa trả kết quả và cửa báo lỗi. Ống nối (pipe) đưa kết quả của trạm trước vào cửa nhận của trạm sau. Script lưu cả dây chuyền và quy tắc thất bại thành một việc có thể lặp.",
+        "analogy": "Mỗi trạm bếp làm một phần rồi đặt kết quả lên băng chuyền cho trạm sau; chuông báo lỗi đi một đường riêng.",
+        "analogyLimit": "Pipe chỉ chuyển byte; từng chương trình vẫn phải hiểu format và tự báo lỗi đúng.",
+        "why": "Công việc dữ liệu và vận hành thường ghép nhiều công cụ nhỏ. Nếu không tách kết quả khỏi lỗi, một bước hỏng có thể bị nuốt và tạo ra sản phẩm sai nhưng vẫn mang nhãn “thành công”.",
+        "place": "Đây là đoạn biến các process độc lập thành một workflow nhỏ có đầu vào, đầu ra và dấu hiệu thất bại.",
+        "flow": "tệp → cat giao byte → pipe → grep lọc → pipe → wc đếm; lỗi đi cửa riêng",
+        "visualLook": "Theo hai tuyến riêng: byte dữ liệu chạy trên băng chuyền, còn chuông lỗi đi đường khác. Ở script, nhìn điểm kiểm tra trước khi làm việc chính.",
+        "sayBack": "Giải thích vì sao lỗi không tự đi vào pipe và vì sao script phải trả mã khác 0 khi một bước thất bại.",
+        "job": "Gặp trong bước CI, xử lý log, entrypoint container, job ETL nhỏ và script vận hành.",
+        "bridge": "Một workflow chạy đúng một lần chưa đủ; công việc thực tế còn cần biết khi nào phải làm lại và ai sẽ đánh thức nó.",
+        "stress": "Trạm giữa hỏng nhưng trạm cuối vẫn tạo một tệp rỗng, làm hệ thống phía sau tưởng job đã chạy xong.",
+        "response": "Giữ đường lỗi riêng, bật quy tắc dừng khi pipe hỏng, kiểm tra đầu vào và chỉ xuất sản phẩm khi toàn bộ dây chuyền thành công.",
+        "coreTerms": [
+          "stdin",
+          "stdout",
+          "stderr",
+          "pipe",
+          "shebang",
+          "exit status"
+        ],
+        "heading": "Làm sao nối nhiều việc nhỏ mà vẫn biết chỗ nào hỏng?",
+        "headingLead": "Dùng các cửa vào/ra rõ ràng để ghép công cụ mà không làm mất đường báo lỗi."
+      },
+      "automate": {
+        "question": "Make và cron cùng “tự động hóa”, nhưng chúng quyết định hai việc khác nhau nào?",
+        "plain": "Make nhìn bản đồ phụ thuộc để quyết định phần nào đã cũ và cần làm lại. Cron nhìn đồng hồ để quyết định lúc nào gọi một job. Một bên trả lời “làm lại cái gì”, bên kia trả lời “gọi lúc nào”.",
+        "analogy": "Người kiểm bếp chỉ làm lại món bị ảnh hưởng bởi nguyên liệu mới; đồng hồ chỉ gọi ca làm đúng giờ.",
+        "analogyLimit": "Make quyết định phần cần làm lại, cron quyết định thời điểm; cả hai không tự chứng minh kết quả đúng.",
+        "why": "Nhầm hai vai trò sẽ khiến bạn kỳ vọng cron tự sửa hoặc tự chạy lại, hoặc biến Makefile thành một danh sách lệnh luôn chạy từ đầu.",
+        "place": "Đây là lớp lặp lại: workflow đã rõ được xây đúng phần rồi được gọi theo lịch.",
+        "flow": "nguyên liệu thay đổi → Make tìm phần bị ảnh hưởng → tạo sản phẩm mới → cron gọi job → log và mã kết thúc",
+        "visualLook": "Ở sơ đồ Make, theo cạnh phụ thuộc và nhánh bỏ qua/làm lại. Ở sơ đồ lịch chạy, tách phần tạo sản phẩm khỏi phần gọi job.",
+        "sayBack": "Nói một câu: Make quyết định phần nào cần làm lại; cron chỉ quyết định đã tới giờ gọi việc hay chưa.",
+        "job": "Dùng lại trong build tăng dần, cache CI, job theo lịch và pipeline có quan hệ phụ thuộc.",
+        "bridge": "Bây giờ có thể ghép toàn bộ: ý định → process → tài nguyên → stream → workflow → lịch chạy.",
+        "stress": "03:30 cron gọi script nhưng không tìm thấy Python; hoặc sửa một tệp nhỏ mà Make làm lại toàn bộ dự án.",
+        "response": "Job theo lịch phải có đường dẫn, môi trường và log rõ; bản đồ phụ thuộc của Make phải đúng để chỉ phần bị ảnh hưởng được làm lại.",
+        "coreTerms": [
+          "target",
+          "dependency",
+          "recipe",
+          "cron expression",
+          "environment"
+        ],
+        "heading": "Ai làm lại phần đã cũ, ai chỉ gọi việc đúng giờ?",
+        "headingLead": "Hai công cụ cùng giúp tự động hóa nhưng trả lời hai câu hỏi hoàn toàn khác nhau."
+      },
+      "recap": {
+        "question": "Tóm lại, một command Linux liên kết tất cả khái niệm trong bài như thế nào?",
+        "plain": "Một lệnh bắt đầu từ ý định, được người đọc lệnh biến thành một ca làm, đi qua người quản lý hệ thống để dùng tài nguyên, trao dữ liệu qua các cửa rồi có thể được đóng gói và gọi lại tự động.",
+        "analogy": "Nhìn toàn bộ căn bếp từ quầy nhận phiếu tới đầu bếp, quản lý tài nguyên, băng chuyền và đồng hồ gọi ca.",
+        "analogyLimit": "Bếp chỉ giúp nhớ vai trò; cơ chế thật vẫn là process, quyền, byte và trạng thái kết thúc.",
+        "why": "Bạn không cần thuộc mọi lệnh. Bạn cần một bản đồ để gặp lệnh mới vẫn biết hỏi ai hiểu, ai làm, đang dùng gì, dữ liệu đi đâu và còn dấu vết nào.",
+        "place": "Đây là bản đồ nền để học container, CI/CD, giám sát process và pipeline dữ liệu.",
+        "flow": "ý định → shell → process → kernel/tài nguyên → cửa dữ liệu → script/build/lịch → bằng chứng",
+        "visualLook": "Mở từng nhánh theo thứ tự rồi luôn quay lại gốc để thấy phần vừa học nối với cùng một lệnh ban đầu.",
+        "sayBack": "Không nhìn bài, hãy kể hành trình `cat file | grep ERROR` và chỉ ra dữ liệu thường với lỗi đi hai đường nào.",
+        "job": "Đây là ngôn ngữ chung để data engineer, backend engineer và người vận hành cùng nói về một job.",
+        "bridge": "Sang Python, cùng mental model process/kernel vẫn còn; ta chỉ thêm interpreter, object, exception và event loop.",
+        "terms": [
+          {
+            "term": "parser",
+            "gloss": "Phần đọc cú pháp và biến chuỗi ký tự thành cấu trúc có nghĩa."
+          },
+          {
+            "term": "state",
+            "gloss": "Thông tin hiện tại làm kết quả thay đổi: cwd, environment, file, process hoặc permission."
+          },
+          {
+            "term": "resource",
+            "gloss": "Thứ hữu hạn chương trình cần dùng như CPU, RAM, file, socket hoặc thời gian."
+          },
+          {
+            "term": "stream",
+            "gloss": "Dòng byte đi liên tục qua stdin, stdout hoặc stderr."
+          },
+          {
+            "term": "evidence",
+            "gloss": "Dấu vết dùng để kiểm tra giả thuyết: exit status, stderr, log, process state hoặc artifact."
+          }
+        ],
+        "stress": "Job chạy tay được nhưng hỏng trên server lúc nửa đêm, khi không có người nhìn màn hình.",
+        "response": "Đi lại đúng bản đồ: ai đọc lệnh, môi trường nào khác, tài nguyên nào thiếu, đường lỗi nói gì và log nào còn lại.",
+        "coreTerms": [],
+        "heading": "Toàn bộ một lệnh đi qua máy như thế nào?",
+        "headingLead": "Nối mọi vai trò thành một đường duy nhất để gặp lỗi ở đâu thì kiểm tra đúng chỗ đó."
+      }
+    },
+    "final": {
+      "learned": [
+        "Terminal không phải shell; shell không phải kernel.",
+        "Process là một lần chạy có state và ba kênh chuẩn.",
+        "Kernel bảo vệ tài nguyên và là cửa đi tới file, mạng, CPU và memory.",
+        "Pipe ghép process bằng contract byte; script thêm kiểm tra và exit status.",
+        "Make quản lý dependency; cron quản lý thời điểm; log và exit status là bằng chứng."
+      ],
+      "market": [
+        {
+          "label": "Data engineering",
+          "text": "Chạy ingestion, xử lý file, ghép công cụ và schedule batch."
+        },
+        {
+          "label": "Backend/Platform",
+          "text": "Debug process, permission, signal, log và resource limit."
+        },
+        {
+          "label": "Cloud/DevOps",
+          "text": "Container vẫn dựa trên process, filesystem, stream và kernel."
+        },
+        {
+          "label": "SRE",
+          "text": "Phân biệt lỗi ứng dụng, lỗi tài nguyên và lỗi automation bằng evidence."
+        }
+      ],
+      "practice": "Tự viết một script nhận đường dẫn log, kiểm tra file đọc được, lọc `ERROR`, đếm dòng, ghi kết quả atomically và trả exit status khác 0 khi input không hợp lệ.",
+      "checks": [
+        "Vì sao terminal không phải là nơi hiểu cú pháp lệnh?",
+        "Khi báo `Permission denied`, bạn sẽ kiểm tra những layer nào?",
+        "Vì sao stderr cần tách khỏi stdout?",
+        "Make và cron khác nhau ở quyết định nào?",
+        "Một job chạy được bằng tay nhưng lỗi trong cron có thể khác state ở đâu?"
+      ],
+      "golden": "Linux biến một yêu cầu của bạn thành các công việc nhỏ có người làm, có quyền, có tài nguyên và có dấu vết để biết thành công hay thất bại."
+    }
+  },
+  "F02": {
+    "hero": {
+      "kicker": "Python cho người mới · theo một lần chạy",
+      "title": "Python không bắt đầu ở dòng đầu tệp code. Nó bắt đầu từ một chiếc xưởng phù hợp và một ca làm đang diễn ra.",
+      "dek": "Ta theo một thư mục code từ lúc chuẩn bị môi trường, bấm chạy, giữ dữ liệu trong bộ nhớ, gặp lỗi, chờ file hoặc mạng và nhận một yêu cầu web. Mỗi cơ chế được gọi tên sau khi đã có ví dụ cụ thể.",
+      "scenarioTitle": "Tình huống xuyên suốt",
+      "scenario": "Bạn có một bản hướng dẫn máy đọc đơn hàng, hỏi thêm dữ liệu từ một dịch vụ qua mạng rồi ghi kết quả. Nó chạy được trên máy bạn nhưng hỏng trên máy đồng nghiệp; lúc nhanh, lúc đứng im; đôi khi sửa một danh sách lại làm danh sách khác đổi theo. Nếu không biết ca làm đang dùng đúng dụng cụ nào và dữ liệu đang nằm ở đâu, bạn chỉ còn cách đoán mò.",
+      "analogy": "Hãy hình dung một xưởng: hồ sơ công việc quy định đồ nghề cần có; máy thực thi đọc chỉ dẫn; một ca làm giữ vật liệu trên bàn; chuông báo sự cố chỉ ngược về công đoạn hỏng. Sau đó ta mới gọi chúng là project, interpreter, process, object và exception.",
+      "outcomes": [
+        "Tạo ranh giới project tái lập bằng interpreter, environment và dependency contract.",
+        "Giải thích source, AST, bytecode, process và object khác nhau thế nào.",
+        "Hiểu name binding, mutation, frame, exception và traceback.",
+        "Phân biệt object trong RAM với byte đi qua file, socket hoặc database.",
+        "Chọn sync, async, thread hoặc process từ loại công việc đang tính hay đang chờ."
+      ],
+      "path": [
+        {
+          "label": "Project",
+          "plain": "Chọn đúng Python và thư viện."
+        },
+        {
+          "label": "Khởi động",
+          "plain": "Shell tạo process và nạp interpreter."
+        },
+        {
+          "label": "State",
+          "plain": "Tên trỏ tới object; frame giữ lần gọi."
+        },
+        {
+          "label": "Boundary",
+          "plain": "Object phải thành byte để đi ra ngoài."
+        },
+        {
+          "label": "Thời gian",
+          "plain": "Phân biệt đang tính với đang chờ."
+        }
+      ],
+      "metaphorWorld": "Xưởng sản xuất",
+      "metaphorMap": [
+        {
+          "technical": "Project contract",
+          "physical": "Hồ sơ sản xuất",
+          "role": "Ghi đúng máy, nguyên liệu và phiên bản cần dùng để xưởng khác làm lại được."
+        },
+        {
+          "technical": "Interpreter",
+          "physical": "Máy thực thi bản hướng dẫn",
+          "role": "Đọc kế hoạch Python và biến nó thành từng thao tác trong ca làm."
+        },
+        {
+          "technical": "Process",
+          "physical": "Một ca sản xuất đang mở",
+          "role": "Giữ memory, file, environment và quyền chạy của một lần chương trình."
+        },
+        {
+          "technical": "Name / object",
+          "physical": "Nhãn dán / vật liệu trên bàn",
+          "role": "Tên chỉ tới vật; nhiều nhãn có thể cùng chỉ một vật và cùng thấy nó bị đổi."
+        },
+        {
+          "technical": "Frame / exception",
+          "physical": "Phiếu việc đang làm / chuông sự cố",
+          "role": "Frame giữ trạng thái của một lần gọi; exception đi ngược tìm nơi xử lý."
+        },
+        {
+          "technical": "Serialization",
+          "physical": "Đóng hàng thành kiện chuẩn",
+          "role": "Biến object nội bộ thành byte/text để đi qua file, mạng hoặc database."
+        },
+        {
+          "technical": "Event loop / process",
+          "physical": "Một điều phối viên / nhiều phòng xưởng",
+          "role": "Event loop tận dụng lúc chờ; nhiều process cho việc tính nặng chạy ở các phòng riêng."
+        }
+      ]
+    },
+    "chapters": {
+      "project": {
+        "question": "Làm sao để cùng project chạy bằng đúng Python và đúng bộ thư viện trên mọi máy?",
+        "plain": "Project không chỉ có code. Nó cần ghi đúng phiên bản Python, các gói phải có và cách dựng lại cùng một bộ dụng cụ. Môi trường ảo tạo ngăn riêng; tệp khai báo và tệp khóa giúp máy khác lắp cùng bộ phiên bản.",
+        "analogy": "Xưởng phải ghi đúng loại máy và phiên bản linh kiện; chỉ gửi bản vẽ mà thiếu danh sách vật tư thì xưởng khác dễ làm ra sản phẩm khác.",
+        "analogyLimit": "Virtual environment không phải máy ảo hay container; nó chủ yếu tách interpreter và nơi cài package.",
+        "why": "Câu “máy tôi chạy được” thường che việc hai máy dùng Python hoặc thư viện khác nhau. Kiểm tra dụng cụ trước giúp tránh sửa nhầm code.",
+        "place": "Đây là lớp chuẩn bị trước khi runtime mở: bảo đảm ca làm sắp bắt đầu có bộ phần mềm xác định.",
+        "flow": "code + bản kê khai → chọn phiên bản phù hợp → khóa lựa chọn → tạo môi trường riêng → gọi đúng Python",
+        "visualLook": "Theo bản kê khai và tệp khóa hội tụ vào môi trường; ở cuối luôn kiểm tra command đang gọi Python nào.",
+        "sayBack": "Giải thích vì sao activate không bật một máy ảo mà chỉ giúp shell ưu tiên đúng Python của project.",
+        "job": "Dùng khi đưa người mới vào dự án, chạy CI, đóng gói ứng dụng, dựng pipeline và deploy service.",
+        "bridge": "Khi đã chọn đúng môi trường, ta mới theo được chuyện gì xảy ra sau khi nhấn Enter.",
+        "stress": "Code chạy trên laptop nhưng CI thiếu module hoặc hành vi đổi vì một gói vừa lên phiên bản mới.",
+        "response": "Dùng môi trường riêng, giữ bản kê khai cùng tệp khóa, gọi rõ interpreter và in `sys.executable` khi cần chứng minh Python nào đang chạy.",
+        "coreTerms": [
+          "virtual environment",
+          "pyproject.toml",
+          "resolver",
+          "lockfile",
+          "site-packages",
+          "reproducibility"
+        ],
+        "heading": "Vì sao code chạy ở máy bạn nhưng hỏng ở máy người khác?",
+        "headingLead": "Trước khi chạy, hai máy phải thống nhất đúng Python và đúng bộ gói sẽ dùng."
+      },
+      "boot": {
+        "question": "Từ lúc gõ `python -m pipeline`, những thứ nào được tạo trước khi code nghiệp vụ chạy?",
+        "plain": "Shell gửi yêu cầu chạy; hệ điều hành mở một process; process nạp chương trình Python; chương trình Python đọc tệp code, hiểu cấu trúc và đổi nó thành chỉ dẫn có thể thực hiện. Sau đó code nghiệp vụ mới bắt đầu.",
+        "analogy": "Trước khi gia công, xưởng mở một ca làm, lắp đúng máy, đặt bản hướng dẫn và vật liệu lên bàn.",
+        "analogyLimit": "Runtime có nhiều tối ưu bên trong; ẩn dụ chỉ giữ thứ tự trách nhiệm.",
+        "why": "Biết thứ tự này giúp hiểu vì sao thư mục hiện tại, biến môi trường hoặc việc làm nặng lúc import có thể làm cùng một tệp chạy khác nhau.",
+        "place": "Đây là cầu từ project còn nằm trên đĩa sang một ca làm sống đang dùng CPU, RAM và I/O.",
+        "flow": "dòng lệnh → process → interpreter → tệp source → cấu trúc/bytecode → module → main",
+        "visualLook": "Theo chuỗi khởi động trước. Sau đó tách rõ tệp code, chương trình Python, process và ba loại tài nguyên.",
+        "sayBack": "Nói rõ: tệp `.py` là bản hướng dẫn được interpreter đọc, không phải một process tự chạy.",
+        "job": "Hữu ích khi viết CLI, worker, cron, server, container entrypoint hoặc tìm nguyên nhân khởi động chậm.",
+        "bridge": "Process đã sống; bây giờ cần hiểu state bên trong nó được giữ bằng object, name và frame như thế nào.",
+        "stress": "Cron chạy đúng tệp nhưng không tìm thấy dữ liệu vì đứng ở thư mục khác; hoặc import đã gọi mạng trước khi `main()` bắt đầu.",
+        "response": "Kiểm tra đối số, biến môi trường, thư mục hiện tại và đường import; giữ phần chạy lúc import nhẹ và điểm bắt đầu rõ.",
+        "coreTerms": [
+          "shell",
+          "process",
+          "interpreter",
+          "source",
+          "AST",
+          "bytecode",
+          "import",
+          "CPU",
+          "RAM",
+          "I/O"
+        ],
+        "heading": "Điều gì xảy ra trước dòng code đầu tiên?",
+        "headingLead": "Máy phải mở một ca làm và nạp chương trình Python trước khi đọc tệp của bạn."
+      },
+      "state": {
+        "question": "Python giữ dữ liệu và dấu vết một lần chạy bằng name, object, frame và exception ra sao?",
+        "plain": "Tên biến là nhãn trỏ tới object, không phải chiếc hộp chứa object. Mỗi lần gọi hàm có một hồ sơ đang làm (frame). Lỗi đi ngược các hồ sơ và để lại traceback. Muốn dữ liệu ra khỏi process, phải đóng thành chữ hoặc byte rồi dựng object mới ở bên kia.",
+        "analogy": "Nhãn có thể cùng dán lên một thùng vật liệu; phiếu việc chồng lên nhau; hàng muốn đi qua cửa phải được đóng thành kiện.",
+        "analogyLimit": "Object graph và memory phức tạp hơn nhãn/thùng; vẫn phải phân biệt identity, mutation và copy.",
+        "why": "Bản đồ này giải thích nhiều lỗi khó: hai tên cùng thấy một list bị sửa, bản sao nông vẫn dùng chung object con, lỗi bị bắt sai chỗ hoặc dữ liệu nhận từ mạng không đúng hình dạng.",
+        "place": "Đây là phần state bên trong process và cánh cửa đưa dữ liệu ra ngoài process.",
+        "flow": "tên → object/sửa tại chỗ → frame/chồng lời gọi → lỗi đi ngược → đóng thành byte → truyền → kiểm tra → object mới",
+        "visualLook": "Lần lượt xem hai nhãn cùng trỏ một object, lỗi đi ngược chồng frame và object biến thành byte rồi thành object mới.",
+        "sayBack": "Giải thích vì sao `backup = records` không sao chép list và vì sao đọc JSON không lấy lại đúng object cũ.",
+        "job": "Dùng khi xử lý cấu trúc dữ liệu, payload API, cache, retry, logging, test và traceback production.",
+        "bridge": "State đã rõ; bước tiếp theo là ai giữ quyền chạy khi chương trình vừa tính toán vừa chờ I/O.",
+        "stress": "Hai tên cùng trỏ một list bị sửa ngoài ý muốn; sau đó dữ liệu JSON hỏng làm exception đi tới tận process.",
+        "response": "Phân biệt dùng chung với sao chép, bắt lỗi ở nơi có đủ thông tin, giữ traceback và kiểm tra dữ liệu ngay sau khi đọc.",
+        "coreTerms": [
+          "name binding",
+          "object",
+          "mutable",
+          "frame",
+          "exception",
+          "traceback",
+          "serialization",
+          "schema",
+          "decode / parse",
+          "validate"
+        ],
+        "heading": "Dữ liệu sống ở đâu, và lỗi đi về đâu?",
+        "headingLead": "Theo một danh sách khi có hai tên cùng trỏ vào, khi hàm lỗi và khi dữ liệu đi qua file."
+      },
+      "time": {
+        "question": "Khi nào dùng sync, async, thread hay process, và GIL thực sự ảnh hưởng đoạn nào?",
+        "plain": "Có lúc Python đang tính bằng CPU, có lúc chỉ chờ file, mạng hoặc database. Async cho một luồng làm việc khác khi nhiệm vụ đang chờ. Thread chia sẻ cùng process; process khác có bộ nhớ riêng và hợp hơn khi cần thêm sức tính độc lập.",
+        "analogy": "Một công nhân nhường bàn khi chờ máy; nhiều người dùng chung bàn phải thay phiên; hai phòng riêng có thể làm độc lập hơn.",
+        "analogyLimit": "Scheduler, native code và runtime build tạo thêm sắc thái; phải đo workload thật.",
+        "why": "Chọn sai mô hình có thể làm chương trình chậm hơn, làm cả vòng xử lý request bị đứng hoặc dùng quá nhiều RAM. Chỉ thêm từ khóa `async` không tạo thêm sức CPU.",
+        "place": "Đây là lớp chia thời gian bên trong process và là cầu sang web server phải nhận nhiều request.",
+        "flow": "việc → đoạn tính / khoảng chờ → event loop hoặc thread chia lượt → process riêng khi cần thêm sức tính",
+        "visualLook": "Trước tiên tô hai màu “đang tính” và “đang chờ”. Sau đó mới chọn async, thread hay process từ loại thời gian chiếm ưu thế.",
+        "sayBack": "Giải thích vì sao một thư viện chặn luồng bên trong `async def` có thể làm nhiều request khác phải chờ.",
+        "job": "Dùng trong web API, crawler, nhập dữ liệu, worker queue và các bước biến đổi chạy song song.",
+        "bridge": "Tổng kết lại bằng ba câu: ai đang giữ quyền chạy, dữ liệu đang ở đâu và evidence nào cho biết điều đó.",
+        "stress": "Một handler viết `async def` nhưng gọi thư viện chặn luồng; một request chậm kéo hàng trăm request khác đứng lại.",
+        "response": "Đo thời gian tính và chờ; dùng thư viện biết nhường quyền hoặc chuyển việc chặn sang thread, còn việc tính nặng nên cân nhắc process.",
+        "coreTerms": [
+          "CPU task",
+          "IO task",
+          "await",
+          "event loop",
+          "GIL",
+          "thread",
+          "process",
+          "socket",
+          "ASGI",
+          "route",
+          "handler"
+        ],
+        "heading": "Khi nào chương trình đang tính, khi nào chỉ đang chờ?",
+        "headingLead": "Phân biệt hai loại thời gian trước khi chọn đồng bộ, bất đồng bộ, thread hay process."
+      },
+      "recap": {
+        "question": "Tóm lại, từ project tới request web, các cơ chế Python nối nhau thành một lần chạy thế nào?",
+        "plain": "Project chọn đúng dụng cụ; hệ điều hành mở process; interpreter chạy code; tên, object và frame giữ state; exception mang lỗi; serialization đưa dữ liệu qua cửa; bộ điều phối chia thời gian; server và framework đưa request tới hàm của bạn.",
+        "analogy": "Theo một đơn hàng qua hồ sơ xưởng, ca làm, bàn vật liệu, chuông lỗi, cửa giao hàng và người điều phối thời gian.",
+        "analogyLimit": "Bản đồ cố ý bỏ chi tiết implementation để giữ tuyến chính.",
+        "why": "Khi có lỗi, thay vì nói chung “Python hỏng”, bạn xác định nó nằm ở môi trường, lúc khởi động, dữ liệu trong bộ nhớ, cửa giao tiếp, cách chia thời gian hay đường request.",
+        "place": "Đây là bản đồ dùng lại cho pipeline dữ liệu, CLI, notebook, worker và web service.",
+        "flow": "môi trường → process/runtime → object/frame → byte qua cửa → chia thời gian → request/handler → bằng chứng",
+        "visualLook": "Đi từ gốc qua từng nhánh; ở mỗi nhánh, tự nêu một lỗi thực tế mà bản đồ đó giúp tìm.",
+        "sayBack": "Không nhìn bài, kể đường đi của một request từ socket tới handler rồi thành byte response trở lại client.",
+        "job": "Cùng bản đồ này xuất hiện trong backend Python, data engineering, phục vụ mô hình ML, automation và test.",
+        "bridge": "Sang database, process và boundary vẫn còn; ta thêm shared state, transaction, planner, page và durability.",
+        "terms": [
+          {
+            "term": "runtime",
+            "gloss": "Bộ máy và state cần để code Python thực sự chạy trong process."
+          },
+          {
+            "term": "boundary",
+            "gloss": "Ranh giới nơi dữ liệu hoặc quyền điều khiển đổi dạng, đổi owner hay đi sang hệ thống khác."
+          },
+          {
+            "term": "scheduling",
+            "gloss": "Cách quyết định task, thread hoặc process nào được chạy ở thời điểm nào."
+          },
+          {
+            "term": "profiling",
+            "gloss": "Đo thời gian hoặc memory theo function/đoạn code để tìm chi phí thật."
+          },
+          {
+            "term": "evidence",
+            "gloss": "Traceback, profile, log, metric và phép đo xác nhận điều đang xảy ra."
+          }
+        ],
+        "stress": "Service vừa tốn RAM vừa chậm nhưng nhóm chỉ tranh luận GIL hay async mà chưa đo thứ gì.",
+        "response": "Đặt triệu chứng lên đúng lớp, lấy traceback/profile/metric làm bằng chứng, rồi thay đổi phần nhỏ nhất có thể đo lại.",
+        "coreTerms": [],
+        "heading": "Một lần chạy Python nối tất cả khái niệm ra sao?",
+        "headingLead": "Đi từ môi trường tới ca làm, dữ liệu, lỗi, cửa giao nhận và cách chia thời gian."
+      }
+    },
+    "final": {
+      "learned": [
+        "Project tái lập cần interpreter và dependency contract rõ ràng.",
+        "Source không tự chạy; interpreter chạy trong một OS process.",
+        "Name trỏ tới object; frame giữ state của một lần gọi; traceback là evidence.",
+        "Qua file/mạng, object phải thành byte/text và được validate khi dựng lại.",
+        "Async tối ưu thời gian chờ; process phù hợp khi cần parallel CPU; phải đo thay vì đoán."
+      ],
+      "market": [
+        {
+          "label": "Data/ML",
+          "text": "Environment, serialization, memory và CPU/I/O quyết định pipeline có tái lập và mở rộng được không."
+        },
+        {
+          "label": "Backend API",
+          "text": "ASGI, event loop, dependency và handler quyết định request path và latency."
+        },
+        {
+          "label": "Automation",
+          "text": "CLI, cron, worker và CI cần explicit interpreter, exit status và traceback."
+        },
+        {
+          "label": "Performance",
+          "text": "cProfile, tracemalloc và đo wait/CPU giúp chọn async, thread hoặc process."
+        }
+      ],
+      "practice": "Tạo một project có `pyproject.toml`, environment riêng và CLI đọc JSON. In `sys.executable`, cwd và PID; cố ý gây lỗi parse để đọc traceback; sau đó viết bản sync và async cho một tác vụ chờ giả lập.",
+      "checks": [
+        "Virtual environment tách điều gì và không tách điều gì?",
+        "Source, bytecode, process và object khác nhau ra sao?",
+        "Vì sao hai biến có thể cùng thấy một list bị thay đổi?",
+        "Tại sao JSON không giữ nguyên identity của object Python?",
+        "Khi nào async không giúp và process lại phù hợp hơn?"
+      ],
+      "golden": "Python là một ca làm có môi trường rõ, dữ liệu có nơi sống, lỗi có đường đi và thời gian được điều phối theo việc đang tính hay đang chờ."
+    }
+  },
+  "F03": {
+    "hero": {
+      "kicker": "Database cho người mới · từ cuốn sổ chung tới PostgreSQL",
+      "title": "Database là cuốn sổ chung có luật — không chỉ là chỗ cất dữ liệu.",
+      "dek": "Ta bắt đầu từ một cửa hàng có nhiều người cùng đọc và sửa đơn hàng. Sau đó mới bóc cách PostgreSQL giữ luật, xử lý câu hỏi, cho nhiều người cùng thao tác, bảo vệ dữ liệu khi máy tắt và để lại dấu vết cho việc vận hành.",
+      "scenarioTitle": "Tình huống xuyên suốt",
+      "scenario": "Cửa hàng chỉ còn một sản phẩm nhưng hai khách bấm mua gần như cùng lúc. Nếu nhân viên chỉ nhìn một tờ giấy rồi cùng sửa bằng tay, cả hai có thể đều được báo mua thành công và số lượng thành âm. Hệ thống còn phải giữ lời hứa nếu máy tắt ngay sau khi báo thành công, và phải để lại dấu vết khi một câu hỏi lấy dữ liệu chạy quá chậm.",
+      "analogy": "Hãy hình dung một nhà hàng có cuốn sổ kho chung: mẫu ghi ngăn dữ liệu vô nghĩa, người gác luật chặn thao tác sai, nhiều quầy phải xếp lượt khi đụng cùng món, nhật ký giữ dấu vết trước khi sửa sổ, còn bản sao và bản lưu phục vụ hai loại sự cố khác nhau.",
+      "outcomes": [
+        "Giải thích database quản lý shared state và invariant, không chỉ lưu file.",
+        "Đi từ fact nghiệp vụ tới relation, key, constraint và normalization.",
+        "Theo một query qua client, backend, planner, executor, buffer và page.",
+        "Hiểu snapshot, MVCC, lock, WAL, checkpoint và vacuum giải quyết vấn đề gì.",
+        "Biết index, replica và backup không phải các nút bấm thần kỳ; mọi quyết định cần evidence."
+      ],
+      "path": [
+        {
+          "label": "Nhu cầu",
+          "plain": "Nhiều người cùng dùng một sự thật."
+        },
+        {
+          "label": "Luật",
+          "plain": "Model và constraint giữ điều phải đúng."
+        },
+        {
+          "label": "Máy phục vụ",
+          "plain": "Process nhận kết nối và chia state chung."
+        },
+        {
+          "label": "Đọc/ghi",
+          "plain": "Planner chọn đường; executor thực hiện."
+        },
+        {
+          "label": "Đồng thời",
+          "plain": "MVCC và lock điều phối nhiều transaction."
+        },
+        {
+          "label": "Bền vững",
+          "plain": "Page, WAL, checkpoint và vacuum giữ hệ thống sống."
+        },
+        {
+          "label": "Tối ưu",
+          "plain": "Index và statistics giảm work khi phù hợp."
+        },
+        {
+          "label": "Vận hành",
+          "plain": "Backup, replica, metrics và restore drill."
+        }
+      ],
+      "metaphorWorld": "Nhà hàng có sổ kho và nhiều quầy phục vụ",
+      "metaphorMap": [
+        {
+          "technical": "Model / constraint",
+          "physical": "Mẫu sổ và luật thủ kho",
+          "role": "Quy định phải ghi gì, nhận diện bằng gì và trạng thái nào không được phép tồn tại."
+        },
+        {
+          "technical": "Backend process",
+          "physical": "Nhân viên phụ trách một quầy",
+          "role": "Nhận yêu cầu của một connection và thực hiện công việc cho khách đó."
+        },
+        {
+          "technical": "Planner / executor",
+          "physical": "Người chọn đường / người thật sự đi lấy hàng",
+          "role": "Một bên so các đường có thể đi; một bên chạy kế hoạch và tạo kết quả."
+        },
+        {
+          "technical": "Page / buffer",
+          "physical": "Trang sổ trong kho / bản đang đặt trên bàn",
+          "role": "Page là khối lưu vật lý; buffer giữ page nóng trong memory để dùng nhanh."
+        },
+        {
+          "technical": "MVCC / lock",
+          "physical": "Nhiều bản chụp / chìa khóa khu vực đang sửa",
+          "role": "Bản chụp quyết định ai thấy phiên bản nào; khóa xử lý thay đổi xung đột."
+        },
+        {
+          "technical": "WAL / checkpoint",
+          "physical": "Nhật ký chống cháy / mốc kiểm kê",
+          "role": "Ghi bằng chứng thay đổi trước; tạo mốc để phục hồi không phải đọc từ đầu."
+        },
+        {
+          "technical": "Replica / backup",
+          "physical": "Quầy dự phòng đang chạy / kho hồ sơ lịch sử",
+          "role": "Replica giúp tiếp tục phục vụ; backup cho đường quay lại khi lỗi cũng đã bị sao chép."
+        }
+      ]
+    },
+    "chapters": {
+      "system": {
+        "question": "Database giải quyết vấn đề gì mà một file CSV hoặc spreadsheet chung không giải quyết tốt?",
+        "plain": "Database là người giữ sổ chung. Nó nhận yêu cầu, chặn trạng thái sai, phân xử khi nhiều người cùng đổi, giữ bằng chứng để sống qua mất điện và tìm dữ liệu mà không bắt người dùng tự lục toàn bộ.",
+        "analogy": "Nhà hàng có sổ kho chung: mọi quầy gửi yêu cầu, thủ kho giữ luật, ghi thay đổi và bảo vệ sổ khi có sự cố.",
+        "analogyLimit": "Database xử lý bằng thuật toán và chạy đồng thời; cuốn sổ chỉ mô tả trách nhiệm.",
+        "why": "Nếu coi database là một tệp lớn, bạn sẽ không hiểu vì sao cần đơn vị cam kết, luật dữ liệu, điều phối nhiều người, bộ chọn đường và nhật ký phục hồi.",
+        "place": "Đây là gốc của toàn bài. Mọi phần sau đều giúp sổ chung đúng, đủ nhanh và có thể phục hồi.",
+        "flow": "yêu cầu → kiểm luật → đọc/đổi sổ → phân xử người khác → ghi bằng chứng → trả kết quả",
+        "visualLook": "Bắt đầu từ việc người dùng muốn, đi qua ranh giới database rồi nhìn bốn trách nhiệm: đúng, cùng dùng, đủ nhanh và sống qua lỗi.",
+        "sayBack": "Dùng ví dụ hai người cùng mua món cuối để giải thích database làm nhiều hơn việc lưu một con số.",
+        "job": "Dùng trong mọi hệ thống có nhiều người cùng dùng một sự thật: bán hàng, ngân hàng, ERP, backend và nền tảng dữ liệu.",
+        "bridge": "Muốn giữ sự thật, trước hết phải nói rõ “sự thật nào” và “điều gì luôn phải đúng”.",
+        "stress": "Hai khách cùng mua món cuối và máy mất điện ngay sau khi một khách thấy chữ “thành công”.",
+        "response": "Database kiểm luật trong cùng một đơn vị thay đổi, phân xử xung đột và chỉ báo thành công khi đã có bằng chứng có thể phục hồi.",
+        "coreTerms": [
+          "logical model",
+          "backend process",
+          "shared buffers",
+          "heap page",
+          "WAL",
+          "durability"
+        ],
+        "heading": "Vì sao một tệp dữ liệu chưa đủ cho nhiều người cùng dùng?",
+        "headingLead": "Cần một người giữ sổ biết chặn điều sai, phân xử cùng sửa và sống qua mất điện."
+      },
+      "model": {
+        "question": "Làm sao biến câu chuyện nghiệp vụ thành bảng và quy tắc mà database có thể bảo vệ?",
+        "plain": "Bắt đầu từ sự thật: khách hàng là ai, đơn hàng nào thuộc khách nào, trạng thái nào không được phép có. Quan hệ nhóm cùng loại sự thật; key nhận diện; foreign key nối; constraint chặn sai; normalization giảm chép lặp.",
+        "analogy": "Mẫu sổ tách khách, món và đơn hàng; mã khách nối các phần mà không phải chép lại toàn bộ hồ sơ.",
+        "analogyLimit": "Thiết kế thật còn phụ thuộc cách đọc/ghi; chuẩn hóa không có nghĩa tách vô hạn.",
+        "why": "Nếu cùng một sự thật bị chép ở nhiều nơi, sửa sót một nơi sẽ tạo hai phiên bản đúng-sai khác nhau. Đặt luật gần dữ liệu giúp hệ thống chặn sai ngay lúc ghi.",
+        "place": "Đây là lớp ý nghĩa: nói dữ liệu có nghĩa gì trước khi học PostgreSQL cất nó trong trang nào.",
+        "flow": "câu nghiệp vụ → loại sự thật → relation → key và mối nối → luật chặn sai → nguồn đúng duy nhất",
+        "visualLook": "Theo một câu nghiệp vụ thành các relation; sau đó nhìn chỗ dữ liệu bị lặp được tách về một nguồn chuẩn.",
+        "sayBack": "Dùng khách hàng và đơn hàng để giải thích: key là danh tính, foreign key là mối nối.",
+        "job": "Đây là nền của thiết kế schema, hợp đồng API, model phân tích, migration và kiểm soát chất lượng dữ liệu.",
+        "bridge": "Model nói điều gì phải đúng; tiếp theo ta xem PostgreSQL tổ chức process và memory để phục vụ nhiều client cùng lúc.",
+        "terms": [
+          {
+            "term": "fact",
+            "gloss": "Một phát biểu nghiệp vụ cần được giữ đúng, ví dụ “đơn hàng O1 thuộc khách hàng C1”."
+          },
+          {
+            "term": "relation",
+            "gloss": "Một tập các tuple cùng kiểu ý nghĩa; trong SQL thường được biểu diễn bằng table."
+          },
+          {
+            "term": "tuple",
+            "gloss": "Một fact cụ thể trong relation; trong giao diện SQL thường nhìn như một row."
+          },
+          {
+            "term": "attribute",
+            "gloss": "Một đặc tính có tên của tuple; trong SQL thường nhìn như một column."
+          },
+          {
+            "term": "primary key",
+            "gloss": "Giá trị nhận diện duy nhất một tuple trong relation."
+          },
+          {
+            "term": "foreign key",
+            "gloss": "Giá trị tham chiếu key của relation khác để bảo vệ mối liên hệ."
+          },
+          {
+            "term": "constraint",
+            "gloss": "Quy tắc database kiểm tra để chặn state không hợp lệ."
+          },
+          {
+            "term": "invariant",
+            "gloss": "Điều phải luôn đúng với state, bất kể request đến theo thứ tự nào."
+          },
+          {
+            "term": "normalization",
+            "gloss": "Tách các loại fact độc lập để mỗi fact có một nguồn cập nhật chính."
+          },
+          {
+            "term": "denormalization",
+            "gloss": "Cố ý lặp hoặc gộp dữ liệu để phục vụ access pattern, đổi lại phải quản lý tính nhất quán."
+          },
+          {
+            "term": "update anomaly",
+            "gloss": "Một fact lặp ở nhiều nơi và bị sửa thiếu, tạo ra nhiều phiên bản “đúng” khác nhau."
+          }
+        ],
+        "stress": "Email khách bị chép trong 100 đơn hàng; nhân viên sửa 99 nơi và hệ thống bắt đầu có hai “sự thật”.",
+        "response": "Tách sự thật khách khỏi sự thật đơn hàng, nối bằng key/foreign key, đặt constraint và chỉ lưu lặp khi có lý do cùng cách giữ hai bản đồng bộ.",
+        "coreTerms": [
+          "relation",
+          "key",
+          "foreign key",
+          "constraint",
+          "normalization",
+          "denormalization"
+        ],
+        "heading": "Trước khi tạo bảng, ta phải nói rõ sự thật nào?",
+        "headingLead": "Đặt mỗi sự thật đúng chỗ rồi đặt luật để trạng thái vô lý không thể lọt vào."
+      },
+      "process": {
+        "question": "Khi nhiều ứng dụng kết nối, PostgreSQL chia trách nhiệm giữa server, backend process, shared memory và worker thế nào?",
+        "plain": "Một process chính mở cửa. Mỗi kết nối thường có một backend riêng phục vụ khách đó. Các backend dùng chung một số vùng memory và nhờ các process nền lo ghi nhật ký, tạo mốc phục hồi và dọn dữ liệu cũ.",
+        "analogy": "Một cửa nhận khách, mỗi quầy có nhân viên phụ trách, còn kho và đội hậu cần được dùng chung.",
+        "analogyLimit": "Cấu hình và pool có thể thay đổi số backend; ẩn dụ chỉ giữ ranh giới riêng/chung.",
+        "why": "Biết phần riêng và phần chung giúp tránh mở quá nhiều kết nối, đọc đúng dấu hiệu chờ và tìm xem một câu query đang tiêu tài nguyên ở đâu.",
+        "place": "Đây là cỗ máy đang chạy giữa ứng dụng gửi yêu cầu và các tệp dữ liệu trên đĩa.",
+        "flow": "ứng dụng → cửa mạng → process nhận khách → backend riêng → memory/lock dùng chung → việc nền → storage",
+        "visualLook": "Theo một kết nối riêng trước, rồi đánh dấu phần nào dùng chung. Đừng hiểu vùng nhớ chung là bản sao của toàn bộ database.",
+        "sayBack": "Giải thích vì sao hai ứng dụng thường có hai backend khác nhau nhưng vẫn nhìn cùng một database.",
+        "job": "Dùng khi cấu hình pool, xử lý bão kết nối, áp lực memory, lock wait và sức chứa PostgreSQL.",
+        "bridge": "Đã có process nhận việc; bây giờ theo một câu SELECT từ chữ SQL tới dữ liệu trả về.",
+        "stress": "Lượng truy cập tăng đột ngột; ứng dụng mở hàng nghìn kết nối khiến server hết memory trước khi query kịp chạy.",
+        "response": "Dùng pool và giới hạn số việc đồng thời; quan sát backend đang chờ gì thay vì chỉ tăng `max_connections`.",
+        "coreTerms": [
+          "postmaster / server process",
+          "backend",
+          "shared memory",
+          "WAL writer",
+          "checkpointer",
+          "autovacuum"
+        ],
+        "heading": "Khi nhiều khách cùng hỏi, ai đang phục vụ từng người?",
+        "headingLead": "Tách phần việc riêng của mỗi kết nối khỏi vùng dữ liệu và công việc dùng chung."
+      },
+      "query": {
+        "question": "PostgreSQL biến một câu SQL thành các row kết quả bằng những bước nào?",
+        "plain": "Backend hiểu câu SQL. Planner so các đường có thể đi từ số liệu thống kê. Executor mới chạy kế hoạch, đọc page qua buffer và tạo các dòng kết quả. Người chọn đường không phải người thật sự đi lấy hàng.",
+        "analogy": "Nhân viên nhận phiếu, người lập tuyến chọn đường vào kho, người lấy hàng mới đi thật rồi mang món về quầy.",
+        "analogyLimit": "Planner chỉ ước lượng từ thống kê; executor có thể gặp thực tế khác dự đoán.",
+        "why": "Khi query chậm, ta cần biết do chờ khóa, đoán sai số dòng, chọn đường không hợp hay phải đọc quá nhiều page — không chỉ nói chung “database chậm”.",
+        "place": "Đây là đường trung tâm nối câu hỏi người dùng với dữ liệu vật lý.",
+        "flow": "SQL → hiểu câu hỏi → planner ước lượng/chọn đường → executor đi → buffer/page/index → rows → client",
+        "visualLook": "Đi một chiều; dừng ở planner để tách “ước lượng” khỏi “thực tế”. Chỉ executor mới bắt đầu đọc dữ liệu.",
+        "sayBack": "Giải thích vì sao tạo index chỉ mở thêm một con đường, không ra lệnh database bắt buộc đi đường đó.",
+        "job": "Dùng khi đọc `EXPLAIN ANALYZE`, thiết kế index và tìm nguyên nhân API lấy dữ liệu chậm.",
+        "bridge": "Một query đã chạy, nhưng khi nhiều người cùng sửa, mỗi người được thấy phiên bản nào?",
+        "stress": "Thống kê cũ làm planner đoán 10 dòng nhưng executor gặp một triệu dòng, nên kế hoạch đã chọn trở nên rất đắt.",
+        "response": "Cập nhật thống kê, so số dòng dự đoán với số thật và sửa nguyên nhân đoán sai hoặc đường truy cập thay vì chỉ nhìn tổng thời gian.",
+        "coreTerms": [
+          "wire protocol",
+          "parse tree",
+          "planner / optimizer",
+          "executor",
+          "EXPLAIN ANALYZE"
+        ],
+        "heading": "Một câu hỏi lấy dữ liệu đi qua những ai?",
+        "headingLead": "Có người hiểu yêu cầu, người chọn đường và người thật sự đi lấy các dòng dữ liệu."
+      },
+      "transactions": {
+        "question": "Làm sao nhiều transaction cùng đọc và sửa mà không biến shared state thành hỗn loạn?",
+        "plain": "Một transaction gom nhiều thay đổi thành một lời hứa chung. Database giữ nhiều phiên bản để người đọc có góc nhìn ổn định; snapshot chọn phiên bản được thấy; lock buộc những người ghi xung đột phải xếp lượt; WAL bảo vệ lời hứa commit.",
+        "analogy": "Các quầy nhìn những bản chụp sổ khác nhau; khi cùng sửa một món phải xếp lượt, và trước khi báo xong phải ghi nhật ký.",
+        "analogyLimit": "Snapshot không phải bản sao đầy đủ; nó là quy tắc chọn phiên bản được nhìn thấy.",
+        "why": "Nếu lẫn “được nhìn thấy” với “bị khóa”, bạn dễ giữ transaction quá lâu, làm dữ liệu vật lý phình và viết retry sai khi có deadlock.",
+        "place": "Đây là lớp giữ dữ liệu đúng khi nhiều câu query cùng đọc và ghi.",
+        "flow": "bắt đầu → lấy góc nhìn → đọc phiên bản phù hợp → tạo phiên bản mới/xếp lượt khi xung đột → ghi WAL → commit hoặc hủy → dọn sau",
+        "visualLook": "Theo hai transaction trên cùng trục thời gian; tách đường quyết định “được thấy gì” khỏi đường “ai phải chờ”.",
+        "sayBack": "Giải thích vì sao T2 có thể chưa thấy thay đổi của T1 dù phiên bản mới đã tồn tại trong máy.",
+        "job": "Dùng trong thanh toán, tồn kho, đặt chỗ, job queue và mọi nơi nhiều người cùng sửa một trạng thái.",
+        "bridge": "Version và commit tồn tại rồi; tiếp theo là chúng nằm ở đâu và sống qua crash bằng cách nào.",
+        "stress": "T1 giữ món A rồi chờ B; T2 giữ B rồi chờ A. Hoặc một transaction mở quá lâu làm dữ liệu cũ không dọn được.",
+        "response": "PostgreSQL phát hiện vòng chờ và hủy một bên; ứng dụng retry có giới hạn, còn transaction nên ngắn để giảm khóa và dữ liệu cũ.",
+        "coreTerms": [
+          "MVCC",
+          "snapshot",
+          "row lock",
+          "isolation level",
+          "deadlock"
+        ],
+        "heading": "Hai người cùng sửa sổ mà dữ liệu vẫn đúng bằng cách nào?",
+        "headingLead": "Hệ thống giữ nhiều phiên bản, cho người đọc một góc nhìn và buộc người ghi xung đột xếp lượt."
+      },
+      "storage": {
+        "question": "Row thật sự nằm ở đâu, WAL cứu commit thế nào và vì sao cần checkpoint/vacuum?",
+        "plain": "PostgreSQL gom dữ liệu vào các page trên đĩa và giữ page đang dùng trong memory. Nó ghi WAL trước để làm lại thay đổi sau crash. Checkpoint tạo mốc gần. Vacuum thu hồi chỗ của phiên bản cũ khi không còn ai cần.",
+        "analogy": "Sổ kho chia thành trang; nhật ký được ghi trước, mốc kiểm kê rút ngắn phục hồi, giấy cũ chỉ bỏ khi không ai cần.",
+        "analogyLimit": "WAL không phải backup và vacuum thường tái sử dụng chỗ trống chứ không lập tức làm file nhỏ đi.",
+        "why": "Bản đồ này giải thích vì sao máy tắt vẫn phục hồi được, vì sao ổ đĩa phình, vì sao vacuum quan trọng và vì sao dữ liệu nóng đọc nhanh hơn.",
+        "place": "Đây là nơi lời hứa “đã lưu” biến thành byte, page và nhật ký thật.",
+        "flow": "phiên bản bản ghi → page trong buffer → WAL ghi trước → commit → checkpoint → replay khi crash → vacuum tái sử dụng chỗ",
+        "visualLook": "Tách ba câu hỏi: bản ghi nằm ở page nào, thay đổi đã có WAL chưa, và phiên bản cũ còn ai cần không.",
+        "sayBack": "Giải thích vì sao máy có thể tắt sau commit dù page dữ liệu chưa xuống đĩa mà WAL vẫn cứu được thay đổi.",
+        "job": "Dùng khi theo dõi lượng WAL, checkpoint, autovacuum, dung lượng đĩa và thời gian phục hồi.",
+        "bridge": "Biết page và access path rồi, ta mới đánh giá khi nào index thật sự giảm work.",
+        "stress": "Máy tắt sau commit nhưng page chưa xuống đĩa; đồng thời WAL tăng nhanh và vacuum bị chậm.",
+        "response": "Recovery đọc lại WAL để dựng thay đổi, checkpoint rút ngắn đoạn phải đọc và vacuum dọn khi không còn snapshot cần phiên bản cũ.",
+        "coreTerms": [
+          "heap page",
+          "WAL",
+          "checkpoint",
+          "vacuum",
+          "bloat"
+        ],
+        "heading": "Máy tắt giữa lúc ghi thì lời hứa “đã lưu” được giữ ra sao?",
+        "headingLead": "Dữ liệu nằm trong trang, còn nhật ký được ghi trước để có thể dựng lại sau sự cố."
+      },
+      "planner": {
+        "question": "Vì sao có index mà PostgreSQL vẫn chọn quét cả bảng?",
+        "plain": "Index là một đường tắt, không phải mệnh lệnh. Planner đoán còn bao nhiêu dòng, phải đọc bao nhiêu page và tốn bao nhiêu công trước khi chọn đọc tuần tự hay đi qua index.",
+        "analogy": "Mục lục hợp khi tìm vài dòng; nếu cần gần cả cuốn sổ thì đọc lần lượt có thể rẻ hơn nhảy qua lại.",
+        "analogyLimit": "Chi phí phụ thuộc dữ liệu, cache và cấu hình; luôn so estimate với actual.",
+        "why": "Thêm index theo thói quen làm ghi chậm hơn và vẫn không sửa được dự đoán sai. Cần đo công việc thật thay vì tin mẹo.",
+        "place": "Đây là điểm nối giữa điều kiện trong câu SQL và đường đọc dữ liệu vật lý.",
+        "flow": "điều kiện + thống kê → đoán số dòng → liệt kê đường đi → so chi phí → chọn plan → đo thực tế",
+        "visualLook": "Đi từ thống kê sang dự đoán rồi mới tới đường đọc. Cuối cùng so estimated rows với actual rows và số page đã đọc.",
+        "sayBack": "So trường hợp tìm một khách với báo cáo lấy 90% đơn hàng để giải thích vì sao hai query cần đường khác nhau.",
+        "job": "Dùng trong review query, thiết kế index, dashboard chậm và hoạch định sức chứa.",
+        "bridge": "Một query nhanh chưa đủ; production còn phải sống qua lỗi máy, xóa nhầm và tăng tải.",
+        "stress": "Nhóm thêm index cho mọi cột; thao tác ghi chậm hơn nhưng báo cáo lấy gần cả bảng vẫn không dùng index.",
+        "response": "Chọn index từ kiểu so sánh và lượng dữ liệu còn lại; đo số page thật và chấp nhận đọc tuần tự khi nó rẻ hơn.",
+        "coreTerms": [
+          "selectivity",
+          "cardinality estimate",
+          "B-tree",
+          "sequential scan",
+          "EXPLAIN ANALYZE"
+        ],
+        "heading": "Có mục lục rồi vì sao đôi khi vẫn phải đọc cả cuốn sổ?",
+        "headingLead": "Đường tắt chỉ đáng dùng khi nó thật sự giúp bỏ đủ công việc."
+      },
+      "operations": {
+        "question": "Production cần những lớp bảo vệ nào ngoài việc query chạy thành công?",
+        "plain": "Pool giữ số kết nối thật trong giới hạn. Replica là cửa hàng dự phòng đang nhận thay đổi. Backup là hồ sơ lịch sử để quay về trước lỗi. Monitoring chỉ có giá trị khi chỉ ra hệ thống đang chờ gì và backup chỉ đáng tin sau khi thử restore.",
+        "analogy": "Quầy dự phòng giúp tiếp tục bán, còn kho hồ sơ lịch sử mới cho phép quay về trước một lần xóa nhầm.",
+        "analogyLimit": "Thiết kế thật phụ thuộc mục tiêu mất dữ liệu và thời gian phục hồi.",
+        "why": "Replica có thể sao chép cả lệnh xóa nhầm. Dashboard nhiều biểu đồ không thay cho câu hỏi rõ. Backup chưa từng phục hồi thử vẫn chỉ là hy vọng.",
+        "place": "Đây là vòng bảo vệ bên ngoài từ lúc ứng dụng kết nối cho tới khi phải phục hồi sau sự cố.",
+        "flow": "ứng dụng → pool → máy chính → WAL → replica và kho lưu → backup/PITR → metric/cảnh báo → diễn tập restore",
+        "visualLook": "Tách đường phục vụ hiện tại, đường sao chép và đường quay lại lịch sử. Không gộp replica với backup.",
+        "sayBack": "Giải thích vì sao `DROP TABLE` có thể lan sang replica và chỉ backup/PITR mới cho đường quay về trước thời điểm đó.",
+        "job": "Đây là việc của backend/platform engineer, DBA và SRE khi đặt mục tiêu dịch vụ, chính sách backup và kịch bản xử lý sự cố.",
+        "bridge": "Cuối cùng, gom toàn bộ bài thành năm câu hỏi có thể dùng cho mọi incident.",
+        "stress": "Ai đó xóa nhầm bảng; lệnh hợp lệ được sao chép ngay sang máy dự phòng nên cả hai bên đều mất dữ liệu.",
+        "response": "Phục hồi từ backup rồi phát lại WAL tới ngay trước lỗi; replica giữ khả năng phục vụ chứ không giữ một lịch sử độc lập.",
+        "coreTerms": [
+          "connection pooling",
+          "streaming replication",
+          "PITR",
+          "wait event",
+          "replication lag"
+        ],
+        "heading": "Làm sao tiếp tục phục vụ và vẫn quay về trước một lỗi lớn?",
+        "headingLead": "Bản sao đang chạy và bản lưu lịch sử giải quyết hai loại tai nạn khác nhau."
+      },
+      "recap": {
+        "question": "Khi gặp query chậm, lock, bloat hoặc sự cố recovery, nên bắt đầu suy luận từ đâu?",
+        "plain": "Đừng nhảy ngay vào thêm index hay restart. Hỏi: sự thật và luật nào đang bị đe dọa; ai đang giữ việc; dữ liệu được nhìn thấy ra sao; đường đọc nào được chọn; lời hứa commit được bảo vệ bằng gì; bằng chứng nào xác nhận.",
+        "analogy": "Người quản lý nhà hàng kiểm lần lượt luật sổ, người đang giữ việc, đường vào kho, lời hứa ghi sổ và bằng chứng.",
+        "analogyLimit": "Khung câu hỏi không thay thế plan, metric, log và diễn tập restore.",
+        "why": "Chuỗi câu hỏi này biến nhiều thuật ngữ thành một hệ thống và giảm việc sửa theo cảm giác.",
+        "place": "Đây là bản tổng hợp từ ý nghĩa dữ liệu tới cỗ máy chạy, nơi lưu và cách vận hành.",
+        "flow": "sự thật/luật → người đang làm → phiên bản được thấy → đường truy cập → lời hứa ghi bền → bằng chứng → đổi nhỏ → đo lại",
+        "visualLook": "Mở từng câu hỏi và nối với một triệu chứng: query chậm, chờ khóa, đĩa tăng, replica trễ hoặc restore thất bại.",
+        "sayBack": "Chọn một sự cố giả định và đi đủ chuỗi câu hỏi trước khi đề xuất thay đổi.",
+        "job": "Đây là cách làm thực tế: đặt giả thuyết, lấy bằng chứng, đổi phần nhỏ nhất, đo lại và giữ đường quay lui.",
+        "bridge": "Bài kết thúc ở đây, nhưng cùng khung suy luận sẽ được dùng tiếp trong API, container, ingestion và storage layer.",
+        "terms": [
+          {
+            "term": "where",
+            "gloss": "Câu hỏi dữ liệu đang ở logical relation, buffer, heap page, index hay WAL."
+          },
+          {
+            "term": "visibility",
+            "gloss": "Quy tắc quyết định transaction nào được thấy tuple version nào."
+          },
+          {
+            "term": "access path",
+            "gloss": "Đường executor dùng để lấy dữ liệu, như sequential scan, index scan hoặc bitmap scan."
+          },
+          {
+            "term": "durability",
+            "gloss": "Cam kết thay đổi đã báo thành công vẫn có thể phục hồi sau sự cố."
+          },
+          {
+            "term": "evidence",
+            "gloss": "Plan, actual rows, buffers, waits, WAL, lag, log và restore result dùng để xác nhận."
+          }
+        ],
+        "stress": "Hệ thống vừa chậm, vừa có chờ khóa và đĩa tăng; nhóm định restart rồi thêm index ngay.",
+        "response": "Đi từ sự thật tới người làm, phiên bản, đường đọc, lời hứa commit và bằng chứng; chọn một giả thuyết, thay đổi nhỏ nhất rồi đo lại.",
+        "coreTerms": [],
+        "heading": "Khi database chậm hoặc sai, nên hỏi gì trước?",
+        "headingLead": "Đi theo một chuỗi câu hỏi cố định thay vì restart, thêm index hoặc đổi cấu hình theo cảm giác."
+      }
+    },
+    "final": {
+      "learned": [
+        "Database quản lý shared state, luật, concurrency và durability — không chỉ lưu byte.",
+        "Logical model nói dữ liệu có nghĩa gì; physical storage nói dữ liệu nằm ở đâu.",
+        "Planner chọn kế hoạch từ estimate; executor mới chạy kế hoạch và đọc page.",
+        "MVCC/snapshot quyết định visibility; lock giải quyết conflict; WAL bảo vệ commit.",
+        "Index, replica và backup giải quyết các vấn đề khác nhau; mọi tuning phải có evidence."
+      ],
+      "market": [
+        {
+          "label": "Backend",
+          "text": "Transaction, constraint, pool và query plan quyết định correctness và API latency."
+        },
+        {
+          "label": "Data platform",
+          "text": "Schema, access path, storage và retention ảnh hưởng pipeline và analytics."
+        },
+        {
+          "label": "Platform/SRE",
+          "text": "WAL, vacuum, replication, backup và restore drill quyết định độ tin cậy."
+        },
+        {
+          "label": "Product/Analytics",
+          "text": "Hiểu fact, key và source of truth tránh metric mâu thuẫn giữa các hệ thống."
+        }
+      ],
+      "practice": "Mô hình hóa customer–order–order_item; đặt key và constraint; chạy một SELECT với `EXPLAIN (ANALYZE, BUFFERS)`; mở hai transaction để quan sát visibility; cuối cùng viết runbook backup/restore tối thiểu.",
+      "checks": [
+        "Database khác file CSV ở bốn trách nhiệm nào?",
+        "Logical model và physical storage khác nhau ra sao?",
+        "Planner và executor làm hai việc khác nhau nào?",
+        "MVCC, lock và WAL lần lượt bảo vệ điều gì?",
+        "Vì sao replica không thay thế backup và index không luôn làm query nhanh hơn?"
+      ],
+      "golden": "Database là người giữ sổ chung: chặn điều sai, điều phối nhiều người, chọn đường lấy dữ liệu và giữ bằng chứng để phục hồi khi có sự cố."
+    }
+  }
+}

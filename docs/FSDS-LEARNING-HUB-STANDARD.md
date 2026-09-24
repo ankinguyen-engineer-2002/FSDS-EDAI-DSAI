@@ -1,249 +1,93 @@
-# FSDS Learning Hub — authoring, visual và UI standard
+# FSDS Learning Hub — technical, visual và UI standard
 
-Phiên bản: 1.0 · 2026-09-24
+Phiên bản: 1.1 · 2026-09-24
 
-## 1. North star
+Phần thiết kế nội dung chỉ dùng một nguồn duy nhất: `LEARNING-DESIGN-METHOD.md`. Tài liệu này không tạo thêm framework viết bài; nó chỉ giữ các contract kỹ thuật để hub, Archify và GitHub Pages hoạt động ổn định.
 
-Một bài học hoàn chỉnh phải giúp người học:
+## 1. Archify-only visual policy
 
-1. Nhìn thấy một việc thật xảy ra.
-2. Biết state nằm ở đâu và ai giữ quyền xử lý.
-3. Nhận ra boundary/data/control đang được đi qua.
-4. Gọi đúng tên cơ chế sau khi đã thấy hành vi.
-5. Dùng mental model để dự đoán một biến thể mới.
-6. Biết evidence nào chứng minh kết luận.
+Mọi learning visual mới hoặc visual được làm lại phải dùng Archify. Không dùng Mermaid, draw.io, Excalidraw, SVG viết tay, canvas tự vẽ hoặc card-grid giả làm diagram. UI chrome và typography không tính là learning visual.
 
-## 2. Tỷ lệ và nhịp bài
+Visual chỉ được giữ khi nó giải thích flow, quan hệ, state, boundary hoặc failure tốt hơn prose ngắn. Không dựng visual để đạt quota.
 
-- Mục tiêu trải nghiệm: **60% visual / 40% text**.
-- Tỷ lệ này nói về tải nhận thức, không phải diện tích pixel cứng.
-- Một section chuẩn:
+Workflow:
 
 ```text
-Question / observable episode
-  → visual mental model
-  → short explanation
-  → mechanism + terminology
-  → failure/variation
-  → evidence / lab bridge
+câu hỏi visual cần trả lời
+→ Archify JSON spec
+→ showcase validation
+→ deliver HTML
+→ embed vào bài
 ```
 
-- Một màn hình/viewport chỉ nên có một kết luận chính.
-- Paragraph thường 2–4 câu; prose body khoảng 60–75 ký tự mỗi dòng.
-- Headline phải mang claim: “Pipe nối process bằng stream”, không chỉ “Pipe”.
-
-## 3. Ba tầng diễn giải
-
-1. **Dễ hiểu:** câu tiếng Việt gần gũi.
-2. **Cơ chế thật:** state, boundary, protocol, ownership, cost.
-3. **Trong nghề:** framework, failure, performance, operations và evidence.
-
-Thuật ngữ lần đầu:
+Source of truth:
 
 ```text
-nghĩa tiếng Việt (technical term)
+archify/specs/       # JSON specs
+archify/rendered/    # standalone HTML đã deliver
+archify/receipts/    # validation và delivery receipts
 ```
 
-Không dùng analogy nếu không chỉ ra nơi analogy ngừng đúng.
+Không sửa trực tiếp `archify/rendered/*.html`. Nếu spec thay đổi, rebuild và deliver lại.
 
-## 4. Quy trình biên tập nguồn
+## 2. Archify authoring và brand
 
-### Bước A — coverage ledger
+- `meta.quality_profile = "showcase"`.
+- Node, connector và direction phải mang nghĩa rõ.
+- Visual phải hiểu được khi motion tắt.
+- Dùng canonical brand mark khi công nghệ có logo rõ ràng.
+- Tra brand catalogue trước; nếu phải dùng asset ngoài, chỉ lấy từ website chính thức và pin SHA-256.
+- Python, PostgreSQL và FastAPI dùng mark do Archify bundle/pin.
+- Linux/Tux dùng asset chính thức đã audit tại `archify/brand-assets/linux-kernel-org.png`.
 
-- Đọc slide gốc để biết phạm vi môn học.
-- Đọc 1–3 sách/tài liệu có thẩm quyền cho cơ chế nền.
-- Tạo bảng: claim từ slide → giữ/bỏ/gộp/bổ sung → evidence/source.
+## 3. Embed contract
 
-### Bước B — chọn spine
+- Dùng `.archify-lab` và iframe bằng relative path.
+- Có title, summary, hướng dẫn đọc, câu tự nói lại và nút mở full-screen.
+- Iframe lazy-load và có thuộc tính `title`.
+- Không sửa CSS bên trong artifact chỉ để ép nó giống hub.
+- Visual chính phải đọc trực tiếp được trong bài, không bắt buộc mở tab mới.
 
-Spine là một flow hoặc bộ câu hỏi xuyên suốt. Ví dụ:
+## 4. Personal study desk UI
 
-- Linux: intent → shell → kernel → streams → automation.
-- Python: project → runtime → objects/errors → I/O → time → framework.
-- Database: logical intent → process → plan → pages → durability → evidence.
+- Giữ phong cách Claude/Anthropic: paper, ink, teal, copper, border mảnh.
+- Sidebar là syllabus/map, có thể thu gọn và phải trả lại chiều rộng cho content.
+- Desktop rail mở: bài viết dùng gần hết main, chừa 24–32px với rail và mép phải.
+- Desktop rail đóng: article tối đa 1800px; viewport 1920px còn khoảng 60px mỗi bên.
+- Prose khoảng 70–76 ký tự mỗi dòng; visual và section shell được mở rộng hơn.
+- Archify frame desktop cao tối đa 82vh/920px.
+- Hỗ trợ light/dark theme, reading progress và note drawer autosave bằng `localStorage`.
 
-### Bước C — viết episode
+## 5. Accessibility và responsive
 
-Mỗi episode có:
+- Không horizontal overflow tại 1920, 1440, 1024, 768 và 390px.
+- Không cắt hoặc ellipsis nội dung quan trọng.
+- Button/control dùng được bằng bàn phím; Escape đóng drawer/modal.
+- Focus ring và contrast phải nhìn thấy ở light/dark.
+- Tôn trọng `prefers-reduced-motion`.
+- Iframe/SVG có title hoặc nhãn truy cập phù hợp.
+- Không có JavaScript page error.
 
-- initial state;
-- trigger/input;
-- transitions;
-- owner tại mỗi bước;
-- happy path;
-- failure path quan trọng;
-- one-sentence conclusion;
-- lab/evidence bridge.
+## 6. Validation và publish
 
-### Bước D — visual inventory trước khi vẽ
+Sau khi sửa prose/layout:
 
-Chọn visual theo câu hỏi nhận thức, không theo sở thích thẩm mỹ. Ghi rõ node, connector, state, reading order và interaction trước khi author spec.
-
-### Bước E — viết prose quanh visual
-
-Text không đọc lại từng box. Text giải thích:
-
-- tại sao quan hệ đó tồn tại;
-- ngộ nhận nào cần phá;
-- failure/cost nào visual chưa nói hết;
-- cách kiểm chứng.
-
-## 5. Archify integration contract
-
-### File layout
-
-```text
-archify/
-  specs/       # JSON source of truth
-  rendered/    # delivered standalone HTML
-  receipts/    # deliver + visual-check receipts
+```bash
+python3 scripts/embed_beginner_content.py
+./scripts/validate.sh
 ```
 
-### Authoring
+Sau khi sửa Archify spec:
 
-1. Mỗi diagram tối đa khoảng 12 primary nodes; nếu dày hơn thì tách.
-2. `meta.quality_profile = "showcase"`.
-3. Stable IDs, wording theo domain.
-4. Chỉ thêm route/via/labelAt khi validator chẩn đoán.
-5. Validate sau mỗi thay đổi và trước delivery.
-6. Deliver một lần khi spec đã pass; không sửa spec sau delivery mà không deliver lại.
-
-### Embed trong hub
-
-- Dùng `.archify-lab` và iframe relative path.
-- Có title, summary, nút mở full-screen và figcaption nói cách dùng.
-- Iframe lazy-load.
-- Không sửa CSS bên trong artifact đã deliver chỉ để khớp hub; hai hệ thống dùng chung tinh thần editorial nhưng artifact giữ runtime của Archify.
-- Visual phải còn hiểu được khi motion tắt.
-
-## 6. UI/UX của personal study desk
-
-### Shell
-
-- Giữ Anthropic/Claude editorial language: paper surface, ink, teal, copper, border mảnh.
-- Sidebar là syllabus/map, không phải dashboard widget wall.
-- Content rộng, có breathing room và hierarchy rõ.
-- Rail thu gọn phải trả lại toàn bộ chiều rộng cho content.
-
-### Personal learning features
-
-- Reading progress theo từng lesson.
-- Ghi chú theo lesson, autosave trong `localStorage`.
-- Note prompt buộc người học viết cơ chế, câu hỏi và evidence.
-- Theme và rail state được nhớ.
-- Visual có full-screen/open separate view.
-
-### Accessibility
-
-- Keyboard dùng được cho button/control.
-- Escape đóng drawer/modal.
-- SVG có title/desc hoặc aria-label hữu ích.
-- Iframe có `title`.
-- `prefers-reduced-motion` được tôn trọng.
-- Không ellipsis text quan trọng.
-- Contrast và focus ring phải nhìn thấy ở light/dark.
-
-## 7. Content quality gates
-
-Bài chỉ được gọi “hoàn chỉnh” khi:
-
-- [ ] Có episode mở đầu, không bắt đầu bằng glossary.
-- [ ] Có super map/spine.
-- [ ] Có ít nhất một flow input → output.
-- [ ] Có failure path.
-- [ ] Có câu hỏi dự đoán.
-- [ ] Thuật ngữ được giải thích bằng tiếng Việt.
-- [ ] Có evidence/lab bridge.
-- [ ] Có coverage ledger.
-- [ ] Có synthesis mindmap.
-- [ ] Không có claim vượt quá source/runtime/version boundary.
-
-## 8. Visual quality gates
-
-- [ ] Connector có nghĩa và đúng hướng.
-- [ ] Không edge xuyên node không liên quan.
-- [ ] Không label che edge/node.
-- [ ] Layer/boundary mang nghĩa kỹ thuật.
-- [ ] Timeline có scale thời gian nhất quán.
-- [ ] State transition có start/end rõ.
-- [ ] Visual không chỉ là card chứa paragraph.
-- [ ] Archify showcase: 9 checks, 0 error, 0 warning.
-- [ ] Browser evidence được ghi riêng với perceptual review.
-
-## 9. UI verification matrix
-
-Bắt buộc test:
-
-| Viewport | Kiểm tra |
-|---|---|
-| 1440×900 | desktop shell, reading width, iframe, drawer |
-| 1024×768 | sidebar/content balance, sticky aside |
-| 768×1024 | tablet reflow, iframe height |
-| 390×844 | mobile nav, no page overflow, note drawer |
-
-Automated checks:
-
-- JavaScript syntax.
-- Browser console errors.
-- `scrollWidth <= clientWidth` cho document và main content.
-- Iframe URL load thành công.
-- Note autosave/restore.
-- Theme/rail persistence.
-- Keyboard Escape.
-
-## 10. Anti-patterns
-
-- Chuyển bullet slide thành card grid.
-- Mỗi thuật ngữ một box nhưng không có relationship.
-- Dạy syntax trước khi có behavior.
-- Animation không biểu diễn state/flow.
-- Dùng chart với dữ liệu giả.
-- Dùng “best practice” mà không nói workload/failure model.
-- Nói tool name thay cho role/cơ chế.
-- Nhúng visual chỉ để đẹp; prose vẫn chứa toàn bộ quan hệ.
-- Copy cùng một layout cho mọi chủ đề.
-
-## 11. Definition of done
-
-```text
-source coverage
-+ coherent spine
-+ concise prose
-+ complete visual inventory
-+ validated visual artifacts
-+ integrated study UX
-+ browser QA
-+ updated documentation
-= lesson ready
+```bash
+./scripts/rebuild-archify.sh
+./scripts/validate.sh
 ```
 
-## 12. Archify-only visual policy
-
-Từ 2026-09-24, mọi learning visual mới hoặc visual được làm lại phải dùng Archify. Không dùng Mermaid, draw.io, Excalidraw, SVG viết tay, canvas tự vẽ hoặc card-grid giả làm diagram. UI chrome và typography không tính là learning visual.
-
-Quy trình:
-
-```text
-visual catalog → Archify JSON spec → showcase validation
-→ deliver receipt → embed iframe → browser QA
-```
-
-Brand/product/language có canonical mark trong `archify brands` phải dùng trường `brand`. Nếu catalogue chưa có nhưng đã xác định được website chính thức, capture bằng Archify, khóa SHA-256, lưu asset audit trong repo và embed qua `brand`; không dùng logo gần giống hoặc logo không pin. Mỗi diagram chỉ gắn brand ở node thực sự đại diện cho sản phẩm/nền tảng, không rải logo trang trí.
-
-## 13. Canvas width contract
-
-- Desktop rail mở: article dùng gần hết phần main, chỉ giữ khoảng thở 24–32px với rail và mép phải.
-- Desktop rail đóng: article tối đa 1800px; trên viewport 1920px còn khoảng 60px mỗi bên.
-- Archify frame desktop cao tối đa 82vh/920px để đọc trực tiếp, không bắt buộc mở tab khác.
-- Prose vẫn giới hạn khoảng 72ch; chỉ visual, flow map và section shell được mở rộng.
-- Không tạo horizontal overflow tại 1920, 1440, 1024, 768 và 390px.
-
-## 14. Publish gate
-
-Mỗi đơn vị thay đổi hoàn chỉnh phải chạy validation, commit và push để Pages đồng bộ:
+Khi QA pass:
 
 ```bash
 ./scripts/publish.sh "Mô tả thay đổi"
 ```
 
-Nếu thay visual, phải chạy `./scripts/rebuild-archify.sh` trước. Chi tiết ở `docs/PUBLISHING-WORKFLOW.md`.
+Push lên `main` phải kích hoạt GitHub Pages. Chi tiết ở `docs/PUBLISHING-WORKFLOW.md`.
