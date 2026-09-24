@@ -6,12 +6,12 @@
   "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/linux-command-architecture.json",
   "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/linux-command-architecture.html",
   "specification": {
-    "sha256": "d9d746cd4f826a4daa0574d8474e85225753648ecad6bb043d572444c6295c13",
-    "bytes": 4946
+    "sha256": "144621dbe6e715389988e3d5f22e6efdddd92574e429acd9c9946cf66bc078a7",
+    "bytes": 5100
   },
   "artifact": {
-    "sha256": "d602bb6a30489ad35ea4cc1e5a881da6831b1acb14847f928582c5234dcbc6e8",
-    "bytes": 809087
+    "sha256": "ec984e648738f81703a4ad5620fb05a89f0b694fdfe9de0515b15b39d7dc295e",
+    "bytes": 814678
   },
   "validation": {
     "checksPassed": 9,

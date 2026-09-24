@@ -6,12 +6,12 @@
   "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/linux-syscall-layer-architecture.json",
   "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/linux-syscall-layer-architecture.html",
   "specification": {
-    "sha256": "c4a4f00b1cfa126a40b54d7afe782d99f1ada60da24483d84862e964032abb70",
-    "bytes": 4176
+    "sha256": "122ee424f8e7be8df1b40f4b23618cc9d5eecfaa3f6b5a283166ef16449b2f9f",
+    "bytes": 4329
   },
   "artifact": {
-    "sha256": "db8e84c49c0e238a3a5806f0e725738b75007b2f89cdb14b2330cd1edca704f7",
-    "bytes": 804986
+    "sha256": "9c4b81eb3dedcc0b82f055c6f8b7e23e440935324786c55c1339984654bf8ebe",
+    "bytes": 810577
   },
   "validation": {
     "checksPassed": 9,

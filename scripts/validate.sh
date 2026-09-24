@@ -9,6 +9,10 @@ Path('/tmp/fsds-learning-hub.js').write_text(s.split('<script>', 1)[1].rsplit('<
 PY
 node --check /tmp/fsds-learning-hub.js
 
+printf '%s  %s\n' \
+  '9bfb70bf96004ac694b4ed902e634d029df9cc3b0ca50ce06d0608d29afa6d37' \
+  'archify/brand-assets/linux-kernel-org.png' | shasum -a 256 -c -
+
 python3 - <<'PY'
 import hashlib, json, subprocess, sys
 from pathlib import Path

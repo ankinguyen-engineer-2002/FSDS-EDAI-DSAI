@@ -97,7 +97,11 @@
         170,
         70
       ],
-      "tag": "BOUNDARY"
+      "tag": "BOUNDARY",
+      "brand": {
+        "url": "https://www.kernel.org/",
+        "sha256": "9bfb70bf96004ac694b4ed902e634d029df9cc3b0ca50ce06d0608d29afa6d37"
+      }
     },
     {
       "id": "cpu",

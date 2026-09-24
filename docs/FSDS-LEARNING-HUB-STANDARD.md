@@ -228,7 +228,7 @@ visual catalog → Archify JSON spec → showcase validation
 → deliver receipt → embed iframe → browser QA
 ```
 
-Brand/product/language có canonical mark trong `archify brands` phải dùng trường `brand`. Không tự lấy logo không pin hoặc dùng icon gần giống.
+Brand/product/language có canonical mark trong `archify brands` phải dùng trường `brand`. Nếu catalogue chưa có nhưng đã xác định được website chính thức, capture bằng Archify, khóa SHA-256, lưu asset audit trong repo và embed qua `brand`; không dùng logo gần giống hoặc logo không pin. Mỗi diagram chỉ gắn brand ở node thực sự đại diện cho sản phẩm/nền tảng, không rải logo trang trí.
 
 ## 13. Canvas width contract
 

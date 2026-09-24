@@ -415,10 +415,19 @@ spec = json.loads(path.read_text())
 spec["meta"]["views"][1]["focus"] = ["dead", "scan", "reclaim"]
 path.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n")
 
-# Apply vetted Archify catalogue marks. Linux/Tux is intentionally not assigned:
-# the local Archify brand catalogue has no canonical Linux mark, and the brand
-# contract forbids inventing or silently downloading an unpinned substitute.
+# Apply vetted Archify marks. Python/PostgreSQL/FastAPI come from the bundled
+# canonical catalogue. Linux/Tux is captured from the official kernel.org site,
+# digest-pinned by Archify, and mirrored under archify/brand-assets for audit.
+LINUX_BRAND = {
+    "url": "https://www.kernel.org/",
+    "sha256": "9bfb70bf96004ac694b4ed902e634d029df9cc3b0ca50ce06d0608d29afa6d37",
+}
 BRAND_ASSIGNMENTS = {
+    "linux-command-architecture.json": {"kernel": LINUX_BRAND},
+    "linux-command-execution-sequence.json": {"kernel": LINUX_BRAND},
+    "linux-path-permission-workflow.json": {"check": LINUX_BRAND},
+    "linux-synthesis-architecture.json": {"root": LINUX_BRAND},
+    "linux-syscall-layer-architecture.json": {"kernel": LINUX_BRAND},
     "python-project-boundary-architecture.json": {"repo": "python", "venv": "python", "run": "python"},
     "python-startup-sequence.json": {"python": "python", "main": "python"},
     "python-name-binding-architecture.json": {"ns": "python"},

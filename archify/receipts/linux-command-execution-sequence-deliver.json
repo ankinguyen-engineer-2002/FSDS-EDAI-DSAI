@@ -6,12 +6,12 @@
   "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/linux-command-execution-sequence.json",
   "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/linux-command-execution-sequence.html",
   "specification": {
-    "sha256": "e639fe3a0e8bdd4a59dbd712ff4815f7e69ab3e489ae20fe4e8c6e676a9c00c6",
-    "bytes": 4338
+    "sha256": "73663b068c09e23dfa48774f92d6f21821ef57a0c1e1f5a6681fa26ed005a8b7",
+    "bytes": 4491
   },
   "artifact": {
-    "sha256": "6adcf65d339be6385a05230443f55a905e74b93922fbc06e5a65e58f6c71a87c",
-    "bytes": 809588
+    "sha256": "139361c1cf90235dd1ce98540dad509ac67546f778b374e27310d3ad14a4726a",
+    "bytes": 815398
   },
   "validation": {
     "checksPassed": 9,

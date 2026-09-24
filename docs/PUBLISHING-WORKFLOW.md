@@ -36,9 +36,9 @@ https://ankinguyen-engineer-2002.github.io/FSDS-EDAI-DSAI/
 
 - Luôn tra catalogue bằng `archify brands` trước.
 - Dùng canonical mark qua trường `brand` cho product/language/framework có nhận diện rõ.
-- Hiện đã dùng mark chuẩn được bundle và pin bởi Archify cho Python, PostgreSQL và FastAPI.
-- Không tự lấy một icon gần giống hoặc URL không được kiểm chứng.
-- Catalogue Archify hiện không có canonical Linux/Tux mark; vì vậy Linux diagrams giữ semantic icon thay vì gắn logo không được pin. Khi Archify bổ sung canonical mark hoặc có official asset URL được phê duyệt, thêm qua brand contract rồi rebuild/deliver.
+- Python, PostgreSQL và FastAPI dùng canonical mark được bundle/pin bởi Archify.
+- Linux/Tux dùng icon từ website chính thức `kernel.org`, được Archify capture và khóa bằng SHA-256; bản audit được lưu tại `archify/brand-assets/linux-kernel-org.png`.
+- Không tự lấy icon gần giống hoặc URL không được kiểm chứng. Với brand chưa có trong catalogue, chỉ capture website chính thức, pin digest, lưu bản audit và rebuild/deliver.
 
 ## GitHub Pages artifact
 

@@ -6,12 +6,12 @@
   "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/linux-path-permission-workflow.json",
   "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/linux-path-permission-workflow.html",
   "specification": {
-    "sha256": "304f4e1096b3669b546e219502340afa9e93ccb89c4754a82221da1217de5be0",
-    "bytes": 4313
+    "sha256": "9083b8775508e6b09ddf2311a980b4d3e265bb81128d0eca37575384204ee3d1",
+    "bytes": 4466
   },
   "artifact": {
-    "sha256": "7a35f4193f4f118b6b763570455b70b786c2435a0d51b515d340b4444c920d8b",
-    "bytes": 809581
+    "sha256": "9209d093bd4afdfe92633c4a2c86546d225ae9c1eb8ce620d158ef79adb10ac6",
+    "bytes": 815380
   },
   "validation": {
     "checksPassed": 9,

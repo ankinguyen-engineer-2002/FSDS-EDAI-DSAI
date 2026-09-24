@@ -6,12 +6,12 @@
   "input": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/specs/linux-synthesis-architecture.json",
   "output": "/Users/MAC/Documents/FSDS-EDAI-DSAI/archify/rendered/linux-synthesis-architecture.html",
   "specification": {
-    "sha256": "572fc51014c58ca3b231ee1057668e760917a3a3eb695c5a0e07538a5f43060c",
-    "bytes": 3859
+    "sha256": "57b57f0e6f3a40dd0768299674d663dbf74dc1f383b5d91ecbb7296fef958aa4",
+    "bytes": 4012
   },
   "artifact": {
-    "sha256": "27fcd178bd88500904816cb1d49f76c1d9c0b99b1bb208c731a778fbc2e0f701",
-    "bytes": 805453
+    "sha256": "f88b2e3c879b9a912b41b2a63e2fd2c04db2a4cd5e85af018ed5fbb77c9b5b98",
+    "bytes": 811044
   },
   "validation": {
     "checksPassed": 9,

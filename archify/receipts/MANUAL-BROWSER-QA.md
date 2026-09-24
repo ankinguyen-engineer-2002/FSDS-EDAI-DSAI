@@ -45,3 +45,13 @@ A visual inspection was performed on:
 - desktop embedded Python runtime architecture (re-inspected after the final responsive edits).
 
 Observed result: the Anthropic editorial shell and Archify field-note artifact are visually compatible. The embedded artifact reads as a visual lab inside the article rather than an unrelated application. No claim is made that this substitutes for user acceptance testing on every browser/OS.
+
+## Canonical Linux/Tux mark check
+
+After adding the digest-pinned mark captured from the official `kernel.org` site:
+
+- five Linux artifacts were redelivered: command architecture, command execution, path/permission, synthesis and syscall boundary;
+- each artifact reached `document.readyState = complete`, contained SVG, exposed exactly one `captured` brand node and one embedded `data:image` asset;
+- all five reported zero page errors and zero horizontal overflow;
+- the vendored audit copy `archify/brand-assets/linux-kernel-org.png` matches SHA-256 `9bfb70bf96004ac694b4ed902e634d029df9cc3b0ca50ce06d0608d29afa6d37`;
+- the only console request observed during direct local opening was the static server's missing `/favicon.ico`; it is unrelated to the artifact and no runtime brand request was made.

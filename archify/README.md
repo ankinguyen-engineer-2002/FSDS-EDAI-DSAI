@@ -29,4 +29,6 @@ Generator `scripts/generate_archify_specs.py` quản lý 26 spec bổ sung; chí
 
 ## Brand marks
 
-Các mark `python`, `postgresql` và `fastapi` dùng catalogue vector được Archify bundle/pin nên artifact không fetch logo khi mở. Catalogue hiện chưa có canonical Linux/Tux mark; không dùng icon không rõ nguồn để thay thế.
+- `python`, `postgresql` và `fastapi` dùng canonical vector trong catalogue Archify.
+- Linux/Tux được capture từ website chính thức `kernel.org`, khóa bằng SHA-256 trong spec, rồi embed vào artifact; bản PNG audit nằm tại `brand-assets/linux-kernel-org.png`.
+- Artifact đã deliver không fetch logo khi người học mở bài. Không dùng icon gần giống, logo không rõ nguồn hoặc URL chưa pin digest.
