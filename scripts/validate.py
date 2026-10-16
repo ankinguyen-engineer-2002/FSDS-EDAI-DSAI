@@ -188,13 +188,48 @@ def main():
         if json.dumps(item["ascii"], ensure_ascii=False) not in html:
             raise SystemExit(f"HTML/JSON parity failure: Linux-{k} ASCII not identically embedded in HTML")
 
+    # 2c. Verify Database Fundamentals (F03) diagrams (0.1, 0.2, 1.0, 2.0, 3.0, 4.0)
+    db_expected_kinds = {
+        "0.1": "boxes",
+        "0.2": "boxes",
+        "1.0": "boxes",
+        "2.0": "boxes",
+        "3.0": "boxes",
+        "4.0": "boxes",
+    }
+    if "db_diagrams" not in data:
+        raise SystemExit("Missing db_diagrams in content/lessons-data.json")
+    for k, exp_kind in db_expected_kinds.items():
+        if k not in data["db_diagrams"]:
+            raise SystemExit(f"Missing Database diagram {k} in content/lessons-data.json")
+        item = data["db_diagrams"][k]
+        actual_kind = item.get("kind")
+        if actual_kind != exp_kind:
+            raise SystemExit(f"Database Diagram {k} kind mismatch: expected {exp_kind!r}, got {actual_kind!r}")
+
+        c_errs = verify_character_policy(item["ascii"], f"DB-{k}")
+        if c_errs:
+            raise SystemExit(f"ASCII character policy failed for DB-{k}: {c_errs}")
+        char_checked += 1
+
+        g_errs = verify_diagram(item["ascii"], f"DB-{k}", kind=actual_kind)
+        if g_errs:
+            raise SystemExit(f"ASCII geometry verification failed for DB-{k} ({actual_kind}): {g_errs}")
+        geom_checked += 1
+
+        if not item["mermaid"].startswith("flowchart "):
+            raise SystemExit(f"Invalid Mermaid header for DB-{k}")
+
+        if json.dumps(item["ascii"], ensure_ascii=False) not in html:
+            raise SystemExit(f"HTML/JSON parity failure: DB-{k} ASCII not identically embedded in HTML")
+
     # 3. Verify all 12 official slide PDFs in course-slides/ are listed in the HTML Table of Contents
     slides = sorted(p.name for p in (ROOT / "course-slides").glob("*.pdf"))
     for s in slides:
         if s not in html:
             raise SystemExit(f"Official slide missing from HTML Table of Contents: {s}")
 
-    # 4. Verify all stations + summaries of Storage Chặng 1–7 and Linux Chặng 1–4 exist verbatim in HTML (without emojis)
+    # 4. Verify all stations + summaries of Storage Chặng 1–7, Linux Chặng 1–4, and Database Chặng 1–4 exist verbatim in HTML (without emojis)
     required_markers = [
         "TRẠM 0.0: NHÂN VẬT CHÍNH grep ERROR /var/log/app.log &amp; BẢN ĐỒ CƠ HỌC 4 CHẶNG",
         'TRẠM 1.1: BẢN CHẤT GNU/LINUX — KHI "CỤC MÁY" GẶP "BỘ KHUNG"',
@@ -213,6 +248,19 @@ def main():
         "TRẠM 4.2: COMPILATION (GCC) &amp; MAKEFILE — LÒ LUYỆN MÃ MÁY &amp; NGƯỜI QUẢN ĐỐC XƯỞNG",
         'TRẠM 4.3: HỆ THỐNG CRONJOB — TRỰC BAN 24/7 ("KHI NÀO BẮT ĐẦU CHẠY?") &amp; 3 CẠM BẪY KINH ĐIỂN',
         "TÓM TẮT BỎ TÚI CHẶNG 4 &amp; KHÉP KÍN HÀNH TRÌNH LINUX FUNDAMENTALS",
+        "TRẠM 0.0: KHỞI TẠO NHÂN VẬT CHÍNH ĐƠN HÀNG TRÀ SỮA #HD01 &amp; BẢN ĐỒ MẠCH NHÂN – QUẢ 4 CHẶNG",
+        "TRẠM 1.1: WHAT IS A DATABASE &amp; RDBMS ARCHITECTURE (DB CLIENT LIBRARY ➔ RDBMS SERVER ➔ DATABASE FILES)",
+        "TRẠM 1.2: RELATIONAL MODEL, KEYS (PK, FK), CARDINALITY (1:1, 1:N, M:N) &amp; CONSTRAINTS",
+        "TRẠM 1.3: NORMALIZATION (UNF ➔ 1NF ➔ 2NF ➔ 3NF ➔ BCNF) VS DENORMALIZATION",
+        "TRẠM 2.1: POSTGRESQL PROCESS &amp; MEMORY ARCHITECTURE + CONFIGURATION (postgresql.conf)",
+        "TRẠM 2.2: ON-DISK LAYOUT &amp; SLOTTED PAGE (8KB BLOCK) VS IN-MEMORY DBMS",
+        "TRẠM 2.3: WRITE PATH, SHARED BUFFERS (DIRTY PAGES), WAL BUFFER &amp; CHECKPOINTER",
+        "TRẠM 3.1: ACID TRANSACTIONS, LOCK MANAGER, MVCC &amp; AUTOVACUUM WORKER",
+        "TRẠM 3.2: STORAGE STRUCTURES (B-TREE VS LSM-TREE) &amp; INDEXING STRATEGIES",
+        "TRẠM 3.3: QUERY OPTIMIZER, EXECUTION PLAN (EXPLAIN ANALYZE) &amp; ADMINISTRATION TOOLS",
+        "TRẠM 4.1: VERTICAL SCALING (SCALE-UP) VS HORIZONTAL SCALING (SCALE-OUT / SHARDING)",
+        "TRẠM 4.2: REPLICATION (SYNC/ASYNC), HIGH AVAILABILITY (HA) &amp; DISTRIBUTED POSTGRESQL",
+        "TRẠM 4.3: SQL VS NOSQL DATA MODELS, CAP THEOREM (CA/CP/AP) &amp; BASE TRANSACTIONS",
         "TRẠM 0.0: NHÂN VẬT CHÍNH ĐƠN HÀNG #8888 &amp; BẢN ĐỒ TƯ DUY 7 CHẶNG STORAGE LAYER",
         "TRẠM 1.1: BẬC THANG PHẦN CỨNG &amp; THANG ĐO ĐỘ TRỄ VẬT LÝ (CACHE HIERARCHY)",
         "TRẠM 1.2: ĐẶC TÍNH KỸ THUẬT CỦA RAM &amp; HIỆN TƯỢNG TRÀN BỘ NHỚ (SPILL-TO-DISK)",
@@ -395,10 +443,11 @@ def main():
             raise SystemExit(f"Glossary entry '{tid}' example must contain non-empty 'code' and 'note'")
 
     # 6b. Verify visual_assets metadata, 1-Visual-1-Unique-Picture invariant, and physical files in assets/visuals/
-    if "visual_assets" not in data or len(data["visual_assets"]) < 85:
-        raise SystemExit(f"Expected >= 85 visual_assets in lessons-data.json, found {len(data.get('visual_assets', {}))}")
+    if "visual_assets" not in data or len(data["visual_assets"]) < 90:
+        raise SystemExit(f"Expected >= 90 visual_assets in lessons-data.json, found {len(data.get('visual_assets', {}))}")
     required_spine_jpgs = [
         "assets/visuals/linux-0-map.jpg",
+        "assets/visuals/db-0-map.jpg",
         "assets/visuals/storage-0-map.jpg",
     ]
     for vf in required_spine_jpgs:
@@ -408,6 +457,7 @@ def main():
 
     seen_preview_srcs = {}
     linux_jpg_count = 0
+    db_jpg_count = 0
     for vid, vmeta in data["visual_assets"].items():
         if vmeta.get("template") not in ("PROMPT-ARCH-DIAGRAM", "PROMPT-STORY-ANALOGY"):
             raise SystemExit(f"Invalid template for visual_asset {vid}: {vmeta.get('template')}")
@@ -423,6 +473,10 @@ def main():
             if not prev_src.endswith(".jpg") or (ROOT / prev_src).stat().st_size < 50_000:
                 raise SystemExit(f"Linux visual '{vid}' must have a dedicated Style #2 .jpg (>50KB), got: {prev_src}")
             linux_jpg_count += 1
+        elif vid.startswith("db-"):
+            if not prev_src.endswith(".jpg") or (ROOT / prev_src).stat().st_size < 50_000:
+                raise SystemExit(f"Database visual '{vid}' must have a dedicated Style #2 .jpg (>50KB), got: {prev_src}")
+            db_jpg_count += 1
 
     # 6c. Run 4-Gate Picture QA (SHA-256 uniqueness, 16:9 widescreen, anti-ASCII-dump, Apple Vision OCR audit)
     from verify_pictures import verify_all_pictures
@@ -465,12 +519,12 @@ def main():
         if not (ROOT / "course-slides" / slide_ref).exists():
             raise SystemExit(f"Broken slide path in prompt.md: course-slides/{slide_ref}")
 
-    total_expected = len(expected_kinds) + len(linux_expected_kinds)
+    total_expected = len(expected_kinds) + len(linux_expected_kinds) + len(db_expected_kinds)
     print(
         f"PASS: Negative self-tests: 6/6 | JS syntax: valid | "
         f"3-Tier Typography: verified | Glossary Scanner: {len(g_entries)} entries / {len(g_lookup)} lookup keys (0 unclassified) | "
         f"ASCII character checks: {char_checked}/{total_expected} | ASCII geometry checks: {geom_checked}/{total_expected} | "
-        f"4-Gate Picture QA: {pic_checked}/{len(data['visual_assets'])} verified ({linux_jpg_count} Linux Style #2 JPGs + Spine Maps, 0 OCR/clip/dup errors) | "
+        f"4-Gate Picture QA: {pic_checked}/{len(data['visual_assets'])} verified ({linux_jpg_count} Linux + {db_jpg_count} DB Style #2 JPGs + Spine Maps, 0 OCR/clip/dup errors) | "
         f"Skipped: {skipped} | Official slide TOCs: {len(slides)}/12 | "
         f"prompt.md: verified ({len(set(slide_refs))} slides, {len(set(lib_refs))} books, 2 Style #2 templates, 4-Gate QA, Glossary Scanner) | Anti-slop audit: clean."
     )

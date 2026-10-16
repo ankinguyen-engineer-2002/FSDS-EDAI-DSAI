@@ -1087,6 +1087,193 @@ RAW_GLOSSARY = [
         "terraform plan -out=tfplan && kubectl rollout status deployment/data-api -n prod",
         "Mọi thay đổi hạ tầng trên Production đều phải đi qua Git + Terraform/Ansible (`Infrastructure as Code`) để chống trôi dạt cấu hình (`Configuration Drift`)."
     ),
+
+    # =========================================================================
+    # F03: DATABASE FUNDAMENTALS & POSTGRESQL INTERNALS (CHẶNG 1 -> CHẶNG 4)
+    # =========================================================================
+    (
+        "db.rdbms-architecture",
+        "RDBMS Architecture & Shared Access (DB Client Library -> RDBMS Server -> Database Files)",
+        "DATABASE FUNDAMENTALS",
+        ["F03"],
+        [
+            "database", "rdbms", "rdbms server", "db client library", "database files",
+            "shared access", "unnormalized text", "relational tuples", "e.f. codd",
+            "e.f. codd (1970)", "ddl", "dml", "dql", "dcl", "tcl", "ddl / dml / dql / dcl / tcl",
+            "ddl/dml/dql/dcl/tcl", "sqlalchemy orm", "orm", "#hd01", "lan", "oolong sua",
+            "hong tra tac", "2026-09-26"
+        ],
+        "Hệ quản trị cơ sở dữ liệu quan hệ (`RDBMS`) đứng chắn giữa ứng dụng (`DB Client Library`) và các tệp dữ liệu trên đĩa (`Database Files`), cho phép hàng nghìn người dùng truy cập đồng thời (`Shared Access`) vào Đơn hàng Trà sữa `#HD01` mà không giẫm đạp làm hỏng tệp.",
+        "Thay vì để ứng dụng đọc/ghi trực tiếp vào file văn bản thô (`Unnormalized Text`) gây xung đột khóa và không thể tính tổng tiền, `RDBMS Server` (như PostgreSQL) quản lý tập trung cấu trúc bảng theo mô hình tập hợp của E.F. Codd (1970) qua 5 nhóm lệnh SQL chuẩn: `DDL` (định nghĩa bảng), `DML` (thêm/sửa/xóa), `DQL` (truy vấn `SELECT`), `DCL` (phân quyền) và `TCL` (quản lý giao dịch `BEGIN/COMMIT/ROLLBACK`).",
+        "SELECT ma_hd, ten_kh, tong_tien FROM hoa_don WHERE ma_hd = 'HD01';",
+        "Nhân vật chính xuyên suốt F03 là Đơn hàng Trà sữa `#HD01` của khách hàng `Lan` (ngày `2026-09-26`: `Oolong Sua` 30,000 x2 và `Hong Tra Tac` 25,000 x1) tiến hóa qua 4 hình thái vật lý."
+    ),
+    (
+        "db.keys-constraints",
+        "Relational Keys (PK, FK), Cardinality (1:1, 1:N, M:N) & Constraints (NOT NULL, DEFAULT, UNIQUE, CHECK)",
+        "DATA MODELING & INTEGRITY",
+        ["F03", "D02"],
+        [
+            "primary key", "foreign key", "pk", "fk", "cardinality", "1:1", "1:n", "m:n",
+            "constraints", "not null", "default", "unique", "check", "referential integrity",
+            "ràng buộc tham chiếu", "table", "row", "column", "tuple"
+        ],
+        "Bộ khung khóa và chốt chặn bảo vệ dữ liệu ngay tại cửa ngõ: `Primary Key (PK)` định danh duy nhất từng dòng, `Foreign Key (FK)` nối các bảng theo quan hệ `1:1 / 1:N / M:N`, còn 4 chốt `NOT NULL, DEFAULT, UNIQUE, CHECK` chặn đứng dữ liệu rác trước khi chạm đĩa.",
+        "Ràng buộc toàn vẹn tham chiếu (`Referential Integrity`) của `Foreign Key` đảm bảo chi tiết đơn hàng `#HD01` không thể trỏ tới một mã khách hàng hoặc mã món ăn không tồn tại. Tuy nhiên ở quy mô ghi cực lớn, mỗi lần `INSERT/UPDATE/DELETE` đều kích hoạt kiểm tra khóa ngoại liên bảng, đòi hỏi đánh chỉ mục (`Index`) trên cột `FK` để tránh khóa bảng.",
+        "CREATE TABLE chi_tiet_hd (ma_hd VARCHAR(10) REFERENCES hoa_don(ma_hd), so_luong INT CHECK (so_luong > 0));",
+        "Luôn đặt chốt `CHECK (don_gia >= 0 AND so_luong > 0)` ngay dưới tầng RDBMS để dù code ứng dụng có bug cũng không thể ghi số tiền âm xuống đĩa."
+    ),
+    (
+        "db.normalization",
+        "Chuẩn hóa Dữ liệu (Normalization: UNF -> 1NF -> 2NF -> 3NF -> BCNF) vs. Denormalization",
+        "DATA MODELING & INTEGRITY",
+        ["F03", "D02"],
+        [
+            "normalization", "denormalization", "unf", "1nf", "2nf", "3nf", "bcnf",
+            "boyce-codd normal form", "insertion anomaly", "update anomaly", "deletion anomaly",
+            "insertion/update/deletion anomalies", "dị thường dữ liệu", "khachhang", "hoadon",
+            "monan", "chitiet"
+        ],
+        "Quá trình 'phẫu thuật tách bảng' từ một ô văn bản gộp lộn xộn (`UNF`) qua `1NF -> 2NF -> 3NF -> BCNF` để triệt tiêu hoàn toàn dữ liệu trùng lặp và 3 căn bệnh dị thường khi Thêm, Sửa, Xóa (`Insertion / Update / Deletion Anomalies`).",
+        "Với Đơn hàng `#HD01`: `1NF` ép mỗi ô chỉ chứa giá trị nguyên tử (tách danh sách món trà sữa thành từng dòng); `2NF` loại bỏ phụ thuộc hàm bộ phận vào khóa chính ghép; `3NF` & `BCNF` loại bỏ phụ thuộc bắc cầu (tách thành 4 bảng sạch: `KhachHang`, `HoaDon`, `MonAn`, `ChiTiet`). Khi cần ưu tiên tốc độ đọc báo cáo hơn tốc độ ghi, kỹ sư mới chủ động phi chuẩn hóa có kiểm soát (`Denormalization`).",
+        "-- 3NF: Tách bảng KhachHang, HoaDon, MonAn, ChiTiet liên kết qua PK/FK",
+        "Nhờ tách bảng `MonAn` riêng ở chuẩn `3NF`, khi đổi giá `Oolong Sua` từ `30,000` lên `32,000`, ta chỉ sửa đúng 1 dòng thay vì phải quét sửa hàng triệu hóa đơn cũ."
+    ),
+    (
+        "db.postgres-memory-process",
+        "PostgreSQL Process & Memory Architecture (Client/Backend Process, shared_buffers, work_mem, postgresql.conf)",
+        "STORAGE ENGINE & MEMORY",
+        ["F03"],
+        [
+            "client process", "backend process", "shared memory", "shared buffers",
+            "shared_buffers", "shared_buffers = 131584", "work_mem", "work_mem = 5120 kb",
+            "deadlock_timeout", "deadlock_timeout = 1000 ms", "postgresql.conf",
+            "postgresql.auto.conf", "postmaster"
+        ],
+        "Khi ứng dụng kết nối vào PostgreSQL, tiến trình chủ sẽ cấp một `Backend Process` riêng phục vụ kết nối đó, cùng đọc/ghi trên vùng đệm RAM dùng chung `Shared Buffers` (nơi giữ các trang dữ liệu `8KB` nóng nhất).",
+        "Trong tệp cấu hình `postgresql.conf` (và `postgresql.auto.conf`), đơn vị cơ sở của bộ nhớ trang là `8kB`: ví dụ `shared_buffers = 131584` tương đương `131,584 × 8KB ≈ 1 GB RAM` dùng chung toàn cụm; `work_mem = 5120 kB` (`5 MB`) cấp phát riêng cho từng phép `ORDER BY / Hash JOIN` trước khi tràn xuống đĩa; và `deadlock_timeout = 1000 ms` (`1 giây`) là thời gian chờ trước khi quét phát hiện khóa chết.",
+        "SHOW shared_buffers; SHOW work_mem; SHOW deadlock_timeout;",
+        "Hiểu đúng đơn vị cơ sở trong `postgresql.conf` (số trang `8kB` đối với `shared_buffers` vs. `kB` đối với `work_mem`) giúp kỹ sư tránh cấu hình sai gây OOM."
+    ),
+    (
+        "db.slotted-page",
+        "On-Disk Layout & 8KB Slotted Page (Page Header, LSN, Line Pointers, Free Space, Tuple) & 3 Engine Variables",
+        "STORAGE ENGINE & MEMORY",
+        ["F03"],
+        [
+            "slotted page", "8kb slotted page", "8kb block", "8kb", "8kb pages", "page header",
+            "line pointers", "line pointer", "ptr", "free space", "row data", "tuple",
+            "in-memory dbms", "buffering", "immutability", "ordering"
+        ],
+        "Đơn vị vật lý nhỏ nhất mà PostgreSQL đọc/ghi giữa đĩa và RAM không phải là từng dòng lẻ, mà là một khung trang `Slotted Page` kích thước cố định `8KB (8,192 bytes)`.",
+        "Bên trong khung `8KB Slotted Page`: phần đầu là `Page Header` (chứa mã `LSN` của lần sửa cuối), tiếp theo là mảng con trỏ `Line Pointers (Ptr)` mọc từ trên xuống, ở giữa là khoảng trống `Free Space`, còn dữ liệu thực sự của dòng `#HD01` (`Tuple / Row Data`) được xếp từ đáy trang mọc ngược lên trên. Mọi Storage Engine đều xoay quanh 3 biến số thiết kế (theo sách *Database Internals*): `Buffering` (đệm RAM), `Immutability` (bất biến vs. sửa tại chỗ) và `Ordering` (thứ tự lưu trữ).",
+        "SELECT lp, t_xmin, t_xmax, t_ctid FROM heap_page_items(get_raw_page('hoa_don', 0));",
+        "Nhờ mảng trung gian `Line Pointers (Ptr)`, khi dòng `#HD01` bị nén hoặc dời vị trí bên trong trang `8KB`, các chỉ mục `B-Tree` bên ngoài vẫn trỏ đúng vào số thứ tự `Ptr` mà không bị gãy."
+    ),
+    (
+        "db.wal-checkpointer",
+        "Write Path, Dirty Pages, WAL (Write-Ahead Log, LSN) & Checkpointer",
+        "STORAGE ENGINE & MEMORY",
+        ["F03", "D02"],
+        [
+            "wal", "wal record", "wal buffer", "wal writer", "wal files", "append-only wal",
+            "lsn", "log sequence number", "dirty page", "dirty pages", "checkpointer",
+            "data files", "offset", "dongia = 30000"
+        ],
+        "Bí quyết giúp PostgreSQL vừa ghi cực nhanh vừa không mất 1 byte khi sập nguồn: khi sửa đơn `#HD01`, máy chỉ sửa trang `8KB` trên RAM (`Dirty Page`) và ghi nối đuôi tuần tự một dòng nhật ký mang mã `LSN` xuống đĩa (`WAL Files`), rồi để `Checkpointer` thong thả xả các trang bẩn xuống `Data Files` sau (ví dụ mỗi `5 phút`).",
+        "Ghi vào `Data Files` là ghi ngẫu nhiên (`Random I/O` theo `Offset`) rất chậm, trong khi ghi vào `WAL Files` là ghi tuần tự nối đuôi (`Append-only Sequential I/O`). Khi khách bấm `COMMIT`, `WAL Writer` chỉ cần đẩy `WAL Buffer` tới đúng mã `LSN` (`Log Sequence Number`) xuống đĩa là giao dịch thành công mỹ mãn; nếu mất điện, PostgreSQL đọc lại `WAL` từ điểm `Checkpoint` gần nhất để phục hồi (`Crash Recovery`).",
+        "SELECT pg_current_wal_lsn();   -- Xem mã LSN hiện tại của nhật ký WAL",
+        "Không bao giờ xóa tay thư mục `pg_wal/` vì đó là sinh mạng dùng để khôi phục các `Dirty Pages` chưa kịp được `Checkpointer` ghi xuống đĩa."
+    ),
+    (
+        "db.mvcc-autovacuum",
+        "ACID, Lock Manager, MVCC Snapshot, Isolation Levels (Dirty Reads/Writes) & Autovacuum Worker",
+        "CONCURRENCY & TRANSACTIONS",
+        ["F03", "D02"],
+        [
+            "mvcc", "mvcc tuple", "multi-version concurrency control", "autovacuum",
+            "autovacuum worker", "lock manager", "dirty reads", "dirty writes",
+            "snapshot", "xmin", "xmax"
+        ],
+        "Nhờ cơ chế đa phiên bản `MVCC`, khi một người đang sửa giá đơn `#HD01` thì hàng nghìn người khác vẫn đọc được đơn `#HD01` tức thì mà không ai phải chờ khóa (`Readers never block Writers, Writers never block Readers`).",
+        "Khi chạy lệnh `UPDATE`, PostgreSQL không ghi đè lên dòng cũ mà sinh ra một `Tuple` phiên bản mới trên trang `8KB`, đánh dấu phiên bản cũ là đã hết hạn (`Dead Tuple` qua cặp nhãn giao dịch `xmin / xmax`). Các cấp độ cô lập (`Isolation Levels`: Read Committed, Repeatable Read, Serializable) cùng `Lock Manager` ngăn chặn dị thường `Dirty Reads` và `Dirty Writes`, còn tiến trình ngầm `Autovacuum Worker` định kỳ quét dọn các `Dead Tuples` để thu hồi khoảng trống `Free Space`.",
+        "VACUUM (VERBOSE, ANALYZE) hoa_don;",
+        "Nếu tắt `Autovacuum` hoặc để giao dịch treo quá lâu, các phiên bản cũ (`Dead Tuples`) không được dọn sẽ gây phình bảng (`Table Bloat`) làm chậm toàn bộ hệ thống."
+    ),
+    (
+        "db.btree-vs-lsm",
+        "Cấu trúc Chỉ mục & Lưu trữ: B-Tree (Mutable, Latch Crabbing) vs. LSM-Tree (Immutable, Append-only)",
+        "INDEXING & STORAGE STRUCTURES",
+        ["F03", "D02"],
+        [
+            "b-tree", "b-tree index", "lsm-tree", "log-structured merge-tree", "append-only lsm",
+            "latch crabbing", "seq scan", "index scan", "sstable", "memtable"
+        ],
+        "Hai trường phái cấu trúc dữ liệu thống trị thế giới Database: `B-Tree` (cây cân bằng khả biến sửa trực tiếp các trang `8KB` trên đĩa — tối ưu cho tốc độ Đọc) và `LSM-Tree` (cây hợp nhất bất biến chỉ ghi nối đuôi vào RAM/SSTable — tối ưu cho tốc độ Ghi cực lớn).",
+        "Trong PostgreSQL, chỉ mục mặc định là `B-Tree`: thay vì quét tuần tự toàn bảng (`Seq Scan` tốn $O(N)$), truy vấn nhảy qua các nút cây cân bằng tốn $O(\\log N)$ để tìm trúng `Line Pointer` của `#HD01`. Để nhiều luồng cùng duyệt và tách nút `B-Tree` an toàn mà không khóa nghẽn cả cây, động cơ dùng kỹ thuật `Latch Crabbing` (khóa chốt nút con an toàn rồi mới nhả chốt nút cha — *Database Internals*).",
+        "CREATE INDEX idx_hoadon_kh ON hoa_don (ma_kh);",
+        "Chọn `B-Tree` (PostgreSQL, MySQL InnoDB) khi tải đọc và tra cứu điểm chiếm ưu thế; chọn `LSM-Tree` (RocksDB, Cassandra, ScyllaDB) khi tải ghi log/time-series dồn dập."
+    ),
+    (
+        "db.optimizer-explain",
+        "Query Optimizer, Execution Plan (EXPLAIN ANALYZE) & Công cụ Quản trị (psql, pgAdmin 4, pg_stat_statements)",
+        "QUERY EXECUTION & OPS",
+        ["F03"],
+        [
+            "query optimizer", "execution plan", "explain", "explain analyze", "psql",
+            "pgadmin 4", "pg_stat_statements", "join optimization"
+        ],
+        "Bộ não `Query Optimizer` ước lượng chi phí I/O và CPU để chọn đường chạy rẻ nhất cho câu SQL, còn lệnh `EXPLAIN ANALYZE` và bảng `pg_stat_statements` là 'máy chụp X-quang' phơi bày chính xác từng mili-giây thực thi.",
+        "Khi nhận câu lệnh `SELECT` hoặc `JOIN` nhiều bảng của đơn `#HD01`, `Query Optimizer` dựa trên thống kê phân phối dữ liệu để chọn thuật toán kết nối (`Nested Loop`, `Hash Join`, hay `Merge Join`) và phương thức quét (`Seq Scan`, `Index Scan`, `Bitmap Heap Scan`). Kỹ sư dùng giao diện dòng lệnh `psql` hoặc đồ họa `pgAdmin 4` kết hợp tiện ích `pg_stat_statements` để săn lùng các câu truy vấn ngốn tổng thời gian CPU nhiều nhất.",
+        "EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM hoa_don h JOIN chi_tiet c ON h.ma_hd = c.ma_hd WHERE h.ma_hd = 'HD01';",
+        "Lưu ý: `EXPLAIN ANALYZE` thực sự chạy câu lệnh SQL trên Database, vì vậy nếu dùng cho `UPDATE / DELETE` trên Production thì bắt buộc bọc trong `BEGIN; EXPLAIN ANALYZE ...; ROLLBACK;`."
+    ),
+    (
+        "db.scaling-sharding",
+        "Vertical Scaling (Scale-up) vs. Horizontal Scaling (Scale-out / Partitioning / Sharding)",
+        "SCALABILITY & DISTRIBUTED DB",
+        ["F03", "D02", "P01"],
+        [
+            "vertical scaling", "scale-up", "horizontal scaling", "scale-out",
+            "distributed shard", "scale-out / sharding", "partitioning / sharding",
+            "single node", "node", "nodes"
+        ],
+        "`Scale-up (Mở rộng dọc)` là nâng cấp một máy chủ đơn lẻ (`Single Node`) lên nhiều CPU/RAM/SSD hơn nhưng sớm chạm trần vật lý; `Scale-out / Sharding (Mở rộng ngang)` là chia nhỏ hàng tỷ đơn hàng `#HD01` ra nhiều máy chủ (`Nodes`) cùng gánh tải.",
+        "Khi bảng hóa đơn vượt ngưỡng vài trăm triệu dòng hoặc băng thông ghi vượt sức chịu đựng của 1 đĩa NVMe, kỹ sư bắt đầu bằng `Partitioning` (chia bảng lớn thành các phân vùng con theo tháng/năm ngay trên 1 máy) và tiến tới `Sharding` (băm khóa `Shard Key` để phân tán dữ liệu sang nhiều `Node` độc lập).",
+        "CREATE TABLE hoa_don (ma_hd TEXT, ngay_dat DATE) PARTITION BY RANGE (ngay_dat);",
+        "Mở rộng ngang (`Sharding`) giải phóng giới hạn dung lượng nhưng đánh đổi bằng chi phí truy vấn liên mảnh (`Cross-Shard JOIN`) và giao dịch phân tán 2 pha (`2PC`)."
+    ),
+    (
+        "db.ha-replication-pgd",
+        "Replication (Sync/Async), High Availability (HA), Failover & Distributed PostgreSQL (PGD 6 Nodes, Witness, Barman, TiDB, YDB)",
+        "HIGH AVAILABILITY & CONSENSUS",
+        ["F03", "P01"],
+        [
+            "replication", "sync/async", "high availability", "ha", "failover",
+            "distributed postgresql", "distributed sql", "primary", "replica",
+            "6 pgd nodes", "pgd", "pgd proxy", "witness node", "global consensus",
+            "barman", "barman backup", "tidb", "ydb", "always-on multi-location"
+        ],
+        "Để hệ thống không bao giờ chết khi cháy ổ cứng hay sập cả trung tâm dữ liệu, dữ liệu của `#HD01` được nhân bản liên tục từ máy chính (`Primary`) sang các máy phụ (`Replica`) kết hợp sao lưu `Barman` và kiến trúc đa vùng `PGD` hoặc `Distributed SQL (TiDB / YDB)`.",
+        "Nhân bản bất đồng bộ (`Async Replication`) phản hồi cực nhanh nhưng có nguy cơ mất vài dòng cuối nếu `Primary` sập đột ngột; nhân bản đồng bộ (`Sync Replication`) đảm bảo 0 mất dữ liệu nhưng tăng độ trễ mạng. Trong kiến trúc đa vùng luôn sẵn sàng (`Always-on Multi-location` theo sách *Database Design and Modeling with PostgreSQL and MySQL*), cụm chuẩn gồm `6 PGD nodes` (3 nodes ở mỗi vùng dữ liệu) đi kèm `PGD Proxy` điều hướng, `Barman` sao lưu phục hồi thảm họa, và 1 `Witness Node` đặt ở vùng thứ 3 chỉ tham gia bỏ phiếu đồng thuận toàn cục (`Global Consensus` như `Raft / Paxos`) để chống hiện tượng tự phong vua (`Split-Brain`).",
+        "SELECT client_addr, state, sync_state, replay_lag FROM pg_stat_replication;",
+        "`Witness Node` ở vùng thứ 3 không cần lưu toàn bộ dữ liệu nặng nhưng đóng vai trò lá phiếu quyết định (Quorum) khi 1 trong 2 vùng chính bị đứt cáp quang."
+    ),
+    (
+        "db.nosql-cap-base",
+        "SQL vs. NoSQL (Key-Value, Document/BSON, Column-Family, Graph), CAP Theorem (CA/CP/AP) & BASE (LWW, Vector Clocks)",
+        "NOSQL & DISTRIBUTED THEORY",
+        ["F03", "D02", "P01"],
+        [
+            "nosql", "sql vs nosql", "key-value", "document", "document/bson", "json/bson document",
+            "bson", "column-family", "graph", "ca", "cp", "ap", "ca/cp/ap", "acid / cp",
+            "base / ap", "last-write-wins", "lww", "vector clocks"
+        ],
+        "Khi mạng giữa các máy chủ bị đứt (`Network Partition - P`), định lý `CAP` buộc bạn phải chọn: hoặc giữ dữ liệu nhất quán tuyệt đối nhưng từ chối phục vụ (`CP / ACID`), hoặc vẫn nhận đơn `#HD01` bình thường trên mọi nhánh rồi đồng bộ dần về sau (`AP / BASE — Eventual Consistency`).",
+        "Thế giới `NoSQL` chia làm 4 họ cấu trúc chuyên biệt: `Key-Value` (Redis/DynamoDB — tra cứu theo khóa dưới 1 ms), `Document/BSON` (MongoDB — lưu cả đơn hàng `#HD01` kèm mảng món ăn vào 1 tài liệu linh hoạt), `Column-Family` (Cassandra/HBase — ghi phân tán quy mô lớn), và `Graph` (Neo4j — truy vấn mạng lưới quan hệ). Trong các hệ thống `BASE / AP`, khi hai nhánh cùng sửa 1 bản ghi lúc đứt mạng, xung đột được phân xử bằng dấu thời gian `Last-Write-Wins (LWW)` hoặc đồng hồ vector nhân quả (`Vector Clocks` — *Database Internals*).",
+        "{\"_id\": \"HD01\", \"khach\": \"Lan\", \"mon\": [{\"ten\": \"Oolong Sua\", \"gia\": 30000, \"sl\": 2}]}",
+        "Không có hệ thống phân tán nào đạt `CA` thực sự khi mạng vật lý chắc chắn có lúc đứt (`P`); thực tế kỹ sư luôn phải thiết kế đánh đổi giữa `CP` và `AP`."
+    ),
 ]
 
 
@@ -1178,6 +1365,9 @@ PATTERN_RULES = [
     (r"\b(DDR4|DDR5|DRAM|SRAM|NVMe|SSD|HDD|L1|L2|L3)\b", "storage.latency-hierarchy"),
     # Protagonist & domain artifacts
     (r"^#(8886|8887|8888|8889|9999)$", "storage.oltp-vs-olap"),
+    (r"^#?HD0\d+$", "db.rdbms-architecture"),
+    (r"postgresql\.conf|postgresql\.auto\.conf|shared_buffers|work_mem|deadlock_timeout", "db.postgres-memory-process"),
+    (r"pg_stat_statements|EXPLAIN\s+ANALYZE|pgAdmin", "db.optimizer-explain"),
     (r"app\.log|backup\.log|syslog|auth\.log", "linux.fhs-tree"),
     (r"^(s3 list|table rewrite|commit|stats)$", "storage.lakehouse-open-table-formats"),
     (r"^(key-value|cache)$", "storage.network-topology-cache"),

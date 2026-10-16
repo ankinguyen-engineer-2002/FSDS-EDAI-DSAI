@@ -131,6 +131,11 @@ FORBIDDEN_TYPO_TOKENS = {
     "nomomeatuactualization",
     "robato",
     "stdl",
+    "hortitiontal",
+    "sigle",
+    "autovacum",
+    "backgrouum",
+    "strearshot",
 }
 
 
@@ -156,8 +161,8 @@ def verify_all_pictures(verbose: bool = True) -> list[str]:
 
     data = json.loads(data_path.read_text(encoding="utf-8"))
     visual_assets = data.get("visual_assets", {})
-    if len(visual_assets) < 85:
-        errors.append(f"Expected >= 85 visual_assets, found {len(visual_assets)}")
+    if len(visual_assets) < 90:
+        errors.append(f"Expected >= 90 visual_assets, found {len(visual_assets)}")
 
     # 1. Check file existence, path uniqueness, and SHA-256 content uniqueness
     seen_paths: dict[str, str] = {}
@@ -167,8 +172,12 @@ def verify_all_pictures(verbose: bool = True) -> list[str]:
 
     # Include top-level spine mindmap files as well
     all_checked_items = [(vid, meta.get("previewSrc", "")) for vid, meta in visual_assets.items()]
-    if "assets/visuals/linux-0-map.jpg" not in [src for _, src in all_checked_items]:
-        all_checked_items.append(("__spine_linux_0_map__", "assets/visuals/linux-0-map.jpg"))
+    for spine_id, spine_src in (
+        ("__spine_linux_0_map__", "assets/visuals/linux-0-map.jpg"),
+        ("__spine_db_0_map__", "assets/visuals/db-0-map.jpg"),
+    ):
+        if spine_src not in [src for _, src in all_checked_items]:
+            all_checked_items.append((spine_id, spine_src))
 
     for vid, rel_src in all_checked_items:
         if not rel_src:
@@ -178,7 +187,7 @@ def verify_all_pictures(verbose: bool = True) -> list[str]:
         if not abs_path.exists():
             errors.append(f"[{vid}] Missing file on disk: {rel_src}")
             continue
-        if rel_src in seen_paths and vid != "__spine_linux_0_map__":
+        if rel_src in seen_paths and not vid.startswith("__spine_"):
             errors.append(f"[{vid}] Duplicate previewSrc path '{rel_src}' (already used by {seen_paths[rel_src]})")
         seen_paths[rel_src] = vid
 

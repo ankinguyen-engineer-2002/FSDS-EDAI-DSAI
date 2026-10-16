@@ -2533,6 +2533,267 @@ def build_linux_ascii_diagrams() -> dict:
     return diagrams
 
 
+def build_db_ascii_diagrams() -> dict:
+    # 0.1: Bốn Hình Thái Vật Lý của Nhân Vật Chính — Đơn hàng Trà sữa #HD01 (Khách hàng Lan)
+    b0_1_left = make_box([
+        "[HÌNH THÁI 1] Dòng chữ thô (Unnormalized Text):",
+        " • #HD01 | Lan | 2026-09-26 | Oolong Sua (30,000,",
+        "   SL:2), Hong Tra Tac (25,000, SL:1)",
+        " • [!] NỖI ĐAU: Nhét chung tên khách, SĐT, danh sách",
+        "   món vào 1 ô -> Không thể SUM tiền hay sửa giá món!",
+        "                         │",
+        "                         ▼",
+        "[HÌNH THÁI 2] Bản ghi có cấu trúc (Relational Tuples):",
+        " • Phân rã thành 4 bảng chuẩn 3NF: KhachHang, HoaDon,",
+        "   MonAn, ChiTiet liên kết qua Primary Key & Foreign Key",
+        " • Chốt chặn: NOT NULL, DEFAULT, UNIQUE, CHECK",
+    ], inner_width=57, header="1–2. TỪ VĂN BẢN THÔ (UNF) ĐẾN BẢNG QUAN HỆ SẠCH (3NF)", context="DB-0.1.left")
+
+    b0_1_right = make_box([
+        "[HÌNH THÁI 3] Khối byte RAM & Đĩa (8KB Page & WAL):",
+        " • Tiến vào PostgreSQL: #HD01 nằm trong khung 8KB",
+        "   Slotted Page trên Shared Buffers (~1GB RAM)",
+        " • Ghi nhật ký tuần tự mang mã LSN trong WAL Buffer",
+        "   trước khi Checkpointer xả Dirty Page xuống đĩa!",
+        "                         │",
+        "                         ▼",
+        "[HÌNH THÁI 4] Đa phiên bản & Phân mảnh (MVCC & Shard):",
+        " • Hàng nghìn khách đặt/sửa đơn đồng thời -> Tách",
+        "   nhiều phiên bản MVCC (xmin/xmax) + Autovacuum dọn",
+        " • Nhân bản qua các Node (PGD / Sharding / CAP-BASE)",
+    ], inner_width=57, header="3–4. ĐÓNG GÓI 8KB PAGE/WAL & VẬN HÀNH ĐA PHIÊN BẢN PHÂN TÁN", context="DB-0.1.right")
+    d0_1 = "\n".join(join_horizontal([b0_1_left, b0_1_right], ["     "], {6: [" ──> "]}, context="DB-0.1"))
+
+    # 0.2: Sơ đồ Giải phẫu Lộ trình 4 Chặng — 12 Trạm Hành trình Đơn hàng #HD01
+    b0_2_c1 = make_box([
+        "• Trạm 1.1: What is a Database & RDBMS Architecture",
+        "  File phẳng -> [DB Client] -> [RDBMS Server] -> Files",
+        "• Trạm 1.2: Relational Model, Keys (PK, FK),",
+        "  Cardinality (1:1, 1:N, M:N) & Constraints",
+        "  Cắm chốt: [NOT NULL] + [DEFAULT] + [UNIQUE] + [CHECK]",
+        "• Trạm 1.3: Normalization (UNF->1NF->2NF->3NF->BCNF)",
+        "  Tách #HD01 thành 4 bảng (KhachHang, HoaDon, MonAn,",
+        "  ChiTiet) vs Denormalization có kiểm soát.",
+    ], inner_width=58, header="[CHẶNG 1] DATABASE FUNDAMENTALS & DATA MODELING", context="DB-0.2.c1")
+
+    b0_2_c2 = make_box([
+        "• Trạm 2.1: PostgreSQL Process & Memory Architecture",
+        "  [Client] -> [Backend Process] -> shared_buffers (8kB)",
+        "• Trạm 2.2: On-Disk Layout & Slotted Page (8KB Block)",
+        "  [Page Header (LSN) | Line Pointers -> Free <- Tuple]",
+        "  vs In-Memory DBMS (Buffering, Immutability, Ordering)",
+        "• Trạm 2.3: Write Path, Dirty Pages, WAL & Checkpointer",
+        "  Sửa RAM (Dirty Page) + Ghi tuần tự [WAL Buffer ->",
+        "  WAL Files] -> [Checkpointer (5 phút)] xả Data Files.",
+    ], inner_width=58, header="[CHẶNG 2] STORAGE ENGINE & MEMORY ARCHITECTURE", context="DB-0.2.c2")
+    tier1 = join_horizontal([b0_2_c1, b0_2_c2], ["     "], {4: [" ──> "]}, context="DB-0.2.tier1")
+
+    tier_mid = [l.rstrip() for l in make_box([
+        "[NỖI ĐAU CHUYỂN GIAO CHẶNG 1 -> 2 -> 3 -> 4]:",
+        " • Chặng 1 -> 2: Bảng 3NF đã sạch trên giấy, nhưng làm sao lưu xuống đĩa vừa không mất dữ liệu khi sập nguồn,",
+        "   vừa không bị chậm bởi tốc độ Random I/O của ổ cứng?",
+        " • Chặng 2 -> 3: Đĩa và RAM đã nhịp nhàng cho 1 người, nhưng khi 1,000 người cùng đọc/sửa #HD01 và bảng phình",
+        "   lên 100 triệu dòng thì xảy ra kẹt khóa (Lock Contention) và quét tuần tự (Seq Scan) quá chậm!",
+        " • Chặng 3 -> 4: Một máy chủ PostgreSQL (Single Node) dù tối ưu kịch trần vẫn chạm ngưỡng vật lý CPU/RAM/Disk",
+        "   và đối mặt nguy cơ đứt cáp mạng hoặc cháy ổ cứng!",
+    ], inner_width=123, header="MẠCH NHÂN – QUẢ & NỖI ĐAU CHUYỂN GIAO XUYÊN SUỐT 4 CHẶNG (ONE-LINE MENTAL MAP)", context="DB-0.2.mid")]
+
+    b0_2_c3 = make_box([
+        "• Trạm 3.1: ACID, Lock Manager, MVCC & Autovacuum",
+        "  Đọc không chặn ghi (Snapshot) -> Sinh Tuple mới khi",
+        "  UPDATE -> [Autovacuum Worker] thu hồi Dead Tuples",
+        "• Trạm 3.2: Storage Structures (B-Tree vs LSM-Tree)",
+        "  Bỏ quét tuần tự (Seq Scan) -> Nhảy qua cây cân bằng",
+        "  [B-Tree Index + Latch Crabbing] / [Append-only LSM]",
+        "• Trạm 3.3: Query Optimizer & EXPLAIN ANALYZE",
+        "  [psql / pgAdmin 4] -> Giải phẫu qua pg_stat_statements",
+    ], inner_width=58, header="[CHẶNG 3] CONCURRENCY CONTROL & QUERY EXECUTION", context="DB-0.2.c3")
+
+    b0_2_c4 = make_box([
+        "• Trạm 4.1: Vertical (Scale-up) vs Horizontal Scaling",
+        "  Nâng cấp 1 máy to -> Chia nhỏ dữ liệu #HD01 ra nhiều",
+        "  Node (Partitioning / Sharding)",
+        "• Trạm 4.2: Replication (Sync/Async), HA & PGD",
+        "  Nhân bản [Primary -> Replica], đa vùng (6 PGD Nodes,",
+        "  PGD Proxy, Witness Node vùng 3, Barman, TiDB/YDB)",
+        "• Trạm 4.3: SQL vs NoSQL, CAP (CA/CP/AP) & BASE",
+        "  Đứt mạng (Partition): Chọn [ACID/CP] hay [BASE/AP]?",
+    ], inner_width=58, header="[CHẶNG 4] SCALABILITY, HIGH AVAILABILITY & NOSQL", context="DB-0.2.c4")
+    tier2 = join_horizontal([b0_2_c3, b0_2_c4], ["     "], {4: [" ──> "]}, context="DB-0.2.tier2")
+
+    d0_2 = "\n".join(
+        tier1
+        + [
+            "                           │                                                           │",
+            "                           ▼                                                           ▼",
+        ]
+        + tier_mid
+        + [
+            "                           │                                                           │",
+            "                           ▼                                                           ▼",
+        ]
+        + tier2
+    )
+
+    # 1.0: Chặng 1 Overview — Database Fundamentals & Data Modeling (Trạm 1.1 -> 1.3)
+    b1_0_s1 = make_box([
+        "• Khắc phục tệp phẳng lộn xộn:",
+        "  [DB Client Library] kết nối",
+        "  qua mạng tới [RDBMS Server]",
+        "  quản lý [Database Files].",
+        "• Đảm bảo Shared Access cho",
+        "  nhiều ứng dụng cùng truy cập",
+        "  đơn #HD01 an toàn.",
+        "• 5 nhóm lệnh SQL chuẩn:",
+        "  DDL, DML, DQL, DCL, TCL.",
+    ], inner_width=34, header="TRẠM 1.1: RDBMS ARCHITECTURE", context="DB-1.0.s1")
+    b1_0_s2 = make_box([
+        "• Lý thuyết tập hợp E.F. Codd:",
+        "  Table, Row (Tuple), Column.",
+        "• Khóa định danh & tham chiếu:",
+        "  Primary Key (PK) & Foreign",
+        "  Key (FK - Referential Integ.)",
+        "• Quan hệ (Cardinality):",
+        "  1:1, 1:N, M:N (Bảng trung gian)",
+        "• 4 Chốt chặn toàn vẹn đầu vào:",
+        "  NOT NULL, DEFAULT, UNIQUE, CHECK",
+    ], inner_width=36, header="TRẠM 1.2: KEYS & CONSTRAINTS", context="DB-1.0.s2")
+    b1_0_s3 = make_box([
+        "• Phẫu thuật dị thường dữ liệu",
+        "  (Insert / Update / Delete):",
+        "  UNF -> 1NF -> 2NF -> 3NF -> BCNF",
+        "• Phân rã đơn #HD01 của Lan",
+        "  (Oolong 30k x2, HongTra 25k)",
+        "  thành 4 bảng sạch 3NF:",
+        "  KhachHang, HoaDon, MonAn, ChiTiet",
+        "• Khi nào cần Denormalization",
+        "  (phi chuẩn hóa có kiểm soát).",
+    ], inner_width=36, header="TRẠM 1.3: NORMALIZATION (3NF)", context="DB-1.0.s3")
+    d1_0 = "\n".join(join_horizontal([b1_0_s1, b1_0_s2, b1_0_s3], [" ──> ", " ──> "], {4: [" ──> ", " ──> "]}, context="DB-1.0"))
+
+    # 2.0: Chặng 2 Overview — Storage Engine & Memory Architecture (Trạm 2.1 -> 2.3)
+    b2_0_s1 = make_box([
+        "• [Client Process] kết nối",
+        "  sinh [Backend Process] riêng.",
+        "• Cấu hình postgresql.conf &",
+        "  postgresql.auto.conf:",
+        "  - Đơn vị trang cơ sở: 8kB",
+        "  - shared_buffers = 131584",
+        "    (~1GB RAM dùng chung)",
+        "  - work_mem = 5120 kB (5MB)",
+        "  - deadlock_timeout = 1000 ms",
+    ], inner_width=34, header="TRẠM 2.1: PROCESS & MEMORY", context="DB-2.0.s1")
+    b2_0_s2 = make_box([
+        "• Khung trang 8KB Slotted Page:",
+        "  - Page Header (chứa mã LSN)",
+        "  - Line Pointers (Ptr 1, Ptr 2)",
+        "    mọc xuôi từ trên xuống",
+        "  - Khoảng trống Free Space",
+        "  - Row Data (Tuple #HD01) mọc",
+        "    ngược từ đáy trang lên.",
+        "• 3 biến số Storage Engine:",
+        "  Buffering, Immutability, Ordering",
+    ], inner_width=36, header="TRẠM 2.2: 8KB SLOTTED PAGE", context="DB-2.0.s2")
+    b2_0_s3 = make_box([
+        "• Khi sửa DonGia = 30000 (#HD01):",
+        "  Trang trên RAM thành Dirty Page.",
+        "• Luồng nhanh (COMMIT tức thì):",
+        "  WAL Buffer -> WAL Writer ->",
+        "  Append-only WAL Files (LSN).",
+        "• Luồng ngầm định kỳ (Offset):",
+        "  Checkpointer (mỗi 5 phút) xả",
+        "  Dirty Pages xuống Data Files.",
+        "• Cứu hộ Crash Recovery từ WAL.",
+    ], inner_width=36, header="TRẠM 2.3: WAL & CHECKPOINTER", context="DB-2.0.s3")
+    d2_0 = "\n".join(join_horizontal([b2_0_s1, b2_0_s2, b2_0_s3], [" ──> ", " ──> "], {4: [" ──> ", " ──> "]}, context="DB-2.0"))
+
+    # 3.0: Chặng 3 Overview — Concurrency Control & Query Execution (Trạm 3.1 -> 3.3)
+    b3_0_s1 = make_box([
+        "• Bảo toàn 4 tính chất ACID",
+        "  & Lock Manager.",
+        "• Cơ chế MVCC (Multi-Version):",
+        "  Đọc không bao giờ chặn Ghi",
+        "  (Snapshot Isolation Levels,",
+        "  chặn Dirty Reads/Dirty Writes).",
+        "• UPDATE #HD01 sinh Tuple mới;",
+        "  Autovacuum Worker dọn ngầm",
+        "  các bản ghi cũ (Dead Tuples).",
+    ], inner_width=34, header="TRẠM 3.1: ACID, MVCC & VACUUM", context="DB-3.0.s1")
+    b3_0_s2 = make_box([
+        "• Bỏ quét tuần tự (Seq Scan)",
+        "  tốn O(N) trên 100 triệu dòng.",
+        "• B-Tree Index (Khả biến trên",
+        "  đĩa 8KB, tối ưu Đọc O(log N))",
+        "  kèm kỹ thuật Latch Crabbing.",
+        "• Đối chiếu LSM-Tree (Log-",
+        "  Structured Merge-tree bất biến,",
+        "  ghi nối đuôi MemTable/SSTable",
+        "  tối ưu tải Ghi cực lớn).",
+    ], inner_width=36, header="TRẠM 3.2: B-TREE VS LSM-TREE", context="DB-3.0.s2")
+    b3_0_s3 = make_box([
+        "• Bộ não Query Optimizer lập",
+        "  Execution Plan tối ưu chi phí",
+        "  cho truy vấn & phép JOIN.",
+        "• Giải phẫu kế hoạch thực thi",
+        "  bằng lệnh EXPLAIN ANALYZE.",
+        "• Bộ công cụ quản trị & săn",
+        "  truy vấn chậm thực chiến:",
+        "  psql CLI, pgAdmin 4 GUI &",
+        "  bảng pg_stat_statements.",
+    ], inner_width=36, header="TRẠM 3.3: OPTIMIZER & EXPLAIN", context="DB-3.0.s3")
+    d3_0 = "\n".join(join_horizontal([b3_0_s1, b3_0_s2, b3_0_s3], [" ──> ", " ──> "], {4: [" ──> ", " ──> "]}, context="DB-3.0"))
+
+    # 4.0: Chặng 4 Overview — Scalability, High Availability & NoSQL Trade-offs (Trạm 4.1 -> 4.3)
+    b4_0_s1 = make_box([
+        "• Vertical Scaling (Scale-up):",
+        "  Nâng cấp CPU/RAM/NVMe cho 1",
+        "  máy chủ nhưng chạm trần vật lý.",
+        "• Horizontal Scaling (Scale-out):",
+        "  Chia nhỏ bảng chứa #HD01 qua",
+        "  Partitioning và phân mảnh",
+        "  Sharding ra nhiều Node.",
+        "• Đánh đổi: Cross-Shard JOIN",
+        "  & điều phối giao dịch phân tán.",
+    ], inner_width=34, header="TRẠM 4.1: SCALE-UP VS SHARDING", context="DB-4.0.s1")
+    b4_0_s2 = make_box([
+        "• Replication: Primary -> Replica",
+        "  (Sync đảm bảo 0 mất dữ liệu vs",
+        "  Async độ trễ thấp) + Failover.",
+        "• Kiến trúc Always-on đa vùng:",
+        "  Cụm 6 PGD nodes (3 nodes/vùng),",
+        "  PGD Proxy, Barman Backup &",
+        "  Witness Node ở vùng thứ 3 giữ",
+        "  Global Consensus (Raft/Paxos).",
+        "• Distributed SQL: TiDB, YDB.",
+    ], inner_width=36, header="TRẠM 4.2: HA, PGD & CONSENSUS", context="DB-4.0.s2")
+    b4_0_s3 = make_box([
+        "• 4 Họ NoSQL: Key-Value, Document",
+        "  (JSON/BSON), Column-Family,",
+        "  Graph Database.",
+        "• Định lý CAP khi đứt mạng (P):",
+        "  Đánh đổi CA / CP (ACID) vs",
+        "  AP (BASE - Eventual Consist.).",
+        "• Giải quyết xung đột ghi đa",
+        "  nhánh bằng Last-Write-Wins",
+        "  (LWW) hoặc Vector Clocks.",
+    ], inner_width=36, header="TRẠM 4.3: NOSQL, CAP & BASE", context="DB-4.0.s3")
+    d4_0 = "\n".join(join_horizontal([b4_0_s1, b4_0_s2, b4_0_s3], [" ──> ", " ──> "], {4: [" ──> ", " ──> "]}, context="DB-4.0"))
+
+    diagrams = {
+        "0.1": {"ascii": d0_1, "kind": "boxes"},
+        "0.2": {"ascii": d0_2, "kind": "boxes"},
+        "1.0": {"ascii": d1_0, "kind": "boxes"},
+        "2.0": {"ascii": d2_0, "kind": "boxes"},
+        "3.0": {"ascii": d3_0, "kind": "boxes"},
+        "4.0": {"ascii": d4_0, "kind": "boxes"},
+    }
+    for k, meta in diagrams.items():
+        errs = verify_diagram(meta["ascii"], f"DB-{k}", kind=meta["kind"])
+        if errs:
+            raise SystemExit(f"ASCII verification failed for DB-{k} ({meta['kind']}): {errs}")
+    return diagrams
+
+
 
 HTML_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="vi" class="dark">
@@ -4635,6 +4896,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
           title: "Database Fundamentals",
           slide: "03-database-fundamentals.pdf",
           pages: 70,
+          hasContent: true,
+          contentNote: "Chặng 1–4",
           slideToc: [
             "01/ Introduction to Databases",
             "02/ SQL vs NoSQL",
@@ -5081,14 +5344,56 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     return [];
   }
 
+  const DB_STAGES = [
+    { id: 1, shortTitle: "Fundamentals & Data Modeling (3NF)", title: "Chặng 1: Database Fundamentals & Data Modeling (Nền móng cấu trúc & Toàn vẹn dữ liệu)" },
+    { id: 2, shortTitle: "Storage Engine & Memory (8KB Page & WAL)", title: "Chặng 2: Storage Engine & Memory Architecture (Giải phẫu động cơ PostgreSQL & Bộ nhớ)" },
+    { id: 3, shortTitle: "Concurrency (MVCC) & Query Execution", title: "Chặng 3: Concurrency Control & Query Execution (Vận hành đồng thời & Tối ưu truy vấn)" },
+    { id: 4, shortTitle: "Scalability, HA (PGD) & NoSQL (CAP/BASE)", title: "Chặng 4: Scalability, High Availability & NoSQL Trade-offs (Mở rộng quy mô & Phân tán)" }
+  ];
+
+  const DB_CHANG1_STATIONS = [
+    { id: "db-0-map", code: "0.0", title: "Nhân vật chính #HD01 & Bản đồ 4 Chặng", fullTitle: "Trạm 0.0: Đơn hàng Trà sữa #HD01 của khách hàng Lan & Bản đồ Tư duy 4 Chặng — 12 Trạm" },
+    { id: "db-1-1", code: "1.1", title: "What is a Database & RDBMS Architecture", fullTitle: "Trạm 1.1: What is a Database & RDBMS Architecture (DB Client Library -> RDBMS Server -> Database Files)" },
+    { id: "db-1-2", code: "1.2", title: "Relational Model, Keys (PK, FK) & Constraints", fullTitle: "Trạm 1.2: Relational Model, Keys (PK, FK), Cardinality (1:1, 1:N, M:N) & Constraints (NOT NULL, DEFAULT, UNIQUE, CHECK)" },
+    { id: "db-1-3", code: "1.3", title: "Normalization (UNF -> 3NF -> BCNF) vs Denormalization", fullTitle: "Trạm 1.3: Normalization (UNF -> 1NF -> 2NF -> 3NF -> BCNF) vs Denormalization (Phân rã bảng gộp #HD01)" }
+  ];
+
+  const DB_CHANG2_STATIONS = [
+    { id: "db-2-1", code: "2.1", title: "PostgreSQL Process & Memory (postgresql.conf)", fullTitle: "Trạm 2.1: PostgreSQL Process & Memory Architecture + Configuration (postgresql.conf & shared_buffers)" },
+    { id: "db-2-2", code: "2.2", title: "On-Disk Layout & Slotted Page (8KB Block)", fullTitle: "Trạm 2.2: On-Disk Layout & Slotted Page (8KB Block) vs In-Memory DBMS (Buffering, Immutability, Ordering)" },
+    { id: "db-2-3", code: "2.3", title: "Write Path, Dirty Pages, WAL & Checkpointer", fullTitle: "Trạm 2.3: Write Path, Shared Buffers (Dirty Pages), WAL Buffer & Checkpointer (5 phút)" }
+  ];
+
+  const DB_CHANG3_STATIONS = [
+    { id: "db-3-1", code: "3.1", title: "ACID, Lock Manager, MVCC & Autovacuum", fullTitle: "Trạm 3.1: ACID Transactions, Lock Manager, MVCC Snapshot & Autovacuum Worker" },
+    { id: "db-3-2", code: "3.2", title: "Storage Structures (B-Tree vs LSM-Tree) & Indexing", fullTitle: "Trạm 3.2: Storage Structures (B-Tree vs LSM-Tree + Latch Crabbing) & Indexing Strategies" },
+    { id: "db-3-3", code: "3.3", title: "Query Optimizer, EXPLAIN ANALYZE & Admin Tools", fullTitle: "Trạm 3.3: Query Optimizer, Execution Plan (EXPLAIN ANALYZE) & Administration Tools (psql, pgAdmin 4, pg_stat_statements)" }
+  ];
+
+  const DB_CHANG4_STATIONS = [
+    { id: "db-4-1", code: "4.1", title: "Vertical (Scale-up) vs Horizontal Scaling (Sharding)", fullTitle: "Trạm 4.1: Vertical Scaling (Scale-up) vs Horizontal Scaling (Scale-out / Partitioning / Sharding)" },
+    { id: "db-4-2", code: "4.2", title: "Replication, High Availability (HA) & PGD 6 Nodes", fullTitle: "Trạm 4.2: Replication (Sync/Async), High Availability (HA) & Distributed PostgreSQL (6 PGD Nodes, Witness Node, Barman)" },
+    { id: "db-4-3", code: "4.3", title: "SQL vs NoSQL, CAP Theorem (CA/CP/AP) & BASE", fullTitle: "Trạm 4.3: SQL vs NoSQL Data Models, CAP Theorem (CA/CP/AP) & BASE Transactions (LWW, Vector Clocks)" }
+  ];
+
+  function getDbStations(stageId = activeStorageStage) {
+    if (stageId === 1) return DB_CHANG1_STATIONS;
+    if (stageId === 2) return DB_CHANG2_STATIONS;
+    if (stageId === 3) return DB_CHANG3_STATIONS;
+    if (stageId === 4) return DB_CHANG4_STATIONS;
+    return [];
+  }
+
   function getTopicStages(topic = activeTopic) {
     if (topic === "F01") return LINUX_STAGES;
+    if (topic === "F03") return DB_STAGES;
     if (topic === "D02") return STORAGE_STAGES;
     return [];
   }
 
   function getTopicStations(topic = activeTopic, stageId = activeStorageStage) {
     if (topic === "F01") return getLinuxStations(stageId);
+    if (topic === "F03") return getDbStations(stageId);
     if (topic === "D02") return getStorageStations(stageId);
     return [];
   }
@@ -5200,8 +5505,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     const fromHub = HUB_DATA.visual_assets && HUB_DATA.visual_assets[safeId];
     if (fromHub) return fromHub;
 
-    const isLinux = safeId.startsWith("linux");
-    const previewSrc = isLinux ? `assets/visuals/${safeId}.jpg` : `assets/visuals/${safeId}.svg`;
+    const isJpgTopic = safeId.startsWith("linux") || safeId.startsWith("db");
+    const previewSrc = isJpgTopic ? `assets/visuals/${safeId}.jpg` : `assets/visuals/${safeId}.svg`;
     const isStory = /bếp|kitchen|bẫy|trap|case|sự cố|đánh đổi|vs\.|so sánh|silent|ngầm/i.test(title + " " + (caption || ""));
     const template = isStory ? "PROMPT-STORY-ANALOGY" : "PROMPT-ARCH-DIAGRAM";
     const prompt = `[${template}]\nGenerate a clean, high-resolution 16:9 widescreen dark-slate blueprint infographic (#0f1419 background, Cyan #06b6d4, Emerald #10b981, Amber #f59e0b, Coral #f43f5e accents) for:\nTITLE: "${title}"\nCONTEXT: ${caption || title}\nSTYLE: Style #2 Dark-Slate Engineering Blueprint / Isometric Storytelling, crisp English technical labels, 100% faithful to source metrics and entities.`;
@@ -9276,6 +9581,292 @@ clean:
     `;
   }
 
+  function renderDatabaseChang1() {
+    const d = HUB_DATA.db_diagrams;
+    return `
+      <div class="prose">
+        <p><strong>Chặng 1: Database Fundamentals &amp; Data Modeling (Nền móng cấu trúc &amp; Toàn vẹn dữ liệu)</strong> mở màn cho học phần <strong>I. Engineering Foundation — F03 · Database Fundamentals</strong> (bám sát 100% <code>course-slides/03-database-fundamentals.pdf</code> — 70 trang, kết hợp nền tảng cơ học từ bộ 3 sách chuyên sâu: <em>Database Internals</em> của Alex Petrov, <em>Database Design and Modeling with PostgreSQL and MySQL</em> của Alkin Tezuysal &amp; Ibrar Ahmed, và <em>PostgreSQL: Up and Running</em> của Regina O. Obe &amp; Leo S. Hsu).</p>
+
+        <h2 id="db-0-map" tabindex="-1">TRẠM 0.0: KHỞI TẠO NHÂN VẬT CHÍNH ĐƠN HÀNG TRÀ SỮA #HD01 &amp; BẢN ĐỒ MẠCH NHÂN – QUẢ 4 CHẶNG</h2>
+        <p><em>(Bước 0 — Thiết lập Nhân vật chính xuyên suốt, 4 Hình thái vật lý, Bản đồ Tư duy 1 dòng &amp; Ma trận Đối chiếu Slide ↔ Sách cho toàn bộ 4 Chặng — 12 Trạm)</em></p>
+
+        ${buildSpineHeroBanner(
+          "db-0-1",
+          "SPINE HERO MINDMAP · STYLE #2",
+          "Bản đồ Tư duy Kiến trúc 4 Chặng — 12 Trạm Database Fundamentals: Hành trình Đơn hàng Trà sữa #HD01",
+          "PROMPT-ARCH-DIAGRAM · 16:9 Dark-Slate Blueprint",
+          "assets/visuals/db-0-map.jpg",
+          "<strong>Bản đồ Xương sống Học phần F03 (Spine Hero Mindmap):</strong> Toàn cảnh 4 Chặng — 12 Trạm theo chân <strong>Đơn hàng Trà sữa <code>#HD01</code> của khách hàng <code>Lan</code></strong> (<code>2026-09-26</code>: <code>Oolong Sua</code> <code>30,000</code> SL <code>2</code> + <code>Hong Tra Tac</code> <code>25,000</code> SL <code>1</code>) từ <code>Data Modeling &amp; 3NF</code> (Chặng 1), <code>8KB Slotted Page &amp; WAL Storage Engine</code> (Chặng 2), <code>MVCC, B-Tree vs LSM-Tree &amp; EXPLAIN ANALYZE</code> (Chặng 3) đến <code>Scale-out Sharding, 6 PGD Nodes &amp; CAP/BASE</code> (Chặng 4)."
+        )}
+
+        <h3 id="db-0-protagonist">1. Khởi tạo "Nhân vật chính" Xuyên suốt Học phần</h3>
+        <p>Để toàn bộ hành trình từ thiết kế bảng biểu trên giấy cho tới lúc dữ liệu nằm yên dưới đĩa vật lý và vận hành trên cụm máy chủ phân tán trở thành một bộ phim liền mạch, chúng ta sẽ chọn một nhân vật chính xuất hiện ngay trong bản phác thảo kiến trúc: <strong>Đơn hàng Trà sữa <code>#HD01</code> của khách hàng <code>Lan</code></strong> (đặt ngày <code>2026-09-26</code>, gồm 2 món: <code>Oolong Sua</code> đơn giá <code>30,000</code> SL <code>2</code> và <code>Hong Tra Tac</code> đơn giá <code>25,000</code> SL <code>1</code>).</p>
+        <p>Thay vì học từng định nghĩa rời rạc, chúng ta sẽ theo chân <strong><code>#HD01</code></strong> tiến hóa qua 4 hình thái vật lý:</p>
+
+        ${buildVisualBlock(
+          "db-0-1",
+          "Hình 0.1 — Bốn Hình thái Vật lý của Đơn hàng Trà sữa #HD01 Xuyên suốt Động cơ Cơ sở dữ liệu",
+          d["0.1"].ascii,
+          d["0.1"].mermaid,
+          "Sự tiến hóa của Đơn hàng Trà sữa #HD01 (khách hàng Lan, 2026-09-26) qua 4 hình thái vật lý: (1) Dòng chữ thô hỗn độn (Unnormalized Text); (2) Các bản ghi có cấu trúc và ràng buộc (Relational Tuples 3NF với Primary Key & Foreign Key); (3) Các khối byte trong bộ nhớ và đĩa từ (8KB Slotted Page trên Shared Buffers & WAL Record mang mã LSN trong WAL Buffer); (4) Phiên bản đa thời gian và phân mảnh (MVCC Tuple & Distributed Shard)."
+        )}
+
+        <ul>
+          <li><strong>Hình thái 1 — Dòng chữ thô hỗn độn (<code>Unnormalized Text</code>):</strong> <code>#HD01</code> bị nhét chung toàn bộ tên khách, số điện thoại và danh sách món vào một ô duy nhất, khiến hệ thống không thể tính tổng tiền hay sửa giá món.</li>
+          <li><strong>Hình thái 2 — Các bản ghi có cấu trúc và ràng buộc (<code>Relational Tuples</code>):</strong> <code>#HD01</code> được phân rã thành các dòng dữ liệu nguyên tử trong các bảng liên kết qua <code>Primary Key</code> (khóa chính định danh duy nhất) và <code>Foreign Key</code> (khóa ngoại tham chiếu liên bảng).</li>
+          <li><strong>Hình thái 3 — Các khối byte trong bộ nhớ và đĩa từ (<code>8KB Slotted Page</code> &amp; <code>WAL Record</code>):</strong> Khi tiến vào <code>PostgreSQL</code> (hệ quản trị cơ sở dữ liệu quan hệ hướng đối tượng mã nguồn mở), <code>#HD01</code> biến thành các chuỗi byte nằm trong khung trang <code>8KB</code> trên <code>Shared Buffers</code> (vùng đệm bộ nhớ dùng chung trên <code>RAM</code>) và dòng nhật ký tuần tự mang mã <code>LSN</code> (<code>Log Sequence Number</code> — số thứ tự bản ghi nhật ký) trong <code>WAL Buffer</code> (bộ đệm nhật ký ghi trước).</li>
+          <li><strong>Hình thái 4 — Phiên bản đa thời gian và phân mảnh (<code>MVCC Tuple</code> &amp; <code>Distributed Shard</code>):</strong> Khi hàng nghìn khách hàng cùng bấm đặt trà sữa và sửa đơn đồng thời, <code>#HD01</code> tách thành nhiều phiên bản nhờ cơ chế <code>MVCC</code> (<code>Multi-Version Concurrency Control</code> — kiểm soát đồng thời đa phiên bản) và nhân bản qua các <code>Node</code> (máy chủ nút) trong cụm phân tán.</li>
+        </ul>
+
+        <h3 id="db-0-mental-map">2. Bản đồ Tư duy 1 Dòng (Mental Map) &amp; Sơ đồ Mạch Nhân – Quả Toàn Học phần</h3>
+        <p><strong>Bản đồ Tư duy 1 dòng (One-Line Mental Map):</strong></p>
+        <pre><code>[Dữ liệu thô hỗn độn] --(1. Chuẩn hóa &amp; Ràng buộc)--&gt; [Bảng quan hệ sạch (3NF)] --(2. Đóng gói Page 8KB + Ghi WAL/RAM)--&gt; [Bền vững vật lý trên Disk] --(3. MVCC + B-Tree Index + EXPLAIN)--&gt; [Đọc/Ghi đồng thời tốc độ ms] --(4. Replication + Sharding + CAP/BASE)--&gt; [Hệ thống phân tán chịu lỗi quy mô lớn]</code></pre>
+
+        <h4>Sơ đồ Giải phẫu Lộ trình 4 Chặng — 12 Trạm (Khớp 100% Slide bài giảng &amp; Sơ đồ Excalidraw)</h4>
+        ${buildVisualBlock(
+          "db-0-2",
+          "Hình 0.2 — Sơ đồ Giải phẫu Lộ trình 4 Chặng — 12 Trạm & Nỗi đau Chuyển giao của Đơn hàng #HD01",
+          d["0.2"].ascii,
+          d["0.2"].mermaid,
+          "Bản đồ giải phẫu 4 Chặng — 12 Trạm của học phần F03 Database Fundamentals cùng 3 nỗi đau chuyển giao nhân – quả: từ chuẩn hóa 3NF & Constraints (Chặng 1) sang 8KB Slotted Page, WAL Buffer & Checkpointer 5 phút (Chặng 2), tới MVCC Snapshot, B-Tree vs LSM-Tree & EXPLAIN ANALYZE (Chặng 3), và vươn ra cụm phân tán 6 PGD Nodes, Witness Node & CAP/BASE (Chặng 4)."
+        )}
+
+        <h4>Bảng Đối chiếu Khung Chương trình ("Slide là Xương sống, Sách là Thịt")</h4>
+        <div class="table-wrap">
+          <table class="clean-table">
+            <thead>
+              <tr>
+                <th>Chặng &amp; Trạm</th>
+                <th>Xương sống từ Slide &amp; Excalidraw</th>
+                <th>"Thịt" cơ học &amp; Định lượng trích xuất từ Sách</th>
+                <th>Trạng thái của Đơn hàng <code>#HD01</code></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Chặng 1</strong><br><em>Trạm 1.1 ➔ 1.3</em></td>
+                <td>• Định nghĩa <code>Database</code>, <code>RDBMS Server</code>, <code>Shared Access</code>.<br>• <code>Table</code>, <code>Row</code>, <code>Column</code>, <code>PK</code>, <code>FK</code>, <code>Cardinality</code> (<code>1:1</code>, <code>1:N</code>, <code>M:N</code>), <code>Constraints</code> (<code>NOT NULL</code>, <code>DEFAULT</code>, <code>UNIQUE</code>, <code>CHECK</code>).<br>• Chuẩn hóa <code>UNF</code> ➔ <code>1NF</code> ➔ <code>2NF</code> ➔ <code>3NF</code> ➔ <code>BCNF</code>.</td>
+                <td>• Lý thuyết tập hợp của <code>E.F. Codd (1970)</code>.<br>• Cơ chế kiểm tra ràng buộc tham chiếu (<code>Referential Integrity</code>) và tác động vận hành của <code>Foreign Key</code> ở quy mô lớn.<br>• Giải phẫu dị thường dữ liệu (<code>Insertion/Update/Deletion Anomalies</code>) và khi nào cần <code>Denormalization</code> (phi chuẩn hóa có kiểm soát).</td>
+                <td>Từ 1 dòng gộp chuỗi <code>"Oolong (30k, SL:2), HongTra (25k)"</code> tách thành 4 bảng chuẩn <code>3NF</code>, khóa chặt đầu vào bằng <code>Constraints</code>.</td>
+              </tr>
+              <tr>
+                <td><strong>Chặng 2</strong><br><em>Trạm 2.1 ➔ 2.3</em></td>
+                <td>• Kiến trúc <code>PostgreSQL</code>: <code>Client Process</code>, <code>Backend Process</code>, <code>Shared Memory</code>.<br>• Cấu trúc <code>Slotted Page</code> (<code>Page Header</code>, <code>LSN</code>, <code>Ptr</code>, <code>Free Space</code>, <code>Row Data</code>).<br>• Luồng ghi <code>WAL Buffer</code> ➔ <code>WAL Writer</code> ➔ <code>WAL Files</code> vs <code>Shared Buffers</code> (<code>Dirty Page</code>) ➔ <code>Checkpointer</code> ➔ <code>Data Files</code>.</td>
+                <td>• Bảng thông số cấu hình thực tế trong <code>postgresql.conf</code> và <code>postgresql.auto.conf</code>: đơn vị trang <code>8kB</code>, <code>shared_buffers = 131584</code> (<code>~1GB</code>), <code>work_mem = 5120 kB</code>, <code>deadlock_timeout = 1000 ms</code>.<br>• Ba biến số cốt lõi của Storage Engine: <code>Buffering</code> (đệm), <code>Immutability</code> (bất biến), <code>Ordering</code> (sắp thứ tự).<br>• Sự khác biệt tốc độ ghi tuần tự (<code>Append-only WAL</code>) và ghi ngẫu nhiên theo <code>Offset</code> của <code>Checkpointer</code>.</td>
+                <td>Khi sửa <code>DonGia = 30000</code>, <code>Page</code> chứa <code>#HD01</code> thành <code>Dirty Page</code> trên <code>RAM</code>; <code>LSN</code> được đẩy tức thì xuống <code>WAL Files</code> khi <code>COMMIT</code>, còn <code>Data Files</code> chờ <code>Checkpointer</code> xả định kỳ (ví dụ mỗi <code>5 phút</code>).</td>
+              </tr>
+              <tr>
+                <td><strong>Chặng 3</strong><br><em>Trạm 3.1 ➔ 3.3</em></td>
+                <td>• Tính chất <code>ACID</code>, <code>Lock Manager</code>, cơ chế <code>MVCC</code> không khóa đọc-ghi và tiến trình <code>Autovacuum Worker</code>.<br>• Tối ưu truy vấn với <code>EXPLAIN</code>, chiến lược <code>Indexing</code> (<code>B-Tree</code>) và tối ưu <code>JOIN</code>.</td>
+                <td>• Cơ chế cô lập giao dịch (<code>Isolation Levels</code>), dị thường <code>Dirty Reads</code>, <code>Dirty Writes</code> và thuật toán <code>Latch Crabbing</code> trên cây chỉ mục.<br>• So sánh cấu trúc <code>B-Tree</code> (khả biến trên đĩa, tối ưu đọc) và <code>LSM-Tree</code> (<code>Log-Structured Merge-tree</code> — cây hợp nhất cấu trúc nhật ký, bất biến, tối ưu ghi).<br>• Bộ công cụ quản trị và đo lường: <code>psql</code>, <code>pgAdmin 4</code>, <code>EXPLAIN ANALYZE</code>, <code>pg_stat_statements</code>.</td>
+                <td><code>#HD01</code> được truy xuất qua <code>B-Tree Index</code> thay vì quét toàn bảng; khi cập nhật sẽ tạo bản ghi phiên bản mới, bản cũ được <code>Autovacuum</code> thu hồi ngầm.</td>
+              </tr>
+              <tr>
+                <td><strong>Chặng 4</strong><br><em>Trạm 4.1 ➔ 4.3</em></td>
+                <td>• Mở rộng dọc (<code>Scale-up</code>) vs Mở rộng ngang (<code>Scale-out</code> / <code>Sharding</code>).<br>• Nhân bản <code>Replication</code> (<code>Sync/Async</code>), <code>Failover</code>, <code>High Availability (HA)</code> &amp; <code>Distributed SQL</code> (<code>TiDB</code>, <code>YDB</code>).<br>• Đối sánh <code>SQL vs NoSQL</code>, định lý <code>CAP</code> &amp; mô hình <code>BASE</code>.</td>
+                <td>• Kiến trúc đa vùng luôn sẵn sàng (<code>Always-on Multi-location</code>): cụm <code>6 PGD nodes</code> (3 nodes/vùng), <code>PGD Proxy</code>, <code>Witness Node</code> ở vùng thứ 3 để giữ đồng thuận toàn cục (<code>Global Consensus</code> như <code>Raft</code>/<code>Paxos</code>).<br>• Phân tích 4 loại <code>NoSQL</code> (<code>Key-Value</code>, <code>Document/BSON</code>, <code>Column-Family</code>, <code>Graph</code>), đánh đổi <code>CA/CP/AP</code> và giải quyết xung đột bằng <code>Last-Write-Wins</code> (<code>LWW</code>) hoặc <code>Vector Clocks</code>.</td>
+                <td><code>#HD01</code> vượt ra khỏi 1 máy chủ đơn lẻ: được sao chép sang các <code>Replica</code> để chống sập nguồn và mở rộng sang mô hình <code>JSON/BSON Document</code> khi cần linh hoạt cấu trúc.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <hr />
+
+        <h4>Sơ đồ 1.0: Kiến trúc Tổng quan Chặng 1 — Database Fundamentals &amp; Data Modeling (Trạm 1.1 ➔ 1.3)</h4>
+        ${buildVisualBlock(
+          "db-1-0",
+          "Sơ đồ 1.0 — Nền móng Cấu trúc & Toàn vẹn Dữ liệu: RDBMS Architecture, Keys/Constraints & Chuẩn hóa 3NF/BCNF",
+          d["1.0"].ascii,
+          d["1.0"].mermaid,
+          "Tổng quan 3 trạm của Chặng 1: [Trạm 1.1] Kiến trúc DB Client Library -> RDBMS Server -> Database Files đảm bảo Shared Access & 5 nhóm lệnh SQL (DDL, DML, DQL, DCL, TCL); [Trạm 1.2] Mô hình quan hệ (PK, FK, Cardinality 1:1/1:N/M:N) và 4 chốt chặn NOT NULL, DEFAULT, UNIQUE, CHECK; [Trạm 1.3] Chuẩn hóa UNF -> 1NF -> 2NF -> 3NF -> BCNF tách đơn #HD01 thành 4 bảng KhachHang, HoaDon, MonAn, ChiTiet."
+        )}
+
+        <h2 id="db-1-1" tabindex="-1">TRẠM 1.1: WHAT IS A DATABASE &amp; RDBMS ARCHITECTURE (DB CLIENT LIBRARY ➔ RDBMS SERVER ➔ DATABASE FILES)</h2>
+        <ul>
+          <li><strong>Nỗi đau của tệp phẳng (Flat File) &amp; Hình thái 1 (<code>Unnormalized Text</code>):</strong> Khi lưu đơn hàng trà sữa <code>#HD01</code> của khách hàng <code>Lan</code> (<code>Oolong Sua</code> đơn giá <code>30,000</code> SL <code>2</code>, <code>Hong Tra Tac</code> đơn giá <code>25,000</code> SL <code>1</code>) vào một tệp văn bản hoặc bảng tính phẳng, nhiều nhân viên thu ngân không thể cùng lúc mở tệp để ghi (thiếu <code>Shared Access</code>), và hệ thống không thể chạy truy vấn tính tổng doanh thu từng món.</li>
+          <li><strong>Kiến trúc 3 mắt xích <code>RDBMS</code>:</strong> Ứng dụng giao tiếp qua <code>DB Client Library</code> ➔ gửi truy vấn tới <code>RDBMS Server</code> (như <code>PostgreSQL</code>) ➔ quản lý tập trung các <code>Database Files</code> dưới ổ đĩa và điều phối qua 5 nhóm lệnh SQL chuẩn: <code>DDL</code>, <code>DML</code>, <code>DQL</code>, <code>DCL</code>, <code>TCL</code>.</li>
+        </ul>
+
+        <h2 id="db-1-2" tabindex="-1">TRẠM 1.2: RELATIONAL MODEL, KEYS (PK, FK), CARDINALITY (1:1, 1:N, M:N) &amp; CONSTRAINTS</h2>
+        <ul>
+          <li><strong>Lý thuyết tập hợp của <code>E.F. Codd (1970)</code> &amp; Toàn vẹn tham chiếu (<code>Referential Integrity</code>):</strong> Định hình thực thể thành <code>Table</code>, <code>Row</code> (<code>Tuple</code>) và <code>Column</code>; định danh duy nhất bằng <code>Primary Key</code> (<code>PK</code>) và nối liên bảng bằng <code>Foreign Key</code> (<code>FK</code>) theo bản số quan hệ <code>Cardinality</code> (<code>1:1</code>, <code>1:N</code>, <code>M:N</code>).</li>
+          <li><strong>Bốn chốt chặn bảo vệ đầu vào (<code>Constraints</code>):</strong> Cắm trực tiếp tại tầng động cơ CSDL gồm <code>NOT NULL</code> (cấm rỗng), <code>DEFAULT</code> (giá trị mặc định), <code>UNIQUE</code> (cấm trùng lặp) và <code>CHECK</code> (kiểm tra điều kiện logic như <code>DonGia &gt;= 0</code>).</li>
+        </ul>
+
+        <h2 id="db-1-3" tabindex="-1">TRẠM 1.3: NORMALIZATION (UNF ➔ 1NF ➔ 2NF ➔ 3NF ➔ BCNF) VS DENORMALIZATION</h2>
+        <ul>
+          <li><strong>Triệt tiêu 3 dị thường dữ liệu (<code>Insertion/Update/Deletion Anomalies</code>):</strong> Phân rã bảng gộp hỗn độn của <code>#HD01</code> đi qua <code>UNF</code> ➔ <code>1NF</code> (nguyên tử hóa ô đa trị) ➔ <code>2NF</code> (bỏ phụ thuộc hàm bộ phận) ➔ <code>3NF</code> &amp; <code>BCNF</code> (bỏ phụ thuộc bắc cầu) để tách thành 4 bảng chuẩn mực: <code>KhachHang</code>, <code>HoaDon</code>, <code>MonAn</code>, <code>ChiTiet</code>; đồng thời nắm rõ khi nào cần <code>Denormalization</code> (phi chuẩn hóa có kiểm soát) để đánh đổi tốc độ đọc.</li>
+          <li><strong>Nỗi đau chuyển giao sang Chặng 2:</strong> Bảng <code>3NF</code> đã sạch trên thiết kế logic, nhưng làm sao lưu xuống đĩa vật lý vừa không mất dữ liệu khi sập nguồn, vừa không bị chậm bởi tốc độ I/O của ổ cứng? <a href="#topic=F03&stage=2" onclick="selectStorageStage(2);return false;">Bước sang Chặng 2: Storage Engine &amp; Memory Architecture ➔</a></li>
+        </ul>
+      </div>
+    `;
+  }
+
+  function renderDatabaseChang2() {
+    const d = HUB_DATA.db_diagrams;
+    return `
+      <div class="prose">
+        <p>Ở <strong>Chặng 1</strong>, Đơn hàng Trà sữa <code>#HD01</code> của khách hàng <code>Lan</code> đã được chuẩn hóa thành 4 bảng <code>3NF</code> (<code>KhachHang</code>, <code>HoaDon</code>, <code>MonAn</code>, <code>ChiTiet</code>) và khóa chặt bằng <code>Constraints</code>. Nhưng bảng <code>3NF</code> mới chỉ sạch trên bản vẽ logic — bước vào <strong>Chặng 2 (Trạm 2.1 ➔ 2.3): Storage Engine &amp; Memory Architecture</strong>, chúng ta giải phẫu cách động cơ <code>PostgreSQL</code> đóng gói <code>#HD01</code> vào khung trang <code>8KB Slotted Page</code> trên <code>Shared Buffers</code> và phối hợp với nhật ký tuần tự <code>WAL</code> để vừa đạt tốc độ <code>RAM</code>, vừa bền vững tuyệt đối trên đĩa.</p>
+
+        <h4>Sơ đồ 2.0: Kiến trúc Tổng quan Chặng 2 — PostgreSQL Storage Engine, 8KB Slotted Page &amp; WAL Write Path</h4>
+        ${buildVisualBlock(
+          "db-2-0",
+          "Sơ đồ 2.0 — Giải phẫu Động cơ PostgreSQL: Bộ nhớ shared_buffers, Khung trang 8KB Slotted Page & Luồng ghi Kép WAL / Checkpointer",
+          d["2.0"].ascii,
+          d["2.0"].mermaid,
+          "Tổng quan 3 trạm của Chặng 2: [Trạm 2.1] Client Process -> Backend Process & cấu hình thực tế trong postgresql.conf (shared_buffers = 131584 ~ 1GB, work_mem = 5120 kB, deadlock_timeout = 1000 ms); [Trạm 2.2] Cấu trúc 8KB Slotted Page (Page Header LSN, Line Pointers Ptr, Free Space, Row Tuple #HD01) & 3 biến số Buffering, Immutability, Ordering; [Trạm 2.3] Luồng ghi WAL Buffer -> WAL Writer -> WAL Files (Append-only) và Checkpointer (5 phút) xả Dirty Pages xuống Data Files."
+        )}
+
+        <h2 id="db-2-1" tabindex="-1">TRẠM 2.1: POSTGRESQL PROCESS &amp; MEMORY ARCHITECTURE + CONFIGURATION (postgresql.conf)</h2>
+        <ul>
+          <li><strong>Kiến trúc Tiến trình &amp; Bộ nhớ dùng chung:</strong> Mỗi <code>Client Process</code> khi kết nối vào máy chủ <code>PostgreSQL</code> sẽ được cấp phát một <code>Backend Process</code> riêng, cùng truy cập vào vùng nhớ <code>Shared Memory</code> (trung tâm là vùng đệm <code>Shared Buffers</code> giữ các trang <code>8KB</code>).</li>
+          <li><strong>Thông số định lượng trong <code>postgresql.conf</code> &amp; <code>postgresql.auto.conf</code>:</strong> Đơn vị trang cơ sở là <code>8kB</code>, trong đó <code>shared_buffers = 131584</code> tương đương <code>~1GB</code> bộ nhớ đệm trang dùng chung, <code>work_mem = 5120 kB</code> cấp phát cho mỗi thao tác sắp xếp/băm cục bộ, và <code>deadlock_timeout = 1000 ms</code> kiểm soát thời gian quét phát hiện khóa chết.</li>
+        </ul>
+
+        <h2 id="db-2-2" tabindex="-1">TRẠM 2.2: ON-DISK LAYOUT &amp; SLOTTED PAGE (8KB BLOCK) VS IN-MEMORY DBMS</h2>
+        <ul>
+          <li><strong>Giải phẫu khung trang <code>8KB Slotted Page</code>:</strong> Dòng dữ liệu của <code>#HD01</code> được gom vào khối <code>8KB Block</code> với cấu trúc hai đầu mọc ngược chiều nhau: <code>[Page Header (LSN) | Line Pointers (Ptr) ---&gt; Free Space &lt;--- Tuple (Row Data)]</code>.</li>
+          <li><strong>Ba biến số cốt lõi của Storage Engine (Sách <em>Database Internals</em>):</strong> Đối chiếu giữa CSDL trên đĩa và <code>In-Memory DBMS</code> qua 3 trục thiết kế: <code>Buffering</code> (đệm bộ nhớ), <code>Immutability</code> (bất biến vs sửa tại chỗ) và <code>Ordering</code> (thứ tự lưu trữ vật lý).</li>
+        </ul>
+
+        <h2 id="db-2-3" tabindex="-1">TRẠM 2.3: WRITE PATH, SHARED BUFFERS (DIRTY PAGES), WAL BUFFER &amp; CHECKPOINTER</h2>
+        <ul>
+          <li><strong>Luồng ghi kép (Dual Write Path) của <code>#HD01</code>:</strong> Khi sửa <code>DonGia = 30000</code>, trang chứa <code>#HD01</code> trên <code>Shared Buffers</code> biến thành <code>Dirty Page</code> trên <code>RAM</code>; tại thời điểm <code>COMMIT</code>, bản ghi nhật ký mang mã <code>LSN</code> (<code>Log Sequence Number</code>) trong <code>WAL Buffer</code> được <code>WAL Writer</code> đẩy tuần tự tức thì (<code>Append-only WAL</code>) xuống <code>WAL Files</code>, trong khi <code>Data Files</code> chờ tiến trình <code>Checkpointer</code> xả ngẫu nhiên theo <code>Offset</code> định kỳ (ví dụ mỗi <code>5 phút</code>).</li>
+          <li><strong>Nỗi đau chuyển giao sang Chặng 3:</strong> Đĩa và <code>RAM</code> đã phối hợp nhịp nhàng cho 1 người dùng, nhưng khi <code>1,000</code> người cùng đọc/sửa <code>#HD01</code> và bảng phình lên <code>100 triệu dòng</code> thì kẹt khóa và quét chậm! <a href="#topic=F03&stage=3" onclick="selectStorageStage(3);return false;">Bước sang Chặng 3: Concurrency Control &amp; Query Execution ➔</a></li>
+        </ul>
+      </div>
+    `;
+  }
+
+  function renderDatabaseChang3() {
+    const d = HUB_DATA.db_diagrams;
+    return `
+      <div class="prose">
+        <p>Ở <strong>Chặng 2</strong>, Đơn hàng Trà sữa <code>#HD01</code> đã nằm an toàn trong khung trang <code>8KB Slotted Page</code> và sổ nhật ký <code>WAL Files</code>. Nhưng khi quán trà sữa bùng nổ đơn hàng — <code>1,000</code> khách hàng cùng đọc/sửa <code>#HD01</code> đồng thời và bảng lịch sử phình lên <code>100 triệu dòng</code> — bước vào <strong>Chặng 3 (Trạm 3.1 ➔ 3.3): Concurrency Control &amp; Query Execution</strong>, chúng ta giải phẫu cơ chế đa phiên bản <code>MVCC</code>, cấu trúc cây chỉ mục <code>B-Tree</code> vs <code>LSM-Tree</code> và bộ tối ưu hóa truy vấn <code>EXPLAIN ANALYZE</code>.</p>
+
+        <h4>Sơ đồ 3.0: Kiến trúc Tổng quan Chặng 3 — Concurrency Control (MVCC) &amp; Query Execution (B-Tree / EXPLAIN ANALYZE)</h4>
+        ${buildVisualBlock(
+          "db-3-0",
+          "Sơ đồ 3.0 — Vận hành Đồng thời & Tối ưu Truy vấn: ACID/MVCC & Autovacuum, B-Tree vs LSM-Tree & EXPLAIN ANALYZE",
+          d["3.0"].ascii,
+          d["3.0"].mermaid,
+          "Tổng quan 3 trạm của Chặng 3: [Trạm 3.1] Giao dịch ACID, Lock Manager, MVCC Snapshot không khóa đọc-ghi, Isolation Levels (Dirty Reads/Dirty Writes) & Autovacuum Worker thu hồi Dead Tuples; [Trạm 3.2] Cấu trúc chỉ mục B-Tree (khả biến trên đĩa + Latch Crabbing, tối ưu đọc) đối sánh với LSM-Tree (bất biến append-only, tối ưu ghi); [Trạm 3.3] Query Optimizer, EXPLAIN ANALYZE và bộ công cụ psql, pgAdmin 4, pg_stat_statements."
+        )}
+
+        <h2 id="db-3-1" tabindex="-1">TRẠM 3.1: ACID TRANSACTIONS, LOCK MANAGER, MVCC &amp; AUTOVACUUM WORKER</h2>
+        <ul>
+          <li><strong>Đọc không chặn ghi với <code>MVCC</code> (<code>Multi-Version Concurrency Control</code>):</strong> Thay vì khóa cứng toàn bảng khi <code>UPDATE</code> đơn <code>#HD01</code>, <code>PostgreSQL</code> sinh ra một <code>MVCC Tuple</code> phiên bản mới và cấp <code>Snapshot</code> theo từng mức cô lập (<code>Isolation Levels</code>) kết hợp <code>Lock Manager</code> để chặn đứng dị thường <code>Dirty Reads</code> và <code>Dirty Writes</code>.</li>
+          <li><strong>Thu hồi bản ghi cũ bằng <code>Autovacuum Worker</code>:</strong> Các phiên bản cũ của <code>#HD01</code> sau khi cập nhật sẽ được tiến trình ngầm <code>Autovacuum</code> quét dọn và trả lại khoảng trống <code>Free Space</code> trên trang <code>8KB</code>.</li>
+        </ul>
+
+        <h2 id="db-3-2" tabindex="-1">TRẠM 3.2: STORAGE STRUCTURES (B-TREE VS LSM-TREE) &amp; INDEXING STRATEGIES</h2>
+        <ul>
+          <li><strong>Từ <code>Seq Scan</code> sang <code>B-Tree Index</code> &amp; <code>Latch Crabbing</code>:</strong> Thay vì quét tuần tự toàn bộ <code>100 triệu dòng</code> (<code>Seq Scan</code>), truy vấn nhảy qua cây cân bằng <code>B-Tree Index</code> (cấu trúc khả biến trên đĩa, tối ưu tốc độ đọc, bảo vệ truy cập đồng thời trên các nút cây bằng thuật toán <code>Latch Crabbing</code>).</li>
+          <li><strong>Đối sánh <code>B-Tree</code> vs <code>LSM-Tree</code> (Sách <em>Database Internals</em>):</strong> Đặt cạnh <code>LSM-Tree</code> (<code>Log-Structured Merge-tree</code> — cây hợp nhất cấu trúc nhật ký bất biến, ghi nối đuôi <code>Append-only LSM</code> vào <code>MemTable</code>/<code>SSTable</code>, tối ưu cho tải ghi cực lớn).</li>
+        </ul>
+
+        <h2 id="db-3-3" tabindex="-1">TRẠM 3.3: QUERY OPTIMIZER, EXECUTION PLAN (EXPLAIN ANALYZE) &amp; ADMINISTRATION TOOLS</h2>
+        <ul>
+          <li><strong>Giải phẫu chi phí truy vấn &amp; tối ưu <code>JOIN</code>:</strong> Bộ tối ưu hóa <code>Query Optimizer</code> phân tích thống kê để lập <code>Execution Plan</code>; kỹ sư đo lường thực tế qua lệnh <code>EXPLAIN ANALYZE</code> và bộ công cụ quản trị <code>psql</code>, <code>pgAdmin 4</code> cùng tiện ích <code>pg_stat_statements</code>.</li>
+          <li><strong>Nỗi đau chuyển giao sang Chặng 4:</strong> Một máy chủ <code>PostgreSQL</code> (<code>Single Node</code>) dù tối ưu kịch trần vẫn chạm ngưỡng vật lý <code>CPU/RAM/Disk</code> và đối mặt nguy cơ đứt cáp mạng hoặc cháy ổ cứng! <a href="#topic=F03&stage=4" onclick="selectStorageStage(4);return false;">Bước sang Chặng 4: Scalability, High Availability &amp; NoSQL Trade-offs ➔</a></li>
+        </ul>
+      </div>
+    `;
+  }
+
+  function renderDatabaseChang4() {
+    const d = HUB_DATA.db_diagrams;
+    return `
+      <div class="prose">
+        <p>Ở <strong>Chặng 3</strong>, chúng ta đã vắt kiệt hiệu năng của một máy chủ <code>PostgreSQL</code> đơn lẻ (<code>Single Node</code>) bằng <code>MVCC</code>, <code>B-Tree Index</code> và <code>EXPLAIN ANALYZE</code>. Khi hệ thống phải phục vụ hàng triệu đơn hàng <code>#HD01</code> xuyên quốc gia không được phép ngừng hoạt động dù cháy ổ cứng hay đứt cáp quang, chúng ta bước vào <strong>Chặng 4 (Trạm 4.1 ➔ 4.3): Scalability, High Availability &amp; NoSQL Trade-offs</strong>.</p>
+
+        <h4>Sơ đồ 4.0: Kiến trúc Tổng quan Chặng 4 — Mở rộng Quy mô (Sharding), Đa vùng Luôn sẵn sàng (6 PGD Nodes) &amp; Định lý CAP / BASE</h4>
+        ${buildVisualBlock(
+          "db-4-0",
+          "Sơ đồ 4.0 — Mở rộng Quy mô & Hệ thống Phân tán: Scale-up vs Sharding, Cụm 6 PGD Nodes + Witness Node & Đánh đổi SQL / NoSQL (CAP & BASE)",
+          d["4.0"].ascii,
+          d["4.0"].mermaid,
+          "Tổng quan 3 trạm của Chặng 4: [Trạm 4.1] Vertical Scaling (Scale-up) vs Horizontal Scaling (Scale-out / Partitioning / Sharding); [Trạm 4.2] Replication (Sync/Async), Failover, High Availability (HA), cụm đa vùng 6 PGD Nodes + PGD Proxy + Witness Node vùng 3 (Global Consensus Raft/Paxos), Barman Backup & Distributed SQL (TiDB, YDB); [Trạm 4.3] 4 họ NoSQL (Key-Value, Document/BSON, Column-Family, Graph), định lý CAP (CA/CP/AP) & giao dịch BASE (Eventual Consistency, LWW, Vector Clocks)."
+        )}
+
+        <h2 id="db-4-1" tabindex="-1">TRẠM 4.1: VERTICAL SCALING (SCALE-UP) VS HORIZONTAL SCALING (SCALE-OUT / SHARDING)</h2>
+        <ul>
+          <li><strong>Từ nâng cấp dọc sang phân mảnh ngang:</strong> Khi <code>Vertical Scaling</code> (<code>Scale-up</code> — nâng cấp 1 máy chủ to hơn) chạm trần phần cứng và chi phí, hệ thống chuyển sang <code>Horizontal Scaling</code> (<code>Scale-out</code>) bằng cách chia nhỏ dữ liệu <code>#HD01</code> qua <code>Partitioning</code> và phân tán thành các <code>Distributed Shard</code> (<code>Sharding</code>) trên nhiều <code>Node</code>.</li>
+        </ul>
+
+        <h2 id="db-4-2" tabindex="-1">TRẠM 4.2: REPLICATION (SYNC/ASYNC), HIGH AVAILABILITY (HA) &amp; DISTRIBUTED POSTGRESQL</h2>
+        <ul>
+          <li><strong>Nhân bản <code>Primary ➔ Replica</code> &amp; Sao lưu <code>Barman</code>:</strong> Đối chiếu nhân bản đồng bộ và bất đồng bộ (<code>Replication Sync/Async</code>), tự động chuyển đổi dự phòng (<code>Failover</code>) và sao lưu phục hồi thảm họa bằng <code>Barman Backup</code>.</li>
+          <li><strong>Kiến trúc đa vùng luôn sẵn sàng (<code>Always-on Multi-location</code>) &amp; <code>Distributed SQL</code>:</strong> Thiết kế cụm <code>6 PGD nodes</code> (3 nodes/vùng) kết hợp <code>PGD Proxy</code> và <code>Witness Node</code> đặt ở vùng thứ 3 để giữ đồng thuận toàn cục (<code>Global Consensus</code> như <code>Raft</code>/<code>Paxos</code>), cùng các hệ <code>Distributed SQL</code> hiện đại như <code>TiDB</code> và <code>YDB</code>.</li>
+        </ul>
+
+        <h2 id="db-4-3" tabindex="-1">TRẠM 4.3: SQL VS NOSQL DATA MODELS, CAP THEOREM (CA/CP/AP) &amp; BASE TRANSACTIONS</h2>
+        <ul>
+          <li><strong>Bốn họ <code>NoSQL</code> &amp; Định lý <code>CAP</code> / <code>BASE</code>:</strong> Đặt <code>SQL</code> cạnh 4 mô hình dữ liệu <code>NoSQL</code> (<code>Key-Value</code>, <code>Document/BSON</code>, <code>Column-Family</code>, <code>Graph</code>). Khi xảy ra phân mảnh mạng (<code>Network Partition</code>), phân tích sự đánh đổi <code>CA/CP/AP</code> theo định lý <code>CAP</code>: chọn nhất quán tức thời (<code>ACID / CP</code>) hay sẵn sàng cao với nhất quán cuối cùng (<code>BASE / AP</code> — <code>Eventual Consistency</code>) và phân xử xung đột bằng <code>Last-Write-Wins</code> (<code>LWW</code>) hoặc <code>Vector Clocks</code>.</li>
+          <li><a href="#topic=F03&stage=1" onclick="selectStorageStage(1);return false;">Quay lại Chặng 1 (Trạm 0.0 — Bản đồ Tư duy Toàn Học phần F03 · Database Fundamentals) ➔</a></li>
+        </ul>
+      </div>
+    `;
+  }
+
+  function renderDatabaseTopic() {
+    const totalStages = DB_STAGES.length;
+    const currentStage = DB_STAGES.find(s => s.id === activeStorageStage) || DB_STAGES[0];
+    const prevId = activeStorageStage > 1 ? activeStorageStage - 1 : null;
+    const nextId = activeStorageStage < totalStages ? activeStorageStage + 1 : null;
+    const padNum = n => String(n).padStart(2, "0");
+
+    const stageRows = DB_STAGES.map(st => `
+      <button type="button" class="stage-dir-item ${st.id === activeStorageStage ? 'active' : ''}" onclick="selectStorageStage(${st.id})">
+        <span class="stage-dir-code">Chặng ${padNum(st.id)}</span>
+        <span>${escapeHtml(st.title.replace(/^Chặng \d+:\s*/, ""))}</span>
+        <span class="stage-dir-meta">Khung 12 Trạm</span>
+      </button>
+    `).join("");
+
+    let bodyHtml = "";
+    if (activeStorageStage === 1) {
+      bodyHtml = renderDatabaseChang1();
+    } else if (activeStorageStage === 2) {
+      bodyHtml = renderDatabaseChang2();
+    } else if (activeStorageStage === 3) {
+      bodyHtml = renderDatabaseChang3();
+    } else if (activeStorageStage === 4) {
+      bodyHtml = renderDatabaseChang4();
+    } else {
+      bodyHtml = renderDatabaseChang1();
+    }
+
+    return `
+      <header class="lesson-header">
+        <div class="lesson-meta">
+          <span>I. Engineering Foundation · F03 · Database Fundamentals</span>
+          <a href="course-slides/03-database-fundamentals.pdf" target="_blank" rel="noopener">Slide gốc: 03-database-fundamentals.pdf (70 trang)</a>
+        </div>
+        <h1 class="lesson-title">Fundamentals of Engineering — Database Architecture &amp; PostgreSQL Internals</h1>
+        <p class="lesson-lead">Hành trình tiến hóa qua 4 hình thái vật lý của <strong>Đơn hàng Trà sữa <code>#HD01</code> của khách hàng <code>Lan</code></strong> (<code>2026-09-26</code>): Từ chuẩn hóa bảng quan hệ <code>3NF / BCNF</code> &amp; <code>Constraints</code>, đóng gói vào khung trang <code>8KB Slotted Page</code> trên <code>Shared Buffers</code> &amp; sổ nhật ký <code>WAL (LSN)</code> của <code>PostgreSQL</code>, vận hành đồng thời tốc độ mili-giây với <code>MVCC</code>, <code>B-Tree / LSM-Tree</code> &amp; <code>EXPLAIN ANALYZE</code>, đến mở rộng phân tán với <code>Sharding</code>, cụm đa vùng <code>6 PGD Nodes</code> và định lý <code>CAP / BASE</code>.</p>
+        <div aria-label="Điều hướng chặng kiến thức">
+          <div class="stage-bar">
+            <div class="stage-bar-current">
+              <span class="stage-bar-idx">Chặng ${padNum(currentStage.id)} / ${padNum(totalStages)}</span>
+              <span class="stage-bar-title">${escapeHtml(currentStage.title.replace(/^Chặng \d+:\s*/, ""))}</span>
+            </div>
+            <div class="stage-bar-actions">
+              <button type="button" class="ui-btn" ${prevId ? `onclick="selectStorageStage(${prevId})"` : 'disabled style="opacity:0.4;cursor:default;"'}>Trước</button>
+              <button type="button" class="ui-btn" ${nextId ? `onclick="selectStorageStage(${nextId})"` : 'disabled style="opacity:0.4;cursor:default;"'}>Tiếp</button>
+              <button type="button" class="ui-btn" id="stageDirectoryToggleBtn" aria-expanded="false" aria-controls="stageDirectoryPanel" onclick="toggleStageDirectory()">Danh sách chặng (${padNum(totalStages)})</button>
+            </div>
+          </div>
+          <div class="stage-directory" id="stageDirectoryPanel" role="region" aria-label="Danh mục toàn bộ các chặng">
+            ${stageRows}
+          </div>
+        </div>
+      </header>
+      ${bodyHtml}
+    `;
+  }
+
   function renderStorageTopic() {
     const totalStages = STORAGE_STAGES.length;
     const currentStage = STORAGE_STAGES.find(s => s.id === activeStorageStage) || STORAGE_STAGES[0];
@@ -9968,6 +10559,8 @@ clean:
       container.innerHTML = renderStorageTopic();
     } else if (activeTopic === "F01") {
       container.innerHTML = renderLinuxTopic();
+    } else if (activeTopic === "F03") {
+      container.innerHTML = renderDatabaseTopic();
     } else {
       const { group, item } = findTopicContext(activeTopic);
       container.innerHTML = renderPendingTopic(item, group.title);
@@ -10092,6 +10685,61 @@ clean:
         stage: stg.id,
         section: null,
         keywords: normalizeSearch(`F01 linux bash ${stg.title}`)
+      });
+    }
+    for (const st of DB_CHANG1_STATIONS) {
+      entries.push({
+        kind: "Trạm kiến thức",
+        title: st.fullTitle,
+        sub: "I. Engineering Foundation / F03 · Database Fundamentals / Chặng 1",
+        topic: "F03",
+        stage: 1,
+        section: st.id,
+        keywords: normalizeSearch(`${st.code} ${st.fullTitle} database rdbms sql pk fk primary key foreign key cardinality constraints not null unique check normalization unf 1nf 2nf 3nf bcnf denormalization hd01 lan`)
+      });
+    }
+    for (const st of DB_CHANG2_STATIONS) {
+      entries.push({
+        kind: "Trạm kiến thức",
+        title: st.fullTitle,
+        sub: "I. Engineering Foundation / F03 · Database Fundamentals / Chặng 2",
+        topic: "F03",
+        stage: 2,
+        section: st.id,
+        keywords: normalizeSearch(`${st.code} ${st.fullTitle} postgresql storage engine memory architecture shared_buffers work_mem postgresql.conf slotted page 8kb lsn line pointer tuple wal buffer wal writer checkpointer dirty page`)
+      });
+    }
+    for (const st of DB_CHANG3_STATIONS) {
+      entries.push({
+        kind: "Trạm kiến thức",
+        title: st.fullTitle,
+        sub: "I. Engineering Foundation / F03 · Database Fundamentals / Chặng 3",
+        topic: "F03",
+        stage: 3,
+        section: st.id,
+        keywords: normalizeSearch(`${st.code} ${st.fullTitle} acid lock manager mvcc snapshot isolation autovacuum b-tree lsm-tree latch crabbing index query optimizer explain analyze psql pgadmin pg_stat_statements`)
+      });
+    }
+    for (const st of DB_CHANG4_STATIONS) {
+      entries.push({
+        kind: "Trạm kiến thức",
+        title: st.fullTitle,
+        sub: "I. Engineering Foundation / F03 · Database Fundamentals / Chặng 4",
+        topic: "F03",
+        stage: 4,
+        section: st.id,
+        keywords: normalizeSearch(`${st.code} ${st.fullTitle} scale-up scale-out partitioning sharding replication ha failover pgd witness node raft paxos barman tidb ydb nosql key-value document bson column-family graph cap base lww vector clocks`)
+      });
+    }
+    for (const stg of DB_STAGES) {
+      entries.push({
+        kind: "Lộ trình Chặng",
+        title: `F03 · ${stg.title}`,
+        sub: "I. Engineering Foundation / Database Fundamentals",
+        topic: "F03",
+        stage: stg.id,
+        section: null,
+        keywords: normalizeSearch(`F03 database postgresql sql nosql ${stg.title}`)
       });
     }
     for (const st of STORAGE_CHANG1_STATIONS) {
@@ -11494,6 +12142,99 @@ def main():
     TRAPS --> LIMITS""",
     }
 
+    db_ascii = build_db_ascii_diagrams()
+    db_mermaid = {
+        "0.1": """flowchart LR
+    subgraph F12 ["1–2. TỪ DÒNG CHỮ THÔ (UNF) ĐẾN BẢNG QUAN HỆ SẠCH (3NF)"]
+        F1["[HÌNH THÁI 1] Dòng chữ thô (Unnormalized Text):<br/>• #HD01 | Lan | 2026-09-26 | Oolong Sua (30k, SL:2), Hong Tra Tac (25k, SL:1)<br/>• [!] Nỗi đau: Không thể tính tổng tiền hay sửa giá món!"]
+        F2["[HÌNH THÁI 2] Bản ghi có cấu trúc (Relational Tuples 3NF):<br/>• Phân rã thành 4 bảng: KhachHang, HoaDon, MonAn, ChiTiet<br/>• Liên kết qua Primary Key (PK) & Foreign Key (FK) + Constraints"]
+        F1 --> F2
+    end
+    subgraph F34 ["3–4. KHỐI BYTE 8KB PAGE / WAL & ĐA PHIÊN BẢN PHÂN TÁN (MVCC / SHARD)"]
+        F3["[HÌNH THÁI 3] Khối byte RAM & Đĩa (8KB Slotted Page & WAL):<br/>• Nằm trong khung 8KB trên Shared Buffers (~1GB RAM)<br/>• Ghi nhật ký tuần tự mang mã LSN trong WAL Buffer"]
+        F4["[HÌNH THÁI 4] Đa phiên bản & Phân mảnh (MVCC Tuple & Shard):<br/>• Tách nhiều phiên bản MVCC (xmin/xmax) + Autovacuum dọn rác<br/>• Nhân bản qua các Node (PGD 6 Nodes / Sharding / CAP-BASE)"]
+        F3 --> F4
+    end
+    F12 -->|"Tiến vào động cơ PostgreSQL"| F34""",
+
+        "0.2": """flowchart TD
+    subgraph S1 ["[CHẶNG 1] DATABASE FUNDAMENTALS & DATA MODELING"]
+        T11["Trạm 1.1: What is a Database & RDBMS Architecture<br/>[DB Client Library] --> [RDBMS Server] --> [Database Files]"]
+        T12["Trạm 1.2: Relational Model, Keys (PK, FK), Cardinality (1:1, 1:N, M:N)<br/>Cắm chốt: [NOT NULL] + [DEFAULT] + [UNIQUE] + [CHECK]"]
+        T13["Trạm 1.3: Normalization (UNF -> 1NF -> 2NF -> 3NF -> BCNF)<br/>Tách #HD01 thành 4 bảng sạch (KhachHang, HoaDon, MonAn, ChiTiet)"]
+        T11 --> T12 --> T13
+    end
+    subgraph S2 ["[CHẶNG 2] STORAGE ENGINE & MEMORY ARCHITECTURE"]
+        T21["Trạm 2.1: PostgreSQL Process & Memory (postgresql.conf)<br/>[Client] --> [Backend Process] --> shared_buffers = 131584 (~1GB of 8kB pages)"]
+        T22["Trạm 2.2: On-Disk Layout & Slotted Page (8KB Block)<br/>[Page Header (LSN) | Line Pointers (Ptr) ---> Free <--- Tuple]"]
+        T23["Trạm 2.3: Write Path, Dirty Pages, WAL Buffer & Checkpointer<br/>Sửa RAM (Dirty Page) + Ghi tuần tự [WAL Buffer -> WAL Files] --> [Checkpointer (5 phút)]"]
+        T21 --> T22 --> T23
+    end
+    subgraph S3 ["[CHẶNG 3] CONCURRENCY CONTROL & QUERY EXECUTION"]
+        T31["Trạm 3.1: ACID, Lock Manager, MVCC & Autovacuum Worker<br/>Đọc không chặn ghi (Snapshot) --> Sinh Tuple mới khi UPDATE --> Autovacuum dọn rác"]
+        T32["Trạm 3.2: Storage Structures (B-Tree vs LSM-Tree) & Indexing<br/>Bỏ quét tuần tự (Seq Scan) --> Nhảy qua [B-Tree Index + Latch Crabbing] / [Append-only LSM]"]
+        T33["Trạm 3.3: Query Optimizer, EXPLAIN ANALYZE & Admin Tools<br/>[psql / pgAdmin 4] --> Giải phẫu chi phí truy vấn qua [EXPLAIN ANALYZE] & [pg_stat_statements]"]
+        T31 --> T32 --> T33
+    end
+    subgraph S4 ["[CHẶNG 4] SCALABILITY, HIGH AVAILABILITY & NOSQL TRADE-OFFS"]
+        T41["Trạm 4.1: Vertical Scaling (Scale-up) vs Horizontal Scaling (Sharding)<br/>Nâng cấp 1 máy chủ to --> Chia nhỏ dữ liệu #HD01 ra nhiều Node (Partitioning / Sharding)"]
+        T42["Trạm 4.2: Replication (Sync/Async), High Availability (HA) & PGD<br/>Nhân bản [Primary -> Replica], đa vùng (PGD 6 Nodes, Witness Node, Barman Backup, TiDB/YDB)"]
+        T43["Trạm 4.3: SQL vs NoSQL Data Models, CAP Theorem (CA/CP/AP) & BASE<br/>Đánh đổi khi đứt mạng (Partition): Chọn [ACID / CP] hay [BASE / AP] (LWW / Vector Clocks)?"]
+        T41 --> T42 --> T43
+    end
+    S1 -->|"Nỗi đau 1: Lưu xuống đĩa sao cho nhanh & an toàn?"| S2
+    S2 -->|"Nỗi đau 2: 1,000 người đọc/sửa & 100M dòng!"| S3
+    S3 -->|"Nỗi đau 3: Chạm ngưỡng vật lý 1 máy chủ!"| S4""",
+
+        "1.0": """flowchart LR
+    subgraph T1 ["TRẠM 1.1: RDBMS ARCHITECTURE"]
+        A1["• Khắc phục tệp phẳng (Unnormalized Text)<br/>• [DB Client Library] --> [RDBMS Server] --> [Database Files]<br/>• Đảm bảo Shared Access & 5 nhóm lệnh SQL (DDL/DML/DQL/DCL/TCL)"]
+    end
+    subgraph T2 ["TRẠM 1.2: KEYS & CONSTRAINTS"]
+        A2["• Lý thuyết tập hợp E.F. Codd (1970): Table, Row, Column<br/>• Primary Key (PK) & Foreign Key (FK — Referential Integrity)<br/>• Cardinality (1:1, 1:N, M:N) & 4 chốt: NOT NULL, DEFAULT, UNIQUE, CHECK"]
+    end
+    subgraph T3 ["TRẠM 1.3: NORMALIZATION (3NF / BCNF)"]
+        A3["• Khử dị thường (Insertion/Update/Deletion Anomalies)<br/>• UNF --> 1NF --> 2NF --> 3NF --> BCNF<br/>• Tách đơn #HD01 thành 4 bảng: KhachHang, HoaDon, MonAn, ChiTiet"]
+    end
+    T1 --> T2 --> T3""",
+
+        "2.0": """flowchart LR
+    subgraph T1 ["TRẠM 2.1: PROCESS & MEMORY (postgresql.conf)"]
+        B1["• [Client Process] --> Sinh [Backend Process] riêng<br/>• Đơn vị trang 8kB: shared_buffers = 131584 (~1GB RAM)<br/>• work_mem = 5120 kB (5MB) | deadlock_timeout = 1000 ms"]
+    end
+    subgraph T2 ["TRẠM 2.2: 8KB SLOTTED PAGE LAYOUT"]
+        B2["• Cấu trúc khung 8KB: [Page Header (LSN) | Line Pointers (Ptr) ---> Free <--- Tuple]<br/>• Đối sánh On-Disk vs In-Memory DBMS<br/>• 3 biến số Storage Engine: Buffering, Immutability, Ordering"]
+    end
+    subgraph T3 ["TRẠM 2.3: WRITE PATH, WAL & CHECKPOINTER"]
+        B3["• Sửa DonGia = 30000 --> Trang #HD01 thành Dirty Page trên RAM<br/>• Luồng COMMIT tức thì: WAL Buffer --> WAL Writer --> Append-only WAL Files (LSN)<br/>• Luồng ngầm định kỳ: Checkpointer (5 phút) xả xuống Data Files"]
+    end
+    T1 --> T2 --> T3""",
+
+        "3.0": """flowchart LR
+    subgraph T1 ["TRẠM 3.1: ACID, MVCC & AUTOVACUUM"]
+        C1["• Bảo toàn ACID & Lock Manager<br/>• MVCC Snapshot: Đọc không chặn ghi (Isolation Levels, chặn Dirty Reads/Writes)<br/>• UPDATE sinh Tuple mới; Autovacuum Worker dọn ngầm Dead Tuples"]
+    end
+    subgraph T2 ["TRẠM 3.2: B-TREE VS LSM-TREE INDEX"]
+        C2["• Bỏ quét tuần tự (Seq Scan) --> Nhảy qua cây cân bằng O(log N)<br/>• B-Tree Index (Khả biến trên đĩa 8KB + Latch Crabbing, tối ưu Đọc)<br/>• LSM-Tree (Bất biến Append-only MemTable/SSTable, tối ưu Ghi)"]
+    end
+    subgraph T3 ["TRẠM 3.3: OPTIMIZER & EXPLAIN ANALYZE"]
+        C3["• Query Optimizer lập Execution Plan tối ưu chi phí & JOIN<br/>• Giải phẫu thực thi bằng lệnh EXPLAIN ANALYZE<br/>• Công cụ quản trị: psql, pgAdmin 4 & pg_stat_statements"]
+    end
+    T1 --> T2 --> T3""",
+
+        "4.0": """flowchart LR
+    subgraph T1 ["TRẠM 4.1: SCALE-UP VS SHARDING"]
+        D1["• Vertical Scaling (Scale-up): Nâng cấp 1 máy chủ to (chạm trần vật lý)<br/>• Horizontal Scaling (Scale-out): Chia nhỏ #HD01 qua Partitioning & Sharding ra nhiều Node"]
+    end
+    subgraph T2 ["TRẠM 4.2: HA, REPLICATION & PGD 6 NODES"]
+        D2["• Replication (Sync/Async), Failover, HA & Barman Backup<br/>• Kiến trúc đa vùng Always-on: 6 PGD Nodes (3 nodes/vùng) + PGD Proxy<br/>• Witness Node vùng 3 giữ Global Consensus (Raft/Paxos) & Distributed SQL (TiDB, YDB)"]
+    end
+    subgraph T3 ["TRẠM 4.3: SQL VS NOSQL, CAP & BASE"]
+        D3["• 4 họ NoSQL: Key-Value, Document/BSON, Column-Family, Graph<br/>• Định lý CAP khi đứt mạng (P): Chọn [ACID / CP] hay [BASE / AP]?<br/>• Giải quyết xung đột Eventual Consistency bằng Last-Write-Wins (LWW) & Vector Clocks"]
+    end
+    T1 --> T2 --> T3""",
+    }
+
     import html as html_lib
     import re
     import textwrap
@@ -11560,7 +12301,7 @@ def main():
         # Extract quantitative metrics & key tokens from Mermaid + Caption for the Telemetry Strip
         combined_text = strip_html_tags(f"{title_txt} {mermaid_code} {caption_txt}")
         metric_matches = re.findall(
-            r"(?:#8888|\b\d+(?:\.\d+)?\s*(?:ns|ms|s|KB|MB|GB|TB|PB|%|x|B|rows|cols|days|mins)\b|ACID|MVCC|OCC|COW|MOR|Parquet|Arrow|Iceberg|Delta|Hudi|SCD\s*Type\s*\d|3NF|Star\s*Schema|Inode|PID|Pipe|VFS)",
+            r"(?:#8888|#HD01|\b\d+(?:\.\d+)?\s*(?:ns|ms|s|KB|MB|GB|TB|PB|%|x|B|rows|cols|days|mins)\b|ACID|MVCC|OCC|COW|MOR|Parquet|Arrow|Iceberg|Delta|Hudi|SCD\s*Type\s*\d|3NF|BCNF|Star\s*Schema|Inode|PID|Pipe|VFS|WAL|LSN|B-Tree|LSM-Tree|PGD|CAP|BASE)",
             combined_text,
             flags=re.IGNORECASE,
         )
@@ -11721,6 +12462,12 @@ def main():
         "linux-2-summary",
         "linux-3-map",
         "linux-4-0",
+        "db-0-1",
+        "db-0-2",
+        "db-1-0",
+        "db-2-0",
+        "db-3-0",
+        "db-4-0",
         "storage-0-1",
     }
 
@@ -11729,10 +12476,11 @@ def main():
         raw_id, title_txt, diag_key, _, caption_txt = m.groups()
         safe_id = re.sub(r"[^a-zA-Z0-9_-]", "_", raw_id)
         is_linux = safe_id.startswith("linux")
+        is_db = safe_id.startswith("db")
         role = "spine" if safe_id in spine_ids else "diagram"
 
         story_kw = re.search(
-            r"(bếp|kitchen|bẫy|trap|case|sự cố|đánh đổi|vs\.|so sánh|silent|ngầm|cạm bẫy|nỗi đau|swamp|đầm lầy)",
+            r"(bếp|kitchen|bẫy|trap|case|sự cố|đánh đổi|vs\.|so sánh|silent|ngầm|cạm bẫy|nỗi đau|swamp|đầm lầy|hình thái)",
             f"{title_txt} {caption_txt}",
             re.IGNORECASE,
         )
@@ -11748,12 +12496,15 @@ def main():
             status = "ready"
             badge_lbl = f"READY · {tmpl}"
         else:
-            m_code = linux_mermaid.get(diag_key, "") if is_linux else storage_mermaid.get(diag_key, "")
-            a_code = (
-                linux_ascii.get(diag_key, {}).get("ascii", "")
-                if is_linux
-                else storage_ascii.get(diag_key, {}).get("ascii", "")
-            )
+            if is_linux:
+                m_code = linux_mermaid.get(diag_key, "")
+                a_code = linux_ascii.get(diag_key, {}).get("ascii", "")
+            elif is_db:
+                m_code = db_mermaid.get(diag_key, "")
+                a_code = db_ascii.get(diag_key, {}).get("ascii", "")
+            else:
+                m_code = storage_mermaid.get(diag_key, "")
+                a_code = storage_ascii.get(diag_key, {}).get("ascii", "")
             svg_content = build_style2_svg_infographic(
                 safe_id, title_txt, diag_key, m_code, a_code, caption_txt, tmpl
             )
@@ -11817,6 +12568,14 @@ def main():
                 "mermaid": linux_mermaid[k],
             }
             for k in linux_ascii
+        },
+        "db_diagrams": {
+            k: {
+                "kind": db_ascii[k]["kind"],
+                "ascii": db_ascii[k]["ascii"],
+                "mermaid": db_mermaid[k],
+            }
+            for k in db_ascii
         },
         "visual_assets": visual_assets,
         "glossary": {
