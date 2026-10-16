@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900">
+<defs>
+  <pattern id="bpgrid" width="32" height="32" patternUnits="userSpaceOnUse">
+    <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#1e293b" stroke-width="0.9"/>
+  </pattern>
+  <linearGradient id="bggrad" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#0b1017"/>
+    <stop offset="55%" stop-color="#0f1722"/>
+    <stop offset="100%" stop-color="#0b131c"/>
+  </linearGradient>
+  <marker id="arrow-cyan" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M 0 1 L 9 5 L 0 9 z" fill="#06b6d4"/>
+  </marker>
+</defs>
+<rect width="1600" height="900" fill="url(#bggrad)"/>
+<rect width="1600" height="900" fill="url(#bpgrid)" opacity="0.75"/>
+<rect x="28" y="24" width="1544" height="852" rx="16" fill="none" stroke="#1e293b" stroke-width="2"/>
+<rect x="48" y="40" width="1504" height="92" rx="14" fill="#131c27" stroke="#06b6d4" stroke-width="1.6"/>
+<polygon points="92,58 118,72 118,100 92,114 66,100 66,72" fill="#0e2936" stroke="#06b6d4" stroke-width="1.8"/>
+<polyline points="66,72 92,86 118,72" fill="none" stroke="#67e8f9" stroke-width="1.4"/>
+<line x1="92" y1="86" x2="92" y2="114" stroke="#67e8f9" stroke-width="1.4"/>
+<rect x="138" y="54" width="246" height="24" rx="6" fill="#0e2936" stroke="#06b6d4" stroke-width="1"/>
+<text x="261" y="71" fill="#67e8f9" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11.5" font-weight="700" text-anchor="middle">STYLE #2 · PROMPT-STORY-ANALOGY</text>
+<text x="400" y="71" fill="#94a3b8" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="700">VISUAL ASSET: STORAGE-4-4 · STATION 4.4</text>
+<text x="138" y="109" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="21.5" font-weight="700">Hình 4.4 — Ba Kiến trúc Bố trí Bảng: Star Schema vs. Snowflake Schema vs. OBT (One Big Table)</text>
+<rect x="53" y="158" width="485" height="532" rx="14" fill="#070b10" opacity="0.65"/>
+<rect x="48" y="152" width="485" height="532" rx="14" fill="#111923" stroke="#06b6d4" stroke-width="2"/>
+<rect x="48" y="152" width="485" height="48" rx="14" fill="#0e2936" stroke="#06b6d4" stroke-width="1.5"/>
+<circle cx="74" cy="176" r="13" fill="#0b1017" stroke="#06b6d4" stroke-width="1.5"/>
+<text x="74" y="181" fill="#67e8f9" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="700" text-anchor="middle">1</text>
+<text x="96" y="181" fill="#67e8f9" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" font-weight="700">1. STAR SCHEMA (Lược đồ Hình sao — 1 Cấp JOIN)</text>
+<rect x="64" y="218" width="453" height="100" rx="10" fill="#162230" stroke="#06b6d4" stroke-opacity="0.65" stroke-width="1.4"/>
+<rect x="64" y="218" width="6" height="100" rx="3" fill="#06b6d4"/>
+<text x="82" y="244" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="700">Dim_Customer</text>
+<line x1="290" y1="318" x2="290" y2="332" stroke="#06b6d4" stroke-width="2"/>
+<rect x="64" y="334" width="453" height="100" rx="10" fill="#162230" stroke="#06b6d4" stroke-opacity="0.65" stroke-width="1.4"/>
+<rect x="64" y="334" width="6" height="100" rx="3" fill="#06b6d4"/>
+<text x="82" y="360" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="700">Dim_Store</text>
+<line x1="290" y1="434" x2="290" y2="448" stroke="#06b6d4" stroke-width="2"/>
+<rect x="64" y="450" width="453" height="100" rx="10" fill="#162230" stroke="#06b6d4" stroke-opacity="0.65" stroke-width="1.4"/>
+<rect x="64" y="450" width="6" height="100" rx="3" fill="#06b6d4"/>
+<text x="82" y="476" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="700">Dim_Product</text>
+<line x1="290" y1="550" x2="290" y2="564" stroke="#06b6d4" stroke-width="2"/>
+<rect x="64" y="566" width="453" height="100" rx="10" fill="#162230" stroke="#06b6d4" stroke-opacity="0.65" stroke-width="1.4"/>
+<rect x="64" y="566" width="6" height="100" rx="3" fill="#06b6d4"/>
+<text x="82" y="592" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="700">Dim_Date</text>
+<line x1="535" y1="418" x2="553" y2="418" stroke="#06b6d4" stroke-width="2.5" marker-end="url(#arrow-cyan)"/>
+<rect x="562" y="158" width="485" height="532" rx="14" fill="#070b10" opacity="0.65"/>
+<rect x="557" y="152" width="485" height="532" rx="14" fill="#111923" stroke="#10b981" stroke-width="2"/>
+<rect x="557" y="152" width="485" height="48" rx="14" fill="#0d2b24" stroke="#10b981" stroke-width="1.5"/>
+<circle cx="583" cy="176" r="13" fill="#0b1017" stroke="#10b981" stroke-width="1.5"/>
+<text x="583" y="181" fill="#6ee7b7" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="700" text-anchor="middle">2</text>
+<text x="605" y="181" fill="#6ee7b7" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" font-weight="700">2. SNOWFLAKE SCHEMA (Hình bông tuyết — Nhiều Cấp JO</text>
+<rect x="573" y="218" width="453" height="100" rx="10" fill="#162230" stroke="#10b981" stroke-opacity="0.65" stroke-width="1.4"/>
+<rect x="573" y="218" width="6" height="100" rx="3" fill="#10b981"/>
+<text x="591" y="244" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="700">Sub-Dim_City</text>
+<line x1="799" y1="318" x2="799" y2="332" stroke="#10b981" stroke-width="2"/>
+<rect x="573" y="334" width="453" height="100" rx="10" fill="#162230" stroke="#10b981" stroke-opacity="0.65" stroke-width="1.4"/>
+<rect x="573" y="334" width="6" height="100" rx="3" fill="#10b981"/>
+<text x="591" y="360" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="700">Dim_Store</text>
+<line x1="799" y1="434" x2="799" y2="448" stroke="#10b981" stroke-width="2"/>
+<rect x="573" y="450" width="453" height="100" rx="10" fill="#162230" stroke="#10b981" stroke-opacity="0.65" stroke-width="1.4"/>
+<rect x="573" y="450" width="6" height="100" rx="3" fill="#10b981"/>
+<text x="591" y="476" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="700">Sub-Dim_Brand</text>
+<line x1="799" y1="550" x2="799" y2="564" stroke="#10b981" stroke-width="2"/>
+<rect x="573" y="566" width="453" height="100" rx="10" fill="#162230" stroke="#10b981" stroke-opacity="0.65" stroke-width="1.4"/>
+<rect x="573" y="566" width="6" height="100" rx="3" fill="#10b981"/>
+<text x="591" y="592" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="700">Dim_Product</text>
+<line x1="1044" y1="418" x2="1062" y2="418" stroke="#06b6d4" stroke-width="2.5" marker-end="url(#arrow-cyan)"/>
+<rect x="1071" y="158" width="485" height="532" rx="14" fill="#070b10" opacity="0.65"/>
+<rect x="1066" y="152" width="485" height="532" rx="14" fill="#111923" stroke="#f59e0b" stroke-width="2"/>
+<rect x="1066" y="152" width="485" height="48" rx="14" fill="#2e210d" stroke="#f59e0b" stroke-width="1.5"/>
+<circle cx="1092" cy="176" r="13" fill="#0b1017" stroke="#f59e0b" stroke-width="1.5"/>
+<text x="1092" y="181" fill="#fcd34d" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="700" text-anchor="middle">3</text>
+<text x="1114" y="181" fill="#fcd34d" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" font-weight="700">3. OBT — ONE BIG TABLE (Bảng phẳng — 0 JOIN)</text>
+<rect x="1082" y="218" width="453" height="124" rx="10" fill="#162230" stroke="#f59e0b" stroke-opacity="0.65" stroke-width="1.4"/>
+<rect x="1082" y="218" width="6" height="124" rx="3" fill="#f59e0b"/>
+<text x="1100" y="244" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="700">Bảng phẳng OBT_SALES:</text>
+<text x="1100" y="266" fill="#cbd5e1" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="400">[Ma_Don: 8888 | Ten_Khach | Ten_Cua_Hang | Ten_San_Pham</text>
+<text x="1100" y="288" fill="#cbd5e1" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="400">| So_Luong: 1 | So_Tien: 5M]</text>
+<text x="1100" y="310" fill="#cbd5e1" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="400">-&gt; Loại bỏ hoàn toàn JOIN, tối ưu quét trên Cloud</text>
+<rect x="48" y="702" width="1504" height="58" rx="10" fill="#0f1824" stroke="#334155" stroke-width="1.4"/>
+<text x="68" y="736" fill="#fcd34d" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="700">KEY METRICS &amp; INVARIANTS:</text>
+<rect x="290" y="714" width="133" height="34" rx="8" fill="#0e2936" stroke="#06b6d4" stroke-width="1.2"/>
+<text x="356" y="736" fill="#67e8f9" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12.5" font-weight="700" text-anchor="middle">Star Schema</text>
+<rect x="48" y="774" width="1504" height="82" rx="12" fill="#131c27" stroke="#10b981" stroke-width="1.5"/>
+<text x="68" y="800" fill="#6ee7b7" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11.5" font-weight="700">CAUSAL MECHANISM &amp; ARCHITECTURAL TAKEAWAY:</text>
+<text x="68" y="824" fill="#e2e8f0" font-family="system-ui, -apple-system, sans-serif" font-size="13.5">Đối chiếu cấu trúc kết nối: Star Schema (1 cấp JOIN từ Fact ra các Dimension phi chuẩn hóa), Snowflake Schema (chuẩn hóa tách nhánh Sub-</text>
+<text x="68" y="845" fill="#e2e8f0" font-family="system-ui, -apple-system, sans-serif" font-size="13.5">dimension, tốn nhiều JOIN) và OBT (bảng phẳng gộp sẵn toàn bộ cột, 0 JOIN).</text>
+</svg>

@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900">
+<defs>
+  <pattern id="bpgrid" width="32" height="32" patternUnits="userSpaceOnUse">
+    <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#1e293b" stroke-width="0.9"/>
+  </pattern>
+  <linearGradient id="bggrad" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#0b1017"/>
+    <stop offset="55%" stop-color="#0f1722"/>
+    <stop offset="100%" stop-color="#0b131c"/>
+  </linearGradient>
+  <marker id="arrow-cyan" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M 0 1 L 9 5 L 0 9 z" fill="#06b6d4"/>
+  </marker>
+</defs>
+<rect width="1600" height="900" fill="url(#bggrad)"/>
+<rect width="1600" height="900" fill="url(#bpgrid)" opacity="0.75"/>
+<rect x="28" y="24" width="1544" height="852" rx="16" fill="none" stroke="#1e293b" stroke-width="2"/>
+<rect x="48" y="40" width="1504" height="92" rx="14" fill="#131c27" stroke="#06b6d4" stroke-width="1.6"/>
+<polygon points="92,58 118,72 118,100 92,114 66,100 66,72" fill="#0e2936" stroke="#06b6d4" stroke-width="1.8"/>
+<polyline points="66,72 92,86 118,72" fill="none" stroke="#67e8f9" stroke-width="1.4"/>
+<line x1="92" y1="86" x2="92" y2="114" stroke="#67e8f9" stroke-width="1.4"/>
+<rect x="138" y="54" width="246" height="24" rx="6" fill="#0e2936" stroke="#06b6d4" stroke-width="1"/>
+<text x="261" y="71" fill="#67e8f9" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11.5" font-weight="700" text-anchor="middle">STYLE #2 · PROMPT-STORY-ANALOGY</text>
+<text x="400" y="71" fill="#94a3b8" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="700">VISUAL ASSET: STORAGE-2-4 · STATION 2.4</text>
+<text x="138" y="109" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="21.5" font-weight="700">Hình 2.4 — Tính Phân tách (Splittability): Nén Khối đơn Gzip vs. Container Formats (Parquet/Avro</text>
+<rect x="53" y="158" width="740" height="532" rx="14" fill="#070b10" opacity="0.65"/>
+<rect x="48" y="152" width="740" height="532" rx="14" fill="#111923" stroke="#06b6d4" stroke-width="2"/>
+<rect x="48" y="152" width="740" height="48" rx="14" fill="#0e2936" stroke="#06b6d4" stroke-width="1.5"/>
+<circle cx="74" cy="176" r="13" fill="#0b1017" stroke="#06b6d4" stroke-width="1.5"/>
+<text x="74" y="181" fill="#67e8f9" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="700" text-anchor="middle">1</text>
+<text x="96" y="181" fill="#67e8f9" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" font-weight="700">1. NON-SPLITTABLE: Nén khối đơn Gzip nguyên tệp (orders.csv.gz - 100 GB)</text>
+<rect x="64" y="218" width="708" height="124" rx="10" fill="#162230" stroke="#06b6d4" stroke-opacity="0.65" stroke-width="1.4"/>
+<rect x="64" y="218" width="6" height="124" rx="3" fill="#06b6d4"/>
+<text x="82" y="244" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="700">Luồng mã hóa liền mạch từ Byte đầu đến Byte cuối (Không có mốc cắt giữa tệp)</text>
+<line x1="418" y1="342" x2="418" y2="356" stroke="#06b6d4" stroke-width="2"/>
+<rect x="64" y="358" width="708" height="124" rx="10" fill="#162230" stroke="#06b6d4" stroke-opacity="0.65" stroke-width="1.4"/>
+<rect x="64" y="358" width="6" height="124" rx="3" fill="#06b6d4"/>
+<text x="82" y="384" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="700">Máy chủ 1: Phải tự đọc tuần tự từ đầu đến hết 100 GB</text>
+<line x1="418" y1="482" x2="418" y2="496" stroke="#06b6d4" stroke-width="2"/>
+<rect x="64" y="498" width="708" height="124" rx="10" fill="#162230" stroke="#06b6d4" stroke-opacity="0.65" stroke-width="1.4"/>
+<rect x="64" y="498" width="6" height="124" rx="3" fill="#06b6d4"/>
+<text x="82" y="524" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="700">Máy chủ 2 ... 100: Ngồi chờ không vì không biết điểm bắt đầu giải nén</text>
+<line x1="790" y1="418" x2="808" y2="418" stroke="#06b6d4" stroke-width="2.5" marker-end="url(#arrow-cyan)"/>
+<rect x="817" y="158" width="740" height="532" rx="14" fill="#070b10" opacity="0.65"/>
+<rect x="812" y="152" width="740" height="532" rx="14" fill="#111923" stroke="#10b981" stroke-width="2"/>
+<rect x="812" y="152" width="740" height="48" rx="14" fill="#0d2b24" stroke="#10b981" stroke-width="1.5"/>
+<circle cx="838" cy="176" r="13" fill="#0b1017" stroke="#10b981" stroke-width="1.5"/>
+<text x="838" y="181" fill="#6ee7b7" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="700" text-anchor="middle">2</text>
+<text x="860" y="181" fill="#6ee7b7" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" font-weight="700">2. SPLITTABLE: Container Formats (Parquet Row Groups / Avro 16-byte Sync Markers)</text>
+<rect x="828" y="218" width="708" height="100" rx="10" fill="#162230" stroke="#10b981" stroke-opacity="0.65" stroke-width="1.4"/>
+<rect x="828" y="218" width="6" height="100" rx="3" fill="#10b981"/>
+<text x="846" y="244" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="700">Khối 1 (Row Group 1)</text>
+<text x="846" y="266" fill="#cbd5e1" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="400">Nén Snappy / ZSTD độc lập</text>
+<line x1="1182" y1="318" x2="1182" y2="332" stroke="#10b981" stroke-width="2"/>
+<rect x="828" y="334" width="708" height="100" rx="10" fill="#162230" stroke="#10b981" stroke-opacity="0.65" stroke-width="1.4"/>
+<rect x="828" y="334" width="6" height="100" rx="3" fill="#10b981"/>
+<text x="846" y="360" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="700">Khối 2 (Row Group 2)</text>
+<text x="846" y="382" fill="#cbd5e1" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="400">Nén Snappy / ZSTD độc lập</text>
+<line x1="1182" y1="434" x2="1182" y2="448" stroke="#10b981" stroke-width="2"/>
+<rect x="828" y="450" width="708" height="100" rx="10" fill="#162230" stroke="#10b981" stroke-opacity="0.65" stroke-width="1.4"/>
+<rect x="828" y="450" width="6" height="100" rx="3" fill="#10b981"/>
+<text x="846" y="476" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="700">Khối 3 (Row Group 3)</text>
+<text x="846" y="498" fill="#cbd5e1" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="400">Nén Snappy / ZSTD độc lập</text>
+<line x1="1182" y1="550" x2="1182" y2="564" stroke="#10b981" stroke-width="2"/>
+<rect x="828" y="566" width="708" height="100" rx="10" fill="#162230" stroke="#10b981" stroke-opacity="0.65" stroke-width="1.4"/>
+<rect x="828" y="566" width="6" height="100" rx="3" fill="#10b981"/>
+<text x="846" y="592" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="700">Máy chủ 1</text>
+<rect x="48" y="702" width="1504" height="58" rx="10" fill="#0f1824" stroke="#334155" stroke-width="1.4"/>
+<text x="68" y="736" fill="#fcd34d" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="700">KEY METRICS &amp; INVARIANTS:</text>
+<rect x="290" y="714" width="130" height="34" rx="8" fill="#0e2936" stroke="#06b6d4" stroke-width="1.2"/>
+<text x="355" y="736" fill="#67e8f9" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12.5" font-weight="700" text-anchor="middle">Parquet</text>
+<rect x="434" y="714" width="130" height="34" rx="8" fill="#0d2b24" stroke="#10b981" stroke-width="1.2"/>
+<text x="499" y="736" fill="#6ee7b7" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12.5" font-weight="700" text-anchor="middle">100 GB</text>
+<rect x="48" y="774" width="1504" height="82" rx="12" fill="#131c27" stroke="#10b981" stroke-width="1.5"/>
+<text x="68" y="800" fill="#6ee7b7" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11.5" font-weight="700">CAUSAL MECHANISM &amp; ARCHITECTURAL TAKEAWAY:</text>
+<text x="68" y="824" fill="#e2e8f0" font-family="system-ui, -apple-system, sans-serif" font-size="13.5">Nén nguyên tệp bằng Gzip (orders.csv.gz) biến tệp 100 GB thành một khối không thể cắt giữa chừng; trong khi Parquet và Avro chia dữ liệu thành</text>
+<text x="68" y="845" fill="#e2e8f0" font-family="system-ui, -apple-system, sans-serif" font-size="13.5">các khối độc lập (Row Groups / Sync Markers) rồi mới nén từng khối.</text>
+</svg>
