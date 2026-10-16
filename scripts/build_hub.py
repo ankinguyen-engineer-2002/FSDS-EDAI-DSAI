@@ -2779,13 +2779,404 @@ def build_db_ascii_diagrams() -> dict:
     ], inner_width=36, header="TRẠM 4.3: NOSQL, CAP & BASE", context="DB-4.0.s3")
     d4_0 = "\n".join(join_horizontal([b4_0_s1, b4_0_s2, b4_0_s3], [" ──> ", " ──> "], {4: [" ──> ", " ──> "]}, context="DB-4.0"))
 
+    # 1.1: Giải phẫu Kiến trúc RDBMS khi tiếp nhận Đơn hàng #HD01 (Client/Server & Modular Engine)
+    b1_1_left = make_box([
+        "• [APPLICATION CLIENT] (Quầy thu ngân gửi lệnh SQL):",
+        "  INSERT #HD01 / SELECT #HD01 qua mạng tới DBMS.",
+        "                         │",
+        "                         ▼",
+        "• [1. TRANSPORT SUBSYSTEM]:",
+        "  - Client Communication (Tiếp nhận kết nối ứng dụng)",
+        "  - Cluster Communication (Giao tiếp với Node khác)",
+        "                         │",
+        "                         ▼",
+        "• [2. QUERY PROCESSOR]:",
+        "  - Query Parser: Phân tích cú pháp SQL & quyền Access",
+        "  - Query Optimizer: Dựa vào Index Cardinality & Data",
+        "    Placement lập Dependency Tree chi phí thấp nhất.",
+    ], inner_width=64, header="TẦNG 1 & 2: TRANSPORT SUBSYSTEM & QUERY PROCESSOR", context="DB-1.1.left")
+    b1_1_right = make_box([
+        "• [3. EXECUTION ENGINE]:",
+        "  - Local Execution (Thực thi tại Node hiện tại)",
+        "  - Remote Execution (Điều phối thực thi từ Node xa)",
+        "                         │",
+        "                         ▼",
+        "• [4. STORAGE ENGINE] (Trái tim bộ nhớ & đĩa vật lý):",
+        "  - [!] Transaction Manager (Lập lịch, nhất quán logic)",
+        "  - [!] Lock Manager (Khóa đối tượng chạy đồng thời)",
+        "  - [+] Access Methods (Heap Files, B-Trees, LSM-Trees)",
+        "  - [+] Buffer Manager (Đệm Pages trên RAM - tr. 81)",
+        "  - [+] Recovery Manager (Nhật ký Log khôi phục - tr. 88)",
+        "  - Hỗ trợ Pluggable Storage (InnoDB/MyRocks/WiredTiger)",
+    ], inner_width=64, header="TẦNG 3 & 4: EXECUTION ENGINE & MODULAR STORAGE ENGINE", context="DB-1.1.right")
+    d1_1 = "\n".join(join_horizontal([b1_1_left, b1_1_right], ["     "], {6: [" ──> "]}, context="DB-1.1"))
+
+    # 1.2: Giải phẫu Thực thể (ERD), Lực lượng Quan hệ (Cardinality) & 4 Chốt chặn Constraints (#HD01)
+    b1_2_c1 = make_box([
+        "• 1:1 (One-to-One):",
+        "  [KhachHang] (1)---(1) [TheVIP]",
+        "  (Mỗi khách 1 thẻ thành viên riêng)",
+        "• 1:N (One-to-Many):",
+        "  [KhachHang] (1)---(<) [HoaDon]",
+        "  (Khách Lan đặt nhiều hóa đơn)",
+        "• M:N (Many-to-Many):",
+        "  [HoaDon] (>)--[ChiTiet]--(<) [MonAn]",
+        "  (Tách bảng trung gian Associative)",
+    ], inner_width=38, header="1. CARDINALITY (1:1, 1:N, M:N)", context="DB-1.2.c1")
+    b1_2_c2 = make_box([
+        "• BANG_KHACHHANG (Relation):",
+        "  [PK] MaKH VARCHAR(10), TenKH, SoDT",
+        "• BANG_HOADON (Relation):",
+        "  [PK] MaHD VARCHAR(10) (Duy nhất)",
+        "  [FK] MaKH -> Tham chiếu KhachHang",
+        "       NgayDat DATE (Tối ưu thời gian)",
+        "• BANG_CHITIET_HOADON (M:N):",
+        "  [PK,FK1] MaHD + [PK,FK2] MaMon",
+        "  SoLuong INTEGER | DonGia DECIMAL",
+    ], inner_width=38, header="2. ERD & KHÓA (PK / FK / COMPOSITE)", context="DB-1.2.c2")
+    b1_2_c3 = make_box([
+        "• [Chốt 1] NOT NULL & DEFAULT:",
+        "  Cấm rỗng, tự điền mặc định 25000.00",
+        "• [Chốt 2] UNIQUE:",
+        "  Cấm trùng lặp TenMon trong menu",
+        "• [Chốt 3] CHECK (Logic):",
+        "  CHECK (DonGia > 0 AND SoLuong > 0)",
+        "• [Chốt 4] PRIMARY / FOREIGN KEY:",
+        "  Khóa chặt Referential Integrity",
+        "  ngay tại tầng Engine trước khi ghi!",
+    ], inner_width=38, header="3. PHỄU 4 CHỐT CHẶN CONSTRAINTS", context="DB-1.2.c3")
+    d1_2 = "\n".join(join_horizontal([b1_2_c1, b1_2_c2, b1_2_c3], [" ──> ", " ──> "], {4: [" ──> ", " ──> "]}, context="DB-1.2"))
+
+    # 1.3: Hành trình Phân rã Đơn hàng #HD01 từ UNF -> 1NF -> 2NF -> 3NF / BCNF (Lossless Decomposition)
+    b1_3_left = make_box([
+        "• [BƯỚC 0: UNF (Bảng gộp lộn xộn)]:",
+        "  HD01 | 2026-09-26 | KH01 | Lan | Oolong(30k,2), HongTra",
+        "  [!] Nỗi đau: Ô DanhSachMon đa trị -> Không thể SUM()!",
+        "                         │",
+        "                         ▼",
+        "• [BƯỚC 1: 1NF (Nguyên tử hóa / Atomic Values)]:",
+        "  Mỗi ô 1 giá trị đơn + Composite PK: (MaHD + MaMon)",
+        "  - HD01 | M01 | Lan | 0901xxx | Oolong Sua   | 30000 | 2",
+        "  - HD01 | M02 | Lan | 0901xxx | Hong Tra Tac | 25000 | 1",
+        "  [!] Nỗi đau 1NF (Phụ thuộc một phần - Partial Dep.):",
+        "      TenMon, DonGia chỉ phụ thuộc MaMon; NgayDat, MaKH,",
+        "      TenKH, SoDT chỉ phụ thuộc MaHD!",
+    ], inner_width=64, header="BƯỚC 0 & 1: TỪ BẢNG GỘP UNF SANG NGUYÊN TỬ HÓA 1NF", context="DB-1.3.left")
+    b1_3_right = make_box([
+        "• [BƯỚC 2: 2NF (Khử phụ thuộc một phần)] -> Tách 3 bảng:",
+        "  - BANG_HOADON (PK: MaHD | NgayDat, MaKH, TenKH, SoDT)",
+        "  - BANG_MONAN  (PK: MaMon | TenMon, DonGia)",
+        "  - BANG_CHITIET_HOADON (PK ghép: MaHD + MaMon | SoLuong)",
+        "  [!] Nỗi đau 2NF (Phụ thuộc bắc cầu - Transitive Dep.):",
+        "      MaHD -> MaKH -> (TenKH, SoDT). Đổi SĐT sửa nhiều đơn!",
+        "                         │",
+        "                         ▼",
+        "• [BƯỚC 3: 3NF & BCNF (Khử phụ thuộc bắc cầu hoàn toàn)]:",
+        "  Tách BANG_KHACHHANG (PK: MaKH | TenKH, SoDT) riêng biệt",
+        "  -> 4 bảng sạch 3NF (Lossless Join) vs Denormalization.",
+    ], inner_width=64, header="BƯỚC 2 & 3: KHỬ PHỤ THUỘC BỘ PHẬN (2NF) & BẮC CẦU (3NF/BCNF)", context="DB-1.3.right")
+    d1_3 = "\n".join(join_horizontal([b1_3_left, b1_3_right], ["     "], {6: [" ──> "]}, context="DB-1.3"))
+
+    # 2.1: Kiến trúc Tiến trình & Phân cấp Bộ nhớ 2 tầng trong PostgreSQL (Shared Memory vs Disk)
+    b2_1_left = make_box([
+        "• [CLIENT PROCESS] (Ứng dụng đặt đơn #HD01 kết nối vào)",
+        "                         │",
+        "                         ▼",
+        "• [BACKEND PROCESS] (1 tiến trình riêng cho mỗi kết nối):",
+        "  - Cấp phát Temp Buffers / work_mem = 5120 kB (5MB)",
+        "  - Đọc/Sửa trang dữ liệu trên RAM Shared Memory:",
+        "    + [SHARED BUFFERS]: 131584 pages x 8kB (~1GB RAM)",
+        "      đệm các trang dữ liệu hay truy cập, giảm đọc đĩa.",
+        "    + [WAL BUFFER]: Lưu tạm thay đổi trước khi ghi đĩa.",
+        "    + [CLOG BUFFERS]: Lưu trạng thái Commit/Abort TxID.",
+        "    + [OTHER BUFFERS]: Vùng đệm kiểm soát Lock/Deadlock.",
+    ], inner_width=64, header="1. CLIENT / BACKEND PROCESS & RAM SHARED MEMORY", context="DB-2.1.left")
+    b2_1_right = make_box([
+        "• [TIẾN TRÌNH NỀN (BACKGROUND WORKERS) & TẦNG ĐĨA DISK]:",
+        "  - [WAL Writer] ---> Xả tuần tự xuống [DISK: WAL FILES]",
+        "    (Lưu bền vững nhật ký giao dịch thông qua Commit).",
+        "  - [Writer & Checkpointer] ---> Xả [DISK: DATA FILES]",
+        "    (Lưu trữ dài hạn các bảng 3NF & B-Tree Index Files).",
+        "  - [Autovacuum Launcher] ---> Gọi [Autovacuum Worker]",
+        "    dọn dẹp bản ghi rác (Dead Tuples) định kỳ trên đĩa.",
+        "                         │",
+        "                         ▼",
+        "• [ĐỐI SÁNH]: In-Memory DBMS (RAM chính, Disk chỉ Log)",
+        "  vs Disk-Based DBMS (PostgreSQL/MySQL: Disk bền vững).",
+    ], inner_width=64, header="2. BACKGROUND WORKERS, DISK STORAGE & IN-MEMORY VS DISK", context="DB-2.1.right")
+    d2_1 = "\n".join(join_horizontal([b2_1_left, b2_1_right], ["     "], {5: [" ──> "]}, context="DB-2.1"))
+
+    # 2.2: Giải phẫu Cấu trúc Slotted Page (4-16 KB) & Đối sánh Row-Oriented vs Column-Oriented
+    b2_2_left = make_box([
+        "• [PAGE HEADER] (Chứa mã LSN, trạng thái, biên vùng trống)",
+        "• [LINE POINTERS / OFFSET ARRAY] (Mọc xuôi từ trên xuống):",
+        "  [Ptr 1] ──> [Ptr 2] ──> [Ptr 3] ...",
+        "     │           │",
+        "     ▼           ▼      < VÙNG TRỐNG TỰ DO (FREE SPACE) >",
+        "     ▲           ▲",
+        "• [ROW TUPLES / DATA] (Mọc ngược từ đáy trang đi lên):",
+        "  - Dòng 3: [MaHD='HD02', MaMon='M01', SoLuong=1]",
+        "  - Dòng 2: [MaHD='HD01', MaMon='M02', DonGia=25000] <─Ptr2",
+        "  - Dòng 1: [ID=10, MaHD='HD01', Lan, DonGia=30000]  <─Ptr1",
+        "• Ưu thế: Dòng dịch chuyển chống phân mảnh bên trong Page",
+        "  nhưng Index bên ngoài chỉ trỏ vào Ptr cố định!",
+    ], inner_width=64, header="1. GIẢI PHẪU KHUNG SLOTTED PAGE (8KB POSTGRES / 16KB INNODB)", context="DB-2.2.left")
+    b2_2_right = make_box([
+        "• [ROW-ORIENTED LAYOUT] (PostgreSQL, MySQL - Tối ưu OLTP):",
+        "  Lưu liền kề toàn bộ các cột của cùng 1 dòng:",
+        "  [HD01 | 2026-09-26 | Lan | 30000] [HD01 | Lan | 25000]",
+        "  -> Đọc/ghi nguyên đơn #HD01 chỉ cần nạp đúng 1 Page!",
+        "                         │",
+        "                         ▼",
+        "• [COLUMN-ORIENTED LAYOUT] (ClickHouse - Tối ưu OLAP):",
+        "  Tách riêng từng cột lưu liền kề nhau trên đĩa:",
+        "  - Cột MaHD  : [ HD01  | HD01  | HD02  ]",
+        "  - Cột TenKH : [ Lan   | Lan   | Minh  ]",
+        "  - Cột DonGia: [ 30000 | 25000 | 30000 ]",
+        "  -> Tính SUM(DonGia) chỉ đọc đúng 1 cột & nén cực tốt!",
+    ], inner_width=64, header="2. ĐỐI SÁNH ROW-ORIENTED VS COLUMN-ORIENTED TRÊN ĐĨA", context="DB-2.2.right")
+    d2_2 = "\n".join(join_horizontal([b2_2_left, b2_2_right], ["     "], {5: [" ──> "]}, context="DB-2.2"))
+
+    # 2.3: Giải phẫu Luồng Ghi Kép (Write Path): WAL Buffer vs Shared Buffers (Dirty Page) cho #HD01
+    b2_3_left = make_box([
+        "• [LỆNH GHI]: UPDATE MonAn SET DonGia = 30000 (#HD01)",
+        "                         │",
+        "                         ▼",
+        "• [1a. RAM: WAL BUFFER (Ghi nhật ký tuần tự)]:",
+        "  - Ghi chi tiết: 'LSN #905: Page X, Dòng 1, Cột DonGia",
+        "    đổi thành 30000' và xả RAM ngay khi đẩy xuống đĩa.",
+        "                         │",
+        "                         ▼ (Tức thì khi COMMIT - Sequential)",
+        "• [2a. DISK: WAL FILES (Append-only Log)]:",
+        "  - Tiến trình WAL Writer chỉ ghi nối đuôi vào cuối file.",
+        "  - Đóng vai trò 'Hộp đen' để Recovery Manager tái tạo",
+        "    chính xác đơn #HD01 nếu mất điện trước Checkpoint!",
+    ], inner_width=64, header="LUỒNG NHANH (FAST PATH): WAL BUFFER -> APPEND-ONLY WAL FILES", context="DB-2.3.left")
+    b2_3_right = make_box([
+        "• [1b. RAM: SHARED BUFFERS (Đọc & sửa trên bộ nhớ đệm)]:",
+        "  - Nạp khối Page (4-16 KB) chứa #HD01 từ đĩa lên RAM.",
+        "  - Sửa trực tiếp DonGia = 30000 ngay trên khung Page.",
+        "  - Page bị đánh dấu thành: DIRTY PAGE (RAM mới hơn Disk).",
+        "  - Giữ lại trên RAM thong thả để gom nhiều lượt sửa!",
+        "                         │",
+        "                         ▼ (Định kỳ 5 phút - Random I/O)",
+        "• [2b. DISK: DATA FILES (Lưu bảng & Index theo Offset)]:",
+        "  - Tiến trình Checkpointer gom hàng nghìn Dirty Pages",
+        "    xả xuống ghi đè đúng vị trí Offset trong Data Files.",
+        "  - Xả xong Page trở lại Clean; thu hồi file WAL cũ!",
+    ], inner_width=64, header="LUỒNG NGẦM (ASYNC PATH): DIRTY PAGE -> CHECKPOINTER (5 PHÚT)", context="DB-2.3.right")
+    d2_3 = "\n".join(join_horizontal([b2_3_left, b2_3_right], ["     "], {5: [" ──> "]}, context="DB-2.3"))
+
+    # 3.1: Giải phẫu Ranh giới Giao dịch (ACID), Cơ chế MVCC & Tiến trình Dọn rác Autovacuum (#HD01)
+    b3_1_left = make_box([
+        "• [4 THUỘC TÍNH ACID & CONCURRENCY]:",
+        "  - Atomicity: Cùng thành công hoặc cùng Rollback sạch.",
+        "  - Consistency: Khớp toàn vẹn PK, FK, UNIQUE, CHECK.",
+        "  - Isolation: Chặn Dirty Reads, Dirty Writes, Deadlocks.",
+        "  - Durability: Đã báo COMMIT là bền vững trong WAL.",
+        "                         │",
+        "                         ▼",
+        "• [GIAO DỊCH ĐỒNG THỜI TRÊN ĐƠN #HD01]:",
+        "  - t1: T1 (TxID=100, Thu ngân) & T2 (TxID=101, Quản lý)",
+        "  - t2: T1 chạy UPDATE DonGia = 30000 WHERE MaMon='M01'",
+        "        T2 chạy SELECT DonGia FROM MonAn WHERE MaMon='M01'",
+    ], inner_width=64, header="1. RANH GIỚI ACID & KỊCH BẢN ĐỌC/GHI ĐỒNG THỜI (T1 vs T2)", context="DB-3.1.left")
+    b3_1_right = make_box([
+        "• [BÊN TRONG DATA PAGE TRÊN SHARED BUFFERS (MVCC)]:",
+        "  - Tuple Phiên bản 1 (Cũ): [MaMon='M01' | DonGia=25000",
+        "    | xmin=90, xmax=100] ---> T2 đọc Snapshot ổn định!",
+        "  - Tuple Phiên bản 2 (Mới): [MaMon='M01' | DonGia=30000",
+        "    | xmin=100, xmax=0]  ---> T1 ghi không khóa T2!",
+        "  -> Readers never block Writers, Writers never block Readers",
+        "                         │",
+        "                         ▼",
+        "• [DỌN RÁC NGẦM]: Khi T1 & T2 COMMIT xong, Tuple v1",
+        "  thành Dead Tuple -> [Autovacuum Launcher] gọi",
+        "  [Autovacuum Worker] quét dọn & chống phân mảnh Page!",
+    ], inner_width=64, header="2. CƠ CHẾ MVCC DUAL TUPLES & AUTOVACUUM WORKER DỌN RÁC", context="DB-3.1.right")
+    d3_1 = "\n".join(join_horizontal([b3_1_left, b3_1_right], ["     "], {5: [" ──> "]}, context="DB-3.1"))
+
+    # 3.2: Giải phẫu 2 Cấu trúc Lưu trữ trên Đĩa: B-Tree (Mutable) vs LSM-Tree (Immutable Append-Only)
+    b3_2_left = make_box([
+        "• [ROOT PAGE]: Khóa phân tách < 'HD50' | >= 'HD50'",
+        "                         │",
+        "                         ▼",
+        "• [INTERNAL NODE]: Nhánh 'HD01'..'HD25' | 'HD26'..'HD49'",
+        "                         │",
+        "                         ▼ (Vài bước nhảy con trỏ O(log N))",
+        "• [LEAF PAGE (Trang lá - Có con trỏ ngang B-link Tree)]:",
+        "  - Key 'HD01' ──> Con trỏ: (Page #42, Slot Ptr #1)",
+        "  - Key 'HD02' ──> Con trỏ: (Page #42, Slot Ptr #3)",
+        "                         │",
+        "                         ▼",
+        "• Nhảy thẳng tới [Data File: Page #42, Ptr #1] lấy #HD01!",
+        "  (Mutable 8KB Pages, sửa tại chỗ + Latch Crabbing)",
+    ], inner_width=64, header="1. CẤU TRÚC B-TREE INDEX (POSTGRESQL / INNODB - TỐI ƯU ĐỌC)", context="DB-3.2.left")
+    b3_2_right = make_box([
+        "• [1. GHI VÀO RAM + WAL]:",
+        "  Luồng ghi #HD01 ──> [Memtable trên RAM (Sắp thứ tự)]",
+        "                  ──> Ghi nối đuôi [Append-only WAL Disk]",
+        "                         │",
+        "                         ▼ (Khi Memtable đầy -> Xả tuần tự)",
+        "• [2. LEVEL 0: IMMUTABLE SSTABLES (Trên Disk)]:",
+        "  Các tệp Sorted String Table bất biến, không sửa đè;",
+        "  khi xóa #HD01 chỉ ghi thêm nhãn bia mộ (Tombstone).",
+        "                         │",
+        "                         ▼ (Tiến trình Compaction ngầm)",
+        "• [3. LEVEL 1 -> LEVEL N SSTABLES]:",
+        "  Hợp nhất, sắp xếp lại khóa & dọn sạch Tombstones.",
+        "  (Mở rộng: Bw-Trees, Bitcask Hash, WiscKey SSD Log)",
+    ], inner_width=64, header="2. CẤU TRÚC LSM-TREE (ROCKSDB / CASSANDRA - TỐI ƯU GHI)", context="DB-3.2.right")
+    d3_2 = "\n".join(join_horizontal([b3_2_left, b3_2_right], ["     "], {6: [" ──> "]}, context="DB-3.2"))
+
+    # 3.3: Giải phẫu Bộ Tối ưu hóa Truy vấn (Query Optimizer) & Mô hình Phân quyền (Least Privilege - PoLP)
+    b3_3_left = make_box([
+        "• [CÂU LỆNH SQL]: SELECT h.MaHD, k.TenKH, m.TenMon ...",
+        "  FROM HoaDon h JOIN KhachHang k ... WHERE h.MaHD='HD01'",
+        "                         │",
+        "                         ▼",
+        "• [BƯỚC 1: QUERY PARSER]: Kiểm tra cú pháp & quyền RBAC.",
+        "• [BƯỚC 2: COST-BASED QUERY OPTIMIZER]:",
+        "  - Phân tích Index Cardinality (Độ phân biệt MaHD, MaKH)",
+        "  - Ước lượng kích thước giao cắt khi JOIN 4 bảng 3NF",
+        "  - Lập Dependency Tree & chọn phương thức truy cập:",
+        "    [x] Full Table Scan / Seq Scan (Đọc 100k dòng) -> LOẠI",
+        "    [+] B-Tree Index Scan + Nested Loop Join       -> CHỌN",
+        "• [KIỂM TRA]: EXPLAIN / EXPLAIN ANALYZE + pg_stat_statements",
+    ], inner_width=64, header="1. HÀNH TRÌNH QUERY OPTIMIZER & LỆNH EXPLAIN PLAN (#HD01)", context="DB-3.3.left")
+    b3_3_right = make_box([
+        "• [5 NHÓM LỆNH SQL CHUẨN]:",
+        "  - DDL (CREATE/ALTER/DROP) | DML (INSERT/UPDATE/DELETE)",
+        "  - DQL (SELECT/JOIN/VIEW)  | TCL (BEGIN/COMMIT/ROLLBACK)",
+        "  - DCL (CREATE USER/ROLE, GRANT, REVOKE, SHOW GRANTS)",
+        "                         │",
+        "                         ▼",
+        "• [NGUYÊN TẮC ĐẶC QUYỀN TỐI THIỂU (PoLP - LEAST PRIVILEGE)]:",
+        "  - Cách 1 (Trực tiếp): GRANT SELECT ON db.sales TO user;",
+        "  - Cách 2 (Theo Vai trò - Role-based Access Control):",
+        "    CREATE ROLE 'reporting_role';",
+        "    GRANT SELECT, INSERT, UPDATE ON mydatabase.* TO role;",
+        "    SET DEFAULT ROLE 'reporting_role' TO 'user'@'localhost'",
+    ], inner_width=64, header="2. 5 NHÓM LỆNH SQL & BẢO MẬT PHÂN QUYỀN (RBAC / PoLP)", context="DB-3.3.right")
+    d3_3 = "\n".join(join_horizontal([b3_3_left, b3_3_right], ["     "], {5: [" ──> "]}, context="DB-3.3"))
+
+    # 4.1: Giải phẫu Scale-up vs Scale-out (Sharding) & Cơ chế Replication (Sync vs Async) cho #HD01
+    b4_1_left = make_box([
+        "• [1. VERTICAL SCALING (Scale-up - Mở rộng chiều dọc)]:",
+        "  Một máy chủ duy nhất (Single Node):",
+        "  [CPU x4 -> x64] | [RAM 16GB -> 512GB] | [HDD -> NVMe]",
+        "  [!] Giới hạn: Chạm trần phần cứng & điểm chết đơn (SPOF)",
+        "                         │",
+        "                         ▼",
+        "• [2. HORIZONTAL SCALING (Scale-out / Sharding)]:",
+        "  Chia nhỏ dữ liệu ra cụm nhiều máy chủ (Database Cluster):",
+        "  - Shard 1 (Node A): Giữ đơn #HD01 .. #HD33",
+        "  - Shard 2 (Node B): Giữ đơn #HD34 .. #HD66",
+        "  - Shard 3 (Node C): Giữ đơn #HD67 .. #HD99",
+        "  [!] Thách thức: Giao dịch đa phân mảnh (Multishard Tx).",
+    ], inner_width=64, header="1. VERTICAL SCALE-UP VS HORIZONTAL SCALE-OUT (SHARDING)", context="DB-4.1.left")
+    b4_1_right = make_box([
+        "• [SYNCHRONOUS REPLICATION (Nhân bản đồng bộ)]:",
+        "  Client -> Primary ==(Truyền Log)==> Replica",
+        "  Client <- Primary <==(Xác nhận ACK)== Replica",
+        "  -> Đảm bảo 0 mất dữ liệu #HD01 nhưng tăng độ trễ Commit!",
+        "                         │",
+        "                         ▼",
+        "• [ASYNCHRONOUS REPLICATION (Nhân bản bất đồng bộ)]:",
+        "  Client -> Primary -> Báo OK ngay! -> Sao chép ngầm sau.",
+        "  -> Độ trễ cực thấp nhưng có rủi ro trễ dữ liệu khi sập.",
+        "• [ĐỒNG THUẬN PHÂN TÁN (CONSENSUS QUORUM)]:",
+        "  Giải bài toán Two Generals & FLP Impossibility bằng",
+        "  Paxos, Multi-Paxos, EPaxos, Raft, ZAB (chống Split-brain)",
+    ], inner_width=64, header="2. REPLICATION (SYNC VS ASYNC) & ĐỒNG THUẬN CONSENSUS", context="DB-4.1.right")
+    d4_1 = "\n".join(join_horizontal([b4_1_left, b4_1_right], ["     "], {5: [" ──> "]}, context="DB-4.1"))
+
+    # 4.2: Kiến trúc Always-On Multi-Location trong EnterpriseDB (6 PGD Nodes + Witness Node + Barman)
+    b4_2_c1 = make_box([
+        "• Đối xứng cấu hình & phần cứng:",
+        "  [Application] kết nối qua",
+        "  [PGD Proxy 1] [Proxy 2] [Proxy 3]",
+        "• Cụm 3 nút dữ liệu nhân bản chéo",
+        "  (Mesh Replication):",
+        "  [Data Node 1] <-> [Data Node 2]",
+        "        ^                 ^",
+        "        +--> [Data Node 3]+",
+        "• Tự động Failover nội vùng.",
+    ], inner_width=38, header="VÙNG 1: LOCATION A (3 PGD NODES)", context="DB-4.2.c1")
+    b4_2_c2 = make_box([
+        "• [!] WITNESS NODE (Tại Vùng 3):",
+        "  Không lưu dữ liệu #HD01 — chỉ",
+        "  cầm lá phiếu phân xử giữ",
+        "  Global Consensus & Distributed",
+        "  DDL khi 1 vùng bị cô lập!",
+        "• [HẬU CẦN & NEXT-GEN DB]:",
+        "  - BARMAN: Backup ngoại vi (RTO)",
+        "  - PEM: Giám sát tập trung",
+        "  - TiDB / YugabyteDB / ClickHouse",
+    ], inner_width=38, header="VÙNG 3: WITNESS & HẬU CẦN BARMAN", context="DB-4.2.c2")
+    b4_2_c3 = make_box([
+        "• Đối xứng 100% với Location A:",
+        "  [Application] kết nối qua",
+        "  [PGD Proxy 4] [Proxy 5] [Proxy 6]",
+        "• Cụm 3 nút dữ liệu vùng 2:",
+        "  [Data Node 4] <-> [Data Node 5]",
+        "        ^                 ^",
+        "        +--> [Data Node 6]+",
+        "• Chạy Active/Active hoặc",
+        "  Active/Passive (DR) liên vùng.",
+    ], inner_width=38, header="VÙNG 2: LOCATION B (3 PGD NODES)", context="DB-4.2.c3")
+    d4_2 = "\n".join(join_horizontal([b4_2_c1, b4_2_c2, b4_2_c3], [" <═> ", " <═> "], {4: [" <═> ", " <═> "]}, context="DB-4.2"))
+
+    # 4.3: Giải phẫu 4 Mô hình NoSQL, Tam giác Định lý CAP & Kiến trúc Lai (PostgreSQL + Redis)
+    b4_3_left = make_box([
+        "• [TAM GIÁC ĐỊNH LÝ CAP KHI ĐỨT MẠNG (PARTITION - P)]:",
+        "  Không thể đạt đồng thời C + A + P khi mạng phân mảnh:",
+        "  - Hệ thống CA: RDBMS đơn vùng (PostgreSQL/MySQL 1 cụm).",
+        "  - Hệ thống CP (ACID): Ưu tiên dữ liệu đúng tuyệt đối",
+        "    (Số dư ví của Lan), chấp nhận khóa giao dịch khi đứt cáp.",
+        "  - Hệ thống AP (BASE): Ưu tiên luôn phản hồi khách hàng,",
+        "    chấp nhận Soft State & Eventual Consistency (đối soát",
+        "    xung đột sau bằng Last-Write-Wins LWW / Vector Clocks).",
+        "• [4 MÔ HÌNH DỮ LIỆU NOSQL]:",
+        "  1. Key-Value (Redis, Memcache, DynamoDB - Caching #HD01)",
+        "  2. Document (MongoDB BSON, CouchDB - JSON lồng nhau)",
+        "  3. Column-Family (Cassandra, HBase) | 4. Graph (Neo4j)",
+    ], inner_width=64, header="1. TAM GIÁC ĐỊNH LÝ CAP (CA/CP/AP) & 4 HỌ CƠ SỞ DỮ LIỆU NOSQL", context="DB-4.3.left")
+    b4_3_right = make_box([
+        "• [TẦNG ĐỆM TỐC ĐỘ CAO]:",
+        "  [Client Request #HD01] ──> Kiểm tra [REDIS / MEMCACHE]",
+        "  (Key-Value Cache kết quả truy vấn dưới 1 ms).",
+        "                         │ (Khi Cache Miss)",
+        "                         ▼",
+        "• [TẦNG LÕI: POSTGRESQL MULTI-MODEL BACKEND]:",
+        "  Kết hợp sức mạnh Quan hệ ACID + NoSQL trong cùng 1 hệ:",
+        "  - Bảng chuẩn 3NF : Lưu giao dịch & thanh toán #HD01",
+        "    (Đảm bảo ACID & Referential Integrity tuyệt đối).",
+        "  - Kiểu JSON/JSONB: Lưu cấu trúc tài liệu động (Topping,",
+        "    thuộc tính mở rộng) tương tự MongoDB BSON có đánh Index.",
+        "  - Extension hstore (Key-Value) & ltree (Cây/Đồ thị).",
+    ], inner_width=64, header="2. KIẾN TRÚC LAI THỰC CHIẾN: REDIS CACHE + POSTGRESQL MULTI-MODEL", context="DB-4.3.right")
+    d4_3 = "\n".join(join_horizontal([b4_3_left, b4_3_right], ["     "], {5: [" ──> "]}, context="DB-4.3"))
+
     diagrams = {
         "0.1": {"ascii": d0_1, "kind": "boxes"},
         "0.2": {"ascii": d0_2, "kind": "boxes"},
         "1.0": {"ascii": d1_0, "kind": "boxes"},
+        "1.1": {"ascii": d1_1, "kind": "boxes"},
+        "1.2": {"ascii": d1_2, "kind": "boxes"},
+        "1.3": {"ascii": d1_3, "kind": "boxes"},
         "2.0": {"ascii": d2_0, "kind": "boxes"},
+        "2.1": {"ascii": d2_1, "kind": "boxes"},
+        "2.2": {"ascii": d2_2, "kind": "boxes"},
+        "2.3": {"ascii": d2_3, "kind": "boxes"},
         "3.0": {"ascii": d3_0, "kind": "boxes"},
+        "3.1": {"ascii": d3_1, "kind": "boxes"},
+        "3.2": {"ascii": d3_2, "kind": "boxes"},
+        "3.3": {"ascii": d3_3, "kind": "boxes"},
         "4.0": {"ascii": d4_0, "kind": "boxes"},
+        "4.1": {"ascii": d4_1, "kind": "boxes"},
+        "4.2": {"ascii": d4_2, "kind": "boxes"},
+        "4.3": {"ascii": d4_3, "kind": "boxes"},
     }
     for k, meta in diagrams.items():
         errs = verify_diagram(meta["ascii"], f"DB-{k}", kind=meta["kind"])
@@ -5353,27 +5744,31 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
   const DB_CHANG1_STATIONS = [
     { id: "db-0-map", code: "0.0", title: "Nhân vật chính #HD01 & Bản đồ 4 Chặng", fullTitle: "Trạm 0.0: Đơn hàng Trà sữa #HD01 của khách hàng Lan & Bản đồ Tư duy 4 Chặng — 12 Trạm" },
-    { id: "db-1-1", code: "1.1", title: "What is a Database & RDBMS Architecture", fullTitle: "Trạm 1.1: What is a Database & RDBMS Architecture (DB Client Library -> RDBMS Server -> Database Files)" },
-    { id: "db-1-2", code: "1.2", title: "Relational Model, Keys (PK, FK) & Constraints", fullTitle: "Trạm 1.2: Relational Model, Keys (PK, FK), Cardinality (1:1, 1:N, M:N) & Constraints (NOT NULL, DEFAULT, UNIQUE, CHECK)" },
-    { id: "db-1-3", code: "1.3", title: "Normalization (UNF -> 3NF -> BCNF) vs Denormalization", fullTitle: "Trạm 1.3: Normalization (UNF -> 1NF -> 2NF -> 3NF -> BCNF) vs Denormalization (Phân rã bảng gộp #HD01)" }
+    { id: "db-1-1", code: "1.1", title: "What is a Database & DBMS Architecture", fullTitle: "Trạm 1.1: What is a Database & DBMS Architecture (Cơ sở dữ liệu & Giải phẫu Hệ quản trị)" },
+    { id: "db-1-2", code: "1.2", title: "Relational Model, Keys (PK, FK) & Constraints", fullTitle: "Trạm 1.2: Relational Model, Keys (PK, FK), Cardinality & Constraints (Mô hình Quan hệ & Chốt chặn Ràng buộc)" },
+    { id: "db-1-3", code: "1.3", title: "Normalization (UNF -> 3NF -> BCNF) vs Denormalization", fullTitle: "Trạm 1.3: Normalization (UNF -> 1NF -> 2NF -> 3NF -> BCNF) vs Denormalization (Chuẩn hóa & Phi chuẩn hóa)" },
+    { id: "db-1-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 1", fullTitle: "Tóm tắt bỏ túi Chặng 1 & Checklist Tự kiểm tra (Data Modeling & 3NF)" }
   ];
 
   const DB_CHANG2_STATIONS = [
-    { id: "db-2-1", code: "2.1", title: "PostgreSQL Process & Memory (postgresql.conf)", fullTitle: "Trạm 2.1: PostgreSQL Process & Memory Architecture + Configuration (postgresql.conf & shared_buffers)" },
-    { id: "db-2-2", code: "2.2", title: "On-Disk Layout & Slotted Page (8KB Block)", fullTitle: "Trạm 2.2: On-Disk Layout & Slotted Page (8KB Block) vs In-Memory DBMS (Buffering, Immutability, Ordering)" },
-    { id: "db-2-3", code: "2.3", title: "Write Path, Dirty Pages, WAL & Checkpointer", fullTitle: "Trạm 2.3: Write Path, Shared Buffers (Dirty Pages), WAL Buffer & Checkpointer (5 phút)" }
+    { id: "db-2-1", code: "2.1", title: "Client/Backend Process & Memory vs Disk DBMS", fullTitle: "Trạm 2.1: Client/Backend Process & Memory Versus Disk-Based DBMS (Tiến trình & Phân cấp Bộ nhớ 2 tầng)" },
+    { id: "db-2-2", code: "2.2", title: "On-Disk Layout (Row vs Column) & Slotted Page", fullTitle: "Trạm 2.2: On-Disk Data Layout (Row vs Column) & Slotted Page (4-16 KB) (Cấu trúc Trang vật lý)" },
+    { id: "db-2-3", code: "2.3", title: "Write Path, WAL Buffer, Dirty Pages & Checkpointer", fullTitle: "Trạm 2.3: Write Path, WAL Buffer, Dirty Pages & Checkpointer (Luồng Ghi Kép & Cơ chế Phục hồi)" },
+    { id: "db-2-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 2", fullTitle: "Tóm tắt bỏ túi Chặng 2 & Checklist Tự kiểm tra (Storage Engine & Memory)" }
   ];
 
   const DB_CHANG3_STATIONS = [
-    { id: "db-3-1", code: "3.1", title: "ACID, Lock Manager, MVCC & Autovacuum", fullTitle: "Trạm 3.1: ACID Transactions, Lock Manager, MVCC Snapshot & Autovacuum Worker" },
-    { id: "db-3-2", code: "3.2", title: "Storage Structures (B-Tree vs LSM-Tree) & Indexing", fullTitle: "Trạm 3.2: Storage Structures (B-Tree vs LSM-Tree + Latch Crabbing) & Indexing Strategies" },
-    { id: "db-3-3", code: "3.3", title: "Query Optimizer, EXPLAIN ANALYZE & Admin Tools", fullTitle: "Trạm 3.3: Query Optimizer, Execution Plan (EXPLAIN ANALYZE) & Administration Tools (psql, pgAdmin 4, pg_stat_statements)" }
+    { id: "db-3-1", code: "3.1", title: "ACID, Lock Manager, MVCC & Autovacuum Worker", fullTitle: "Trạm 3.1: ACID Transactions, Lock Manager, MVCC & Autovacuum Worker (Giao dịch & Kiểm soát Đồng thời Đa phiên bản)" },
+    { id: "db-3-2", code: "3.2", title: "Storage Structures (B-Trees vs LSM-Trees) & Indexing", fullTitle: "Trạm 3.2: Storage Structures (B-Trees vs LSM-Trees) & Indexing Strategies (Cấu trúc Cây Chỉ mục & Đánh đổi Đọc/Ghi)" },
+    { id: "db-3-3", code: "3.3", title: "Query Optimizer, EXPLAIN PLAN & Access Control (PoLP)", fullTitle: "Trạm 3.3: Query Optimizer, EXPLAIN PLAN, SQL Command Groups & Access Control (PoLP) (Tối ưu Truy vấn & Bảo mật Phân quyền)" },
+    { id: "db-3-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 3", fullTitle: "Tóm tắt bỏ túi Chặng 3 & Checklist Tự kiểm tra (MVCC, Indexing & EXPLAIN)" }
   ];
 
   const DB_CHANG4_STATIONS = [
-    { id: "db-4-1", code: "4.1", title: "Vertical (Scale-up) vs Horizontal Scaling (Sharding)", fullTitle: "Trạm 4.1: Vertical Scaling (Scale-up) vs Horizontal Scaling (Scale-out / Partitioning / Sharding)" },
-    { id: "db-4-2", code: "4.2", title: "Replication, High Availability (HA) & PGD 6 Nodes", fullTitle: "Trạm 4.2: Replication (Sync/Async), High Availability (HA) & Distributed PostgreSQL (6 PGD Nodes, Witness Node, Barman)" },
-    { id: "db-4-3", code: "4.3", title: "SQL vs NoSQL, CAP Theorem (CA/CP/AP) & BASE", fullTitle: "Trạm 4.3: SQL vs NoSQL Data Models, CAP Theorem (CA/CP/AP) & BASE Transactions (LWW, Vector Clocks)" }
+    { id: "db-4-1", code: "4.1", title: "Scale-up vs Scale-out, Replication & Sharding", fullTitle: "Trạm 4.1: Vertical Scaling (Scale-up) vs Horizontal Scaling (Scale-out), Replication & Sharding (Mở rộng Hạ tầng & Nhân bản)" },
+    { id: "db-4-2", code: "4.2", title: "Always-On Multi-Location HA (PGD) & Next-Gen DB", fullTitle: "Trạm 4.2: Always-On Multi-Location HA (EnterpriseDB PGD) & Next-Gen Databases (TiDB, YugabyteDB, ClickHouse)" },
+    { id: "db-4-3", code: "4.3", title: "SQL vs NoSQL, CAP Theorem (CA/CP/AP) & BASE", fullTitle: "Trạm 4.3: SQL vs NoSQL Data Models, CAP Theorem (CA/CP/AP) & BASE vs ACID (Định lý CAP & Kiến trúc Lai)" },
+    { id: "db-4-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 4 (Khép kín F03)", fullTitle: "Tóm tắt bỏ túi Chặng 4 & Khép kín Toàn bộ Hành trình Database Fundamentals" }
   ];
 
   function getDbStations(stageId = activeStorageStage) {
@@ -9682,23 +10077,276 @@ clean:
           "Tổng quan 3 trạm của Chặng 1: [Trạm 1.1] Kiến trúc DB Client Library -> RDBMS Server -> Database Files đảm bảo Shared Access & 5 nhóm lệnh SQL (DDL, DML, DQL, DCL, TCL); [Trạm 1.2] Mô hình quan hệ (PK, FK, Cardinality 1:1/1:N/M:N) và 4 chốt chặn NOT NULL, DEFAULT, UNIQUE, CHECK; [Trạm 1.3] Chuẩn hóa UNF -> 1NF -> 2NF -> 3NF -> BCNF tách đơn #HD01 thành 4 bảng KhachHang, HoaDon, MonAn, ChiTiet."
         )}
 
-        <h2 id="db-1-1" tabindex="-1">TRẠM 1.1: WHAT IS A DATABASE &amp; RDBMS ARCHITECTURE (DB CLIENT LIBRARY ➔ RDBMS SERVER ➔ DATABASE FILES)</h2>
+        <h2 id="db-1-1" tabindex="-1">TRẠM 1.1: WHAT IS A DATABASE &amp; DBMS ARCHITECTURE (CƠ SỞ DỮ LIỆU &amp; GIẢI PHẪU HỆ QUẢN TRỊ)</h2>
         <ul>
-          <li><strong>Nỗi đau của tệp phẳng (Flat File) &amp; Hình thái 1 (<code>Unnormalized Text</code>):</strong> Khi lưu đơn hàng trà sữa <code>#HD01</code> của khách hàng <code>Lan</code> (<code>Oolong Sua</code> đơn giá <code>30,000</code> SL <code>2</code>, <code>Hong Tra Tac</code> đơn giá <code>25,000</code> SL <code>1</code>) vào một tệp văn bản hoặc bảng tính phẳng, nhiều nhân viên thu ngân không thể cùng lúc mở tệp để ghi (thiếu <code>Shared Access</code>), và hệ thống không thể chạy truy vấn tính tổng doanh thu từng món.</li>
-          <li><strong>Kiến trúc 3 mắt xích <code>RDBMS</code>:</strong> Ứng dụng giao tiếp qua <code>DB Client Library</code> ➔ gửi truy vấn tới <code>RDBMS Server</code> (như <code>PostgreSQL</code>) ➔ quản lý tập trung các <code>Database Files</code> dưới ổ đĩa và điều phối qua 5 nhóm lệnh SQL chuẩn: <code>DDL</code>, <code>DML</code>, <code>DQL</code>, <code>DCL</code>, <code>TCL</code>.</li>
+          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Hãy tưởng tượng tiệm trà sữa lúc mới mở chỉ ghi đơn hàng vào một cuốn sổ tay đặt ở quầy thu ngân. Khi chỉ có 1 nhân viên, việc ghi chép rất dễ dàng; nhưng khi 50 nhân viên cùng lao vào giành giật cuốn sổ để vừa ghi đơn mới vừa tẩy xóa giá tiền, cuốn sổ sẽ rách nát. <code>DBMS</code> (<code>Database Management System</code> — Hệ quản trị cơ sở dữ liệu) chính là "Ban quản lý kho hồ sơ tự động" đứng chắn giữa nhân viên và tủ hồ sơ gốc: nhân viên chỉ việc gửi phiếu yêu cầu qua cửa giao tiếp, còn việc tìm kiếm, khóa dòng và ghi xuống sổ cái do bộ máy bên trong tự điều phối.</li>
+          <li><strong>[Nỗi đau khởi điểm]:</strong> Ngày <code>2026-09-26</code>, khách hàng <code>Lan</code> đặt đơn <code>#HD01</code> gồm <code>2 ly Oolong Sua (30k)</code> và <code>1 ly Hong Tra Tac (25k)</code>. Nếu lưu trực tiếp <code>#HD01</code> vào một file văn bản phẳng trên đĩa cứng, lập trình viên phải tự viết code xử lý từng byte vị trí tệp, không có cơ chế ngăn hai luồng ghi đè lên nhau và cực kỳ khó truy vấn cập nhật khi quy mô vượt mốc <code>100,000 orders</code>.</li>
         </ul>
 
-        <h2 id="db-1-2" tabindex="-1">TRẠM 1.2: RELATIONAL MODEL, KEYS (PK, FK), CARDINALITY (1:1, 1:N, M:N) &amp; CONSTRAINTS</h2>
+        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Bảng Đối chiếu]</h3>
+        ${buildVisualBlock(
+          "db-1-1",
+          "Sơ đồ 1.1 — Giải phẫu Kiến trúc RDBMS Khi Tiếp nhận Đơn hàng #HD01 (Client/Server & Modular Engine)",
+          d["1.1"].ascii,
+          d["1.1"].mermaid,
+          "Giải phẫu 4 tầng kiến trúc RDBMS (Theo Database Internals — Figure 1-3) khi xử lý câu lệnh INSERT/SELECT #HD01: (1) Transport Subsystem (Client & Cluster Communication); (2) Query Processor (Query Parser & Cost-based Query Optimizer dựa trên Index Cardinality); (3) Execution Engine (Local & Remote Execution); (4) Storage Engine (Transaction Manager, Lock Manager, Access Methods B-Tree/LSM-Tree, Buffer Manager & Recovery Manager)."
+        )}
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Thành phần kiến trúc</th>
+                <th>Vai trò cơ học với Đơn hàng <code>#HD01</code></th>
+                <th>Hệ quả nếu thiếu thành phần này</th>
+                <th>Phân loại hệ thống đại diện</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong><code>Database</code> (Cơ sở dữ liệu)</strong></td>
+                <td>Tập hợp dữ liệu có cấu trúc, lưu thành các <code>Rows</code> (<code>Records</code> — dòng) và <code>Columns</code> (<code>Fields</code> — cột) có liên kết với nhau.</td>
+                <td>Dữ liệu <code>#HD01</code> rời rạc, không thể truy xuất, quản lý hay cập nhật hiệu quả.</td>
+                <td><code>Relational</code> (<code>SQL</code>) vs <code>Non-relational</code> (<code>NoSQL</code>).</td>
+              </tr>
+              <tr>
+                <td><strong><code>Query Processor</code></strong></td>
+                <td>Dịch câu lệnh <code>SQL</code> (<code>Structured Query Language</code> — ngôn ngữ truy vấn có cấu trúc) của <code>#HD01</code> thành kế hoạch thực thi tối ưu dựa trên <code>Index Cardinality</code> (độ phân biệt chỉ mục).</td>
+                <td>Phải quét mù toàn bộ tệp dữ liệu mà không biết đường đi ngắn nhất.</td>
+                <td>Có trong <code>PostgreSQL</code>, <code>MySQL</code>, <code>Oracle</code>, <code>SQL Server</code>.</td>
+              </tr>
+              <tr>
+                <td><strong><code>Storage Engine</code> (Động cơ lưu trữ)</strong></td>
+                <td>Cung cấp <code>API</code> thao tác dữ liệu mức thấp (tạo, sửa, xóa, đọc bản ghi) trên <code>RAM</code> và <code>Disk</code>. Có thể tháo lắp (<code>Pluggable Storage</code>).</td>
+                <td>Ứng dụng phải tự quản lý con trỏ vật lý, tự thu gom rác (<code>Garbage Collection</code>) và dễ mất dữ liệu khi mất điện.</td>
+                <td><code>MySQL</code>: <code>InnoDB</code>, <code>MyISAM</code>, <code>RocksDB</code> (<code>MyRocks</code>).<br><code>MongoDB</code>: <code>WiredTiger</code>, <code>In-Memory</code>, <code>MMAPv1</code>.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>[Bổ sung Chuyên sâu +30% — Slide 05–12 &amp; Sách <em>Database Internals</em> Ch.1]: Kiến trúc DB Client Library ➔ RDBMS Server &amp; 5 Nhóm Lệnh SQL Chuẩn</h4>
         <ul>
-          <li><strong>Lý thuyết tập hợp của <code>E.F. Codd (1970)</code> &amp; Toàn vẹn tham chiếu (<code>Referential Integrity</code>):</strong> Định hình thực thể thành <code>Table</code>, <code>Row</code> (<code>Tuple</code>) và <code>Column</code>; định danh duy nhất bằng <code>Primary Key</code> (<code>PK</code>) và nối liên bảng bằng <code>Foreign Key</code> (<code>FK</code>) theo bản số quan hệ <code>Cardinality</code> (<code>1:1</code>, <code>1:N</code>, <code>M:N</code>).</li>
-          <li><strong>Bốn chốt chặn bảo vệ đầu vào (<code>Constraints</code>):</strong> Cắm trực tiếp tại tầng động cơ CSDL gồm <code>NOT NULL</code> (cấm rỗng), <code>DEFAULT</code> (giá trị mặc định), <code>UNIQUE</code> (cấm trùng lặp) và <code>CHECK</code> (kiểm tra điều kiện logic như <code>DonGia &gt;= 0</code>).</li>
+          <li><strong>Luồng kết nối vật lý <code>DB Client Library ➔ RDBMS Server ➔ Database Files</code> (Slide 09–11):</strong> Ứng dụng thu ngân (<code>Python / FastAPI</code> dùng <code>SQLAlchemy ORM</code> hoặc <code>psycopg</code>) không bao giờ mở trực tiếp tệp dữ liệu trên đĩa. Thay vào đó, <code>DB Client Library</code> mở kết nối mạng <code>TCP/IP</code> (cổng mặc định <code>5432</code> trên <code>PostgreSQL</code> hoặc <code>3306</code> trên <code>MySQL</code>) tới tiến trình máy chủ <code>RDBMS Server</code>. Nhờ kiến trúc tập trung này, <code>RDBMS Server</code> đảm bảo 3 đặc tính sống còn: <strong><code>Shared Access</code></strong> (nhiều người dùng đọc/ghi đồng thời an toàn), <strong><code>Data Integrity</code></strong> (kiểm tra ràng buộc trước khi chạm đĩa) và <strong><code>Crash Recovery</code></strong> (khôi phục tự động sau sự cố mất điện).</li>
+          <li><strong>Phân류 5 nhóm câu lệnh <code>SQL</code> chuẩn điều khiển <code>#HD01</code> (Slide 36–52):</strong>
+            <ul>
+              <li><strong><code>DDL</code> (<code>Data Definition Language</code>):</strong> Định nghĩa khung cấu trúc bảng và ràng buộc (<code>CREATE</code>, <code>ALTER</code>, <code>DROP</code>, <code>TRUNCATE</code>).</li>
+              <li><strong><code>DML</code> (<code>Data Manipulation Language</code>):</strong> Thao tác biến đổi dữ liệu dòng (<code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>).</li>
+              <li><strong><code>DQL</code> (<code>Data Query Language</code>):</strong> Truy vấn rút trích và tổng hợp dữ liệu (<code>SELECT ... FROM ... WHERE ... GROUP BY ... HAVING ... ORDER BY</code>).</li>
+              <li><strong><code>DCL</code> (<code>Data Control Language</code>):</strong> Cấp phát và thu hồi quyền truy cập bảo mật (<code>GRANT</code>, <code>REVOKE</code>).</li>
+              <li><strong><code>TCL</code> (<code>Transaction Control Language</code>):</strong> Điều khiển ranh giới giao dịch nguyên tử (<code>BEGIN</code>, <code>COMMIT</code>, <code>ROLLBACK</code>, <code>SAVEPOINT</code>).</li>
+            </ul>
+          </li>
+          <li><strong>[Đúc kết Cơ học &amp; Đánh đổi]:</strong> Tách biệt <code>Query Processor</code> khỏi <code>Storage Engine</code> giúp lập trình viên thao tác với <code>#HD01</code> bằng ngôn ngữ khai báo bậc cao mà không cần chạm trực tiếp vào file vật lý. Tuy nhiên, để <code>DBMS</code> hiểu và bảo vệ được <code>#HD01</code>, chúng ta không thể ném dữ liệu tự do vào đó mà phải đóng khung nó vào các bảng, khóa và ràng buộc nghiêm ngặt ở <strong>Trạm 1.2</strong>.</li>
         </ul>
 
-        <h2 id="db-1-3" tabindex="-1">TRẠM 1.3: NORMALIZATION (UNF ➔ 1NF ➔ 2NF ➔ 3NF ➔ BCNF) VS DENORMALIZATION</h2>
+        <hr />
+
+        <h2 id="db-1-2" tabindex="-1">TRẠM 1.2: RELATIONAL MODEL, KEYS (PK, FK), CARDINALITY &amp; CONSTRAINTS (MÔ HÌNH QUAN HỆ &amp; CHỐT CHẶN RÀNG BUỘC)</h2>
         <ul>
-          <li><strong>Triệt tiêu 3 dị thường dữ liệu (<code>Insertion/Update/Deletion Anomalies</code>):</strong> Phân rã bảng gộp hỗn độn của <code>#HD01</code> đi qua <code>UNF</code> ➔ <code>1NF</code> (nguyên tử hóa ô đa trị) ➔ <code>2NF</code> (bỏ phụ thuộc hàm bộ phận) ➔ <code>3NF</code> &amp; <code>BCNF</code> (bỏ phụ thuộc bắc cầu) để tách thành 4 bảng chuẩn mực: <code>KhachHang</code>, <code>HoaDon</code>, <code>MonAn</code>, <code>ChiTiet</code>; đồng thời nắm rõ khi nào cần <code>Denormalization</code> (phi chuẩn hóa có kiểm soát) để đánh đổi tốc độ đọc.</li>
-          <li><strong>Nỗi đau chuyển giao sang Chặng 2:</strong> Bảng <code>3NF</code> đã sạch trên thiết kế logic, nhưng làm sao lưu xuống đĩa vật lý vừa không mất dữ liệu khi sập nguồn, vừa không bị chậm bởi tốc độ I/O của ổ cứng? <a href="#topic=F03&stage=2" onclick="selectStorageStage(2);return false;">Bước sang Chặng 2: Storage Engine &amp; Memory Architecture ➔</a></li>
+          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Nếu <code>DBMS</code> là tòa nhà lưu trữ, thì <code>Relational Model</code> (Mô hình dữ liệu quan hệ do <code>E.F. Codd</code> khởi xướng năm <code>1970</code> dựa trên lý thuyết tập hợp và logic vị từ bậc nhất) chính là bản quy hoạch chia tòa nhà thành các phòng ban chuyên biệt (<code>Tables</code>), mỗi nhân sự có mã định danh căn cước (<code>Primary Key</code>), thẻ tham chiếu phòng ban (<code>Foreign Key</code>) và đội bảo vệ kiểm tra thẻ ở cửa (<code>Constraints</code>).</li>
+          <li><strong>[Nỗi đau từ trạm trước]:</strong> Dù đã có <code>PostgreSQL</code> quản lý tệp, nhưng nếu bảng dữ liệu cho phép nhập trùng mã hóa đơn <code>#HD01</code>, để trống tên món, hoặc nhập đơn giá âm (<code>-30,000</code>), rác dữ liệu sẽ tràn vào làm sai lệch toàn bộ báo cáo tài chính.</li>
         </ul>
+
+        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Bảng Dữ liệu thật]</h3>
+        ${buildVisualBlock(
+          "db-1-2",
+          "Sơ đồ 1.2 — Giải phẫu Thực thể (ERD), Lực lượng Quan hệ (Cardinality 1:1, 1:N, M:N) & 4 Chốt chặn Constraints (#HD01)",
+          d["1.2"].ascii,
+          d["1.2"].mermaid,
+          "Giải phẫu lực lượng quan hệ Cardinality (1:1, 1:N, M:N qua bảng trung gian ChiTietHoaDon), cơ chế khóa Primary Key (PK) / Foreign Key (FK) nối 4 bảng của đơn #HD01 (KhachHang, HoaDon, MonAn, ChiTietHoaDon), và phễu lọc 4 chốt chặn Database Constraints (NOT NULL & DEFAULT -> UNIQUE -> CHECK -> PK/FK)."
+        )}
+
+        <pre><code>-- Minh họa SQL thiết lập Kiểu dữ liệu (Data Types), Khóa (Keys) và Ràng buộc (Constraints) cho #HD01
+CREATE TABLE MonAn (
+    MaMon   VARCHAR(10) PRIMARY KEY NOT NULL,               -- PK: Định danh duy nhất, cấm NULL
+    TenMon  VARCHAR(100) NOT NULL UNIQUE,                   -- UNIQUE: Cấm trùng tên món trong menu
+    DonGia  DECIMAL(10, 2) NOT NULL DEFAULT 25000.00,       -- DEFAULT: Giá mặc định nếu không truyền
+    CONSTRAINT chk_dongia_duong CHECK (DonGia &gt; 0)          -- CHECK: Chặn logic nhập giá &lt;= 0 tại DB
+);</code></pre>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Thuật ngữ / Kiểu dữ liệu</th>
+                <th>Tên gọi tương đương (Slide &amp; Sách)</th>
+                <th>Bản chất cơ học &amp; Tác động hiệu năng</th>
+                <th>Áp dụng vào Đơn hàng <code>#HD01</code></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong><code>Table</code> / <code>Row</code> / <code>Column</code></strong></td>
+                <td><code>Relation</code> / <code>Record (Tuple)</code> / <code>Field (Attribute)</code>.</td>
+                <td>Bảng là cấu trúc 2 chiều; mỗi dòng là 1 mục dữ liệu cụ thể; mỗi cột là 1 thuộc tính.</td>
+                <td>Bảng <code>HoaDon</code>, dòng đơn <code>#HD01</code>, cột <code>NgayDat</code>.</td>
+              </tr>
+              <tr>
+                <td><strong><code>INTEGER</code>, <code>BIGINT</code>, <code>DECIMAL</code></strong></td>
+                <td><code>Numeric types</code> (Kiểu số).</td>
+                <td>Dùng <code>INTEGER</code> / <code>BIGINT</code> cho mã định danh (<code>ID</code>) và bộ đếm tiết kiệm không gian và tính toán hiệu quả hơn <code>VARCHAR</code> hay <code>CHAR</code>.</td>
+                <td><code>SoLuong</code> dùng <code>INTEGER</code> (<code>2</code> ly); <code>DonGia</code> dùng <code>DECIMAL</code> (<code>30000</code>).</td>
+              </tr>
+              <tr>
+                <td><strong><code>VARCHAR(n)</code> vs <code>TEXT</code></strong></td>
+                <td><code>Text types</code> (Kiểu chuỗi).</td>
+                <td><code>VARCHAR</code> được ưu tiên khi biết trước độ dài tối đa (ví dụ <code>VARCHAR(100)</code>, <code>VARCHAR(255)</code>), giúp tiết kiệm dung lượng và giữ hiệu năng.</td>
+                <td><code>TenKH</code> (<code>'Lan'</code>), <code>TenMon</code> (<code>'Oolong Sua'</code>).</td>
+              </tr>
+              <tr>
+                <td><strong><code>DATE</code>, <code>TIMESTAMP</code></strong></td>
+                <td><code>Date and time types</code> (Kiểu ngày giờ).</td>
+                <td>Giúp <code>DBMS</code> tối ưu hóa phép toán cộng trừ và so sánh mốc thời gian thay vì lưu bằng chuỗi hay số nguyên.</td>
+                <td><code>NgayDat = '2026-09-26'</code>.</td>
+              </tr>
+              <tr>
+                <td><strong><code>Primary Key (PK)</code> vs <code>Foreign Key (FK)</code></strong></td>
+                <td>Khóa chính vs Khóa ngoại.</td>
+                <td><code>PK</code> cấm trùng lặp và định danh duy nhất mỗi dòng; <code>FK</code> trỏ tới <code>PK</code> bảng khác để khóa chặt <code>Referential Integrity</code> (toàn vẹn tham chiếu).</td>
+                <td><code>MaHD</code> là <code>PK</code>; <code>MaKH</code> trong bảng <code>HoaDon</code> là <code>FK</code> trỏ về <code>KhachHang</code>.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>[Bổ sung Chuyên sâu +30% — Sách <em>Database Design and Modeling</em> Ch.3–4 &amp; <em>PostgreSQL: Up and Running</em>]: Cơ chế <code>Referential Integrity</code> &amp; Toàn bộ DDL 4 Bảng của <code>#HD01</code></h4>
+        <ul>
+          <li><strong>Cơ chế hành động tham chiếu của <code>Foreign Key</code> (<code>ON DELETE RESTRICT</code> vs <code>ON DELETE CASCADE</code>):</strong> Khi bảng <code>HoaDon</code> gắn khóa ngoại <code>MaKH REFERENCES KhachHang(MaKH)</code>, nếu ai đó chạy lệnh xóa khách hàng <code>Lan</code> (<code>KH01</code>) khỏi bảng <code>KhachHang</code>, hành vi mặc định <code>ON DELETE RESTRICT</code> sẽ lập tức chặn đứng lệnh xóa để bảo vệ lịch sử hóa đơn <code>#HD01</code> không bị biến thành "bản ghi mồ côi" (<code>Orphan Record</code>). Ngược lại, giữa bảng <code>HoaDon</code> và <code>ChiTietHoaDon</code>, ta có thể cấu hình <code>ON DELETE CASCADE</code> để khi hủy đơn nháp thì các dòng chi tiết món của đơn đó cũng tự động được dọn sạch.</li>
+          <li><strong>Tác động vận hành của <code>Foreign Key</code> ở quy mô cực lớn:</strong> Sách <em>Database Design and Modeling</em> lưu ý rằng mỗi lần <code>INSERT</code> dòng mới vào <code>ChiTietHoaDon</code>, động cơ <code>PostgreSQL</code> phải chạy kiểm tra sự tồn tại của khóa cha trong <code>HoaDon</code> và <code>MonAn</code>. Vì vậy, <strong>luôn luôn phải đánh chỉ mục <code>B-Tree Index</code> trên các cột <code>Foreign Key</code></strong> để thao tác kiểm tra tham chiếu và phép nối <code>JOIN</code> diễn ra trong <code>O(log N)</code> thay vì quét toàn bảng.</li>
+        </ul>
+        <pre><code>-- Bộ kịch bản DDL hoàn chỉnh khởi tạo 4 bảng chuẩn 3NF và 4 chốt chặn Constraints cho Đơn hàng #HD01
+CREATE TABLE KhachHang (
+    MaKH    VARCHAR(10) PRIMARY KEY,
+    TenKH   VARCHAR(100) NOT NULL,
+    SoDT    VARCHAR(15) NOT NULL UNIQUE
+);
+
+CREATE TABLE HoaDon (
+    MaHD    VARCHAR(10) PRIMARY KEY,
+    NgayDat DATE NOT NULL DEFAULT CURRENT_DATE,
+    MaKH    VARCHAR(10) NOT NULL,
+    CONSTRAINT fk_hoadon_khachhang FOREIGN KEY (MaKH)
+        REFERENCES KhachHang(MaKH) ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+CREATE TABLE ChiTietHoaDon (
+    MaHD    VARCHAR(10) NOT NULL,
+    MaMon   VARCHAR(10) NOT NULL,
+    SoLuong INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (MaHD, MaMon),                              -- Composite PK giải quyết quan hệ M:N
+    CONSTRAINT chk_soluong_duong CHECK (SoLuong &gt; 0),
+    CONSTRAINT fk_ct_hoadon FOREIGN KEY (MaHD)
+        REFERENCES HoaDon(MaHD) ON DELETE CASCADE,
+    CONSTRAINT fk_ct_monan FOREIGN KEY (MaMon)
+        REFERENCES MonAn(MaMon) ON DELETE RESTRICT
+);</code></pre>
+        <ul>
+          <li><strong>[Đúc kết Cơ học &amp; Đánh đổi]:</strong> Cắm đủ 4 chốt chặn <code>NOT NULL</code>, <code>DEFAULT</code>, <code>UNIQUE</code>, <code>CHECK</code> cùng cặp khóa <code>PK</code>/<code>FK</code> giúp chặn đứng dữ liệu bẩn ngay tại tầng <code>Database</code> trước khi nó kịp lưu xuống đĩa. Nhưng nếu nhét tất cả các cột của khách hàng, hóa đơn và món ăn vào chung một bảng duy nhất, hiện tượng trùng lặp và dị thường cập nhật sẽ nổ ra — buộc <code>#HD01</code> phải bước qua lò luyện chuẩn hóa ở <strong>Trạm 1.3</strong>.</li>
+        </ul>
+
+        <hr />
+
+        <h2 id="db-1-3" tabindex="-1">TRẠM 1.3: NORMALIZATION (UNF ➔ 1NF ➔ 2NF ➔ 3NF ➔ BCNF) VS DENORMALIZATION (CHUẨN HÓA &amp; PHI CHUẨN HÓA)</h2>
+        <ul>
+          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Chuẩn hóa (<code>Normalization</code>) giống như việc dọn một chiếc tủ quần áo đang vứt lẫn lộn cả áo sơ mi, tất, giày dép và hóa đơn siêu thị vào chung một ngăn lớn (<code>UNF</code>), rồi phân loại chúng vào từng ngăn kéo chuyên biệt có dán nhãn (<code>1NF</code> ➔ <code>3NF</code>) để khi đổi một đôi giày thì không phải lục tung cả đống áo sơ mi lên sửa.</li>
+          <li><strong>[Nỗi đau từ trạm trước]:</strong> Ở trạng thái thô <code>UNF</code> (<code>Unnormalized Form</code> — dạng chưa chuẩn hóa), nhân viên gộp cả danh sách món <code>"Oolong (30k, SL:2), HongTra (25k)"</code> vào một ô <code>DanhSachMon</code>. Hệ quả: <code>SQL</code> không thể dùng hàm <code>SUM()</code> tính doanh thu từng món; khi tách ra <code>1NF</code> thì thông tin của <code>Lan</code> (<code>KH01</code>, <code>0901xxxxxx</code>) bị nhân bản ở mọi dòng món ăn; nếu <code>Lan</code> đổi số điện thoại hoặc quán đổi giá <code>Oolong Sua</code>, hệ thống phải quét sửa hàng loạt dòng cũ (dị thường cập nhật — <code>Update Anomaly</code>) và làm gãy hàm kết nối (<code>Break JOIN function</code>).</li>
+        </ul>
+
+        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Bảng Dữ liệu thật]</h3>
+        ${buildVisualBlock(
+          "db-1-3",
+          "Sơ đồ 1.3 — Hành trình Phân rã Bảo toàn (Lossless Decomposition) Đơn hàng #HD01 từ UNF -> 1NF -> 2NF -> 3NF",
+          d["1.3"].ascii,
+          d["1.3"].mermaid,
+          "Hành trình phân rã không mất mát thông tin (Lossless Decomposition) của đơn hàng #HD01: từ Bước 0 (UNF — ô DanhSachMon đa trị) -> Bước 1 (1NF — nguyên tử hóa với Composite PK MaHD + MaMon) -> Bước 2 (2NF — khử phụ thuộc hàm bộ phận, tách 3 bảng HoaDon, MonAn, ChiTietHoaDon) -> Bước 3 (3NF/BCNF — khử phụ thuộc bắc cầu MaHD -> MaKH -> TenKH/SoDT, tách bảng thứ 4 KhachHang)."
+        )}
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Cấp độ thiết kế</th>
+                <th>Quy tắc cơ học cốt lõi</th>
+                <th>Đánh đổi Hiệu năng Đọc (<code>Read</code>) vs Ghi (<code>Write</code>)</th>
+                <th>Khi nào sử dụng trong thực tế?</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong><code>1NF</code> ➔ <code>3NF</code> / <code>BCNF</code></strong></td>
+                <td>Triệt tiêu dư thừa dữ liệu (<code>Data Redundancy</code>); ở <code>3NF</code> mọi cột không khóa chỉ phụ thuộc trực tiếp vào khóa chính; ở <code>BCNF</code> (<code>Boyce-Codd Normal Form</code>) mọi vế trái xác định hàm (<code>Determinant</code>) đều phải là <code>Super Key</code> (siêu khóa, ví dụ tách <code>BANG_PHANCONG_CA(MaNV [PK], CaTruc)</code> khỏi <code>BANG_HOADON_PHU_TRACH(MaHD, MaNV)</code>).</td>
+                <td>• <strong>Ghi (<code>Write</code>):</strong> Rất gọn và an toàn, sửa SĐT của <code>Lan</code> chỉ cập nhật đúng <code>1 dòng</code> trong <code>BANG_KHACHHANG</code>.<br>• <strong>Đọc (<code>Read</code>):</strong> Tốn chi phí nối (<code>JOIN</code>) từ <code>2 đến 5 bảng</code> khi cần in hóa đơn đầy đủ.</td>
+                <td>Chuẩn mực vàng cho hệ thống giao dịch <code>OLTP</code> (<code>Online Transaction Processing</code> — xử lý giao dịch trực tuyến) cần bảo vệ tính toàn vẹn dữ liệu.</td>
+              </tr>
+              <tr>
+                <td><strong><code>4NF</code> ➔ <code>6NF</code></strong></td>
+                <td><code>4NF</code> khử phụ thuộc đa trị độc lập (tránh nhân chéo <code>Cartesian Product</code> như <code>3 SĐT x 3 Mã giảm giá = 9 dòng</code>); <code>5NF</code> khử phụ thuộc kết nối 3 bên; <code>6NF</code> tách cực đại thành <code>(PK, Valid_From, 1_Attribute)</code>.</td>
+                <td>• <strong>Ghi (<code>Write</code>):</strong> Không bao giờ ghi đè lịch sử giá, nhưng 1 đơn hàng phải <code>INSERT</code> vào hàng chục bảng con.<br>• <strong>Đọc (<code>Read</code>):</strong> Rơi vào <code>"Join Hell"</code> nếu áp dụng bừa bãi cho web thông thường.</td>
+                <td><code>4NF/5NF</code> cho ma trận phân bổ phức tạp; <code>6NF</code> cho bảng theo dõi lịch sử biến động giá theo thời gian (<code>Temporal</code> / <code>Data Vault</code>).</td>
+              </tr>
+              <tr>
+                <td><strong><code>Denormalization</code> (Phi chuẩn hóa có kiểm soát)</strong></td>
+                <td>Chủ động chấp nhận dư thừa dữ liệu (ví dụ: tạo bảng tổng hợp sẵn số lượng hành động/đơn hàng mỗi ngày của từng khách hàng).</td>
+                <td>• <strong>Đọc (<code>Read</code>):</strong> Tăng tốc độ tải <code>Dashboard</code> báo cáo nhờ loại bỏ các phép <code>JOIN</code> phức tạp và tính toán lại.<br>• <strong>Ghi (<code>Write</code>):</strong> Tốn thêm dung lượng lưu trữ và chi phí đồng bộ khi dữ liệu gốc thay đổi.</td>
+                <td>Dùng cho tầng đọc báo cáo (<code>Dashboard</code>, <code>Analytics</code>) sau khi tầng ghi đã được chuẩn hóa chặt chẽ.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>[Bổ sung Chuyên sâu +30% — Giải phẫu 3 Dị thường Dữ liệu (<code>Anomalies</code>) Nếu Không Chuẩn hóa <code>#HD01</code> Lên <code>3NF</code>]</h4>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Loại Dị thường (<code>Anomaly</code>)</th>
+                <th>Kịch bản phát nổ trên bảng gộp <code>1NF</code> của <code>#HD01</code></th>
+                <th>Cách <code>3NF</code> (4 bảng tách biệt) triệt tiêu tận gốc</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>1. Dị thường Chèn (<code>Insertion Anomaly</code>)</strong></td>
+                <td>Quán trà sữa ra mắt món mới <code>M03 - Matcha Latte (35k)</code> nhưng chưa có khách nào đặt (<code>MaHD = NULL</code>). Vì khóa chính của bảng <code>1NF</code> là cặp <code>(MaHD, MaMon)</code> cấm <code>NULL</code>, hệ thống <strong>không thể thêm món mới vào menu</strong> nếu chưa phát sinh hóa đơn!</td>
+                <td>Tách riêng bảng <code>MonAn(MaMon [PK], TenMon, DonGia)</code> độc lập với hóa đơn — thêm món mới vào menu bất cứ lúc nào.</td>
+              </tr>
+              <tr>
+                <td><strong>2. Dị thường Cập nhật (<code>Update Anomaly</code>)</strong></td>
+                <td>Khách hàng <code>Lan</code> (<code>KH01</code>) đã đặt <code>500</code> dòng món ăn trong năm qua. Khi <code>Lan</code> đổi số điện thoại sang số mới, nếu hệ thống chỉ cập nhật được <code>499</code> dòng và sót <code>1</code> dòng do lỗi mạng, cơ sở dữ liệu sẽ chứa 2 số điện thoại mâu thuẫn nhau cho cùng một mã <code>KH01</code>.</td>
+                <td>Tách riêng bảng <code>KhachHang(MaKH [PK], TenKH, SoDT)</code> — thông tin <code>SoDT</code> của <code>Lan</code> chỉ nằm tại duy nhất <code>1 dòng</code>.</td>
+              </tr>
+              <tr>
+                <td><strong>3. Dị thường Xóa (<code>Deletion Anomaly</code>)</strong></td>
+                <td>Khách hàng <code>Minh</code> (<code>KH02</code>) mới chỉ đặt duy nhất 1 đơn <code>HD02</code> rồi yêu cầu hủy đơn đó. Nếu xóa dòng <code>HD02</code> trong bảng gộp <code>1NF</code>, toàn bộ hồ sơ khách hàng của <code>Minh</code> (<code>MaKH</code>, <code>TenKH</code>, <code>SoDT</code>) cũng <strong>bốc hơi vĩnh viễn</strong> khỏi hệ thống!</td>
+                <td>Xóa đơn <code>HD02</code> trong bảng <code>HoaDon</code> hoàn toàn không chạm tới dòng hồ sơ của <code>Minh</code> trong bảng <code>KhachHang</code>.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <ul>
+          <li><strong>[Đúc kết Cơ học &amp; Đánh đổi ➔ Chuyển giao sang Chặng 2]:</strong> Sau khi đạt chuẩn <code>3NF</code>, đơn hàng <code>#HD01</code> của <code>Lan</code> đã nằm gọn gàng trong 4 bảng logic sạch sẽ, không còn dư thừa. <strong>Nhưng nỗi đau mới xuất hiện:</strong> Các bảng <code>3NF</code> này chỉ là khái niệm logic trên giấy! Khi <code>Lan</code> bấm nút "Thanh toán", hệ thống làm thế nào để biến các dòng dữ liệu này thành các bit vật lý trên ổ cứng mà không bị nghẽn cổ chai bởi tốc độ đọc/ghi cơ học của đĩa, đồng thời không mất trắng đơn hàng nếu máy chủ đột ngột đứt cầu dao điện? Chúng ta bước vào <strong>Chặng 2: Giải phẫu Động cơ Lưu trữ (<code>Storage Engine</code>) &amp; Bộ nhớ (<code>Memory</code>)</strong>.</li>
+        </ul>
+
+        <section class="summary-section" id="db-1-summary" tabindex="-1">
+          <h2>TÓM TẮT BỎ TÚI CHẶNG 1 &amp; CHECKLIST TỰ KIỂM TRA (DATA MODELING &amp; 3NF)</h2>
+          <p><strong>Mạch nhân – quả Chặng 1 (Trạm 1.1 ➔ Trạm 1.3):</strong></p>
+          <ul>
+            <li><strong>[Trạm 1.1]</strong> Để giải cứu đơn hàng <code>#HD01</code> khỏi tệp văn bản phẳng không có khóa đồng thời, <code>RDBMS</code> dựng lên kiến trúc 4 tầng (<code>Transport Subsystem</code> ➔ <code>Query Processor</code> ➔ <code>Execution Engine</code> ➔ <code>Storage Engine</code>) và giao tiếp qua 5 nhóm lệnh <code>SQL</code> (<code>DDL</code>, <code>DML</code>, <code>DQL</code>, <code>DCL</code>, <code>TCL</code>) ➔</li>
+            <li><strong>[Trạm 1.2]</strong> Để chặn rác dữ liệu ngay từ cửa, mô hình quan hệ định nghĩa lực lượng <code>Cardinality</code> (<code>1:1</code>, <code>1:N</code>, <code>M:N</code>), khóa chính <code>PK</code>, khóa ngoại <code>FK</code> (<code>Referential Integrity</code>) và phễu lọc 4 chốt chặn <code>NOT NULL</code>, <code>DEFAULT</code>, <code>UNIQUE</code>, <code>CHECK</code> ➔</li>
+            <li><strong>[Trạm 1.3]</strong> Để triệt tiêu 3 dị thường (<code>Insertion / Update / Deletion Anomalies</code>), quy trình chuẩn hóa <code>UNF ➔ 1NF ➔ 2NF ➔ 3NF / BCNF</code> phân rã không mất mát đơn hàng <code>#HD01</code> thành 4 bảng chuẩn mực: <code>KhachHang</code>, <code>HoaDon</code>, <code>MonAn</code>, <code>ChiTietHoaDon</code>.</li>
+          </ul>
+          <p><strong>Checklist tự kiểm tra Chặng 1 (5 Câu hỏi Bản chất):</strong></p>
+          <ol>
+            <li>Khi quầy thu ngân gửi câu lệnh <code>INSERT #HD01</code>, gói tin đi qua 4 phân hệ nào bên trong động cơ <code>DBMS</code> và tại sao lại phải tách rời <code>Query Processor</code> khỏi <code>Storage Engine</code>?</li>
+            <li>Tại sao quan hệ nhiều-nhiều (<code>M:N</code>) giữa <code>HoaDon</code> và <code>MonAn</code> không thể nối trực tiếp bằng 1 khóa ngoại đơn lẻ mà bắt buộc phải tách bảng trung gian <code>ChiTietHoaDon</code> có khóa chính ghép <code>Composite PK (MaHD, MaMon)</code>?</li>
+            <li>Hãy kể tên 4 chốt chặn <code>Constraints</code> bảo vệ bảng <code>MonAn</code> và giải thích sự khác biệt cơ học giữa <code>ON DELETE RESTRICT</code> và <code>ON DELETE CASCADE</code> trên khóa ngoại <code>FK</code>.</li>
+            <li>Phân biệt rõ quy tắc cơ học của <code>1NF</code> (khử ô đa trị), <code>2NF</code> (khử phụ thuộc hàm bộ phận vào 1 phần khóa ghép) và <code>3NF</code> (khử phụ thuộc bắc cầu giữa các cột không khóa) trên chính đơn hàng <code>#HD01</code>.</li>
+            <li>Khi nào kỹ sư được phép chủ động phá vỡ <code>3NF</code> để thực hiện <code>Denormalization</code> (phi chuẩn hóa có kiểm soát), và cái giá phải trả ở luồng ghi (<code>Write</code>) là gì?</li>
+          </ol>
+          <p style="margin-top:14px;"><a href="#topic=F03&stage=2" onclick="selectStorageStage(2);return false;">Sang Chặng 2: Storage Engine &amp; Memory Architecture (Giải phẫu động cơ PostgreSQL &amp; Bộ nhớ) ➔</a></p>
+        </section>
       </div>
     `;
   }
@@ -9707,7 +10355,7 @@ clean:
     const d = HUB_DATA.db_diagrams;
     return `
       <div class="prose">
-        <p>Ở <strong>Chặng 1</strong>, Đơn hàng Trà sữa <code>#HD01</code> của khách hàng <code>Lan</code> đã được chuẩn hóa thành 4 bảng <code>3NF</code> (<code>KhachHang</code>, <code>HoaDon</code>, <code>MonAn</code>, <code>ChiTiet</code>) và khóa chặt bằng <code>Constraints</code>. Nhưng bảng <code>3NF</code> mới chỉ sạch trên bản vẽ logic — bước vào <strong>Chặng 2 (Trạm 2.1 ➔ 2.3): Storage Engine &amp; Memory Architecture</strong>, chúng ta giải phẫu cách động cơ <code>PostgreSQL</code> đóng gói <code>#HD01</code> vào khung trang <code>8KB Slotted Page</code> trên <code>Shared Buffers</code> và phối hợp với nhật ký tuần tự <code>WAL</code> để vừa đạt tốc độ <code>RAM</code>, vừa bền vững tuyệt đối trên đĩa.</p>
+        <p>Ở <strong>Chặng 1</strong>, Đơn hàng Trà sữa <code>#HD01</code> của khách hàng <code>Lan</code> đã được chuẩn hóa thành 4 bảng <code>3NF</code> (<code>KhachHang</code>, <code>HoaDon</code>, <code>MonAn</code>, <code>ChiTietHoaDon</code>) và khóa chặt bằng <code>Constraints</code>. Nhưng bảng <code>3NF</code> mới chỉ sạch trên bản vẽ logic — bước vào <strong>Chặng 2 (Trạm 2.1 ➔ 2.3): Storage Engine &amp; Memory Architecture</strong>, chúng ta giải phẫu cách động cơ <code>PostgreSQL</code> đóng gói <code>#HD01</code> vào khung trang <code>8KB Slotted Page</code> trên <code>Shared Buffers</code> và phối hợp với nhật ký tuần tự <code>WAL</code> để vừa đạt tốc độ <code>RAM</code>, vừa bền vững tuyệt đối trên đĩa.</p>
 
         <h4>Sơ đồ 2.0: Kiến trúc Tổng quan Chặng 2 — PostgreSQL Storage Engine, 8KB Slotted Page &amp; WAL Write Path</h4>
         ${buildVisualBlock(
@@ -9718,23 +10366,224 @@ clean:
           "Tổng quan 3 trạm của Chặng 2: [Trạm 2.1] Client Process -> Backend Process & cấu hình thực tế trong postgresql.conf (shared_buffers = 131584 ~ 1GB, work_mem = 5120 kB, deadlock_timeout = 1000 ms); [Trạm 2.2] Cấu trúc 8KB Slotted Page (Page Header LSN, Line Pointers Ptr, Free Space, Row Tuple #HD01) & 3 biến số Buffering, Immutability, Ordering; [Trạm 2.3] Luồng ghi WAL Buffer -> WAL Writer -> WAL Files (Append-only) và Checkpointer (5 phút) xả Dirty Pages xuống Data Files."
         )}
 
-        <h2 id="db-2-1" tabindex="-1">TRẠM 2.1: POSTGRESQL PROCESS &amp; MEMORY ARCHITECTURE + CONFIGURATION (postgresql.conf)</h2>
+        <h2 id="db-2-1" tabindex="-1">TRẠM 2.1: CLIENT/BACKEND PROCESS &amp; MEMORY VERSUS DISK-BASED DBMS (TIẾN TRÌNH &amp; PHÂN CẤP BỘ NHỚ 2 TẦNG)</h2>
         <ul>
-          <li><strong>Kiến trúc Tiến trình &amp; Bộ nhớ dùng chung:</strong> Mỗi <code>Client Process</code> khi kết nối vào máy chủ <code>PostgreSQL</code> sẽ được cấp phát một <code>Backend Process</code> riêng, cùng truy cập vào vùng nhớ <code>Shared Memory</code> (trung tâm là vùng đệm <code>Shared Buffers</code> giữ các trang <code>8KB</code>).</li>
-          <li><strong>Thông số định lượng trong <code>postgresql.conf</code> &amp; <code>postgresql.auto.conf</code>:</strong> Đơn vị trang cơ sở là <code>8kB</code>, trong đó <code>shared_buffers = 131584</code> tương đương <code>~1GB</code> bộ nhớ đệm trang dùng chung, <code>work_mem = 5120 kB</code> cấp phát cho mỗi thao tác sắp xếp/băm cục bộ, và <code>deadlock_timeout = 1000 ms</code> kiểm soát thời gian quét phát hiện khóa chết.</li>
+          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Hãy hình dung <code>Disk</code> (ổ cứng <code>SSD</code>/<code>HDD</code>) là kho hàng khổng lồ nằm ở ngoại ô (chứa được rất nhiều hàng nhưng xe tải chạy đi lấy mất hàng giờ), còn <code>RAM</code> (<code>Main Memory</code> — bộ nhớ chính) là mặt bàn pha chế ngay trước mặt nhân viên (diện tích nhỏ nhưng lấy nguyên liệu chỉ mất một cái chớp mắt). Mỗi vị khách bước vào quán (<code>Client Process</code>) sẽ được cử riêng một nhân viên phục vụ (<code>Backend Process</code>) đứng lấy nguyên liệu ngay trên mặt bàn <code>Shared Memory</code> thay vì tự chạy ra kho ngoại ô.</li>
+          <li><strong>[Nỗi đau từ trạm trước]:</strong> Nếu mỗi câu lệnh <code>SELECT</code> hoặc <code>UPDATE</code> trên 4 bảng <code>3NF</code> của đơn hàng <code>#HD01</code> đều phải thò xuống đĩa cứng (<code>Disk</code>) để đọc và ghi trực tiếp, độ trễ truy cập đĩa sẽ làm tê liệt toàn bộ hệ thống ngay khi có vài chục khách hàng cùng đặt trà sữa.</li>
         </ul>
 
-        <h2 id="db-2-2" tabindex="-1">TRẠM 2.2: ON-DISK LAYOUT &amp; SLOTTED PAGE (8KB BLOCK) VS IN-MEMORY DBMS</h2>
+        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Bảng Đối chiếu]</h3>
+        ${buildVisualBlock(
+          "db-2-1",
+          "Sơ đồ 2.1 — Kiến trúc Tiến trình & Phân cấp Bộ nhớ 2 Tầng trong PostgreSQL (Shared Memory vs Disk)",
+          d["2.1"].ascii,
+          d["2.1"].mermaid,
+          "Kiến trúc tiến trình và bộ nhớ trong PostgreSQL khi xử lý đơn hàng #HD01: mỗi Client Process kết nối sẽ được cấp phát 1 Backend Process riêng biệt, cùng thao tác trên vùng RAM Shared Memory (WAL Buffer, Shared Buffers ~1GB, Temp Buffers work_mem = 5MB, CLOG Buffers) và phối hợp với 3 tiến trình nền (WAL Writer, Checkpointer, Autovacuum Worker) để đồng bộ xuống Disk."
+        )}
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Phân loại Hệ thống / Vùng nhớ</th>
+                <th>Nơi lưu trữ chính (<code>Primary Storage</code>)</th>
+                <th>Vai trò của Đĩa cứng (<code>Disk</code>)</th>
+                <th>Vai trò của Bộ nhớ (<code>RAM</code>)</th>
+                <th>Đánh đổi kỹ thuật (<code>Trade-offs</code>)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong><code>In-Memory DBMS</code> (<code>Main Memory DBMS</code>)</strong></td>
+                <td>Lưu trữ dữ liệu gần như hoàn toàn trên <code>RAM</code>.</td>
+                <td>Chỉ dùng đĩa để ghi nhật ký (<code>Logging</code>) và khôi phục (<code>Recovery</code>) khi sập nguồn.</td>
+                <td>Chứa toàn bộ tập dữ liệu hoạt động chính của hệ thống.</td>
+                <td>Độ trễ truy cập cực thấp, nhưng dung lượng bị giới hạn bởi kích thước <code>RAM</code> đắt đỏ và vẫn cần cấu trúc đĩa để đảm bảo <code>Durability</code> (tính bền vững).</td>
+              </tr>
+              <tr>
+                <td><strong><code>Disk-Based DBMS</code> (như <code>PostgreSQL</code>, <code>MySQL</code>)</strong></td>
+                <td>Lưu trữ phần lớn dữ liệu trên <code>Disk</code> (<code>SSD</code>/<code>HDD</code>).</td>
+                <td>Nơi lưu trữ bền vững dài hạn (<code>Persistent Storage</code>) toàn bộ <code>Data Files</code> và <code>Index Files</code>.</td>
+                <td>Dùng <code>Shared Buffers</code> (<code>Buffer Manager</code>) để đệm (<code>Cache</code>) các trang đĩa hay dùng và làm vùng nhớ tạm.</td>
+                <td>Tối ưu mật độ lưu trữ (<code>Density</code>) trên mỗi <code>Node</code>, nhưng phải giải bài toán đồng bộ giữa bản sao trên <code>RAM</code> và bản gốc trên <code>Disk</code>.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>[Bổ sung Chuyên sâu +30% — Sách <em>Database Design and Modeling</em> Ch.5 &amp; <em>PostgreSQL: Up and Running</em>]: Giải phẫu Định lượng File Cấu hình <code>postgresql.conf</code> &amp; <code>postgresql.auto.conf</code></h4>
+        <p>Trong thực tế vận hành <code>PostgreSQL</code>, mọi vùng nhớ trên sơ đồ đều được định lượng chính xác bằng các tham số trong <code>postgresql.conf</code> (hoặc ghi đè động qua lệnh <code>ALTER SYSTEM</code> lưu vào <code>postgresql.auto.conf</code> và tra cứu trực tiếp qua bảng hệ thống <code>pg_settings</code>):</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Tham số trong <code>postgresql.conf</code></th>
+                <th>Giá trị Thực tế &amp; Đơn vị cơ sở (<code>pg_settings</code>)</th>
+                <th>Ý nghĩa Cơ học &amp; Quy tắc Tinh chỉnh (Tuning) cho Hệ thống <code>#HD01</code></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong><code>shared_buffers</code></strong></td>
+                <td><code>131584</code> trang <code>8kB</code> (tương đương <strong><code>~1 GB</code></strong> RAM)</td>
+                <td>Vùng bộ nhớ đệm dùng chung cho mọi <code>Backend Process</code> để giữ các trang dữ liệu <code>8KB</code> của <code>#HD01</code>. Khuyến nghị đặt bằng <strong><code>25% – 40%</code> tổng dung lượng RAM</strong> của máy chủ.</td>
+              </tr>
+              <tr>
+                <td><strong><code>work_mem</code></strong></td>
+                <td><code>5120 kB</code> (tương đương <strong><code>5 MB</code></strong> mỗi thao tác)</td>
+                <td>Bộ nhớ riêng (<code>Private Memory</code>) cấp cho <strong>từng phép toán <code>ORDER BY</code>, <code>DISTINCT</code>, <code>Hash Join</code> hoặc <code>Merge Join</code></strong> bên trong một <code>Backend Process</code>. Nếu đặt quá cao khi có <code>200</code> kết nối chạy đồng thời, RAM sẽ bị nhân lên <code>200 x N</code> gây tràn bộ nhớ (<code>OOM</code>); nếu đặt quá thấp, dữ liệu phải tràn xuống đĩa tạm (<code>Temp Files Spill-to-Disk</code>).</td>
+              </tr>
+              <tr>
+                <td><strong><code>maintenance_work_mem</code></strong></td>
+                <td><code>65536 kB</code> (<strong><code>64 MB</code></strong> – có thể nâng lên <code>256MB–1GB</code>)</td>
+                <td>Bộ nhớ cấp cho các tác vụ bảo trì hệ thống như <code>VACUUM</code>, <code>CREATE INDEX</code> và <code>ALTER TABLE ADD FOREIGN KEY</code>.</td>
+              </tr>
+              <tr>
+                <td><strong><code>wal_buffers</code></strong></td>
+                <td><code>-1</code> (Tự động lấy <code>~3%</code> của <code>shared_buffers</code>, thường <strong><code>16 MB</code></strong>)</td>
+                <td>Bộ đệm giữ các bản ghi nhật ký <code>WAL</code> trên <code>RAM</code> trước khi tiến trình <code>WAL Writer</code> đẩy tuần tự xuống đĩa khi <code>COMMIT</code>.</td>
+              </tr>
+              <tr>
+                <td><strong><code>deadlock_timeout</code></strong></td>
+                <td><code>1000 ms</code> (<strong><code>1 giây</code></strong>)</td>
+                <td>Thời gian một giao dịch chờ khóa trước khi <code>Lock Manager</code> kích hoạt thuật toán quét đồ thị chờ (<code>Wait-for Graph</code>) để phát hiện và hủy giao dịch gây khóa chết (<code>Deadlock</code>).</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
         <ul>
-          <li><strong>Giải phẫu khung trang <code>8KB Slotted Page</code>:</strong> Dòng dữ liệu của <code>#HD01</code> được gom vào khối <code>8KB Block</code> với cấu trúc hai đầu mọc ngược chiều nhau: <code>[Page Header (LSN) | Line Pointers (Ptr) ---&gt; Free Space &lt;--- Tuple (Row Data)]</code>.</li>
-          <li><strong>Ba biến số cốt lõi của Storage Engine (Sách <em>Database Internals</em>):</strong> Đối chiếu giữa CSDL trên đĩa và <code>In-Memory DBMS</code> qua 3 trục thiết kế: <code>Buffering</code> (đệm bộ nhớ), <code>Immutability</code> (bất biến vs sửa tại chỗ) và <code>Ordering</code> (thứ tự lưu trữ vật lý).</li>
+          <li><strong>[Đúc kết Cơ học &amp; Đánh đổi]:</strong> Nhờ tầng <code>Shared Buffers</code> trên <code>RAM</code>, khi <code>Backend Process</code> cần tra cứu giá món <code>Oolong Sua</code> của đơn <code>#HD01</code>, nó lấy ngay bản sao trên <code>RAM</code> thay vì đọc đĩa vật lý. Tuy nhiên, <code>RAM</code> và <code>Disk</code> không giao tiếp với nhau theo từng dòng đơn lẻ hay từng chữ cái, mà giao tiếp theo từng khối cố định gọi là <code>Page</code> — dẫn chúng ta tới giải phẫu vật lý bên trong <code>Page</code> ở <strong>Trạm 2.2</strong>.</li>
         </ul>
 
-        <h2 id="db-2-3" tabindex="-1">TRẠM 2.3: WRITE PATH, SHARED BUFFERS (DIRTY PAGES), WAL BUFFER &amp; CHECKPOINTER</h2>
+        <hr />
+
+        <h2 id="db-2-2" tabindex="-1">TRẠM 2.2: ON-DISK DATA LAYOUT (ROW VS COLUMN) &amp; SLOTTED PAGE (4-16 KB) (CẤU TRÚC TRANG VẬT LÝ)</h2>
         <ul>
-          <li><strong>Luồng ghi kép (Dual Write Path) của <code>#HD01</code>:</strong> Khi sửa <code>DonGia = 30000</code>, trang chứa <code>#HD01</code> trên <code>Shared Buffers</code> biến thành <code>Dirty Page</code> trên <code>RAM</code>; tại thời điểm <code>COMMIT</code>, bản ghi nhật ký mang mã <code>LSN</code> (<code>Log Sequence Number</code>) trong <code>WAL Buffer</code> được <code>WAL Writer</code> đẩy tuần tự tức thì (<code>Append-only WAL</code>) xuống <code>WAL Files</code>, trong khi <code>Data Files</code> chờ tiến trình <code>Checkpointer</code> xả ngẫu nhiên theo <code>Offset</code> định kỳ (ví dụ mỗi <code>5 phút</code>).</li>
-          <li><strong>Nỗi đau chuyển giao sang Chặng 3:</strong> Đĩa và <code>RAM</code> đã phối hợp nhịp nhàng cho 1 người dùng, nhưng khi <code>1,000</code> người cùng đọc/sửa <code>#HD01</code> và bảng phình lên <code>100 triệu dòng</code> thì kẹt khóa và quét chậm! <a href="#topic=F03&stage=3" onclick="selectStorageStage(3);return false;">Bước sang Chặng 3: Concurrency Control &amp; Query Execution ➔</a></li>
+          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Khi vận chuyển trà sữa từ kho ra quầy, bạn không chở lẻ tẻ từng hạt trân châu mà đóng vào các thùng nhựa tiêu chuẩn. Trong cơ sở dữ liệu, thùng nhựa đó gọi là <strong><code>Page</code> (Trang dữ liệu, kích thước cố định từ <code>4-16 KB</code>, phổ biến là <code>8KB</code> trong PostgreSQL và <code>16KB</code> trong MySQL InnoDB)</strong>. Bên trong chiếc thùng <code>Page</code> này được thiết kế cực kỳ thông minh: danh mục con trỏ xếp từ nắp thùng đi xuống, còn dữ liệu thực tế của đơn <code>#HD01</code> lại xếp từ đáy thùng đi lên, gặp nhau ở khoảng trống chính giữa!</li>
+          <li><strong>[Nỗi đau từ trạm trước]:</strong> Làm sao để nhét các dòng dữ liệu có độ dài ngắn dài khác nhau (<code>Variable-size data</code> — ví dụ tên khách <code>'Lan'</code> dài 3 ký tự nhưng <code>'Nguyễn Anh Kiệt'</code> dài 15 ký tự) vào một khối <code>Page</code> cố định <code>4-16 KB</code> mà khi xóa hoặc sửa một dòng ở giữa, ta không phải dịch chuyển toàn bộ các byte còn lại hay làm hỏng các con trỏ chỉ mục đang trỏ vào dòng đó?</li>
         </ul>
+
+        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Bảng Dữ liệu thật]</h3>
+        ${buildVisualBlock(
+          "db-2-2",
+          "Sơ đồ 2.2 — Giải phẫu Cấu trúc Slotted Page (4-16 KB) & Đối sánh Row-Oriented vs Column-Oriented Layout",
+          d["2.2"].ascii,
+          d["2.2"].mermaid,
+          "Giải phẫu bên trong một khối Slotted Page cố định (8KB trong PostgreSQL): Page Header chứa mã LSN và biên vùng trống; mảng con trỏ Line Pointers [Ptr 1], [Ptr 2] mọc từ trên xuống; các bản ghi dữ liệu (Row Tuples của #HD01) mọc ngược từ đáy trang đi lên gặp nhau tại Free Space; đối sánh với lưu trữ theo dòng (Row-Oriented OLTP) và theo cột (Column-Oriented OLAP)."
+        )}
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Tiêu chí đối chiếu</th>
+                <th><code>Row-Oriented DBMS</code> (<code>PostgreSQL</code>, <code>MySQL</code>)</th>
+                <th><code>Column-Oriented DBMS</code> (<code>ClickHouse</code>)</th>
+                <th><code>Data Files</code> vs <code>Index Files</code></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Cách gom dữ liệu vào <code>Page</code></strong></td>
+                <td>Gom toàn bộ các cột của cùng 1 dòng (<code>ID=10, Ten='Lan', DonGia=30000</code>) nằm sát nhau trong cùng một <code>Page</code>.</td>
+                <td>Tách riêng từng cột lưu vào các file/khối riêng biệt (tất cả giá trị <code>DonGia</code> nằm liền nhau).</td>
+                <td><code>Data Files</code> lưu bản ghi dữ liệu thực; <code>Index Files</code> lưu khóa tìm kiếm và con trỏ điều hướng (<code>Indirection</code>) tới vị trí bản ghi trong <code>Data Files</code>.</td>
+              </tr>
+              <tr>
+                <td><strong>Ưu thế cơ học</strong></td>
+                <td>Khi tạo mới hoặc xem chi tiết đơn <code>#HD01</code>, chỉ cần nạp <code>1 Page</code> là lấy đủ mọi thông tin của đơn đó.</td>
+                <td>Khi chạy truy vấn phân tích tính tổng <code>SUM(DonGia)</code> trên hàng trăm triệu dòng, máy chỉ đọc đúng file cột <code>DonGia</code>, bỏ qua hoàn toàn cột <code>TenKH</code>, <code>SoDT</code>.</td>
+                <td>Nhờ mảng con trỏ <code>[Ptr 1] [Ptr 2]</code> trong <code>Page</code>, khi dòng dữ liệu dịch chuyển bên trong <code>Page</code> để chống phân mảnh (<code>Defragmentation</code>), <code>Index</code> bên ngoài không bị gãy vì chỉ trỏ vào <code>Ptr</code> cố định.</td>
+              </tr>
+              <tr>
+                <td><strong>Nhược điểm / Đánh đổi</strong></td>
+                <td>Nếu chỉ cần tính tổng <code>1 cột</code> trên bảng rộng 50 cột, hệ thống vẫn phải gánh cả 49 cột thừa từ đĩa lên <code>RAM</code>.</td>
+                <td>Chi phí cập nhật/chèn lẻ từng dòng (<code>Point Write</code>) đắt đỏ vì phải mở và sửa đồng thời nhiều file cột khác nhau.</td>
+                <td>Tốn thêm dung lượng đĩa và chi phí duy trì <code>Index Files</code> mỗi khi dữ liệu thay đổi.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>[Bổ sung Chuyên sâu +30% — Sách <em>Database Internals</em> Ch.3 &amp; <em>PostgreSQL Internals</em>]: Giải phẫu <code>PageHeaderData</code> (24 Bytes), Con trỏ Vật lý <code>ctid</code> &amp; Cơ chế <code>TOAST</code></h4>
+        <ul>
+          <li><strong>Giải phẫu <code>24 Bytes</code> đầu tiên của <code>Page Header</code> trong <code>PostgreSQL</code>:</strong> Mỗi trang <code>8KB</code> (<code>8,192 bytes</code>) mở đầu bằng <code>PageHeaderData</code> gồm: <code>pd_lsn</code> (<code>8 bytes</code> lưu mã <code>LSN</code> của bản ghi <code>WAL</code> cuối cùng sửa trang này), <code>pd_checksum</code> (<code>2 bytes</code> kiểm tra lỗi bit đĩa), <code>pd_lower</code> (<code>2 bytes</code> trỏ tới điểm cuối của mảng <code>Line Pointers</code> đang mọc xuống), và <code>pd_upper</code> (<code>2 bytes</code> trỏ tới điểm đầu của vùng <code>Tuples</code> đang mọc từ đáy lên). Khoảng cách <code>pd_upper - pd_lower</code> chính là dung lượng <code>Free Space</code> còn trống!</li>
+          <li><strong>Con trỏ định vị vật lý <code>ctid</code> (<code>ItemPointer</code>):</strong> Trong <code>PostgreSQL</code>, mỗi dòng dữ liệu của <code>#HD01</code> có một cột ẩn hệ thống tên là <code>ctid</code> biểu diễn dưới dạng cặp tọa độ <code>(block_number, offset_number)</code> — ví dụ <code>(42, 1)</code> nghĩa là nằm tại <code>Page #42</code>, con trỏ <code>Ptr #1</code>. Bạn có thể chạy trực tiếp lệnh <code>SELECT ctid, MaHD, NgayDat FROM HoaDon WHERE MaHD = 'HD01';</code> để nhìn tận mắt vị trí trang vật lý của <code>#HD01</code>!</li>
+          <li><strong>Cơ chế <code>TOAST</code> (<code>The Oversized-Attribute Storage Technique</code>):</strong> Vì một trang <code>PostgreSQL</code> chỉ rộng <code>8KB</code> và không cho phép một dòng vắt ngang qua 2 trang, nếu đơn hàng <code>#HD01</code> đính kèm một cột ghi chú hoặc ảnh hóa đơn <code>JSONB / TEXT</code> nặng <code>50KB</code> thì sao? Động cơ <code>TOAST</code> sẽ tự động <strong>nén (Compress)</strong> và <strong>cắt nhỏ (Out-of-line slicing)</strong> dữ liệu vượt ngưỡng <code>~2KB</code> thành các mảnh nhỏ lưu sang bảng phụ <code>pg_toast</code>, chỉ để lại một con trỏ nhẹ <code>18 bytes</code> trong trang chính!</li>
+          <li><strong>[Đúc kết Cơ học &amp; Đánh đổi]:</strong> Thiết kế <code>Page</code> (<code>4-16 KB</code>) có <code>PAGE HEADER</code> chứa mã <code>LSN</code> và mảng con trỏ <code>[Ptr 1] [Ptr 2]</code> giúp <code>Database</code> quản lý dữ liệu biến thiên cực kỳ linh hoạt trên cả <code>RAM</code> và <code>Disk</code>. Nhưng khi <code>Lan</code> yêu cầu sửa <code>DonGia</code> hoặc tăng số lượng ly trong <code>#HD01</code>, cơ chế nào giúp <code>Database</code> vừa phản hồi <code>COMMIT</code> tức thì cho <code>Lan</code> mà không bắt cô phải chờ ổ cứng tìm đúng vị trí <code>Offset</code> của <code>Page</code> để ghi đè? Câu trả lời nằm ở tuyệt kỹ điều phối giữa <code>WAL Buffer</code> và <code>Dirty Page</code> tại <strong>Trạm 2.3</strong>.</li>
+        </ul>
+
+        <hr />
+
+        <h2 id="db-2-3" tabindex="-1">TRẠM 2.3: WRITE PATH, WAL BUFFER, DIRTY PAGES &amp; CHECKPOINTER (LUỒNG GHI KÉP &amp; CƠ CHẾ PHỤC HỒI)</h2>
+        <ul>
+          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Hãy tưởng tượng bạn là kế toán trưởng đang quản lý một tủ hồ sơ khổng lồ (<code>DISK: DATA FILES</code>) được sắp xếp theo thứ tự bảng chữ cái ở tầng hầm. Mỗi khi có giao dịch sửa giá đơn <code>#HD01</code> thành <code>30000</code>, nếu bạn phải cầm tờ giấy chạy xuống tầng hầm, mở đúng ngăn tủ (tìm theo <code>Offset</code>), rút hồ sơ cũ ra xóa rồi cất lại (<code>Random I/O</code>), khách sẽ bỏ về hết vì quá lâu. Thay vào đó, bạn làm 2 việc ngay tại bàn: (1) Sửa trực tiếp lên tờ hồ sơ đang bày sẵn trên mặt bàn (<code>Shared Buffers</code> ➔ biến thành tờ giấy nháp chưa cất vào tủ gọi là <code>Dirty Page</code>), và (2) Ghi nhanh một dòng nối tiếp vào cuốn "Sổ nhật ký giao dịch" ngay tay phải (<code>WAL Buffer</code> ➔ đẩy thẳng xuống cuối file <code>WAL Files</code> khi <code>COMMIT</code>). Sau đó cứ mỗi <strong><code>5 phút</code></strong>, trợ lý <code>Checkpointer</code> mới gom hàng nghìn tờ <code>Dirty Page</code> trên bàn đem xuống tầng hầm cất vào đúng ngăn tủ một lượt!</li>
+          <li><strong>[Nỗi đau từ trạm trước]:</strong> Ghi đè trực tiếp một <code>Page</code> (<code>4-16 KB</code>) xuống <code>Data Files</code> là thao tác ghi ngẫu nhiên (<code>Random Write</code> theo <code>Offset</code> của <code>Page</code>) rất tốn thời gian; nhưng nếu chỉ sửa trên <code>RAM</code> (<code>Shared Buffers</code>) mà chưa kịp ghi xuống đĩa đã bị sập nguồn (<code>Crash</code>), toàn bộ thay đổi của <code>#HD01</code> sẽ bốc hơi — vi phạm tính bền vững (<code>Durability</code>).</li>
+        </ul>
+
+        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Bảng Đối chiếu]</h3>
+        ${buildVisualBlock(
+          "db-2-3",
+          "Sơ đồ 2.3 — Giải phẫu Luồng Ghi Kép (Write Path): WAL Buffer vs Shared Buffers (Dirty Page) cho Đơn hàng #HD01",
+          d["2.3"].ascii,
+          d["2.3"].mermaid,
+          "Luồng ghi kép trong PostgreSQL khi chạy lệnh UPDATE DonGia = 30000 cho #HD01: (1a) Nhánh tốc độ cao ghi tuần tự mã LSN #905 vào WAL Buffer và được WAL Writer đẩy tức thì xuống DISK: WAL FILES (Append-only) ngay khi COMMIT; (1b) Nhánh bất đồng bộ sửa trực tiếp Page trên Shared Buffers thành DIRTY PAGE và chờ tiến trình Checkpointer gom xả định kỳ (mỗi 5 phút) theo Offset xuống DISK: DATA FILES."
+        )}
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Thành phần trong Luồng Ghi</th>
+                <th>Cơ chế vận hành vật lý</th>
+                <th>Tần suất &amp; Thời điểm đẩy xuống <code>Disk</code></th>
+                <th>Vai trò khi sập nguồn (<code>Crash Recovery</code>)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong><code>WAL Buffer</code> ➔ <code>DISK: WAL FILES</code></strong></td>
+                <td>Ghi nhận chi tiết sự thay đổi (Page nào, thay đổi cột A, dòng B trong bảng X) gắn kèm mã thứ tự <code>LSN</code> (<code>Log Sequence Number</code>) theo kiểu <code>Append-only</code> (chỉ nối thêm vào cuối file) và xả <code>RAM</code> ngay sau khi đẩy xuống đĩa.</td>
+                <td><strong>Tức thì khi <code>COMMIT</code></strong> (do tiến trình <code>WAL Writer</code> đảm nhiệm).</td>
+                <td>Là "hộp đen máy bay": Nếu máy chủ mất điện khi <code>Dirty Page</code> trên <code>RAM</code> chưa kịp ghi xuống <code>Data Files</code>, <code>Recovery Manager</code> sẽ đọc lại các bản ghi <code>LSN</code> trong <code>WAL Files</code> để tái tạo chính xác đơn <code>#HD01</code>.</td>
+              </tr>
+              <tr>
+                <td><strong><code>Shared Buffers</code> (<code>Dirty Page</code>) ➔ <code>DISK: DATA FILES</code></strong></td>
+                <td>Nạp khối <code>Page</code> (<code>4-16 KB</code>) lên <code>RAM</code>, sửa trực tiếp giá trị <code>DonGia = 30000</code> trên <code>Page</code> khiến nó trở thành <code>Dirty Page</code> (trang bẩn — dữ liệu trên <code>RAM</code> mới hơn trên <code>Disk</code>).</td>
+                <td><strong>Thong thả, định kỳ (ví dụ <code>5 phút</code> một lần)</strong> tiến trình <code>Checkpointer</code> mới gom hàng nghìn khối <code>Dirty Page</code> xả xuống ghi đè đúng <code>Offset</code> trong <code>Data Files</code>.</td>
+                <td>Sau khi <code>Checkpointer</code> ghi đè thành công <code>Dirty Page</code> xuống <code>Data Files</code>, <code>Page</code> đó trở lại trạng thái sạch (<code>Clean</code>) và các file <code>WAL</code> cũ trước mốc đó có thể được thu hồi.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>[Bổ sung Chuyên sâu +30% — Sách <em>Database Internals</em> Ch.5 &amp; <em>PostgreSQL Internals</em>]: Quy luật Vàng <code>Write-Ahead Logging</code>, Chống Rách Trang (<code>Torn Page</code>) &amp; Phục hồi <code>REDO</code></h4>
+        <ul>
+          <li><strong>Quy luật bất biến của <code>WAL</code> (<code>WAL Rule</code>):</strong> Một khối <code>Dirty Page</code> trên <code>Shared Buffers</code> <strong>không bao giờ được phép ghi xuống <code>Data Files</code> trước khi bản ghi nhật ký <code>WAL</code> có mã <code>LSN</code> tương ứng của nó đã nằm yên an toàn trên đĩa <code>WAL Files</code></strong> (tức là luôn đảm bảo $\text{Flushed\_WAL\_LSN} \ge \text{Page\_Header\_LSN}$).</li>
+          <li><strong>Chống thảm họa "Rách trang" (<code>Torn Page</code>) bằng <code>full_page_writes = on</code>:</strong> Vì hệ điều hành Linux thường ghi đĩa theo từng khối <code>4KB</code> trong khi trang của <code>PostgreSQL</code> rộng <code>8KB</code>, nếu mất điện đúng lúc đang ghi nửa chừng một trang <code>8KB</code>, trang đó sẽ bị "rách" (<code>4KB</code> đầu là dữ liệu mới, <code>4KB</code> sau là dữ liệu cũ). Để chống lỗi này, ngay lần đầu tiên một trang bị sửa sau mỗi kỳ <code>Checkpoint</code>, <code>PostgreSQL</code> chép nguyên vẹn cả ảnh chụp <code>8KB</code> (<code>Full Page Image - FPI</code>) vào trong <code>WAL</code>!</li>
+          <li><strong>Cơ chế phục hồi <code>REDO</code> tự động khi bật lại máy:</strong> Khi máy chủ khởi động lại sau sự cố sập nguồn, <code>Recovery Manager</code> tìm tới vị trí <code>Redo Point</code> của kỳ <code>Checkpoint</code> thành công gần nhất trong <code>WAL Files</code>. Với mỗi bản ghi <code>WAL</code> từ đó trở đi, nó so sánh mã <code>LSN</code> của bản ghi <code>WAL</code> với <code>pd_lsn</code> trong <code>Page Header</code> dưới đĩa: nếu $\text{WAL\_LSN} > \text{Page\_LSN}$, nó phát lại (<code>Replay / REDO</code>) thay đổi đó lên trang; nếu $\text{WAL\_LSN} \le \text{Page\_LSN}$, trang đó đã được ghi rồi nên bỏ qua an toàn (đảm bảo tính <code>Idempotent</code> tuyệt đối).</li>
+          <li><strong>[Đúc kết Cơ học &amp; Đánh đổi ➔ Chuyển giao sang Chặng 3]:</strong> Toàn bộ thiết kế <code>Storage Engine</code> xoay quanh 3 tính chất cốt lõi: <code>Buffering</code> (giữ <code>Dirty Page</code> trên <code>RAM</code> để gom nhiều thao tác), <code>Immutability</code> (tính bất biến <code>Append-only</code> của <code>WAL Files</code>), và <code>Ordering</code> (sắp xếp thứ tự khóa để đọc nhanh). Nhờ tách bạch <code>WAL Writer</code> (ghi tuần tự tức thì để bảo toàn <code>Durability</code>) và <code>Checkpointer</code> (gom ghi ngẫu nhiên mỗi <code>5 phút</code> để tối ưu thông lượng <code>I/O</code>), đơn hàng <code>#HD01</code> vừa được chốt đơn cực nhanh vừa bất tử trước sự cố mất điện. <strong>Tuy nhiên, nỗi đau mới lại ập đến:</strong> Cơ chế này chạy tuyệt vời khi chỉ có mình <code>Lan</code> thao tác; nhưng vào giờ cao điểm trưa, khi <strong>1,000 khách hàng và nhân viên cùng lúc vừa đọc vừa sửa giá, vừa hủy đơn trên cùng một <code>Page</code></strong>, làm sao để họ không đọc phải dữ liệu rác đang sửa dở (<code>Dirty Read</code>), không khóa cứng (<code>Lock</code>) toàn bộ cửa hàng, và tìm ra <code>#HD01</code> giữa hàng trăm nghìn đơn hàng mà không phải lật từng <code>Page</code>? Chúng ta tiến vào <strong>Chặng 3: Kiểm soát Đồng thời (<code>Concurrency Control</code>) &amp; Thực thi Truy vấn (<code>Query Execution</code>)</strong>.</li>
+        </ul>
+
+        <section class="summary-section" id="db-2-summary" tabindex="-1">
+          <h2>TÓM TẮT BỎ TÚI CHẶNG 2 &amp; CHECKLIST TỰ KIỂM TRA (STORAGE ENGINE &amp; MEMORY)</h2>
+          <p><strong>Mạch nhân – quả Chặng 2 (Trạm 2.1 ➔ Trạm 2.3):</strong></p>
+          <ul>
+            <li><strong>[Trạm 2.1]</strong> Mỗi kết nối của khách hàng sinh ra 1 <code>Backend Process</code> riêng, làm việc trực tiếp trên vùng bộ nhớ dùng chung <code>Shared Memory</code> (<code>shared_buffers = 131584</code> trang <code>8kB</code> <code>~1GB</code>, <code>work_mem = 5120 kB</code>) để tránh độ trễ đọc đĩa trực tiếp ➔</li>
+            <li><strong>[Trạm 2.2]</strong> Dữ liệu giữa <code>RAM</code> và <code>Disk</code> được đóng gói vào các khối trang cố định <code>8KB Slotted Page</code> với mảng con trỏ <code>Line Pointers [Ptr 1, Ptr 2]</code> mọc từ trên xuống và các dòng dữ liệu <code>Tuples (#HD01)</code> mọc ngược từ đáy trang đi lên gặp nhau ở <code>Free Space</code> ➔</li>
+            <li><strong>[Trạm 2.3]</strong> Khi sửa đơn <code>#HD01</code>, <code>PostgreSQL</code> tách làm 2 nhánh: sửa trên <code>Shared Buffers</code> đánh dấu thành <code>Dirty Page</code> (chờ <code>Checkpointer</code> gom xả ngẫu nhiên mỗi <code>5 phút</code> xuống <code>Data Files</code>), đồng thời ghi tuần tự mã <code>LSN</code> vào <code>WAL Buffer</code> để <code>WAL Writer</code> đẩy tức thì xuống <code>WAL Files</code> ngay lúc <code>COMMIT</code>.</li>
+          </ul>
+          <p><strong>Checklist tự kiểm tra Chặng 2 (5 Câu hỏi Bản chất):</strong></p>
+          <ol>
+            <li>Hãy phân biệt rõ vai trò của <code>Shared Buffers</code> (bộ nhớ đệm trang dùng chung cho toàn máy chủ) và <code>work_mem</code> (bộ nhớ riêng cho từng phép sắp xếp/băm). Điều gì xảy ra nếu một câu lệnh <code>ORDER BY</code> vượt quá dung lượng <code>work_mem</code>?</li>
+            <li>Tại sao bên trong một khối <code>Slotted Page (8KB)</code>, mảng con trỏ <code>Line Pointers</code> lại được thiết kế mọc từ trên xuống trong khi dữ liệu <code>Row Tuples</code> lại mọc từ đáy trang đi lên?</li>
+            <li>Khi một dòng dữ liệu của <code>#HD01</code> bị dịch chuyển vị trí bên trong trang <code>8KB</code> để chống phân mảnh (<code>Defragmentation</code>), tại sao các chỉ mục <code>Index</code> bên ngoài trỏ vào dòng đó không bị hỏng?</li>
+            <li>Tại sao khi khách hàng bấm <code>COMMIT</code> đơn hàng <code>#HD01</code>, <code>PostgreSQL</code> lại chọn đẩy <code>WAL Buffer</code> xuống <code>WAL Files</code> ngay lập tức thay vì ép ghi <code>Dirty Page</code> xuống <code>Data Files</code> ngay lúc đó?</li>
+            <li>Nếu máy chủ đột ngột mất điện ở phút thứ 3 (khi <code>WAL Files</code> đã có mã <code>LSN #905</code> nhưng <code>Checkpointer</code> 5 phút vẫn chưa chạy), quá trình <code>Crash Recovery</code> khi bật lại máy sẽ dựa vào thông số nào trong <code>Page Header</code> để khôi phục <code>#HD01</code>?</li>
+          </ol>
+          <p style="margin-top:14px;"><a href="#topic=F03&stage=3" onclick="selectStorageStage(3);return false;">Sang Chặng 3: Concurrency Control &amp; Query Execution (Vận hành đồng thời &amp; Tối ưu truy vấn) ➔</a></p>
+        </section>
       </div>
     `;
   }
@@ -9754,23 +10603,343 @@ clean:
           "Tổng quan 3 trạm của Chặng 3: [Trạm 3.1] Giao dịch ACID, Lock Manager, MVCC Snapshot không khóa đọc-ghi, Isolation Levels (Dirty Reads/Dirty Writes) & Autovacuum Worker thu hồi Dead Tuples; [Trạm 3.2] Cấu trúc chỉ mục B-Tree (khả biến trên đĩa + Latch Crabbing, tối ưu đọc) đối sánh với LSM-Tree (bất biến append-only, tối ưu ghi); [Trạm 3.3] Query Optimizer, EXPLAIN ANALYZE và bộ công cụ psql, pgAdmin 4, pg_stat_statements."
         )}
 
-        <h2 id="db-3-1" tabindex="-1">TRẠM 3.1: ACID TRANSACTIONS, LOCK MANAGER, MVCC &amp; AUTOVACUUM WORKER</h2>
+        <h2 id="db-3-1" tabindex="-1">TRẠM 3.1: ACID TRANSACTIONS, LOCK MANAGER, MVCC &amp; AUTOVACUUM WORKER (GIAO DỊCH &amp; KIỂM SOÁT ĐỒNG THỜI ĐA PHIÊN BẢN)</h2>
         <ul>
-          <li><strong>Đọc không chặn ghi với <code>MVCC</code> (<code>Multi-Version Concurrency Control</code>):</strong> Thay vì khóa cứng toàn bảng khi <code>UPDATE</code> đơn <code>#HD01</code>, <code>PostgreSQL</code> sinh ra một <code>MVCC Tuple</code> phiên bản mới và cấp <code>Snapshot</code> theo từng mức cô lập (<code>Isolation Levels</code>) kết hợp <code>Lock Manager</code> để chặn đứng dị thường <code>Dirty Reads</code> và <code>Dirty Writes</code>.</li>
-          <li><strong>Thu hồi bản ghi cũ bằng <code>Autovacuum Worker</code>:</strong> Các phiên bản cũ của <code>#HD01</code> sau khi cập nhật sẽ được tiến trình ngầm <code>Autovacuum</code> quét dọn và trả lại khoảng trống <code>Free Space</code> trên trang <code>8KB</code>.</li>
+          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Nếu dùng cơ chế khóa truyền thống (<code>Locking</code>), mỗi khi nhân viên thu ngân đang sửa giá món trong đơn <code>#HD01</code>, họ sẽ khóa trái cửa phòng hồ sơ — bắt tất cả quản lý muốn vào xem báo cáo phải đứng ngoài hành lang chờ. Ngược lại, cơ chế <code>MVCC</code> (<code>Multiversion Concurrency Control</code> — Kiểm soát đồng thời đa phiên bản) hoạt động như việc <strong>chụp ảnh lấy liền (<code>Snapshot</code>)</strong>: người quản lý vào xem sẽ được phát bức ảnh chụp đơn <code>#HD01</code> ở trạng thái cũ (<code>DonGia = 25000</code>), trong khi thu ngân cứ việc viết đơn <code>#HD01</code> phiên bản mới (<code>DonGia = 30000</code>) ra một dòng mới bên cạnh. Khi không còn ai nhìn vào bức ảnh cũ nữa, nhân viên vệ sinh <code>Autovacuum Worker</code> sẽ đi ngang qua và dọn tờ giấy cũ đó đi!</li>
+          <li><strong>[Nỗi đau từ trạm trước]:</strong> Khi nhiều <code>Request</code> cùng đọc/ghi đồng thời vào <code>Shared Buffers</code>, nếu không có ranh giới giao dịch (<code>Transaction Boundary</code>), hệ thống sẽ dính lỗi <code>Dirty Read</code> (đọc phải dữ liệu chưa <code>COMMIT</code> của giao dịch khác rồi giao dịch đó bị <code>Rollback</code>), <code>Dirty Write</code> (ghi đè chéo làm hỏng dữ liệu), hoặc rơi vào <code>Deadlock</code> (hai giao dịch khóa chéo chờ nhau vô tận).</li>
         </ul>
 
-        <h2 id="db-3-2" tabindex="-1">TRẠM 3.2: STORAGE STRUCTURES (B-TREE VS LSM-TREE) &amp; INDEXING STRATEGIES</h2>
+        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Bảng Dữ liệu thật]</h3>
+        ${buildVisualBlock(
+          "db-3-1",
+          "Sơ đồ 3.1 — Giải phẫu Ranh giới Giao dịch (ACID), Cơ chế MVCC Snapshot & Tiến trình Dọn rác Autovacuum (#HD01)",
+          d["3.1"].ascii,
+          d["3.1"].mermaid,
+          "Giải phẫu ranh giới giao dịch ACID và cơ chế đa phiên bản MVCC trên cùng Data Page: khi Giao dịch T1 (TxID=100) UPDATE DonGia = 30000 cho #HD01, PostgreSQL không ghi đè dòng cũ mà sinh ra Tuple Phiên bản 2 (Mới); Giao dịch T2 (TxID=101) đọc bản chụp Snapshot ổn định ở Tuple Phiên bản 1 (25000) nên Readers không bao giờ chặn Writers; sau khi COMMIT, Autovacuum Worker quét dọn Dead Tuple để thu hồi Free Space."
+        )}
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Thuộc tính <code>ACID</code> &amp; Cơ chế</th>
+                <th>Định nghĩa cơ học từ Sách (<code>[HAERDER83]</code>)</th>
+                <th>Sự cố xảy ra nếu bị vi phạm (<code>Anomalies</code>)</th>
+                <th>Cơ chế bảo vệ đơn <code>#HD01</code> trong <code>PostgreSQL</code></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong><code>Atomicity</code> (Tính nguyên tử)</strong></td>
+                <td>Giao dịch là một đơn vị công việc logic không thể chia cắt (<code>Indivisible logical unit of work</code>): tất cả các thao tác trong giao dịch phải cùng thành công hoặc cùng hủy bỏ (<code>Rollback</code>).</td>
+                <td>Trừ tiền khách hàng <code>Lan</code> xong nhưng lệnh lưu chi tiết món <code>#HD01</code> bị lỗi giữa chừng khiến mất tiền mà không có trà sữa.</td>
+                <td>Quản lý bởi <code>Transaction Manager</code> và <code>Recovery Manager</code> thông qua cơ chế <code>Rollback</code>.</td>
+              </tr>
+              <tr>
+                <td><strong><code>Consistency</code> (Tính nhất quán)</strong></td>
+                <td>Giao dịch không được phép để cơ sở dữ liệu rơi vào trạng thái mâu thuẫn logic sau khi kết thúc.</td>
+                <td>Tổng tiền hóa đơn <code>#HD01</code> lệch với tổng thành tiền các dòng trong <code>BANG_CHITIET_HOADON</code>.</td>
+                <td>Bảo vệ bởi hệ thống <code>Constraints</code> (<code>PK</code>, <code>FK</code>, <code>UNIQUE</code>, <code>CHECK</code>) và <code>Transaction Manager</code>.</td>
+              </tr>
+              <tr>
+                <td><strong><code>Isolation</code> (Tính cô lập) &amp; <code>MVCC</code></strong></td>
+                <td>Các giao dịch chạy đồng thời không được làm nhiễu loạn trạng thái trung gian của nhau.</td>
+                <td>• <code>Dirty Reads</code> (trang 95): T2 đọc phải giá <code>30000</code> khi T1 chưa <code>COMMIT</code>.<br>• <code>Dirty Writes</code> (trang 96): Hai giao dịch ghi đè lộn xộn lên cùng bản ghi.<br>• <code>Deadlocks</code> (trang 101): Kẹt khóa vòng tròn.</td>
+                <td>Kết hợp <code>Lock Manager</code> (khóa đối tượng khi ghi xung đột) và <code>MVCC</code> (duy trì nhiều phiên bản bản ghi để đọc và ghi không chặn nhau).</td>
+              </tr>
+              <tr>
+                <td><strong><code>Durability</code> (Tính bền vững)</strong></td>
+                <td>Khi giao dịch đã báo <code>COMMIT</code> thành công, dữ liệu không bao giờ bị mất dưới bất kỳ hoàn cảnh nào.</td>
+                <td>Báo "Đặt đơn <code>#HD01</code> thành công" trên màn hình điện thoại nhưng sập nguồn làm mất đơn.</td>
+                <td>Ép ghi tuần tự qua <code>WAL Buffer</code> ➔ <code>WAL Writer</code> ➔ <code>WAL Files</code> ngay thời điểm <code>COMMIT</code>.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>[Bổ sung Chuyên sâu +30% — Sách <em>Database Internals</em> Ch.5 &amp; <em>PostgreSQL Internals</em>]: Giải phẫu Cặp Nhãn <code>xmin / xmax</code> trong Tuple Header &amp; Ma trận 4 Mức Cô lập (<code>Isolation Levels</code>)</h4>
         <ul>
-          <li><strong>Từ <code>Seq Scan</code> sang <code>B-Tree Index</code> &amp; <code>Latch Crabbing</code>:</strong> Thay vì quét tuần tự toàn bộ <code>100 triệu dòng</code> (<code>Seq Scan</code>), truy vấn nhảy qua cây cân bằng <code>B-Tree Index</code> (cấu trúc khả biến trên đĩa, tối ưu tốc độ đọc, bảo vệ truy cập đồng thời trên các nút cây bằng thuật toán <code>Latch Crabbing</code>).</li>
-          <li><strong>Đối sánh <code>B-Tree</code> vs <code>LSM-Tree</code> (Sách <em>Database Internals</em>):</strong> Đặt cạnh <code>LSM-Tree</code> (<code>Log-Structured Merge-tree</code> — cây hợp nhất cấu trúc nhật ký bất biến, ghi nối đuôi <code>Append-only LSM</code> vào <code>MemTable</code>/<code>SSTable</code>, tối ưu cho tải ghi cực lớn).</li>
+          <li><strong>Cơ chế vật lý của <code>MVCC</code> qua cặp nhãn <code>t_xmin</code> và <code>t_xmax</code>:</strong> Làm sao <code>PostgreSQL</code> biết <code>Tuple Phiên bản 1 (25000)</code> là của <code>T2</code> đọc còn <code>Tuple Phiên bản 2 (30000)</code> là của <code>T1</code> vừa sửa? Mỗi dòng dữ liệu (<code>HeapTupleHeaderData</code> rộng <code>23 bytes</code>) luôn mang 2 con dấu mã giao dịch:
+            <ul>
+              <li><strong><code>xmin</code>:</strong> Lưu mã <code>TxID</code> của giao dịch đã <strong>sinh ra (<code>INSERT</code>)</strong> phiên bản dòng này.</li>
+              <li><strong><code>xmax</code>:</strong> Lưu mã <code>TxID</code> của giao dịch đã <strong>xóa hoặc cập nhật (<code>DELETE / UPDATE</code>)</strong> dòng này (nếu dòng vẫn đang sống hiện hành thì <code>xmax = 0</code>). Khi <code>T1 (TxID = 100)</code> chạy <code>UPDATE DonGia = 30000</code>, nó điền <code>xmax = 100</code> vào dòng cũ (<code>25000</code>) và chèn dòng mới (<code>30000</code>) có <code>xmin = 100, xmax = 0</code>!</li>
+            </ul>
+          </li>
+          <li><strong>Ma trận 4 Mức cô lập giao dịch chuẩn SQL (<code>Isolation Levels</code>):</strong></li>
+        </ul>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Mức Cô lập (<code>Isolation Level</code>)</th>
+                <th><code>Dirty Read</code> (Đọc rác chưa Commit)</th>
+                <th><code>Non-Repeatable Read</code> (Đọc lại cùng 1 dòng thấy giá trị khác)</th>
+                <th><code>Phantom Read</code> (Đọc lại thấy xuất hiện thêm dòng ma)</th>
+                <th>Cách vận hành thực tế trong <code>PostgreSQL</code></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>1. <code>READ UNCOMMITTED</code></strong></td>
+                <td>Chặn hoàn toàn (nhờ <code>MVCC</code>)</td>
+                <td>Có thể xảy ra</td>
+                <td>Có thể xảy ra</td>
+                <td>Trong <code>PostgreSQL</code>, mức này tự động được nâng lên hành xử giống hệt <code>READ COMMITTED</code> (không bao giờ cho phép <code>Dirty Read</code>).</td>
+              </tr>
+              <tr>
+                <td><strong>2. <code>READ COMMITTED</code> (Mặc định)</strong></td>
+                <td>Chặn hoàn toàn</td>
+                <td>Có thể xảy ra</td>
+                <td>Có thể xảy ra</td>
+                <td>Mỗi câu lệnh <code>SELECT</code> bên trong giao dịch sẽ chụp một bức ảnh <code>Snapshot</code> mới tính tới thời điểm câu lệnh đó bắt đầu chạy.</td>
+              </tr>
+              <tr>
+                <td><strong>3. <code>REPEATABLE READ</code></strong></td>
+                <td>Chặn hoàn toàn</td>
+                <td>Chặn hoàn toàn</td>
+                <td>Chặn hoàn toàn (trong <code>PostgreSQL</code>)</td>
+                <td>Giữ cố định bức ảnh <code>Snapshot</code> chụp tại câu lệnh đầu tiên cho tới hết giao dịch; nếu 2 giao dịch cùng sửa 1 dòng <code>#HD01</code> sẽ bắn lỗi <code>ERROR: could not serialize access due to concurrent update</code>.</td>
+              </tr>
+              <tr>
+                <td><strong>4. <code>SERIALIZABLE</code></strong></td>
+                <td>Chặn hoàn toàn</td>
+                <td>Chặn hoàn toàn</td>
+                <td>Chặn hoàn toàn + Chặn <code>Write Skew</code></td>
+                <td>Sử dụng thuật toán <code>SSI</code> (<code>Serializable Snapshot Isolation</code>) với khóa vị từ <code>SIREAD Locks</code> để đảm bảo kết quả chạy song song giống hệt như xếp hàng chạy tuần tự từng giao dịch một.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <ul>
+          <li><strong>[Đúc kết Cơ học &amp; Đánh đổi]:</strong> <code>MVCC</code> giúp tăng vọt thông lượng xử lý đồng thời của <code>#HD01</code> vì thao tác đọc (<code>SELECT</code>) và thao tác ghi (<code>UPDATE</code>) không khóa cứng lẫn nhau. Đánh đổi lại, mỗi lần <code>UPDATE</code> hay <code>DELETE</code> (đánh dấu xóa bằng <code>Deletion markers</code> / <code>Tombstones</code>), dung lượng trang đĩa bị phình ra do chứa nhiều phiên bản cũ, bắt buộc phải có tiến trình nền <code>Autovacuum Worker</code> chạy định kỳ để dọn rác và chống phân mảnh (<code>Defragmentation</code>). Tuy nhiên, dù không bị kẹt khóa, khi cửa hàng có hơn <code>100,000 orders</code> như bộ dữ liệu thương mại điện tử <code>ShopSphere</code>, làm thế nào để tìm ra đúng đơn <code>#HD01</code> mà không phải đọc toàn bộ các <code>Page</code> từ đầu đến cuối? Chúng ta bước sang <strong>Trạm 3.2: Cấu trúc Lưu trữ (<code>B-Trees</code> vs <code>LSM-Trees</code>) &amp; Chiến lược Đánh chỉ mục (<code>Indexing</code>)</strong>.</li>
         </ul>
 
-        <h2 id="db-3-3" tabindex="-1">TRẠM 3.3: QUERY OPTIMIZER, EXECUTION PLAN (EXPLAIN ANALYZE) &amp; ADMINISTRATION TOOLS</h2>
+        <hr />
+
+        <h2 id="db-3-2" tabindex="-1">TRẠM 3.2: STORAGE STRUCTURES (B-TREES VS LSM-TREES) &amp; INDEXING STRATEGIES (CẤU TRÚC CÂY CHỈ MỤC &amp; ĐÁNH ĐỔI ĐỌC/GHI)</h2>
         <ul>
-          <li><strong>Giải phẫu chi phí truy vấn &amp; tối ưu <code>JOIN</code>:</strong> Bộ tối ưu hóa <code>Query Optimizer</code> phân tích thống kê để lập <code>Execution Plan</code>; kỹ sư đo lường thực tế qua lệnh <code>EXPLAIN ANALYZE</code> và bộ công cụ quản trị <code>psql</code>, <code>pgAdmin 4</code> cùng tiện ích <code>pg_stat_statements</code>.</li>
-          <li><strong>Nỗi đau chuyển giao sang Chặng 4:</strong> Một máy chủ <code>PostgreSQL</code> (<code>Single Node</code>) dù tối ưu kịch trần vẫn chạm ngưỡng vật lý <code>CPU/RAM/Disk</code> và đối mặt nguy cơ đứt cáp mạng hoặc cháy ổ cứng! <a href="#topic=F03&stage=4" onclick="selectStorageStage(4);return false;">Bước sang Chặng 4: Scalability, High Availability &amp; NoSQL Trade-offs ➔</a></li>
+          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Tìm đơn hàng <code>#HD01</code> trong một bảng không có <code>Index</code> (Chỉ mục) giống như việc bạn phải lật đọc từ trang 1 đến trang 1,000 của một cuốn từ điển không xếp theo vần (<code>Full Table Scan</code>). <code>B-Tree Index</code> chính là trang Mục lục phân cấp ở đầu sách giúp bạn nhảy đúng 3 bước (Tập ➔ Chương ➔ Trang) là chạm ngay tới <code>#HD01</code>. Trong khi đó, <code>LSM-Tree</code> (<code>Log-Structured Merge-tree</code> — Cây hợp nhất cấu trúc nhật ký) lại giống như việc bạn ghi chép mọi đơn hàng mới vào từng cuốn sổ tay nhỏ trên bàn (<code>Memtable</code>), hễ đầy sổ thì đóng mộc niêm phong cất xuống kệ (<code>Immutable SSTable</code>) rồi định kỳ gộp các cuốn sổ nhỏ thành cuốn sổ lớn ở hậu trường!</li>
+          <li><strong>[Nỗi đau từ trạm trước]:</strong> Sau khi chuẩn hóa lên <code>3NF</code>, đơn hàng <code>#HD01</code> bị tách ra 4 bảng (<code>KhachHang</code>, <code>HoaDon</code>, <code>MonAn</code>, <code>ChiTietHoaDon</code>). Mỗi khi chạy lệnh <code>JOIN</code> qua các khóa ngoại (<code>FK</code>) hoặc tìm kiếm theo <code>MaHD</code>, nếu không có cấu trúc chỉ mục trên đĩa (<code>Access Methods</code>), <code>Execution Engine</code> phải nạp hàng chục nghìn <code>Data Pages</code> lên <code>Shared Buffers</code>, làm tràn bộ nhớ đệm và gây độ trễ cao.</li>
         </ul>
+
+        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Bảng Đối chiếu]</h3>
+        ${buildVisualBlock(
+          "db-3-2",
+          "Sơ đồ 3.2 — Giải phẫu 2 Cấu trúc Lưu trữ Trên Đĩa: B-Tree (Mutable) vs LSM-Tree (Immutable Append-Only)",
+          d["3.2"].ascii,
+          d["3.2"].mermaid,
+          "Đối sánh cơ học 2 cấu trúc chỉ mục trên đĩa: (1) B-Tree Index (PostgreSQL, InnoDB) với Root Page -> Internal Node -> Leaf Page (con trỏ ngang Blink-Tree) nhảy thẳng tới (Page #42, Slot Ptr #1), sửa đè tại chỗ (Mutable), tối ưu tốc độ Đọc; (2) LSM-Tree (RocksDB/MyRocks, Cassandra) ghi vào Memtable trên RAM + WAL rồi xả tuần tự thành các file bất biến Immutable SSTables và gộp ngầm qua Compaction, tối ưu tốc độ Ghi."
+        )}
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Cấu trúc Lưu trữ (<code>Access Method</code>)</th>
+                <th><code>Buffering</code> (Đệm trong bộ nhớ trước khi ghi đĩa)</th>
+                <th><code>Immutability</code> (Bất biến — File trên đĩa không sửa đè)</th>
+                <th><code>Ordering</code> (Lưu trữ bản ghi theo thứ tự khóa)</th>
+                <th>Đặc tính Cơ học &amp; Ứng dụng thực tế (Theo <em>Database Internals</em> — Figure I-1)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong><code>B-Trees</code> (<code>PostgreSQL</code>, <code>InnoDB</code>)</strong></td>
+                <td>Không dùng để gom cấu trúc (Dùng <code>Buffer Pool</code> đệm <code>Page</code>).</td>
+                <td><strong>Không (<code>Mutable</code>):</strong> Sửa đè trực tiếp tại chỗ (<code>In-place update</code>) trên các <code>Page</code> <code>4-16 KB</code>.</td>
+                <td><strong>Có (<code>Ordered</code>):</strong> Các khóa luôn được sắp xếp thứ tự giúp tìm kiếm khoảng (<code>Range Scan</code>) cực tốt.</td>
+                <td>Tối ưu cho tốc độ <strong>Đọc (<code>Read Latency</code> thấp)</strong> vì mỗi khóa chỉ nằm ở một vị trí duy nhất; nhược điểm là phát sinh <code>Random Write I/O</code> khi chèn/sửa và phải tách trang (<code>Page Split</code>).</td>
+              </tr>
+              <tr>
+                <td><strong><code>Bw-Trees</code></strong></td>
+                <td>Có (Đệm các thay đổi dưới dạng chuỗi <code>Delta nodes</code>).</td>
+                <td><strong>Có (<code>Immutable</code>):</strong> Không sửa đè trang ngay mà gắn thêm các <code>Delta nodes</code> trên nền <code>Log-structured storage</code>.</td>
+                <td><strong>Có (<code>Ordered</code>):</strong> Chỉ các nút đã hợp nhất (<code>Consolidated nodes</code>) mới giữ các bản ghi có thứ tự.</td>
+                <td>Loại bỏ việc khóa trang (<code>Latch-free</code>) khi ghi đồng thời bằng cách gom các cập nhật thành <code>Delta records</code> trước khi hợp nhất.</td>
+              </tr>
+              <tr>
+                <td><strong><code>Multicomponent LSM-Trees</code> (<code>RocksDB</code>)</strong></td>
+                <td><strong>Có (<code>Buffered</code>):</strong> Đệm toàn bộ lượt ghi mới vào bộ nhớ trước khi xả xuống đĩa.</td>
+                <td><strong>Có (<code>Immutable</code>):</strong> Mọi file trên đĩa là bất biến; khi xóa <code>#HD01</code> chỉ ghi thêm một nhãn bia mộ (<code>Delete entry</code> / <code>Tombstone</code> trang 137).</td>
+                <td><strong>Có (<code>Ordered</code>):</strong> Dữ liệu được sắp xếp theo khóa trong từng thành phần để hỗ trợ quét khoảng.</td>
+                <td>Tối ưu cho tốc độ <strong>Ghi (<code>Write Throughput</code> cao)</strong> vì biến mọi thao tác ghi thành ghi tuần tự (<code>Sequential Write</code>); đánh đổi lại khi đọc có thể phải kiểm tra nhiều file và tốn tài nguyên trộn file (<code>Compaction</code>).</td>
+              </tr>
+              <tr>
+                <td><strong><code>Bitcask</code></strong></td>
+                <td>Không (<code>Unbuffered</code>).</td>
+                <td><strong>Có (<code>Immutable</code>):</strong> Bảng băm cấu trúc nhật ký (<code>Log-Structured Hash Table</code>) chỉ ghi nối đuôi.</td>
+                <td><strong>Không (<code>Unordered</code>):</strong> Không sắp xếp thứ tự khóa trên đĩa.</td>
+                <td>Truy xuất <code>Key-Value</code> cực nhanh (1 lần đọc đĩa) khi toàn bộ bảng băm khóa vừa vặn trong <code>RAM</code>, nhưng không hỗ trợ quét theo khoảng khóa.</td>
+              </tr>
+              <tr>
+                <td><strong><code>WiscKey</code></strong></td>
+                <td>Chỉ dùng <code>Buffering</code> để giữ phần <code>Keys</code> có thứ tự trong cây <code>LSM</code>.</td>
+                <td><strong>Có (<code>Immutable</code>):</strong> Tách rời <code>Keys</code> (lưu trong <code>LSM-Tree</code>) khỏi <code>Values</code> (lưu trong <code>Value Log</code> riêng).</td>
+                <td><strong>Có (<code>Ordered</code>):</strong> Giữ thứ tự trên phần <code>Keys</code>.</td>
+                <td>Thiết kế chuyên biệt cho ổ cứng <code>SSD</code> (<code>SSD-Conscious Storage</code>): khi hợp nhất (<code>Compaction</code>) chỉ phải chép lại các <code>Keys</code> nhỏ gọn thay vì chép cả <code>Values</code> nặng nề.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>[Bổ sung Chuyên sâu +30% — Sách <em>Database Internals</em> Ch.4–7]: Thuật toán <code>Latch Crabbing</code>, Con trỏ <code>B-Link Tree</code> (Lehman &amp; Yao) &amp; Bộ lọc <code>Bloom Filter</code></h4>
+        <ul>
+          <li><strong>Thuật toán <code>Latch Crabbing</code> (Khóa bò kiểu cua trên cây <code>B-Tree</code> — trang 102):</strong> Khi một luồng cần chèn hoặc sửa khóa <code>'HD01'</code> trên cây <code>B-Tree</code> trong lúc hàng trăm luồng khác đang duyệt cây, nó bảo vệ tính toàn vẹn của các nút cây bằng quy trình 3 bước: (1) Khóa chốt (<code>Latch</code>) nút cha; (2) Khóa chốt nút con bên dưới; (3) Kiểm tra xem nút con có "an toàn" không (không bị đầy tới mức phải tách trang <code>Page Split</code> khi chèn, hoặc không quá vơi tới mức phải gộp trang <code>Page Merge</code> khi xóa) — nếu nút con an toàn, lập tức <strong>nhả khóa chốt ở tất cả các nút tổ tiên bên trên</strong> để giải phóng đường đi cho các luồng khác!</li>
+          <li><strong>Cấu trúc <code>B-Link Tree</code> (<code>Lehman &amp; Yao</code>) trong <code>PostgreSQL</code>:</strong> Các trang lá và trang nhánh của <code>B-Tree</code> trong <code>PostgreSQL</code> được bổ sung thêm một <strong>con trỏ ngang trỏ sang trang anh em bên phải (<code>Right-Sibling Pointer</code>)</strong> kèm một khóa chặn trên (<code>High Key</code>). Nhờ đó, ngay cả khi một trang đang trong quá trình tách đôi (<code>Page Split</code>) chưa kịp cập nhật lên nút cha, luồng đọc đi tới trang cũ thấy khóa cần tìm lớn hơn <code>High Key</code> chỉ việc rẽ ngang sang trang bên phải mà không bao giờ cần khóa chặn luồng ghi!</li>
+          <li><strong>Cứu cánh <code>Bloom Filter</code> cho <code>LSM-Tree</code> (trang 155):</strong> Vì <code>LSM-Tree</code> có hàng chục file <code>SSTable</code> bất biến xếp chồng từ <code>Level 0</code> xuống <code>Level N</code>, để tránh việc một câu lệnh tìm đơn <code>#HD01</code> phải mở đọc từng file <code>SSTable</code> trên đĩa, mỗi file được gắn một mảng bit xác suất <code>Bloom Filter</code> trên <code>RAM</code>: nếu <code>Bloom Filter</code> báo <em>"Khóa <code>#HD01</code> chắc chắn không có trong file này"</em>, động cơ bỏ qua ngay file đó với chi phí <code>0 Disk I/O</code>!</li>
+          <li><strong>[Đúc kết Cơ học &amp; Đánh đổi]:</strong> Hiểu rõ ma trận 3 tính chất (<code>Buffering</code>, <code>Immutability</code>, <code>Ordering</code>) giúp kỹ sư chọn đúng công cụ: dùng <code>B-Tree Index</code> trên mọi cột <code>PK</code> và <code>FK</code> (<code>MaHD</code>, <code>MaKH</code>, <code>MaMon</code>) của <code>PostgreSQL</code>/<code>MySQL</code> để tăng tốc độ truy vấn và phép nối <code>JOIN</code>; nhưng tránh đánh <code>Index</code> tràn lan trên các cột ít truy vấn vì mỗi <code>Index</code> cộng thêm sẽ làm chậm thao tác <code>INSERT</code>/<code>UPDATE</code> do phải cập nhật thêm các nhánh cây. Vậy làm sao để kiểm tra xem <code>PostgreSQL</code> có thực sự dùng <code>B-Tree Index</code> cho câu lệnh truy vấn đơn <code>#HD01</code> hay không, và quản lý quyền truy cập vào bảng đó như thế nào? Chúng ta tiến tới <strong>Trạm 3.3</strong>.</li>
+        </ul>
+
+        <hr />
+
+        <h2 id="db-3-3" tabindex="-1">TRẠM 3.3: QUERY OPTIMIZER, EXPLAIN PLAN, SQL COMMAND GROUPS &amp; ACCESS CONTROL (POLP) (TỐI ƯU TRUY VẤN &amp; BẢO MẬT PHÂN QUYỀN)</h2>
+        <ul>
+          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Khi bạn gõ địa chỉ giao trà sữa lên bản đồ GPS (<code>SQL Query</code>), bạn chỉ nói "Tôi muốn đến nhà bạn <code>Lan</code>", chứ không chỉ dẫn rẽ trái hay rẽ phải ở từng ngã tư. <code>Query Optimizer</code> chính là bộ định tuyến GPS bên trong cơ sở dữ liệu: nó tự động phân tích mật độ giao thông (<code>Index Cardinality</code>, kích thước bảng) để vẽ ra lộ trình nhanh nhất (<code>Execution Plan</code>). Lệnh <code>EXPLAIN</code> (trong <code>PostgreSQL</code>) hay <code>EXPLAIN PLAN</code> (trong <code>MySQL</code>) chính là màn hình hiển thị trước lộ trình đó để kỹ sư kiểm tra xem xe có đi vào đường cao tốc (<code>Index Scan</code>) hay lại đi bộ qua đường làng (<code>Sequential Scan</code>)!</li>
+          <li><strong>[Nỗi đau từ trạm trước]:</strong> Đã tạo bảng <code>3NF</code> và đánh <code>B-Tree Index</code> đầy đủ, nhưng nếu viết câu lệnh <code>SQL</code> bất cẩn (như lấy thừa cột, nối bảng sai cách) khiến <code>Query Optimizer</code> chọn phương án quét toàn bảng, hoặc cấp quyền quản trị tối cao cho tài khoản nhân viên báo cáo khiến họ vô tình chạy lệnh xóa bay bảng <code>HoaDon</code>, toàn bộ công sức thiết kế trước đó sẽ đổ sông đổ biển.</li>
+        </ul>
+
+        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Khối Lệnh SQL Thực Tế]</h3>
+        ${buildVisualBlock(
+          "db-3-3",
+          "Sơ đồ 3.3 — Giải phẫu Bộ Tối ưu hóa Truy vấn (Query Optimizer), EXPLAIN PLAN & Mô hình Phân quyền (Least Privilege - PoLP)",
+          d["3.3"].ascii,
+          d["3.3"].mermaid,
+          "Hành trình tối ưu hóa câu lệnh SQL truy vấn đơn #HD01: Bước 1 (Query Parser kiểm tra cú pháp & phân quyền RBAC/PoLP); Bước 2 (Cost-based Query Optimizer phân tích Index Cardinality, Intersection Size & Data Placement để loại bỏ Full Table Scan và chọn B-Tree Index Scan + Nested Loop Join); Bước 3 (Kiểm tra thực tế qua lệnh EXPLAIN / EXPLAIN ANALYZE và pg_stat_statements)."
+        )}
+
+        <pre><code>-- 1. Kiểm tra Kế hoạch thực thi (Execution Plan) cho truy vấn lấy chi tiết Đơn hàng #HD01 trên PostgreSQL
+EXPLAIN
+SELECT h.MaHD, h.NgayDat, k.TenKH, m.TenMon, ct.SoLuong, m.DonGia
+FROM HoaDon h
+JOIN KhachHang k ON h.MaKH = k.MaKH
+JOIN ChiTietHoaDon ct ON h.MaHD = ct.MaHD
+JOIN MonAn m ON ct.MaMon = m.MaMon
+WHERE h.MaHD = 'HD01';
+
+-- 2. Thiết lập Bảo mật theo Nguyên tắc Đặc quyền Tối thiểu (Principle of Least Privilege - PoLP)
+-- Cách 1: Cấp quyền chỉ đọc (SELECT) trên bảng cụ thể cho tài khoản người dùng
+CREATE USER 'user'@'localhost' IDENTIFIED BY 'secure_password';
+GRANT SELECT ON db.sales TO 'user'@'localhost';
+FLUSH PRIVILEGES;
+
+-- Cách 2: Quản lý qua Vai trò (Role-based) cho nhóm nhân viên báo cáo
+CREATE ROLE 'reporting_role';
+GRANT SELECT, INSERT, UPDATE ON mydatabase.* TO 'reporting_role';
+GRANT 'reporting_role' TO 'user'@'localhost';
+SET DEFAULT ROLE 'reporting_role' TO 'user'@'localhost';
+SET ROLE 'reporting_role';
+SHOW GRANTS;</code></pre>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nhóm lệnh <code>SQL</code> / Công cụ</th>
+                <th>Các câu lệnh &amp; Thành phần đại diện</th>
+                <th>Tác động cơ học lên Hệ thống &amp; Đơn hàng <code>#HD01</code></th>
+                <th>Nguyên tắc Thực hành Tốt nhất (<code>Best Practices</code>)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong><code>DDL</code> (<code>Data Definition Language</code>)</strong></td>
+                <td><code>CREATE TABLE</code>, <code>ALTER TABLE</code>, <code>DROP TABLE</code>, định nghĩa <code>PK</code>, <code>FK</code>, <code>Check constraint</code>, <code>Default constraint</code>, <code>Not null constraint</code>.</td>
+                <td>Khởi tạo và thay đổi cấu trúc khung lược đồ (<code>Schema</code>) và các đối tượng cơ sở dữ liệu (<code>Database Objects</code>).</td>
+                <td>Chọn đúng kiểu dữ liệu (<code>INTEGER</code>/<code>BIGINT</code> cho khóa, <code>VARCHAR</code> có giới hạn, <code>DATE</code>/<code>TIMESTAMP</code>) ngay từ đầu để tránh phải migrate tốn kém.</td>
+              </tr>
+              <tr>
+                <td><strong><code>DML</code> &amp; <code>DQL</code> (<code>Data Manipulation / Query Language</code>)</strong></td>
+                <td><code>SELECT</code>, <code>INSERT INTO ... VALUES</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>JOIN</code>, <code>Views</code>, <code>Stored Procedures</code>, <code>Triggers</code>.</td>
+                <td>Truy xuất, chèn mới, cập nhật và xóa các bản ghi của <code>#HD01</code> thông qua ngôn ngữ chuẩn hóa <code>SQL</code>.</td>
+                <td>Không coi <code>PostgreSQL</code> là kho lưu trữ thụ động (<code>Dumb storage</code>); một câu lệnh <code>SQL</code> chuẩn xác có thể giải quyết trong vài giây công việc mà lập trình viên viết code thủ công mất hàng giờ.</td>
+              </tr>
+              <tr>
+                <td><strong><code>DCL</code> (<code>Data Control Language</code>) &amp; Bảo mật</strong></td>
+                <td><code>CREATE USER</code>, <code>CREATE ROLE</code>, <code>GRANT</code>, <code>REVOKE</code>, <code>FLUSH PRIVILEGES</code>, <code>SHOW GRANTS</code>.</td>
+                <td>Kiểm soát chặt chẽ ai được phép truy cập bảng/cột nào (<code>Table and column privileges</code>) sau khi <code>Query Parser</code> thông dịch câu lệnh.</td>
+                <td>Áp dụng nghiêm ngặt <code>Principle of Least Privilege (PoLP)</code> (Nguyên tắc đặc quyền tối thiểu), kết hợp mã hóa (<code>Encryption</code>) và kiểm toán (<code>Auditing</code>).</td>
+              </tr>
+              <tr>
+                <td><strong>Công cụ Giám sát &amp; Tối ưu (<code>Optimization</code>)</strong></td>
+                <td><code>EXPLAIN</code> (<code>PostgreSQL</code>), <code>EXPLAIN PLAN</code> (<code>MySQL</code>), các công cụ giám sát hiệu năng định kỳ.</td>
+                <td>Giải phẫu chi phí truy vấn, phát hiện các phép <code>JOIN</code> thiếu chỉ mục hoặc các câu lệnh gây tải cao trên máy chủ.</td>
+                <td>Thường xuyên rà soát lược đồ và câu lệnh bằng <code>EXPLAIN</code>, kết hợp sử dụng <code>Views</code> hoặc bảng tổng hợp trước cho các báo cáo nặng.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>[Bổ sung Chuyên sâu +30% — Kịch bản Thực hành SQL &amp; Benchmark Thực tế: Nhìn tận mắt <code>Seq Scan</code> Chuyển thành <code>Index Scan</code> trên <code>PostgreSQL</code>]</h4>
+        <p>Để kiểm chứng trực tiếp sức mạnh của <code>B-Tree Index</code> và lệnh <code>EXPLAIN (ANALYZE, BUFFERS)</code> trên máy <code>PostgreSQL</code> (qua công cụ dòng lệnh <code>psql</code> hoặc giao diện <code>pgAdmin 4</code>), bạn có thể chạy trọn bộ kịch bản Benchmark dưới đây (bơm <code>100,000</code> hóa đơn giả lập cùng đơn hàng <code>#HD01</code> của <code>Lan</code>):</p>
+        <pre><code>-- BƯỚC 1: Chèn dữ liệu gốc của khách hàng Lan và Đơn hàng Trà sữa #HD01 (2026-09-26)
+INSERT INTO KhachHang (MaKH, TenKH, SoDT) VALUES ('KH01', 'Lan', '0901234567');
+INSERT INTO MonAn (MaMon, TenMon, DonGia) VALUES
+    ('M01', 'Oolong Sua', 30000.00),
+    ('M02', 'Hong Tra Tac', 25000.00);
+INSERT INTO HoaDon (MaHD, NgayDat, MaKH) VALUES ('HD01', '2026-09-26', 'KH01');
+INSERT INTO ChiTietHoaDon (MaHD, MaMon, SoLuong) VALUES
+    ('HD01', 'M01', 2),
+    ('HD01', 'M02', 1);
+
+-- BƯỚC 2: Bơm thêm 100,000 đơn hàng giả lập vào bảng kiểm thử để đo lường Seq Scan vs Index Scan
+CREATE TABLE HoaDon_Benchmark AS
+SELECT
+    'HD' || LPAD(g::text, 6, '0') AS MaHD,
+    DATE '2026-01-01' + (g % 270) AS NgayDat,
+    'KH01' AS MaKH,
+    (random() * 100000)::numeric(10,2) AS TongTien
+FROM generate_series(1, 100000) AS g;
+
+-- Chèn đơn #HD01 vào bảng Benchmark (chưa đánh Index) và cập nhật thống kê cho Query Optimizer
+INSERT INTO HoaDon_Benchmark VALUES ('HD01', '2026-09-26', 'KH01', 85000.00);
+ANALYZE HoaDon_Benchmark;
+
+-- BƯỚC 3: Chạy EXPLAIN (ANALYZE, BUFFERS) KHI CHƯA CÓ INDEX -> Phải quét tuần tự toàn bảng (Seq Scan)
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT * FROM HoaDon_Benchmark WHERE MaHD = 'HD01';
+/* Kết quả thực tế trước khi có Index:
+   Seq Scan on hoadon_benchmark  (cost=0.00..1887.01 rows=1 width=28) (actual time=11.420..11.422 rows=1 loops=1)
+     Filter: (mahd = 'HD01'::text)
+     Rows Removed by Filter: 100000
+     Buffers: shared hit=637   &lt;-- Phải đọc tới 637 trang 8KB (~5.1 MB) trên Shared Buffers!
+   Execution Time: 11.458 ms
+*/
+
+-- BƯỚC 4: Tạo B-Tree Index trên cột MaHD và chạy lại EXPLAIN (ANALYZE, BUFFERS)
+CREATE INDEX idx_hoadon_bench_mahd ON HoaDon_Benchmark USING btree (MaHD);
+
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT * FROM HoaDon_Benchmark WHERE MaHD = 'HD01';
+/* Kết quả thực tế sau khi có B-Tree Index:
+   Index Scan using idx_hoadon_bench_mahd on hoadon_benchmark  (cost=0.29..8.31 rows=1 width=28) (actual time=0.038..0.040 rows=1 loops=1)
+     Index Cond: (mahd = 'HD01'::text)
+     Buffers: shared hit=4     &lt;-- Chỉ chạm đúng 4 trang 8KB (3 nút cây B-Tree + 1 trang Data Page)!
+   Execution Time: 0.062 ms    &lt;-- Nhanh gấp ~185 lần (từ 11.458 ms xuống 0.062 ms)!
+*/</code></pre>
+
+        <ul>
+          <li><strong>[Đúc kết Cơ học &amp; Đánh đổi ➔ Chuyển giao sang Chặng 4]:</strong> Tới đây, trên một máy chủ đơn lẻ (<code>Single-Node DBMS</code>), đơn hàng <code>#HD01</code> đã đạt độ hoàn hảo: thiết kế <code>3NF</code> chuẩn mực, lưu trữ an toàn qua <code>Shared Buffers</code> + <code>WAL</code>, xử lý đồng thời mượt mà nhờ <code>MVCC</code>, và truy vấn tối ưu qua <code>B-Tree Index</code> + <code>EXPLAIN</code>. <strong>Nhưng nỗi đau cấp độ kiến trúc sư xuất hiện:</strong> Chuỗi trà sữa của bạn bùng nổ lên quy mô toàn cầu! Một máy chủ đơn lẻ dù nâng cấp tối đa vẫn chạm trần vật lý về <code>CPU</code>/<code>RAM</code>/<code>SSD</code>, và nguy hiểm hơn: nếu trung tâm dữ liệu đặt máy chủ đó bị đứt cáp quang hoặc cháy nổ, toàn bộ hệ thống đặt hàng sẽ tê liệt hoàn toàn! Làm sao để nhân bản và phân mảnh <code>#HD01</code> ra hàng chục máy chủ ở nhiều châu lục mà dữ liệu vẫn nhất quán? Chúng ta tiến vào chặng cuối cùng — <strong>Chặng 4: Mở rộng Quy mô (<code>Scalability</code>), Tính sẵn sàng Cao (<code>High Availability</code>) &amp; Đánh đổi <code>SQL</code> vs <code>NoSQL</code></strong>.</li>
+        </ul>
+
+        <section class="summary-section" id="db-3-summary" tabindex="-1">
+          <h2>TÓM TẮT BỎ TÚI CHẶNG 3 &amp; CHECKLIST TỰ KIỂM TRA (MVCC, INDEXING &amp; EXPLAIN)</h2>
+          <p><strong>Mạch nhân – quả Chặng 3 (Trạm 3.1 ➔ Trạm 3.3):</strong></p>
+          <ul>
+            <li><strong>[Trạm 3.1]</strong> Khi 1,000 người cùng đọc và sửa đơn <code>#HD01</code>, cơ chế <code>MVCC</code> sinh ra <code>Tuple Phiên bản 2 (Mới)</code> gắn nhãn <code>xmin/xmax</code> để giao dịch đọc (<code>Snapshot</code>) và giao dịch ghi không bao giờ khóa chặn nhau; các <code>Dead Tuples</code> cũ được <code>Autovacuum Worker</code> quét dọn ngầm ➔</li>
+            <li><strong>[Trạm 3.2]</strong> Để không phải quét toàn bảng (<code>Seq Scan</code>), <code>PostgreSQL</code> dùng cây cân bằng <code>B-Tree Index</code> (khả biến trên đĩa, khóa trang bằng <code>Latch Crabbing</code>, tối ưu Đọc), trong khi các hệ thống chuyên ghi như <code>RocksDB / Cassandra</code> dùng <code>LSM-Tree</code> (<code>Memtable + Immutable SSTables + Compaction</code>) ➔</li>
+            <li><strong>[Trạm 3.3]</strong> Bộ <code>Query Optimizer</code> phân tích thống kê <code>Index Cardinality</code> để lập <code>Execution Plan</code> chi phí thấp nhất (kiểm chứng bằng <code>EXPLAIN ANALYZE</code> giảm từ <code>637 buffers / 11.45ms</code> xuống <code>4 buffers / 0.06ms</code>), kết hợp bảo mật đặc quyền tối thiểu <code>PoLP</code>.</li>
+          </ul>
+          <p><strong>Checklist tự kiểm tra Chặng 3 (5 Câu hỏi Bản chất):</strong></p>
+          <ol>
+            <li>Khi thu ngân chạy lệnh <code>UPDATE MonAn SET DonGia = 30000 WHERE MaMon = 'M01'</code>, tại sao quản lý đang chạy lệnh <code>SELECT</code> cùng lúc đó lại không bị chặn và vẫn nhìn thấy giá <code>25000</code> ổn định?</li>
+            <li>Tại sao một bảng trong <code>PostgreSQL</code> có tần suất <code>UPDATE / DELETE</code> cực cao lại bị phình dung lượng đĩa (<code>Table Bloat</code>) nếu tiến trình <code>Autovacuum Worker</code> bị tắt?</li>
+            <li>Hãy đối sánh <code>B-Tree</code> và <code>LSM-Tree</code> dựa trên 3 biến số <code>Buffering</code>, <code>Immutability</code> và <code>Ordering</code>. Khi nào bạn chọn <code>B-Tree</code> và khi nào bạn chọn <code>LSM-Tree</code>?</li>
+            <li>Trong kết quả của lệnh <code>EXPLAIN (ANALYZE, BUFFERS)</code>, con số <code>Buffers: shared hit=4</code> khi có <code>B-Tree Index</code> phản ánh chính xác những bước nhảy vật lý nào trên các trang <code>8KB</code>?</li>
+            <li>Nguyên tắc <code>Principle of Least Privilege (PoLP)</code> được triển khai bằng nhóm lệnh <code>DCL</code> (<code>CREATE ROLE</code>, <code>GRANT</code>, <code>REVOKE</code>) như thế nào để ngăn chặn thảm họa nhân viên báo cáo xóa nhầm bảng dữ liệu?</li>
+          </ol>
+          <p style="margin-top:14px;"><a href="#topic=F03&stage=4" onclick="selectStorageStage(4);return false;">Sang Chặng 4: Scalability, High Availability &amp; NoSQL Trade-offs (Mở rộng quy mô &amp; Phân tán) ➔</a></p>
+        </section>
       </div>
     `;
   }
@@ -9790,22 +10959,247 @@ clean:
           "Tổng quan 3 trạm của Chặng 4: [Trạm 4.1] Vertical Scaling (Scale-up) vs Horizontal Scaling (Scale-out / Partitioning / Sharding); [Trạm 4.2] Replication (Sync/Async), Failover, High Availability (HA), cụm đa vùng 6 PGD Nodes + PGD Proxy + Witness Node vùng 3 (Global Consensus Raft/Paxos), Barman Backup & Distributed SQL (TiDB, YDB); [Trạm 4.3] 4 họ NoSQL (Key-Value, Document/BSON, Column-Family, Graph), định lý CAP (CA/CP/AP) & giao dịch BASE (Eventual Consistency, LWW, Vector Clocks)."
         )}
 
-        <h2 id="db-4-1" tabindex="-1">TRẠM 4.1: VERTICAL SCALING (SCALE-UP) VS HORIZONTAL SCALING (SCALE-OUT / SHARDING)</h2>
+        <h2 id="db-4-1" tabindex="-1">TRẠM 4.1: VERTICAL SCALING (SCALE-UP) VS HORIZONTAL SCALING (SCALE-OUT), REPLICATION &amp; SHARDING (MỞ RỘNG HẠ TẦNG &amp; NHÂN BẢN)</h2>
         <ul>
-          <li><strong>Từ nâng cấp dọc sang phân mảnh ngang:</strong> Khi <code>Vertical Scaling</code> (<code>Scale-up</code> — nâng cấp 1 máy chủ to hơn) chạm trần phần cứng và chi phí, hệ thống chuyển sang <code>Horizontal Scaling</code> (<code>Scale-out</code>) bằng cách chia nhỏ dữ liệu <code>#HD01</code> qua <code>Partitioning</code> và phân tán thành các <code>Distributed Shard</code> (<code>Sharding</code>) trên nhiều <code>Node</code>.</li>
+          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Khi quán trà sữa quá tải, bạn có 2 cách mở rộng:
+            <ol>
+              <li><strong><code>Vertical Scaling</code> (<code>Scale-up</code> — Mở rộng theo chiều dọc):</strong> Tuyển một pha chế viên siêu cấp có 8 tay và lắp mặt bàn to gấp đôi tại duy nhất 1 cửa hàng cũ (nâng cấp <code>CPU</code>, <code>RAM</code>, ổ <code>SSD</code> cho 1 máy chủ).</li>
+              <li><strong><code>Horizontal Scaling</code> (<code>Scale-out</code> — Mở rộng theo chiều ngang):</strong> Mở thêm 10 chi nhánh mới trên khắp thành phố (<code>Nodes</code>), trong đó chia nhỏ danh sách khách hàng theo từng quận cho từng chi nhánh giữ (<code>Sharding</code> / <code>Database Partitioning</code>), đồng thời mỗi chi nhánh có một sổ sao lưu chép lại tức thì (<code>Replication</code>) để nếu chi nhánh chính mất điện thì chi nhánh phụ lên thay ngay (<code>Failover</code>)!</li>
+            </ol>
+          </li>
+          <li><strong>[Nỗi đau từ trạm trước]:</strong> Mở rộng dọc (<code>Scale-up</code>) nhanh gọn vì không phải sửa code ứng dụng, nhưng sớm chạm giới hạn phần cứng vật lý, chi phí tăng phi tuyến tính và vẫn tồn tại điểm chết duy nhất (<code>Single Point of Failure</code>). Khi bước sang mở rộng ngang (<code>Scale-out</code>), ta lập tức đối mặt với độ trễ mạng giữa các máy chủ và bài toán kinh điển của hệ thống phân tán.</li>
         </ul>
 
-        <h2 id="db-4-2" tabindex="-1">TRẠM 4.2: REPLICATION (SYNC/ASYNC), HIGH AVAILABILITY (HA) &amp; DISTRIBUTED POSTGRESQL</h2>
+        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Bảng Đối chiếu]</h3>
+        ${buildVisualBlock(
+          "db-4-1",
+          "Sơ đồ 4.1 — Giải phẫu Scale-up vs Scale-out (Sharding) & Cơ chế Replication (Sync vs Async) cho Đơn hàng #HD01",
+          d["4.1"].ascii,
+          d["4.1"].mermaid,
+          "Đối sánh Vertical Scaling (Scale-up nâng cấp 1 máy chủ đơn lẻ từ CPU x4/RAM 16G lên CPU x64/RAM 512G) với Horizontal Scaling (Scale-out / Sharding chia đơn hàng #HD01..#HD99 ra 3 Shard Node A/B/C), cùng cơ chế nhân bản Synchronous Replication (chờ Replica ACK, 0 mất dữ liệu) vs Asynchronous Replication (báo OK ngay, sao chép ngầm)."
+        )}
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Chiến lược Mở rộng / Giao thức</th>
+                <th>Bản chất cơ học vận hành</th>
+                <th>Ưu điểm nổi bật</th>
+                <th>Thách thức &amp; Đánh đổi Kỹ thuật (<code>Trade-offs</code>)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong><code>Vertical Scaling</code> (<code>Scale-up</code>)</strong></td>
+                <td>Nâng cấp tài nguyên phần cứng (<code>CPU</code>, <code>RAM</code>, <code>SSDs</code>) trên một máy chủ đơn lẻ.</td>
+                <td>Đơn giản trong vận hành, không phát sinh chi phí truyền mạng liên nút hay giao dịch đa phân mảnh.</td>
+                <td>Chạm trần phần cứng vật lý; nếu máy chủ hỏng thì toàn bộ hệ thống ngừng hoạt động.</td>
+              </tr>
+              <tr>
+                <td><strong><code>Horizontal Scaling</code> (<code>Sharding</code> / <code>Partitioning</code>)</strong></td>
+                <td>Phân chia dữ liệu ra nhiều <code>Nodes</code> độc lập trên phần cứng phổ thông (<code>Commodity hardware</code>).</td>
+                <td>Mở rộng dung lượng lưu trữ và tải xử lý gần như không giới hạn khi dữ liệu lớn lên.</td>
+                <td>Giao dịch vắt ngang nhiều phân mảnh (<code>Multishard</code> / <code>Multipartition transactions</code> trang 80, 269) đòi hỏi giao thức phối hợp phức tạp làm giảm hiệu năng.</td>
+              </tr>
+              <tr>
+                <td><strong><code>Synchronous</code> vs <code>Asynchronous Replication</code></strong></td>
+                <td>Sao chép dữ liệu từ nút chính (<code>Primary</code>) sang các nút phụ (<code>Replicas</code>) trong <code>PostgreSQL</code> và <code>MySQL</code>.</td>
+                <td>Tăng khả năng chịu lỗi (<code>Fault tolerance</code>), hỗ trợ chuyển đổi dự phòng (<code>Failover</code>) và chia tải đọc.</td>
+                <td>• <code>Synchronous</code>: Chờ nút phụ xác nhận mới trả kết quả, tăng độ trễ theo khoảng cách mạng.<br>• <code>Asynchronous</code>: Nhanh nhưng nếu nút chính sập đột ngột trước khi kịp đồng bộ, đơn <code>#HD01</code> vừa ghi có thể bị thất lạc.</td>
+              </tr>
+              <tr>
+                <td><strong>Thuật toán Đồng thuận Phân tán (<code>Consensus</code>)</strong></td>
+                <td>Giải quyết bài toán truyền tin qua mạng không tin cậy (<code>Two Generals' Problem</code> trang 187) và bất khả thi đồng thuận bất đồng bộ khi có lỗi (<code>FLP Impossibility</code> trang 189).</td>
+                <td>Giúp các <code>Nodes</code> thống nhất trạng thái dữ liệu và bầu chọn nút trưởng (<code>Leader</code>) tự động mà không bị chia rẽ (<code>Split-brain</code>).</td>
+                <td>Sử dụng các thuật toán như <code>Paxos</code>, <code>Multi-Paxos</code>, <code>Fast Paxos</code>, <code>EPaxos</code>, <code>Raft</code>, <code>ZAB</code> (trang xiv, 287–291) đòi hỏi tối thiểu quá bán số nút (<code>Quorum</code>) phản hồi.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>[Bổ sung Chuyên sâu +30% — Sách <em>PostgreSQL: Up and Running</em> &amp; <em>Database Internals</em> Ch.8–13]: Phân mảnh Bảng Nội bộ (<code>Declarative Partitioning</code>) vs Phân mảnh Cụm (<code>Sharding</code> &amp; <code>2PC</code>)</h4>
         <ul>
-          <li><strong>Nhân bản <code>Primary ➔ Replica</code> &amp; Sao lưu <code>Barman</code>:</strong> Đối chiếu nhân bản đồng bộ và bất đồng bộ (<code>Replication Sync/Async</code>), tự động chuyển đổi dự phòng (<code>Failover</code>) và sao lưu phục hồi thảm họa bằng <code>Barman Backup</code>.</li>
-          <li><strong>Kiến trúc đa vùng luôn sẵn sàng (<code>Always-on Multi-location</code>) &amp; <code>Distributed SQL</code>:</strong> Thiết kế cụm <code>6 PGD nodes</code> (3 nodes/vùng) kết hợp <code>PGD Proxy</code> và <code>Witness Node</code> đặt ở vùng thứ 3 để giữ đồng thuận toàn cục (<code>Global Consensus</code> như <code>Raft</code>/<code>Paxos</code>), cùng các hệ <code>Distributed SQL</code> hiện đại như <code>TiDB</code> và <code>YDB</code>.</li>
+          <li><strong>Phân biệt <code>Table Partitioning</code> (trên 1 cụm máy chủ) và <code>Distributed Sharding</code> (vắt ngang nhiều máy chủ):</strong> Trước khi đẩy hệ thống sang kiến trúc đa máy chủ phức tạp, <code>PostgreSQL</code> cung cấp cơ chế <strong><code>Declarative Partitioning</code></strong> chia một bảng <code>HoaDon</code> khổng lồ thành các bảng vật lý nhỏ hơn theo 3 chiến lược: <code>PARTITION BY RANGE (NgayDat)</code> (chia theo từng tháng/quý), <code>PARTITION BY LIST (KhuVuc)</code>, hoặc <code>PARTITION BY HASH (MaHD)</code>. Nhờ cơ chế <code>Partition Pruning</code>, khi truy vấn đơn <code>#HD01</code> ngày <code>2026-09-26</code>, <code>Query Optimizer</code> tự động bỏ qua toàn bộ các phân vùng của các tháng khác!</li>
+          <li><strong>Chi phí của giao dịch liên phân mảnh (<code>Cross-Shard Transactions</code> &amp; <code>Two-Phase Commit - 2PC</code>):</strong> Khi dữ liệu bị băm sang nhiều máy chủ vật lý khác nhau (<code>Sharding</code>), nếu một giao dịch vừa cập nhật ví của <code>Lan</code> ở <code>Shard 1 (Node A)</code> vừa ghi hóa đơn ở <code>Shard 2 (Node B)</code>, hệ thống bắt buộc phải chạy giao thức cam kết 2 pha <strong><code>Two-Phase Commit (2PC)</code></strong> (gồm pha <code>Prepare</code> hỏi ý kiến mọi nút và pha <code>Commit</code>). Nếu nút điều phối (<code>Coordinator</code>) hoặc 1 nút thành viên bị đứt mạng giữa hai pha, các bản ghi đang khóa sẽ bị treo cứng — đó là lý do kỹ sư luôn phải chọn <strong><code>Shard Key</code></strong> (như <code>MaKH</code> hoặc <code>Tenant_ID</code>) sao cho 99% giao dịch chỉ diễn ra gọn trong phạm vi 1 <code>Shard</code> duy nhất!</li>
+          <li><strong>[Đúc kết Cơ học &amp; Đánh đổi]:</strong> Như tác giả <em>Database Internals</em> đúc kết ở trang 313: <code>Storage Engine</code> quyết định <strong>Hiệu năng cục bộ (<code>Performance</code>)</strong> trên từng nút, còn hệ thống giao tiếp cụm quyết định <strong>Khả năng mở rộng (<code>Scalability</code>)</strong> của toàn cụm; nhưng nếu đặt một giao thức cam kết nguyên tử chậm chạp lên trên một <code>Storage Engine</code> nhanh nhất thì kết quả tổng thể vẫn chậm! Vậy trong thực tế doanh nghiệp, người ta lắp ráp các nút <code>PostgreSQL</code> đa vùng địa lý và các hệ quản trị <code>Distributed SQL</code> thế hệ mới như thế nào để đạt trạng thái <strong>Luôn sẵn sàng (<code>Always-on High Availability</code>)</strong>? Chúng ta bước sang <strong>Trạm 4.2</strong>.</li>
         </ul>
 
-        <h2 id="db-4-3" tabindex="-1">TRẠM 4.3: SQL VS NOSQL DATA MODELS, CAP THEOREM (CA/CP/AP) &amp; BASE TRANSACTIONS</h2>
+        <hr />
+
+        <h2 id="db-4-2" tabindex="-1">TRẠM 4.2: ALWAYS-ON MULTI-LOCATION HA (ENTERPRISEDB PGD) &amp; NEXT-GEN DATABASES (TIDB, YUGABYTEDB, CLICKHOUSE) (KIẾN TRÚC ĐA VÙNG &amp; THẾ HỆ MỚI)</h2>
         <ul>
-          <li><strong>Bốn họ <code>NoSQL</code> &amp; Định lý <code>CAP</code> / <code>BASE</code>:</strong> Đặt <code>SQL</code> cạnh 4 mô hình dữ liệu <code>NoSQL</code> (<code>Key-Value</code>, <code>Document/BSON</code>, <code>Column-Family</code>, <code>Graph</code>). Khi xảy ra phân mảnh mạng (<code>Network Partition</code>), phân tích sự đánh đổi <code>CA/CP/AP</code> theo định lý <code>CAP</code>: chọn nhất quán tức thời (<code>ACID / CP</code>) hay sẵn sàng cao với nhất quán cuối cùng (<code>BASE / AP</code> — <code>Eventual Consistency</code>) và phân xử xung đột bằng <code>Last-Write-Wins</code> (<code>LWW</code>) hoặc <code>Vector Clocks</code>.</li>
-          <li><a href="#topic=F03&stage=1" onclick="selectStorageStage(1);return false;">Quay lại Chặng 1 (Trạm 0.0 — Bản đồ Tư duy Toàn Học phần F03 · Database Fundamentals) ➔</a></li>
+          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Để chuỗi trà sữa không bao giờ ngừng bán ngay cả khi cả một thành phố bị mất điện diện rộng (<code>Location Failure</code>), bạn xây dựng 2 trung tâm điều hành đối xứng ở <strong>Vùng 1 (TP.HCM)</strong> và <strong>Vùng 2 (Hà Nội)</strong>, mỗi vùng có 3 máy chủ dữ liệu kèm 1 trạm điều phối (<code>PGD Proxy</code>), cộng thêm 1 <strong>Trọng tài chứng kiến (<code>Witness Node</code>)</strong> đặt tại <strong>Vùng 3 (Đà Nẵng)</strong> không cần giữ hàng hóa nhưng cầm lá phiếu quyết định xem vùng nào còn sống để điều hướng khách hàng khi đứt cáp!</li>
+          <li><strong>[Nỗi đau từ trạm trước]:</strong> Nếu chỉ đặt các máy chủ <code>Replica</code> trong cùng một phòng máy, sự cố mất điện hoặc hỏa hoạn tại phòng máy đó sẽ đánh sập toàn bộ cụm. Nhưng nếu chia đều máy chủ sang 2 vùng địa lý (mỗi vùng 3 nút) mà đường cáp giữa 2 vùng bị đứt, không vùng nào chiếm được đa số phiếu để tự quyết định các thao tác toàn cục (<code>Global Consensus</code>) như thêm nút mới hay chạy lệnh <code>DDL</code> phân tán!</li>
         </ul>
+
+        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Bảng Đối chiếu]</h3>
+        ${buildVisualBlock(
+          "db-4-2",
+          "Sơ đồ 4.2 — Kiến trúc Always-On Multi-Location trong EnterpriseDB (6 PGD Nodes + Witness Node + Barman)",
+          d["4.2"].ascii,
+          d["4.2"].mermaid,
+          "Kiến trúc đa vùng luôn sẵn sàng (Always-on Multi-location) theo Chương 8 sách Database Design and Modeling: 2 vùng chính đối xứng (Location A & Location B), mỗi vùng gồm 3 PGD Proxy và 3 Data Nodes nhân bản chéo (Mesh Replication); Vùng 3 đặt Witness Node (không lưu dữ liệu, chỉ bỏ phiếu giữ Global Consensus & Distributed DDL khi 1 vùng sập); kết hợp Barman (Backup/RTO) và PEM (Monitoring)."
+        )}
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Công nghệ / Thành phần Kiến trúc</th>
+                <th>Cơ chế vận hành cốt lõi (Trích xuất từ Chương 8 — <em>Database Design and Modeling</em>)</th>
+                <th>Giải quyết bài toán thực tế nào cho hệ thống <code>#HD01</code>?</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong><code>EnterpriseDB PGD</code> (<code>6 PGD Nodes</code> + <code>PGD Proxy</code> + <code>Witness Node</code>)</strong></td>
+                <td>Gồm <code>6 PGD nodes</code> chia đều 3 nút dữ liệu mỗi vùng; mỗi nút đi kèm <code>PGD proxy</code> (ưu tiên đặt cùng nút) để kết nối gần ứng dụng; có thể chạy <code>Active/Active</code> hoặc <code>Active/Passive (DR)</code>; kèm <code>Witness node</code> ở vùng thứ 3 và <code>Barman</code> + <code>PEM</code>.</td>
+                <td>Chống sập nguồn cấp độ vùng địa lý, đảm bảo <code>RTOs</code> (<code>Recovery Time Objectives</code> — mục tiêu thời gian phục hồi trang 161) và giữ đồng thuận toàn cục khi 1 vùng bị cô lập.</td>
+              </tr>
+              <tr>
+                <td><strong><code>TiDB</code>, <code>YugabyteDB</code>, <code>YDB</code> (<code>Distributed SQL</code>)</strong></td>
+                <td>Cơ sở dữ liệu phân tán thế hệ mới thiết kế cho môi trường <code>Cloud-native</code>; riêng <code>TiDB</code> đóng vai trò là giải pháp thay thế tương thích trực tiếp (<code>Drop-in replacement</code>) cho <code>MySQL</code> trên hệ thống phân tán.</td>
+                <td>Cho phép hệ thống đặt đơn <code>#HD01</code> mở rộng ngang toàn cầu với khối lượng giao dịch lớn mà vẫn giữ được giao diện <code>SQL</code> và tính nhất quán mạnh.</td>
+              </tr>
+              <tr>
+                <td><strong><code>MySQL HeatWave</code> &amp; <code>ClickHouse</code> (<code>Columnar Databases</code>)</strong></td>
+                <td><code>ClickHouse</code> lưu trữ dữ liệu theo cột (<code>Columnar</code>) chuyên trị các truy vấn tính toán phức tạp trên tập dữ liệu lớn; <code>MySQL HeatWave</code> tích hợp tăng tốc xử lý phân tích ngay cho <code>MySQL</code>.</td>
+                <td>Giải quyết bài toán phân tích dữ liệu lịch sử hàng trăm triệu đơn trà sữa trong tích tắc mà không làm nghẽn hệ thống giao dịch chính.</td>
+              </tr>
+              <tr>
+                <td><strong><code>Vectorized Search</code> (Tìm kiếm Vector)</strong></td>
+                <td>Lưu trữ và tìm kiếm dữ liệu dựa trên biểu diễn vector nhiều chiều.</td>
+                <td>Mở rộng khả năng tìm kiếm thông minh (ví dụ: gợi ý món trà sữa tương đồng theo khẩu vị của <code>Lan</code>).</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>[Bổ sung Chuyên sâu +30% — Toán học Đồng thuận <code>Quorum</code> ($Q = \lfloor N/2 \rfloor + 1$) &amp; Bộ đôi Chỉ số Sống còn <code>RPO / RTO</code>]</h4>
+        <ul>
+          <li><strong>Tại sao bắt buộc phải có <code>Witness Node</code> ở Vùng thứ 3? (Bài toán <code>Quorum</code> số lẻ):</strong> Trong các thuật toán đồng thuận phân tán như <code>Raft</code> và <code>Paxos</code>, để tránh thảm họa "hai bộ não" (<code>Split-Brain</code> — hai vùng mất liên lạc cùng tự nhận mình là cụm chính và nhận ghi dữ liệu mâu thuẫn nhau), một quyết định toàn cục bắt buộc phải đạt đa số phiếu quá bán:
+            $$Q = \left\lfloor \frac{N}{2} \right\rfloor + 1$$
+            Nếu chỉ có <code>6 Data Nodes</code> chia đều cho Vùng 1 (<code>3 nút</code>) và Vùng 2 (<code>3 nút</code>), thì ngưỡng quá bán là $Q = \lfloor 6/2 \rfloor + 1 = 4\text{ phiếu}$. Khi Vùng 1 bị sập nguồn toàn bộ, Vùng 2 chỉ còn <code>3 phiếu</code> ($3 < 4$) nên <strong>bị đóng băng không thể đạt đồng thuận toàn cục</strong>! Khi đặt thêm <code>1 Witness Node</code> (trọng tài không lưu dữ liệu, chi phí cực rẻ) ở Vùng 3, tổng số phiếu là $N = 7$ và ngưỡng quá bán vẫn là $Q = \lfloor 7/2 \rfloor + 1 = 4\text{ phiếu}$. Lúc này, dù Vùng 1 sập hoàn toàn (mất 3 phiếu), Vùng 2 (<code>3 phiếu</code>) + Vùng 3 Witness (<code>1 phiếu</code>) = <strong><code>4 phiếu</code> ($\ge 4$)</strong> — hệ thống lập tức vượt ngưỡng <code>Quorum</code> và tiếp tục hoạt động không gián đoạn!</li>
+          <li><strong>Phân biệt 2 thước đo sinh tử trong Phục hồi Thảm họa (<code>Disaster Recovery</code>):</strong>
+            <ul>
+              <li><strong><code>RPO</code> (<code>Recovery Point Objective</code>):</strong> Lượng dữ liệu tối đa chấp nhận bị mất tính theo thời gian khi xảy ra thảm họa (ví dụ: <code>RPO = 0</code> với <code>Synchronous Replication</code>, hoặc <code>RPO &lt; 5 giây</code> với <code>Async Streaming WAL</code>).</li>
+              <li><strong><code>RTO</code> (<code>Recovery Time Objective</code>):</strong> Thời gian tối đa để hệ thống khôi phục và hoạt động trở lại sau sự cố (ví dụ: <code>RTO &lt; 5 giây</code> nhờ tự động chuyển hướng qua <code>PGD Proxy</code>, kết hợp <code>Barman</code> sao lưu ngoại vi để khôi phục theo thời điểm <code>PITR — Point-In-Time Recovery</code>).</li>
+            </ul>
+          </li>
+          <li><strong>[Đúc kết Cơ học &amp; Đánh đổi]:</strong> Để đạt được kiến trúc đa vùng luôn sẵn sàng (<code>Always-on</code>), kỹ sư bắt buộc phải đảm bảo <strong>Tính đối xứng về cấu hình và hạ tầng (<code>Configuration and infrastructure symmetry</code>)</strong> giữa các nút và các vùng để khi một vùng sập, vùng còn lại đủ sức gánh toàn bộ tải được chuyển hướng sang. Thế nhưng, nếu ứng dụng của bạn không chỉ lưu hóa đơn có cấu trúc cố định mà còn phải lưu hàng triệu bình luận đa phương tiện, giỏ hàng biến đổi cấu trúc liên tục mỗi ngày và đòi hỏi phản hồi tức thì ngay cả khi đứt cáp mạng xuyên lục địa thì sao? Đó là lúc chúng ta đặt <code>SQL</code> và <code>NoSQL</code> lên bàn cân của <strong>Định lý <code>CAP</code> và mô hình <code>BASE</code></strong> ở trạm cuối cùng — <strong>Trạm 4.3</strong>.</li>
+        </ul>
+
+        <hr />
+
+        <h2 id="db-4-3" tabindex="-1">TRẠM 4.3: SQL VS NOSQL DATA MODELS, CAP THEOREM (CA/CP/AP) &amp; BASE VS ACID (ĐỊNH LÝ CAP &amp; KIẾN TRÚC LAI)</h2>
+        <ul>
+          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Định lý <code>CAP</code> (do <code>Eric Brewer</code> đề xuất đầu những năm 2000) giống như quy luật vật lý khi hai chi nhánh trà sữa ở Quận 1 và Quận 7 bị đứt đường dây điện thoại liên lạc (<code>Partition</code> — phân mảnh mạng) đúng lúc khách hàng <code>Lan</code> vào Quận 1 nạp thêm tiền vào ví thành viên:
+            <ul>
+              <li>Nếu bạn chọn <strong><code>CP</code> (<code>Consistency</code> + <code>Partition Tolerance</code>):</strong> Chi nhánh Quận 7 lập tức treo biển "Tạm ngưng trừ tiền ví" cho đến khi nối lại điện thoại với Quận 1 để tránh việc <code>Lan</code> tiêu lố số tiền thực có (ưu tiên dữ liệu chuẩn xác tuyệt đối như ngân hàng).</li>
+              <li>Nếu bạn chọn <strong><code>AP</code> (<code>Availability</code> + <code>Partition Tolerance</code> theo mô hình <code>BASE</code>):</strong> Cả hai chi nhánh cứ cho <code>Lan</code> đặt trà sữa và tích điểm bình thường để không mất khách, rồi khi nối lại đường dây sẽ tự động cộng dồn đối soát sau (<code>Eventual Consistency</code> — nhất quán cuối cùng)!</li>
+            </ul>
+          </li>
+          <li><strong>[Nỗi đau từ trạm trước]:</strong> Các bảng <code>SQL</code> truyền thống đòi hỏi lược đồ cứng (<code>Rigid schema</code>): mỗi lần muốn thêm các trường dữ liệu lồng nhau phức tạp (như danh sách topping tùy chỉnh theo từng vùng, lịch sử hành vi lướt app dạng mảng/đối tượng con của đơn <code>#HD01</code>), việc chạy lệnh sửa cấu trúc bảng (<code>Database migrations</code>) trên hàng trăm triệu dòng rất nặng nề.</li>
+        </ul>
+
+        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Bảng Đối chiếu]</h3>
+        ${buildVisualBlock(
+          "db-4-3",
+          "Sơ đồ 4.3 — Giải phẫu 4 Mô hình NoSQL, Tam giác Đánh đổi Định lý CAP & Kiến trúc Lai (PostgreSQL Multi-Model + Redis Cache)",
+          d["4.3"].ascii,
+          d["4.3"].mermaid,
+          "Giải phẫu tam giác định lý CAP (Eric Brewer) khi xảy ra đứt mạng (Network Partition): đối sánh CA (RDBMS đơn vùng), CP (ACID — ưu tiên dữ liệu đúng tuyệt đối) và AP (BASE — ưu tiên luôn phản hồi với Eventual Consistency); 4 họ NoSQL (Key-Value Redis, Document MongoDB BSON, Column-Family Cassandra, Graph Neo4j) và kiến trúc lai thực chiến kết hợp Redis Cache + PostgreSQL Multi-Model (3NF + JSONB + hstore + ltree)."
+        )}
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Tiêu chí đặt lên bàn cân</th>
+                <th>Hệ quản trị Quan hệ (<code>SQL</code>: <code>PostgreSQL</code>, <code>MySQL</code>, <code>Oracle</code>, <code>SQL Server</code>)</th>
+                <th>Hệ quản trị Phi quan hệ (<code>NoSQL</code>: <code>MongoDB</code>, <code>Cassandra</code>, <code>Redis</code>, <code>Neo4j</code>)</th>
+                <th>Chiến lược Kết hợp Thực chiến cho Đơn hàng <code>#HD01</code></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Mô hình Dữ liệu &amp; Lược đồ (<code>Schema</code>)</strong></td>
+                <td>Tổ chức thành các bảng (<code>Tables</code>) có hàng và cột với lược đồ xác định trước; chuẩn hóa (<code>1NF</code>–<code>3NF</code>) để khử trùng lặp.</td>
+                <td>Linh hoạt hoặc không cần lược đồ cố định (<code>Schemaless</code>); ví dụ <code>MongoDB</code> lưu dưới dạng <code>BSON</code> (nhị phân của <code>JSON</code>) chứa mảng và tài liệu lồng nhau (<code>Embedded documents</code>).</td>
+                <td>Giữ thông tin tài chính và thanh toán của <code>#HD01</code> trong các bảng <code>3NF</code> trên <code>PostgreSQL</code>; còn các thuộc tính mở rộng linh hoạt của từng món lưu vào cột <code>JSONB</code> ngay trong <code>PostgreSQL</code>.</td>
+              </tr>
+              <tr>
+                <td><strong>Quản lý Giao dịch &amp; Đồng thời</strong></td>
+                <td>Tuân thủ nghiêm ngặt <strong><code>ACID</code></strong> (<code>Atomicity</code>, <code>Consistency</code>, <code>Isolation</code>, <code>Durability</code>), đảm bảo tính nhất quán mạnh (<code>Strong consistency</code>).</td>
+                <td>Thường áp dụng mô hình <strong><code>BASE</code></strong> (<code>Basically Available, Soft state, Eventual consistency</code>), ưu tiên tính sẵn sàng và mở rộng ngang trên hệ thống phân tán.</td>
+                <td>Không bao giờ dùng mô hình <code>Eventual Consistency</code> cho bước trừ tiền ví của <code>Lan</code>; nhưng dùng tốt cho bộ đếm lượt xem món hoặc lịch sử gợi ý món.</td>
+              </tr>
+              <tr>
+                <td><strong>Ngôn ngữ Truy vấn &amp; Hệ sinh thái (<code>Ecosystem</code>)</strong></td>
+                <td>Ngôn ngữ <strong><code>SQL</code> chuẩn hóa</strong> mạnh mẽ, hệ sinh thái lâu đời, cộng đồng hỗ trợ, công cụ giám sát và tài liệu cực kỳ trưởng thành.</td>
+                <td>Thiếu ngôn ngữ truy vấn chuẩn hóa chung giữa các hãng; một số hệ thống mới có độ trưởng thành hệ sinh thái và hỗ trợ giao dịch hạn chế hơn <code>SQL</code>.</td>
+                <td>Dùng <code>Redis</code> hoặc <code>Memcache</code> làm tầng đệm (<code>Cache</code>) kết quả truy vấn phía trước <code>PostgreSQL</code>, và có thể dùng <code>SQLite</code> cho tập dữ liệu ngoại tuyến (<code>Offline querying</code>) trên thiết bị.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>[Bổ sung Chuyên sâu +30% — Sách <em>Database Internals</em> Ch.11 &amp; <em>PostgreSQL: Up and Running</em>]: Giải quyết Xung đột <code>LWW vs Vector Clocks</code> &amp; Thực hành <code>PostgreSQL Multi-Model (JSONB + GIN Index)</code></h4>
+        <ul>
+          <li><strong>Cơ chế phân xử xung đột trong hệ thống <code>AP / BASE</code> (<code>Last-Write-Wins</code> vs <code>Vector Clocks</code>):</strong> Khi hai nút phân tán cùng cho phép sửa dữ liệu trong lúc đứt mạng (<code>Network Partition</code>), lúc mạng nối lại hệ thống phải hòa giải 2 phiên bản xung đột:
+            <ul>
+              <li><strong><code>Last-Write-Wins (LWW)</code>:</strong> Gắn nhãn thời gian vật lý (<code>Wall-clock Timestamp</code>) cho mỗi lần ghi và giữ lại bản có mốc thời gian lớn hơn. Rủi ro: đồng hồ vật lý giữa các máy chủ luôn bị lệch nhẹ (<code>Clock Skew</code> trong giao thức <code>NTP</code>), có thể làm bản ghi mới hơn bị nuốt mất bởi máy chủ có đồng hồ chạy nhanh!</li>
+              <li><strong><code>Vector Clocks</code> (Đồng hồ Vector):</strong> Thay vì tin vào đồng hồ vật lý, mỗi nút duy trì một mảng bộ đếm logic <code>[Node_A: v1, Node_B: v2]</code> để phát hiện chính xác 2 nhánh thay đổi xảy ra đồng thời (<code>Concurrent Siblings</code>) và chuyển cho tầng ứng dụng hoặc cấu trúc <code>CRDTs</code> hợp nhất không mất dữ liệu.</li>
+            </ul>
+          </li>
+          <li><strong>Thực hành <code>PostgreSQL Multi-Model</code> cho đơn hàng <code>#HD01</code> (Kết hợp <code>3NF</code> + <code>JSONB</code> + <code>GIN Index</code>):</strong> Thay vì phải dựng thêm một cụm <code>MongoDB</code> riêng chỉ để lưu cấu trúc <code>Topping</code> tùy chỉnh của từng ly trà sữa, <code>PostgreSQL</code> cho phép lưu trực tiếp kiểu nhị phân <code>JSONB</code> có đánh chỉ mục đảo ngược <code>GIN (Generalized Inverted Index)</code> tốc độ cao ngay bên trong bảng quan hệ:</li>
+        </ul>
+        <pre><code>-- Minh họa PostgreSQL Multi-Model: Kết hợp cột quan hệ chuẩn 3NF và cột tài liệu động JSONB cho #HD01
+ALTER TABLE ChiTietHoaDon
+ADD COLUMN TuyChonTopping JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+-- Cập nhật cấu trúc JSONB động (Mức đường, Mức đá, Mảng Topping) cho 2 ly Oolong Sua của đơn #HD01
+UPDATE ChiTietHoaDon
+SET TuyChonTopping = '{"muc_duong": "50%", "muc_da": "it_da", "toppings": ["Tran Chau Trang", "Kem Cheese"]}'::jsonb
+WHERE MaHD = 'HD01' AND MaMon = 'M01';
+
+-- Đánh chỉ mục GIN (Generalized Inverted Index) giúp truy vấn sâu bên trong các khóa/mảng JSONB tốc độ mili-giây
+CREATE INDEX idx_ct_topping_gin ON ChiTietHoaDon USING gin (TuyChonTopping);
+
+-- Truy vấn tìm tất cả các dòng hóa đơn có gọi kèm topping "Kem Cheese" bằng toán tử chứa JSONB (@&gt;)
+SELECT MaHD, MaMon, SoLuong, TuyChonTopping-&gt;&gt;'muc_duong' AS MucDuong
+FROM ChiTietHoaDon
+WHERE TuyChonTopping @&gt; '{"toppings": ["Kem Cheese"]}'::jsonb;</code></pre>
+
+        <h3>[Đúc kết Cơ học Toàn Học Phần]</h3>
+        <p>Khép lại hành trình qua <strong>4 Chặng (12 Trạm)</strong>, đơn hàng trà sữa <strong><code>#HD01</code> của khách hàng <code>Lan</code></strong> đã dạy cho chúng ta bài học cốt lõi của một Principal Database Engineer: <strong>Không có cơ sở dữ liệu nào là "viên đạn bạc" miễn phí; mọi thiết kế đều là sự đánh đổi có định lượng giữa các giới hạn vật lý:</strong></p>
+        <ol>
+          <li>Ở <strong>Tầng Mô hình (<code>Data Modeling</code>):</strong> Đánh đổi giữa <strong>Chống dư thừa/An toàn ghi (<code>3NF</code> + <code>Constraints</code>)</strong> và <strong>Tốc độ đọc không cần nối bảng (<code>Controlled Denormalization</code>)</strong>.</li>
+          <li>Ở <strong>Tầng Động cơ Lưu trữ (<code>Storage Engine</code>):</strong> Đánh đổi giữa <strong>Độ trễ đọc ngẫu nhiên (<code>Mutable B-Tree Pages</code> <code>4-16 KB</code>)</strong> và <strong>Thông lượng ghi tuần tự (<code>Immutable Append-only WAL</code> &amp; <code>LSM-Trees</code>)</strong>, được điều hòa bởi bộ nhớ đệm <code>Shared Buffers</code> (<code>Dirty Pages</code>) và tiến trình <code>Checkpointer</code> (<code>5 phút</code>/lần).</li>
+          <li>Ở <strong>Tầng Thực thi Đồng thời (<code>Concurrency &amp; Execution</code>):</strong> Đánh đổi giữa <strong>Đọc-Ghi không chặn nhau (<code>MVCC</code> sinh phiên bản mới)</strong> và <strong>Chi phí dọn rác ngầm (<code>Autovacuum Worker</code>)</strong> cùng chi phí duy trì <code>Index</code> khi tối ưu qua <code>EXPLAIN</code>.</li>
+          <li>Ở <strong>Tầng Phân tán (<code>Distributed Systems</code>):</strong> Đánh đổi giữa <strong>Tính nhất quán tức thì (<code>ACID</code> / <code>Synchronous Replication</code> / <code>CP</code>)</strong> và <strong>Tính sẵn sàng cao kèm độ trễ thấp khi mở rộng ngang (<code>BASE</code> / <code>Asynchronous Replication</code> / <code>AP</code>)</strong>.</li>
+        </ol>
+
+        <section class="summary-section" id="db-4-summary" tabindex="-1">
+          <h2>TÓM TẮT BỎ TÚI CHẶNG 4 &amp; KHÉP KÍN HÀNH TRÌNH DATABASE FUNDAMENTALS</h2>
+          <p><strong>Mạch nhân – quả khép kín toàn bộ hành trình 4 Chặng — 12 Trạm (Chặng 1 ➔ Chặng 4):</strong></p>
+          <ul>
+            <li><strong>[Chặng 1]</strong> Từ dòng văn bản thô hỗn độn <code>#HD01</code>, ta chuẩn hóa thành 4 bảng quan hệ <code>3NF</code> (<code>KhachHang</code>, <code>HoaDon</code>, <code>MonAn</code>, <code>ChiTietHoaDon</code>) và cắm 4 chốt chặn <code>Constraints</code> (<code>NOT NULL</code>, <code>DEFAULT</code>, <code>UNIQUE</code>, <code>CHECK</code>) cùng <code>PK/FK</code> ➔</li>
+            <li><strong>[Chặng 2]</strong> Động cơ <code>PostgreSQL</code> đóng gói các dòng của <code>#HD01</code> vào khung trang <code>8KB Slotted Page</code> trên vùng nhớ <code>Shared Buffers (~1GB)</code>, biến trang sửa thành <code>Dirty Page</code> (xả ngẫu nhiên mỗi <code>5 phút</code> qua <code>Checkpointer</code>) và ghi tuần tự mã <code>LSN</code> xuống <code>WAL Files</code> ngay lúc <code>COMMIT</code> ➔</li>
+            <li><strong>[Chặng 3]</strong> Khi hàng nghìn người cùng truy cập, cơ chế <code>MVCC</code> sinh phiên bản <code>Tuple</code> mới (gắn <code>xmin/xmax</code>, dọn rác ngầm bằng <code>Autovacuum</code>) để đọc không chặn ghi; đồng thời nhảy qua cây chỉ mục <code>B-Tree</code> (kiểm chứng bằng <code>EXPLAIN ANALYZE</code>) ➔</li>
+            <li><strong>[Chặng 4]</strong> Khi vượt ngưỡng 1 máy chủ vật lý, hệ thống phân mảnh ngang qua <code>Partitioning / Sharding</code>, nhân bản đa vùng trên cụm <code>6 PGD Nodes + Witness Node + Barman</code>, và kết hợp kiến trúc lai <code>Redis Cache + PostgreSQL Multi-Model (3NF + JSONB)</code> theo định lý <code>CAP / BASE</code>.</li>
+          </ul>
+          <p><strong>Checklist tự kiểm tra cuối khóa (5 Câu hỏi Bản chất để làm chủ Database Fundamentals):</strong></p>
+          <ol>
+            <li>Khi nào bạn nên ưu tiên nâng cấp dọc (<code>Vertical Scaling / Scale-up</code>) và khi nào bắt buộc phải chuyển sang phân mảnh ngang (<code>Horizontal Scaling / Sharding</code>)? Tại sao chọn sai <code>Shard Key</code> lại dẫn tới thảm họa giao dịch liên phân mảnh (<code>2PC</code>)?</li>
+            <li>Hãy giải thích sự đánh đổi giữa <code>Synchronous Replication</code> và <code>Asynchronous Replication</code> thông qua 2 chỉ số <code>RPO</code> (lượng dữ liệu có thể mất) và độ trễ <code>COMMIT</code>.</li>
+            <li>Trong kiến trúc đa vùng <code>EnterpriseDB PGD</code> gồm 2 vùng chính (mỗi vùng 3 nút dữ liệu), tại sao bắt buộc phải đặt thêm 1 <code>Witness Node</code> tại vùng địa lý thứ 3? Hãy chứng minh bằng công thức <code>Quorum</code> ($Q = \lfloor N/2 \rfloor + 1$).</li>
+            <li>Khi xảy ra đứt cáp mạng liên vùng (<code>Network Partition - P</code>), tại sao hệ thống trừ tiền ví thanh toán của <code>Lan</code> bắt buộc phải chọn <code>CP (ACID)</code> trong khi bộ đếm lượt xem và giỏ hàng tạm có thể chọn <code>AP (BASE / Eventual Consistency)</code>?</li>
+            <li>Làm thế nào để kết hợp sức mạnh của cả <code>SQL</code> và <code>NoSQL</code> ngay trong một kiến trúc hiện đại cho đơn hàng <code>#HD01</code> bằng <code>Redis</code>, bảng chuẩn <code>3NF</code> và cột <code>JSONB</code> có đánh chỉ mục <code>GIN</code> trên <code>PostgreSQL</code>?</li>
+          </ol>
+          <p style="margin-top:14px;"><a href="#topic=F03&stage=1" onclick="selectStorageStage(1);return false;">Quay lại Chặng 1 (Trạm 0.0 — Bản đồ Tư duy Toàn Học phần F03 · Database Fundamentals) ➔</a></p>
+        </section>
       </div>
     `;
   }
@@ -9821,7 +11215,7 @@ clean:
       <button type="button" class="stage-dir-item ${st.id === activeStorageStage ? 'active' : ''}" onclick="selectStorageStage(${st.id})">
         <span class="stage-dir-code">Chặng ${padNum(st.id)}</span>
         <span>${escapeHtml(st.title.replace(/^Chặng \d+:\s*/, ""))}</span>
-        <span class="stage-dir-meta">Khung 12 Trạm</span>
+        <span class="stage-dir-meta">Đã có bài</span>
       </button>
     `).join("");
 
@@ -12233,6 +13627,144 @@ def main():
         D3["• 4 họ NoSQL: Key-Value, Document/BSON, Column-Family, Graph<br/>• Định lý CAP khi đứt mạng (P): Chọn [ACID / CP] hay [BASE / AP]?<br/>• Giải quyết xung đột Eventual Consistency bằng Last-Write-Wins (LWW) & Vector Clocks"]
     end
     T1 --> T2 --> T3""",
+
+        "1.1": """flowchart TD
+    subgraph L1 ["1. APPLICATION CLIENT & TRANSPORT SUBSYSTEM"]
+        C1["• Application Client (Quầy thu ngân): Gửi câu lệnh INSERT #HD01 / SELECT #HD01<br/>• Client Communication (Tiếp nhận kết nối) <--> Cluster Communication (Giao tiếp Node)"]
+    end
+    subgraph L2 ["2. QUERY PROCESSOR"]
+        C2["• Query Parser: Phân tích cú pháp SQL, kiểm tra hợp lệ & quyền truy cập (Access)<br/>• Query Optimizer: Dựa vào Index Cardinality & Data Placement lập Dependency Tree chi phí thấp nhất"]
+    end
+    subgraph L3 ["3. EXECUTION ENGINE"]
+        C3["• Local Execution (Thực thi dữ liệu tại Node hiện tại)<br/>• Remote Execution (Điều phối thực thi từ Node xa)"]
+    end
+    subgraph L4 ["4. STORAGE ENGINE (PLuggable: InnoDB / WiredTiger / RocksDB)"]
+        C4["• Transaction Manager (Lập lịch giao dịch) & Lock Manager (Khóa đối tượng đồng thời)<br/>• Access Methods (Heap Files, B-Trees p.33, LSM-Trees p.130)<br/>• Buffer Manager (Đệm Pages trên RAM p.81) & Recovery Manager (WAL Log khôi phục p.88)"]
+    end
+    L1 --> L2 --> L3 --> L4""",
+
+        "1.2": """flowchart LR
+    subgraph G1 ["1. LỰC LƯỢNG QUAN HỆ (CARDINALITY)"]
+        K1["• 1:1 (One-to-One): KhachHang (1) --- (1) TheThanhVien_VIP<br/>• 1:N (One-to-Many): KhachHang (1) --- (<) HoaDon (Lan đặt nhiều đơn)<br/>• M:N (Many-to-Many): HoaDon (>) --- ChiTietHoaDon --- (<) MonAn"]
+    end
+    subgraph G2 ["2. ERD & CƠ CHẾ KHÓA (PK / FK)"]
+        K2["• BANG_KHACHHANG (PK: MaKH, TenKH, SoDT)<br/>• BANG_HOADON (PK: MaHD, FK: MaKH, NgayDat DATE)<br/>• BANG_MONAN (PK: MaMon, TenMon UNIQUE, DonGia DECIMAL)<br/>• BANG_CHITIET_HOADON (Composite PK: MaHD + MaMon, SoLuong INTEGER)"]
+    end
+    subgraph G3 ["3. PHỄU LỌC 4 CHỐT CHẶN CONSTRAINTS"]
+        K3["• Chốt 1: NOT NULL & DEFAULT (Cấm rỗng, tự điền 25000.00)<br/>• Chốt 2: UNIQUE (Cấm trùng tên món trong menu)<br/>• Chốt 3: CHECK (chk_dongia_duong: DonGia > 0, SoLuong > 0)<br/>• Chốt 4: PK / FK (Bảo vệ Referential Integrity liên bảng)"]
+    end
+    G1 --> G2 --> G3""",
+
+        "1.3": """flowchart LR
+    subgraph N0 ["BƯỚC 0: UNF (BẢNG GỘP LỘN XỘN)"]
+        U0["• Ô DanhSachMon: 'Oolong (30k, SL:2), HongTra (25k)'<br/>• Nỗi đau: Không thể chạy SQL SUM() hay đếm từng món"]
+    end
+    subgraph N1 ["BƯỚC 1: 1NF (ATOMIC VALUES)"]
+        U1["• Mỗi ô 1 giá trị đơn + Composite PK (MaHD, MaMon)<br/>• Nỗi đau: Phụ thuộc hàm bộ phận (Partial Dependency)"]
+    end
+    subgraph N2 ["BƯỚC 2: 2NF (TÁCH 3 BẢNG)"]
+        U2["• Tách BANG_HOADON, BANG_MONAN, BANG_CHITIET_HOADON<br/>• Nỗi đau: Phụ thuộc bắc cầu MaHD -> MaKH -> (TenKH, SoDT)"]
+    end
+    subgraph N3 ["BƯỚC 3: 3NF / BCNF (4 BẢNG SẠCH)"]
+        U3["• Tách BANG_KHACHHANG (PK: MaKH) khỏi BANG_HOADON<br/>• Khử sạch Insertion / Update / Deletion Anomalies"]
+    end
+    N0 --> N1 --> N2 --> N3""",
+
+        "2.1": """flowchart LR
+    subgraph P1 ["1. CLIENT & BACKEND PROCESS"]
+        M1["• Client Process (#HD01) kết nối tới PostgreSQL<br/>• Sinh Backend Process riêng cho từng kết nối<br/>• Temp Buffers cục bộ (work_mem = 5120 kB)"]
+    end
+    subgraph P2 ["2. RAM: SHARED MEMORY"]
+        M2["• Shared Buffers (shared_buffers = 131584 ~ 1GB gồm các trang 8kB)<br/>• WAL Buffer (Đệm nhật ký thay đổi trước khi xuống đĩa)<br/>• CLOG Buffers (Commit Log trạng thái giao dịch)"]
+    end
+    subgraph P3 ["3. TIẾN TRÌNH NỀN & DISK STORAGE"]
+        M3["• WAL Writer --> DISK: WAL FILES (Ghi tuần tự khi Commit)<br/>• Writer & Checkpointer --> DISK: DATA FILES (Bảng & Index)<br/>• Autovacuum Launcher --> Autovacuum Worker (Dọn bản ghi rác)"]
+    end
+    P1 --> P2 --> P3""",
+
+        "2.2": """flowchart LR
+    subgraph S1 ["1. CẤU TRÚC KHUNG SLOTTED PAGE (4-16 KB)"]
+        P21["• PAGE HEADER: Chứa mã LSN, trạng thái trang, biên vùng trống<br/>• Line Pointers (Offset Array): [Ptr 1] -> [Ptr 2] -> [Ptr 3] (Mọc từ trên xuống)<br/>• VÙNG TRỐNG TỰ DO (FREE SPACE) ở chính giữa<br/>• Bản ghi Tuple #HD01 (Mọc ngược từ đáy trang đi lên)"]
+    end
+    subgraph S2 ["2. ROW-ORIENTED VS COLUMN-ORIENTED LAYOUT"]
+        P22["• Row-Oriented (PostgreSQL, MySQL): Lưu liền kề từng dòng [HD01 | Lan | 30000] -> Tối ưu OLTP đọc/ghi nguyên đơn<br/>• Column-Oriented (ClickHouse): Lưu liền kề từng cột [30000 | 25000 | 30000] -> Nén cực tốt & tối ưu OLAP SUM(DonGia)<br/>• Indirection qua Ptr giữ Index không bị gãy khi Defragmentation"]
+    end
+    S1 --> S2""",
+
+        "2.3": """flowchart LR
+    subgraph W1 ["1. NHÁNH NHẬT KÝ TUẦN TỰ (FAST COMMIT PATH)"]
+        P23A["• UPDATE DonGia = 30000 --> Ghi vào WAL BUFFER (LSN #905)<br/>• Khi COMMIT: Tiến trình WAL Writer đẩy tức thì (Sequential Append)<br/>• Lưu bền vững xuống DISK: WAL FILES (Phục vụ Crash Recovery)"]
+    end
+    subgraph W2 ["2. NHÁNH TRANG DỮ LIỆU (ASYNC BATCH PATH)"]
+        P23B["• Nạp Page chứa #HD01 lên SHARED BUFFERS & sửa trực tiếp trên RAM<br/>• Đánh dấu thành DIRTY PAGE (giữ lại trên RAM thong thả)<br/>• Định kỳ 5 phút: Tiến trình Checkpointer gom xả (Random Overwrite theo Offset) xuống DISK: DATA FILES"]
+    end
+    W1 --> W2""",
+
+        "3.1": """flowchart LR
+    subgraph V1 ["1. RANH GIỚI GIAO DỊCH ACID & LOCK MANAGER"]
+        P31A["• Atomicity (Rollback sạch sẽ) & Consistency (Constraints)<br/>• Isolation (Chặn Dirty Reads p.95, Dirty Writes p.96, Deadlocks p.101)<br/>• Durability (WAL Commit)"]
+    end
+    subgraph V2 ["2. ĐA PHIÊN BẢN MVCC TRÊN DATA PAGE (#HD01)"]
+        P31B["• T1 (TxID=100) UPDATE DonGia = 30000 --> Sinh Tuple Phiên bản 2 (Mới)<br/>• T2 (TxID=101) SELECT DonGia --> Đọc Snapshot Tuple Phiên bản 1 (Cũ: 25000)<br/>• Readers don't block Writers & Writers don't block Readers!"]
+    end
+    subgraph V3 ["3. THU HỒI RÁC NGẦM AUTOVACUUM"]
+        P31C["• Sau khi T1 & T2 COMMIT: Tuple Phiên bản 1 thành Dead Tuple (Deletion Marker)<br/>• Autovacuum Launcher gọi Autovacuum Worker quét dọn<br/>• Chống phân mảnh (Defragmentation) & trả lại Free Space"]
+    end
+    V1 --> V2 --> V3""",
+
+        "3.2": """flowchart LR
+    subgraph I1 ["1. B-TREE INDEX (MUTABLE ON-DISK - POSTGRESQL)"]
+        P32A["• Root Page (< 'HD50' | >= 'HD50') --> Internal Node ('HD01'..'HD25')<br/>• Leaf Page (Blink-Tree ngang): Key 'HD01' --> (Page #42, Slot Ptr #1)<br/>• Sửa đè tại chỗ (In-place update), khóa trang bằng Latch Crabbing, tối ưu Đọc (Read Latency thấp)"]
+    end
+    subgraph I2 ["2. LSM-TREE (IMMUTABLE APPEND-ONLY - ROCKSDB)"]
+        P32B["• Ghi #HD01 vào Memtable (RAM, sắp thứ tự) + Ghi WAL trên Disk<br/>• Xả tuần tự thành Level 0 Immutable SSTables (Xóa bằng Tombstone p.137)<br/>• Tiến trình Compaction ngầm gộp xuống Level 1..N, tối ưu Ghi (Write Throughput cao)"]
+    end
+    I1 --> I2""",
+
+        "3.3": """flowchart LR
+    subgraph Q1 ["1. QUERY PARSER & BẢO MẬT LEAST PRIVILEGE (PoLP)"]
+        P33A["• Kiểm tra cú pháp SQL & phân quyền RBAC / PoLP<br/>• GRANT SELECT ON db.sales TO 'user'@'localhost'<br/>• Quản lý qua Role: CREATE ROLE 'reporting_role'"]
+    end
+    subgraph Q2 ["2. COST-BASED QUERY OPTIMIZER"]
+        P33B["• Phân tích Index Cardinality, Intersection Size & Data Placement<br/>• Loại bỏ Full Table Scan (Seq Scan)<br/>• Chọn B-Tree Index Scan trên PK/FK + Nested Loop / Hash Join"]
+    end
+    subgraph Q3 ["3. EXPLAIN ANALYZE & 5 NHÓM LỆNH SQL"]
+        P33C["• Kiểm tra kế hoạch thực thi bằng EXPLAIN / EXPLAIN ANALYZE<br/>• 5 nhóm lệnh: DDL, DML, DQL, DCL, TCL<br/>• Giám sát qua psql, pgAdmin 4 & pg_stat_statements"]
+    end
+    Q1 --> Q2 --> Q3""",
+
+        "4.1": """flowchart LR
+    subgraph H1 ["1. VERTICAL SCALING (SCALE-UP)"]
+        P41A["• Nâng cấp 1 máy chủ duy nhất (CPU x4 -> x64, RAM 16G -> 512G, NVMe SSD)<br/>• Không tốn mạng liên nút nhưng chạm trần vật lý & Single Point of Failure"]
+    end
+    subgraph H2 ["2. HORIZONTAL SCALING (SHARDING)"]
+        P41B["• Chia nhỏ dữ liệu ra cụm nhiều máy chủ (Database Cluster):<br/>• Shard 1 (Node A): #HD01..#HD33 | Shard 2 (Node B): #HD34..#HD66 | Shard 3 (Node C): #HD67..#HD99"]
+    end
+    subgraph H3 ["3. REPLICATION (SYNC VS ASYNC) & CONSENSUS"]
+        P41C["• Synchronous Replication: Chờ Replica ACK mới báo OK (0 mất dữ liệu)<br/>• Asynchronous Replication: Báo OK ngay, sao chép ngầm (Rủi ro trễ dữ liệu)<br/>• Đồng thuận Quorum (Paxos, Raft, ZAB) chống Split-brain"]
+    end
+    H1 --> H2 --> H3""",
+
+        "4.2": """flowchart LR
+    subgraph M1 ["1. VÙNG ĐỊA LÝ 1 (LOCATION A - ACTIVE)"]
+        P42A["• Application --> [PGD Proxy 1, 2, 3]<br/>• Cụm 3 nút đối xứng: Data Node 1 <--> Data Node 2 <--> Data Node 3 (Mesh Replication)"]
+    end
+    subgraph M2 ["2. VÙNG 3 (WITNESS) & HẬU CẦN BARMAN / PEM"]
+        P42B["• Witness Node (Vùng 3): Không lưu dữ liệu, bỏ phiếu giữ Global Consensus & Distributed DDL<br/>• Barman (Offsite Backup & Recovery đảm bảo RTO) + PEM (Monitoring)"]
+    end
+    subgraph M3 ["3. VÙNG 2 (LOCATION B) & NEXT-GEN DB"]
+        P42C["• Application --> [PGD Proxy 4, 5, 6] --> Data Node 4, 5, 6<br/>• Distributed SQL: TiDB, YugabyteDB, YDB | Columnar: ClickHouse, MySQL HeatWave"]
+    end
+    M1 --> M2 --> M3""",
+
+        "4.3": """flowchart LR
+    subgraph C1 ["1. TAM GIÁC ĐỊNH LÝ CAP & 4 HỌ NOSQL"]
+        P43A["• Khi đứt mạng (Partition): Chọn CP (ACID - Ngân hàng/Ví tiền) hay AP (BASE - Eventual Consistency)?<br/>• 4 mô hình NoSQL: Key-Value (Redis), Document (MongoDB BSON), Column-Family (Cassandra), Graph (Neo4j)"]
+    end
+    subgraph C2 ["2. KIẾN TRÚC LAI: REDIS CACHE + POSTGRESQL MULTI-MODEL"]
+        P43B["• Tầng trước: Redis / Memcache (Key-Value Cache < 1ms)<br/>• Tầng lõi PostgreSQL: Bảng 3NF (ACID cho #HD01) + JSON/JSONB (Document) + hstore (Key-Value) + ltree (Graph)"]
+    end
+    C1 --> C2""",
     }
 
     import html as html_lib
