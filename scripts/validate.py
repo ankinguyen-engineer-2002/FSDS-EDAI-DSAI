@@ -235,13 +235,48 @@ def main():
         if json.dumps(item["ascii"], ensure_ascii=False) not in html:
             raise SystemExit(f"HTML/JSON parity failure: DB-{k} ASCII not identically embedded in HTML")
 
+    # 2d. Verify Containerization & Orchestration (F06) diagrams (0.1, 0.2, 1.0, 2.0, 3.0, 4.0)
+    container_expected_kinds = {
+        "0.1": "boxes",
+        "0.2": "boxes",
+        "1.0": "boxes",
+        "2.0": "boxes",
+        "3.0": "boxes",
+        "4.0": "boxes",
+    }
+    if "container_diagrams" not in data:
+        raise SystemExit("Missing container_diagrams in content/lessons-data.json")
+    for k, exp_kind in container_expected_kinds.items():
+        if k not in data["container_diagrams"]:
+            raise SystemExit(f"Missing Container diagram {k} in content/lessons-data.json")
+        item = data["container_diagrams"][k]
+        actual_kind = item.get("kind")
+        if actual_kind != exp_kind:
+            raise SystemExit(f"Container Diagram {k} kind mismatch: expected {exp_kind!r}, got {actual_kind!r}")
+
+        c_errs = verify_character_policy(item["ascii"], f"Container-{k}")
+        if c_errs:
+            raise SystemExit(f"ASCII character policy failed for Container-{k}: {c_errs}")
+        char_checked += 1
+
+        g_errs = verify_diagram(item["ascii"], f"Container-{k}", kind=actual_kind)
+        if g_errs:
+            raise SystemExit(f"ASCII geometry verification failed for Container-{k} ({actual_kind}): {g_errs}")
+        geom_checked += 1
+
+        if not item["mermaid"].startswith("flowchart "):
+            raise SystemExit(f"Invalid Mermaid header for Container-{k}")
+
+        if json.dumps(item["ascii"], ensure_ascii=False) not in html:
+            raise SystemExit(f"HTML/JSON parity failure: Container-{k} ASCII not identically embedded in HTML")
+
     # 3. Verify all 12 official slide PDFs in course-slides/ are listed in the HTML Table of Contents
     slides = sorted(p.name for p in (ROOT / "course-slides").glob("*.pdf"))
     for s in slides:
         if s not in html:
             raise SystemExit(f"Official slide missing from HTML Table of Contents: {s}")
 
-    # 4. Verify all stations + summaries of Storage Chặng 1–7, Linux Chặng 1–4, and Database Chặng 1–4 exist verbatim in HTML (without emojis)
+    # 4. Verify all stations + summaries of Storage Chặng 1–7, Linux Chặng 1–4, Database Chặng 1–4, and Container Chặng 1–4 exist verbatim in HTML (without emojis)
     required_markers = [
         "TRẠM 0.0: NHÂN VẬT CHÍNH grep ERROR /var/log/app.log &amp; BẢN ĐỒ CƠ HỌC 4 CHẶNG",
         'TRẠM 1.1: BẢN CHẤT GNU/LINUX — KHI "CỤC MÁY" GẶP "BỘ KHUNG"',
@@ -277,6 +312,18 @@ def main():
         "TRẠM 4.2: ALWAYS-ON MULTI-LOCATION HA (ENTERPRISEDB PGD) &amp; NEXT-GEN DATABASES (TIDB, YUGABYTEDB, CLICKHOUSE) (KIẾN TRÚC ĐA VÙNG &amp; THẾ HỆ MỚI)",
         "TRẠM 4.3: SQL VS NOSQL DATA MODELS, CAP THEOREM (CA/CP/AP) &amp; BASE VS ACID (ĐỊNH LÝ CAP &amp; KIẾN TRÚC LAI)",
         "TÓM TẮT BỎ TÚI CHẶNG 4 &amp; KHÉP KÍN HÀNH TRÌNH DATABASE FUNDAMENTALS",
+        "Trạm 0.0: Nhân vật chính <code>order-api</code> (<code>app.py</code> + <code>PostgreSQL</code>) &amp; Bản đồ Tư duy 4 Chặng — 10 Trạm",
+        "Trạm 1.0 (Mô phỏng Tương tác 2D): Chuyện Tiệm Bánh Của Minh — Từ Máy Ảo (<code>VM</code>) Đến <code>VPS</code>, <code>Cloud VM</code>, <code>Container</code> &amp; <code>Serverless</code>",
+        "Trạm 1.1: Bare Metal (Lãng phí 90–95% CPU) &amp; Virtual Machines (<code>Hypervisor Type 1 &amp; Type 2</code>, <code>Guest OS</code>, <code>VM Tax</code>)",
+        "Trạm 1.2: Container Model (<code>OS-level Virtualization</code>, <code>Shared Host OS Kernel</code>, <code>50+ Containers/host</code>)",
+        "Trạm 2.1: Linux Namespaces — Lăng kính Ảo ảnh Cô lập Góc nhìn (<code>Host PID 10423</code> ➔ <code>Virtual PID 1</code>)",
+        "Trạm 2.2: Control Groups (<code>cgroups v2</code>) — Vòng Kim Cô Định mức Phần cứng (<code>CPU</code>, <code>RAM</code> &amp; <code>Disk I/O</code>)",
+        "Trạm 2.3: <code>OverlayFS</code> &amp; Security Hardening (<code>LowerDir/UpperDir</code>, Syscalls, <code>Capabilities</code> &amp; <code>Seccomp</code>)",
+        "Trạm 3.1: Workflow Vĩ mô <code>Build - Ship - Run</code> (<code>Dockerfile</code>, <code>Multi-stage Build</code>, <code>OCI Image</code>, <code>Registry</code> &amp; <code>Persistent Volumes</code>)",
+        "Trạm 3.2: Giải phẫu Động cơ <code>OCI Runtime</code> (<code>dockerd ➔ containerd ➔ shim ➔ runc</code>) &amp; Hệ sinh thái Công cụ",
+        "Trạm 4.1: Bước ngoặt Chuẩn <code>CRI</code> &amp; Triết lý Khai báo (<code>Immutable Infrastructure</code>, <code>Declarative YAML</code>, <code>Desired State</code> &amp; <code>GitOps</code>)",
+        "Trạm 4.2: Giải phẫu Bộ não <code>Control Plane</code> &amp; Cơ bắp <code>Worker Nodes</code> (Luồng 9 bước &amp; Cấu trúc <code>Pod</code>)",
+        "Trạm 4.3: Vũ khí Vận hành Phân tán (<code>ReplicaSet</code>, <code>Deployment</code>, <code>DaemonSet</code>, <code>Service ClusterIP/IPVS</code>, <code>Ingress</code> &amp; <code>Probes</code>)",
         "TRẠM 0.0: NHÂN VẬT CHÍNH ĐƠN HÀNG #8888 &amp; BẢN ĐỒ TƯ DUY 7 CHẶNG STORAGE LAYER",
         "TRẠM 1.1: BẬC THANG PHẦN CỨNG &amp; THANG ĐO ĐỘ TRỄ VẬT LÝ (CACHE HIERARCHY)",
         "TRẠM 1.2: ĐẶC TÍNH KỸ THUẬT CỦA RAM &amp; HIỆN TƯỢNG TRÀN BỘ NHỚ (SPILL-TO-DISK)",
@@ -434,9 +481,12 @@ def main():
         "bindGlossaryTerms",
         "openGlossaryPopover",
         "initGlossarySystem",
+        "buildInfra2DSimulatorHtml",
+        "renderInfra2DSlide",
+        "goToInfra2DSlide",
     ):
         if fn not in html:
-            raise SystemExit(f"Missing Visual / Typography / Glossary Popover symbol in HTML: {fn}")
+            raise SystemExit(f"Missing Visual / Typography / Glossary Popover / 2D Simulator symbol in HTML: {fn}")
 
     # 6a. Verify Glossary Scanner data & 0 unclassified candidate gate
     if "glossary" not in data or "entries" not in data["glossary"] or "lookup" not in data["glossary"]:
@@ -464,6 +514,7 @@ def main():
     required_spine_jpgs = [
         "assets/visuals/linux-0-map.jpg",
         "assets/visuals/db-0-map.jpg",
+        "assets/visuals/container-0-map.jpg",
         "assets/visuals/storage-0-map.jpg",
     ]
     for vf in required_spine_jpgs:
@@ -474,6 +525,7 @@ def main():
     seen_preview_srcs = {}
     linux_jpg_count = 0
     db_jpg_count = 0
+    container_jpg_count = 0
     for vid, vmeta in data["visual_assets"].items():
         if vmeta.get("template") not in ("PROMPT-ARCH-DIAGRAM", "PROMPT-STORY-ANALOGY"):
             raise SystemExit(f"Invalid template for visual_asset {vid}: {vmeta.get('template')}")
@@ -493,6 +545,10 @@ def main():
             if not prev_src.endswith(".jpg") or (ROOT / prev_src).stat().st_size < 50_000:
                 raise SystemExit(f"Database visual '{vid}' must have a dedicated Style #2 .jpg (>50KB), got: {prev_src}")
             db_jpg_count += 1
+        elif vid.startswith("container-"):
+            if not prev_src.endswith(".jpg") or (ROOT / prev_src).stat().st_size < 50_000:
+                raise SystemExit(f"Container visual '{vid}' must have a dedicated Style #2 .jpg (>50KB), got: {prev_src}")
+            container_jpg_count += 1
 
     # 6c. Run 4-Gate Picture QA (SHA-256 uniqueness, 16:9 widescreen, anti-ASCII-dump, Apple Vision OCR audit)
     from verify_pictures import verify_all_pictures
@@ -535,12 +591,12 @@ def main():
         if not (ROOT / "course-slides" / slide_ref).exists():
             raise SystemExit(f"Broken slide path in prompt.md: course-slides/{slide_ref}")
 
-    total_expected = len(expected_kinds) + len(linux_expected_kinds) + len(db_expected_kinds)
+    total_expected = len(expected_kinds) + len(linux_expected_kinds) + len(db_expected_kinds) + len(container_expected_kinds)
     print(
         f"PASS: Negative self-tests: 6/6 | JS syntax: valid | "
         f"3-Tier Typography: verified | Glossary Scanner: {len(g_entries)} entries / {len(g_lookup)} lookup keys (0 unclassified) | "
         f"ASCII character checks: {char_checked}/{total_expected} | ASCII geometry checks: {geom_checked}/{total_expected} | "
-        f"4-Gate Picture QA: {pic_checked}/{len(data['visual_assets'])} verified ({linux_jpg_count} Linux + {db_jpg_count} DB Style #2 JPGs + Spine Maps, 0 OCR/clip/dup errors) | "
+        f"4-Gate Picture QA: {pic_checked}/{len(data['visual_assets'])} verified ({linux_jpg_count} Linux + {db_jpg_count} DB + {container_jpg_count} Container Style #2 JPGs + Spine Maps, 0 OCR/clip/dup errors) | "
         f"Skipped: {skipped} | Official slide TOCs: {len(slides)}/12 | "
         f"prompt.md: verified ({len(set(slide_refs))} slides, {len(set(lib_refs))} books, 2 Style #2 templates, 4-Gate QA, Glossary Scanner) | Anti-slop audit: clean."
     )

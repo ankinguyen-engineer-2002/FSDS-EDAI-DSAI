@@ -3185,6 +3185,263 @@ def build_db_ascii_diagrams() -> dict:
     return diagrams
 
 
+def build_container_ascii_diagrams() -> dict:
+    # 0.1: Bốn Hình Thái Tiến Hóa của Nhân Vật Chính — Tiến trình dịch vụ order-api (app.py + PostgreSQL)
+    b0_1_left = make_box([
+        "[HÌNH THÁI 1] Lạc lõng trên Bare Metal (Thời kỳ 1):",
+        " • order-api (app.py / python:3.11-slim + PostgreSQL)",
+        "   chạy trực tiếp trên máy chủ vật lý nguyên khối.",
+        " • [!] NỖI ĐAU: Chỉ khai thác 5-10% CPU/RAM (lãng phí",
+        "   90-95%) và sợ xung đột thư viện (Dependency Hell)!",
+        "                         │",
+        "                         ▼",
+        "[HÌNH THÁI 2] Bị nhốt trong Máy ảo (Virtual Machine):",
+        " • Hypervisor (Type 1 / Type 2) cắt phần cứng vật lý.",
+        " • [!] NỖI ĐAU: Chịu thuế máy ảo (VM Tax) — mỗi VM phải",
+        "   nuôi 1 Guest OS nặng hàng chục GB, boot mất hàng phút,",
+        "   giới hạn tối đa ~10 VMs/host!",
+    ], inner_width=60, header="1–2. TỪ BARE METAL LÃNG PHÍ ĐẾN THUẾ MÁY ẢO (VM TAX)", context="CNT-0.1.left")
+
+    b0_1_right = make_box([
+        "[HÌNH THÁI 3] Tiến hóa thành Container (OS Virtualization):",
+        " • Vứt bỏ Guest OS, dùng chung Host OS Kernel qua",
+        "   Namespaces (Host PID 10423 -> Virtual PID 1) + cgroups v2",
+        " • Gói gọn vài MB (OverlayFS), boot 1 giây, chạy 50+",
+        "   Containers/host (gấp 3x-5x mật độ VMs)!",
+        "                         │",
+        "                         ▼",
+        "[HÌNH THÁI 4] 3 Pod Replicas bất tử trên Kubernetes (K8s):",
+        " • kubelet gọi thẳng containerd/CRI-O qua chuẩn gRPC CRI.",
+        " • Duy trì 3 Pod Replicas (01, 02 trên Node 1; 03 dự phòng",
+        "   HA trên Node 2) kèm Liveness/Readiness Probes đảm bảo",
+        "   tự phục hồi (Self-healing) & Zero-downtime!",
+    ], inner_width=60, header="3–4. CONTAINER SIÊU NHẸ (PID 1) & 3 POD REPLICAS BẤT TỬ", context="CNT-0.1.right")
+    d0_1 = "\n".join(join_horizontal([b0_1_left, b0_1_right], ["     "], {6: [" ──> "]}, context="CNT-0.1"))
+
+    # 0.2: Bản đồ Tư duy 1 dòng (Mental Map) — Mạch Nhân Quả Toàn Học Phần (4 Chặng — 10 Trạm)
+    b0_2_c1 = make_box([
+        "• Trạm 1.1: Bare Metal & VMs (Hypervisor Type 1 & 2)",
+        "  Bare Metal dùng 5-10% CPU; VM gánh Guest OS nặng hàng",
+        "  GB (VM Tax), boot mất nhiều phút, tối đa ~10 VMs/host.",
+        "• Mô phỏng 2D (8 Slide): VM vs. Hosting / VPS / Cloud VM",
+        "  / Dedicated / Container / Serverless (Tiệm bánh Minh).",
+        "• Trạm 1.2: Container Model (OS-level Virtualization)",
+        "  Dùng chung Host OS Kernel -> Gói gọn vài MB, boot tính",
+        "  bằng giây, sức chứa vọt lên 50+ Containers/host (3x-5x).",
+    ], inner_width=60, header="[CHẶNG 1] TIẾN HÓA HẠ TẦNG (THỜI KỲ 1 -> THỜI KỲ 2)", context="CNT-0.2.c1")
+
+    b0_2_c2 = make_box([
+        "• Trạm 2.1: Linux Namespaces (Cô lập góc nhìn - Isolation)",
+        "  6 Namespaces (pid, net, mnt, ipc, uts, user): Host PID",
+        "  10423/10424 tự thấy mình là Virtual PID 1, IP 172.17.0.2/3",
+        "• Trạm 2.2: Control Groups - cgroups v2 (Giới hạn vật lý)",
+        "  Khóa cứng cpu.max, memory.max, BlkIO (Container A: 2 CPU,",
+        "  512MB RAM; Container B: 1 CPU, 1GB RAM, Disk I/O 100MB/s).",
+        "• Trạm 2.3: OverlayFS & Security Hardening",
+        "  LowerDir (Read-Only) + UpperDir (Writable) + Merged View;",
+        "  clone()/unshare()/pivot_root() + Capabilities & Seccomp.",
+    ], inner_width=60, header="[CHẶNG 2] GIẢI PHẪU HỌC TẦNG NHÂN LINUX (KERNEL)", context="CNT-0.2.c2")
+    tier1 = join_horizontal([b0_2_c1, b0_2_c2], ["     "], {4: [" ──> "]}, context="CNT-0.2.tier1")
+
+    tier_mid = [l.rstrip() for l in make_box([
+        "[MẠCH NHÂN – QUẢ & NỖI ĐAU CHUYỂN GIAO XUYÊN SUỐT 4 CHẶNG (10 TRẠM)]:",
+        " • Chặng 1 -> 2: Dùng chung 1 Host OS Kernel thì làm sao ngăn các tiến trình nhìn trộm và cướp sạch RAM/CPU của nhau?",
+        " • Chặng 2 -> 3: Cấu hình bằng tay hàng chục lệnh Kernel (Namespaces, cgroups, OverlayFS) quá phức tạp với kỹ sư phần mềm!",
+        " • Chặng 3 -> 4: Chạy tốt trên 1 máy, nhưng khi mở rộng lên 100 máy chủ vật lý, 2 giờ sáng 1 máy cháy RAM thì ai bật lại",
+        "   app order-api? Ai cân bằng tải và nâng cấp không gián đoạn (Zero-downtime)?",
+    ], inner_width=127, header="BẢN ĐỒ TƯ DUY 1 DÒNG (MENTAL MAP): TỪ BARE METAL ĐẾN ĐẠI DƯƠNG KUBERNETES", context="CNT-0.2.mid")]
+
+    b0_2_c3 = make_box([
+        "• Trạm 3.1: Workflow Vĩ mô Build - Ship - Run & Volumes",
+        "  Dockerfile (Multi-stage Build) -> OCI Image bất biến ->",
+        "  Registry -> Tách dữ liệu PostgreSQL khỏi lớp UpperDir",
+        "  tạm bợ sang Persistent Volume (/var/lib/docker/volumes).",
+        "• Trạm 3.2: Giải phẫu Động cơ OCI Runtime & Hệ sinh thái",
+        "  Docker CLI --[REST]--> dockerd --[gRPC]--> containerd",
+        "  --> containerd-shim --> runc (libcontainer) -> Kernel;",
+        "  runc tự thoát (Daemonless) | Docker vs Podman vs CRI-O.",
+    ], inner_width=60, header="[CHẶNG 3] CHU TRÌNH BUILD-SHIP-RUN & OCI RUNTIME", context="CNT-0.2.c3")
+
+    b0_2_c4 = make_box([
+        "• Trạm 4.1: Bước ngoặt CRI & Triết lý Khai báo (Declarative)",
+        "  Loại bỏ dockerd để kubelet gọi thẳng containerd/CRI-O qua",
+        "  gRPC CRI; viết YAML Desired State quản lý tối đa 3 bản.",
+        "• Trạm 4.2: Giải phẫu Control Plane & Cơ bắp Worker Nodes",
+        "  Luồng 9 bước: kubectl apply -> kube-apiserver -> etcd ->",
+        "  Controller Manager -> Scheduler -> kubelet -> CRI -> Pod.",
+        "• Trạm 4.3: Vũ khí Vận hành Phân tán (Workloads & Network)",
+        "  ReplicaSet, Deployment, DaemonSet, Service (ClusterIP/",
+        "  IPVS), Ingress & 3 Pod Replicas (Node 1 & Node 2 HA).",
+    ], inner_width=60, header="[CHẶNG 4] ĐIỀU PHỐI PHÂN TÁN VỚI KUBERNETES (K8S)", context="CNT-0.2.c4")
+    tier2 = join_horizontal([b0_2_c3, b0_2_c4], ["     "], {4: [" ──> "]}, context="CNT-0.2.tier2")
+
+    d0_2 = "\n".join(
+        tier1
+        + [
+            "                            │                                                             │",
+            "                            ▼                                                             ▼",
+        ]
+        + tier_mid
+        + [
+            "                            │                                                             │",
+            "                            ▼                                                             ▼",
+        ]
+        + tier2
+    )
+
+    # 1.0: Chặng 1 Overview — Tiến hóa Hạ tầng (Bare Metal, VM/VPS/Cloud VM, Container & Serverless)
+    b1_0_s1 = make_box([
+        "• Bare Metal (Dedicated):",
+        "  100% phần cứng trần nhưng",
+        "  chỉ khai thác 5-10% CPU/RAM;",
+        "  sợ xung đột Dependency Hell.",
+        "• Shared Hosting (Ở ghép):",
+        "  Chung OS/IP, không có quyền",
+        "  Root, dính lỗi 503 khi hàng",
+        "  xóm bị DDoS (Noisy Neighbor).",
+    ], inner_width=34, header="1. BARE METAL & HOSTING", context="CNT-1.0.s1")
+    b1_0_s2 = make_box([
+        "• VM là công nghệ Hypervisor",
+        "  (Type 1 Bare-metal / Type 2",
+        "  Hosted) cắt máy chủ vật lý.",
+        "• VPS (1 máy mẹ lẻ -> SPOF)",
+        "  vs Cloud VM (Cụm HA + Ceph",
+        "  3 bản sao + Live Migration).",
+        "• [!] Thuế máy ảo (VM Tax):",
+        "  Nuôi Guest OS nặng hàng GB,",
+        "  boot cả phút, ~10 VMs/host.",
+    ], inner_width=36, header="2. VM, VPS & CLOUD VM (VM TAX)", context="CNT-1.0.s2")
+    b1_0_s3 = make_box([
+        "• Container (OS Virtualization):",
+        "  Vứt bỏ Guest OS, dùng chung",
+        "  Host OS Kernel qua Container",
+        "  Engine -> Nhẹ vài MB, boot",
+        "  1 giây, 50+ Containers/host",
+        "  (mật độ gấp 3x-5x VMs).",
+        "• PaaS / Serverless (Cloud Run/",
+        "  Lambda): Scale-to-Zero (0đ",
+        "  khi vắng khách, bật 200ms).",
+    ], inner_width=36, header="3. CONTAINER & SERVERLESS", context="CNT-1.0.s3")
+    d1_0 = "\n".join(join_horizontal([b1_0_s1, b1_0_s2, b1_0_s3], [" ──> ", " ──> "], {4: [" ──> ", " ──> "]}, context="CNT-1.0"))
+
+    # 2.0: Chặng 2 Overview — Giải phẫu Học Tầng Nhân Linux (Namespaces, cgroups v2, OverlayFS & Security)
+    b2_0_s1 = make_box([
+        "• 6 Linux Namespaces cô lập",
+        "  góc nhìn (Isolation):",
+        "  pid, net, mnt, ipc, uts, user",
+        "• Nginx (Host PID 10423) &",
+        "  PostgreSQL (Host PID 10424)",
+        "  đều tự thấy mình là Virtual",
+        "  PID 1 trong gương!",
+        "• IP ảo riêng: 172.17.0.2 &",
+        "  172.17.0.3 + gốc /app riêng.",
+    ], inner_width=34, header="TRẠM 2.1: LINUX NAMESPACES", context="CNT-2.0.s1")
+    b2_0_s2 = make_box([
+        "• Control Groups (cgroups v2):",
+        "  Định mức vật lý cpu.max,",
+        "  memory.max, BlkIO.",
+        "• Container A (order-api):",
+        "  Khóa tối đa 2 CPU cores,",
+        "  512 MB RAM.",
+        "• Container B (PostgreSQL):",
+        "  Khóa tối đa 1 CPU core, 1 GB",
+        "  RAM, Disk I/O 100 MB/s.",
+    ], inner_width=36, header="TRẠM 2.2: CONTROL GROUPS (V2)", context="CNT-2.0.s2")
+    b2_0_s3 = make_box([
+        "• OverlayFS (Union Mount):",
+        "  LowerDir (Read-Only Layers)",
+        "  + UpperDir (Writable) ->",
+        "  Merged View dùng chung.",
+        "• Syscalls hạt nhân: clone(2)",
+        "  (CLONE_NEW*), unshare(2),",
+        "  pivot_root(2).",
+        "• Bảo mật: Linux Capabilities",
+        "  (tước root) & Seccomp Filter.",
+    ], inner_width=36, header="TRẠM 2.3: OVERLAYFS & SECURITY", context="CNT-2.0.s3")
+    d2_0 = "\n".join(join_horizontal([b2_0_s1, b2_0_s2, b2_0_s3], [" ──> ", " ──> "], {4: [" ──> ", " ──> "]}, context="CNT-2.0"))
+
+    # 3.0: Chặng 3 Overview — Chu trình Build-Ship-Run, Persistent Volumes & Động cơ OCI Runtime
+    b3_0_left = make_box([
+        "• [CHU TRÌNH BUILD - SHIP - RUN]:",
+        "  1. BUILD: Viết Dockerfile (Multi-stage Build) đóng gói",
+        "     order-api (app.py + python:3.11-slim) thành OCI Image",
+        "     bất biến (Immutable Layers).",
+        "  2. SHIP : Push / Pull Image qua Container Registry.",
+        "  3. RUN  : Khởi chạy Container đồng nhất trên mọi máy.",
+        "                         │",
+        "                         ▼",
+        "• [BÀI TOÁN BỀN VỮNG DỮ LIỆU DATABASE]:",
+        "  Tách dữ liệu PostgreSQL khỏi lớp UpperDir tạm bợ",
+        "  (ephemeral) sang Persistent Volume (/var/lib/docker/",
+        "  volumes) hoặc Bind Mount để xóa container không mất DB!",
+    ], inner_width=60, header="TRẠM 3.1: WORKFLOW BUILD-SHIP-RUN & PERSISTENT VOLUMES", context="CNT-3.0.left")
+    b3_0_right = make_box([
+        "• [CHUỖI LẮP RÁP ĐỘNG CƠ OCI RUNTIME]:",
+        "  [Docker CLI] --(REST API)--> [dockerd Daemon]",
+        "       │",
+        "       └──(gRPC)──> [containerd] ──> [containerd-shim]",
+        "                                            │",
+        "                                            ▼",
+        "  [runc (libcontainer)] gọi Kernel tạo Namespaces/cgroups",
+        "  rồi LẬP TỨC TỰ THOÁT (exit) trả lại RAM!",
+        "  -> containerd-shim giữ stdio làm cha của container",
+        "     (Daemonless containers: restart dockerd không chết app)",
+        "• [ĐỐI CHIẾU HỆ SINH THÁI]:",
+        "  Docker vs. Podman (Daemonless/Rootless) vs. CRI-O.",
+    ], inner_width=60, header="TRẠM 3.2: GIẢI PHẪU ĐỘNG CƠ OCI RUNTIME & HỆ SINH THÁI", context="CNT-3.0.right")
+    d3_0 = "\n".join(join_horizontal([b3_0_left, b3_0_right], ["     "], {5: [" ──> "]}, context="CNT-3.0"))
+
+    # 4.0: Chặng 4 Overview — Điều phối Phân tán với Kubernetes (CRI, Control Plane & 3 Pod Replicas)
+    b4_0_s1 = make_box([
+        "• Bước ngoặt chuẩn CRI:",
+        "  K8s loại bỏ dockerd cồng",
+        "  kềnh để kubelet gọi thẳng",
+        "  containerd / CRI-O qua gRPC.",
+        "• Triết lý Declarative YAML:",
+        "  Khai báo Desired State lưu",
+        "  trên Git (GitOps), quản lý",
+        "  tối đa 3 phiên bản active",
+        "  với Immutable Infrastructure.",
+    ], inner_width=34, header="TRẠM 4.1: CRI & DECLARATIVE", context="CNT-4.0.s1")
+    b4_0_s2 = make_box([
+        "• Bộ não Control Plane:",
+        "  kube-apiserver, etcd (Kho",
+        "  Raft), Controller Manager,",
+        "  Scheduler (chọn Node).",
+        "• Cơ bắp Worker Nodes:",
+        "  kubelet, kube-proxy, CRI.",
+        "• Giải phẫu Pod: Các container",
+        "  chạy riêng cgroups nhưng",
+        "  dùng chung net, ipc, uts!",
+    ], inner_width=36, header="TRẠM 4.2: CONTROL PLANE & POD", context="CNT-4.0.s2")
+    b4_0_s3 = make_box([
+        "• Vũ khí vận hành phân tán:",
+        "  ReplicaSet (tự phục hồi),",
+        "  Deployment (Rolling Update),",
+        "  DaemonSet, Service (ClusterIP",
+        "  / IPVS) & Ingress.",
+        "• Duy trì 3 Pod Replicas:",
+        "  Pod 01, 02 trên Node 1 và",
+        "  Pod 03 dự phòng HA trên Node 2",
+        "  + Liveness/Readiness Probes.",
+    ], inner_width=36, header="TRẠM 4.3: WORKLOADS & HA", context="CNT-4.0.s3")
+    d4_0 = "\n".join(join_horizontal([b4_0_s1, b4_0_s2, b4_0_s3], [" ──> ", " ──> "], {4: [" ──> ", " ──> "]}, context="CNT-4.0"))
+
+    diagrams = {
+        "0.1": {"ascii": d0_1, "kind": "boxes"},
+        "0.2": {"ascii": d0_2, "kind": "boxes"},
+        "1.0": {"ascii": d1_0, "kind": "boxes"},
+        "2.0": {"ascii": d2_0, "kind": "boxes"},
+        "3.0": {"ascii": d3_0, "kind": "boxes"},
+        "4.0": {"ascii": d4_0, "kind": "boxes"},
+    }
+    for k, meta in diagrams.items():
+        errs = verify_diagram(meta["ascii"], f"CNT-{k}", kind=meta["kind"])
+        if errs:
+            raise SystemExit(f"ASCII verification failed for CNT-{k} ({meta['kind']}): {errs}")
+    return diagrams
+
+
 
 HTML_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="vi" class="dark">
@@ -5119,6 +5376,462 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       transition: none !important;
     }
   }
+
+  /* ==========================================================================
+     INTERACTIVE 2D INFRASTRUCTURE SIMULATOR (CHUYỆN TIỆM BÁNH CỦA MINH — 8 SLIDES)
+     ========================================================================== */
+  @keyframes infraFloatSlow {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-5px); }
+  }
+  @keyframes infraShakeBuilding {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-5px) rotate(-1deg); }
+    40%, 80% { transform: translateX(5px) rotate(1deg); }
+  }
+  @keyframes infraPulseDanger {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55); }
+    50% { box-shadow: 0 0 22px 6px rgba(239, 68, 68, 0.22); }
+  }
+  @keyframes infraPulseSuccess {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45); }
+    50% { box-shadow: 0 0 20px 5px rgba(16, 185, 129, 0.2); }
+  }
+  @keyframes infraDataFlow {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+  }
+  .infra2d-wrap {
+    margin: 22px 0 28px;
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    background: #0b0f19;
+    color: #f1f5f9;
+    overflow: hidden;
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.38);
+  }
+  .infra2d-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 16px;
+    background: #0f172a;
+    border-bottom: 1px solid #1e293b;
+  }
+  .infra2d-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .infra2d-brand-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #fbbf24, #f97316);
+    color: #0b0f19;
+    font-weight: 800;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    flex-shrink: 0;
+  }
+  .infra2d-brand-badges {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 2px;
+  }
+  .infra2d-tag {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(99, 102, 241, 0.18);
+    color: #a5b4fc;
+    border: 1px solid rgba(99, 102, 241, 0.35);
+  }
+  .infra2d-chapter {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #fbbf24;
+  }
+  .infra2d-title-bar {
+    font-size: 14.5px;
+    font-weight: 800;
+    color: #f8fafc;
+    margin: 0;
+  }
+  .infra2d-dots {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 2px 0;
+  }
+  .infra2d-dot-btn {
+    padding: 5px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    border: 1px solid #334155;
+    background: #1e293b;
+    color: #94a3b8;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+  }
+  .infra2d-dot-btn:hover {
+    background: #334155;
+    color: #f1f5f9;
+  }
+  .infra2d-dot-btn.active {
+    background: #4f46e5;
+    border-color: #6366f1;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+  }
+  .infra2d-grid {
+    display: grid;
+    grid-template-columns: 5fr 7fr;
+    gap: 16px;
+    padding: 16px;
+  }
+  .infra2d-col-left,
+  .infra2d-col-right {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .infra2d-pills {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .infra2d-pill-num {
+    font-size: 11px;
+    font-weight: 800;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(99, 102, 241, 0.2);
+    color: #a5b4fc;
+    border: 1px solid rgba(99, 102, 241, 0.35);
+  }
+  .infra2d-pill-analogy {
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(245, 158, 11, 0.15);
+    color: #fcd34d;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+  }
+  .infra2d-slide-h3 {
+    font-size: 18px !important;
+    font-weight: 800 !important;
+    color: #ffffff !important;
+    margin: 0 0 12px 0 !important;
+    line-height: 1.35 !important;
+  }
+  .infra2d-story-box {
+    background: rgba(30, 41, 59, 0.75);
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 12px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .infra2d-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    background: rgba(245, 158, 11, 0.2);
+    border: 1px solid rgba(251, 191, 36, 0.45);
+    color: #fcd34d;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .infra2d-story-title {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #fbbf24;
+    display: block;
+    margin-bottom: 3px;
+  }
+  .infra2d-story-text {
+    font-size: 13px;
+    color: #cbd5e1;
+    font-style: italic;
+    margin: 0 !important;
+    line-height: 1.45;
+  }
+  .infra2d-keypoints {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .infra2d-kp-item {
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(30, 41, 59, 0.45);
+    border: 1px solid #1e293b;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .infra2d-kp-badge {
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #38bdf8;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .infra2d-kp-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #f8fafc;
+    margin: 0 0 2px 0;
+  }
+  .infra2d-kp-desc {
+    font-size: 12.5px;
+    color: #cbd5e1;
+    margin: 0 !important;
+    line-height: 1.45;
+  }
+  .infra2d-verdict {
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(99, 102, 241, 0.12);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    font-size: 12.5px;
+    color: #c7d2fe;
+    line-height: 1.45;
+  }
+  .infra2d-sim-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-bottom: 10px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid #1e293b;
+  }
+  .infra2d-sim-live {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #94a3b8;
+  }
+  .infra2d-sim-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: #10b981;
+    box-shadow: 0 0 8px #10b981;
+  }
+  .infra2d-sim-hint {
+    font-size: 11.5px;
+    color: #67e8f9;
+    background: rgba(6, 182, 212, 0.12);
+    border: 1px solid rgba(6, 182, 212, 0.32);
+    padding: 3px 10px;
+    border-radius: 7px;
+    font-weight: 600;
+  }
+  .infra2d-stage {
+    min-height: 290px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: #020617;
+    border: 1px solid #1e293b;
+    padding: 14px;
+    position: relative;
+    overflow: hidden;
+  }
+  .infra2d-status {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    font-size: 12.5px;
+    color: #e2e8f0;
+    line-height: 1.45;
+  }
+  .infra2d-controls {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .infra2d-btn {
+    padding: 8px 13px;
+    border-radius: 9px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid #334155;
+    background: #1e293b;
+    color: #e2e8f0;
+    transition: all 0.15s ease;
+  }
+  .infra2d-btn:hover {
+    background: #334155;
+    color: #ffffff;
+  }
+  .infra2d-btn-primary {
+    background: #4f46e5;
+    border-color: #6366f1;
+    color: #ffffff;
+  }
+  .infra2d-btn-primary:hover {
+    background: #6366f1;
+  }
+  .infra2d-btn-danger {
+    background: #e11d48;
+    border-color: #f43f5e;
+    color: #ffffff;
+  }
+  .infra2d-btn-danger:hover {
+    background: #f43f5e;
+  }
+  .infra2d-btn-emerald {
+    background: #059669;
+    border-color: #10b981;
+    color: #ffffff;
+  }
+  .infra2d-btn-emerald:hover {
+    background: #10b981;
+  }
+  .infra2d-btn-amber {
+    background: #f59e0b;
+    border-color: #fbbf24;
+    color: #0b0f19;
+  }
+  .infra2d-btn-amber:hover {
+    background: #fbbf24;
+    color: #0b0f19;
+  }
+  .infra2d-btn-cyan {
+    background: #0891b2;
+    border-color: #06b6d4;
+    color: #ffffff;
+  }
+  .infra2d-btn-cyan:hover {
+    background: #06b6d4;
+  }
+  .infra2d-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #0f172a;
+    border-top: 1px solid #1e293b;
+  }
+  .infra2d-progress-wrap {
+    flex: 1;
+    max-width: 360px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .infra2d-progress-track {
+    width: 100%;
+    height: 7px;
+    background: #1e293b;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .infra2d-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #6366f1, #06b6d4, #10b981);
+    transition: width 0.25s ease;
+  }
+  .infra2d-card-grid2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    width: 100%;
+  }
+  .infra2d-card-grid3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    width: 100%;
+  }
+  .infra2d-box {
+    border: 1.5px solid #334155;
+    background: #0f172a;
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+    transition: all 0.2s ease;
+  }
+  .infra2d-float { animation: infraFloatSlow 3.2s ease-in-out infinite; }
+  .infra2d-shake { animation: infraShakeBuilding 0.45s ease-in-out infinite; }
+  .infra2d-glow-danger { animation: infraPulseDanger 1.5s infinite; border-color: #f43f5e !important; }
+  .infra2d-glow-success { animation: infraPulseSuccess 2s infinite; border-color: #10b981 !important; }
+  .infra2d-pipe {
+    height: 9px;
+    width: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #1e293b 25%, #38bdf8 50%, #1e293b 75%);
+    background-size: 200% 100%;
+    animation: infraDataFlow 1.8s linear infinite;
+    margin: 8px 0;
+  }
+  @media (max-width: 900px) {
+    .infra2d-grid {
+      grid-template-columns: 1fr;
+      padding: 10px;
+      gap: 12px;
+    }
+    .infra2d-card-grid3 {
+      grid-template-columns: 1fr;
+    }
+    .infra2d-progress-wrap {
+      display: none;
+    }
+  }
   </style>
 </head>
 <body>
@@ -5175,7 +5888,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       <ul class="cmd-results" id="cmdResultsList"></ul>
       <div class="cmd-footer">
         <span>↑↓ Di chuyển · Enter Chọn · Esc Đóng</span>
-        <span>26 Học phần · 7 Chặng Storage · 4 Chặng Linux</span>
+        <span>26 Học phần · 7 Chặng Storage · 4 Chặng Linux/DB/Container</span>
       </div>
     </div>
   </div>
@@ -5335,6 +6048,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
           title: "Containerization & Orchestration",
           slide: "06-containerization-and-orchestration.pdf",
           pages: 72,
+          hasContent: true,
+          contentNote: "Chặng 1–4",
           slideToc: [
             "01/ Introduction to VM and Containers",
             "02/ Docker & Architecture Design",
@@ -5347,7 +6062,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
           ],
           modules: "VM và containers; Docker architecture; container technologies; commands; volumes/network; private registry; Compose; build/run/optimize/manage",
           lab: "Dockerize API; local stack với Compose; container-based testing",
-          stack: "Docker, Docker Compose"
+          stack: "Docker, Docker Compose, Kubernetes"
         }
       ]
     },
@@ -5779,9 +6494,53 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     return [];
   }
 
+  const CONTAINER_STAGES = [
+    { id: 1, shortTitle: "Tiến hóa Hạ tầng (Bare Metal, VM, VPS, Cloud VM & Container)", title: "Chặng 1: Tiến hóa Hạ tầng (Thời kỳ 1 ➔ Thời kỳ 2: Bare Metal, VM/VPS/Cloud VM, Container & Serverless)" },
+    { id: 2, shortTitle: "Giải phẫu Tầng Nhân Linux (Namespaces, cgroups v2 & OverlayFS)", title: "Chặng 2: Giải phẫu Học Tầng Nhân Linux (Linux Kernel Foundations: Namespaces, cgroups v2, OverlayFS & Seccomp)" },
+    { id: 3, shortTitle: "Chu trình Build-Ship-Run & Động cơ OCI Runtime", title: "Chặng 3: Chu trình Build-Ship-Run & Động cơ OCI Runtime (Dockerfile, Volumes, containerd, shim & runc)" },
+    { id: 4, shortTitle: "Điều phối Phân tán với Kubernetes (CRI, Control Plane & Pods)", title: "Chặng 4: Thời kỳ 3 — Điều phối Phân tán với Kubernetes (CRI, Declarative YAML, Control Plane & 3 Pod Replicas)" }
+  ];
+
+  const CONTAINER_CHANG1_STATIONS = [
+    { id: "container-0-map", code: "0.0", title: "Nhân vật chính order-api & Bản đồ 4 Chặng", fullTitle: "Trạm 0.0: Tiến trình dịch vụ order-api (app.py + PostgreSQL) & Bản đồ Tư duy 4 Chặng — 10 Trạm" },
+    { id: "container-1-0-sim", code: "2D", title: "Mô phỏng 2D (8 Slide): Chuyện Tiệm Bánh Của Minh", fullTitle: "Trạm 1.0 (Mô phỏng 2D): Chuyện Tiệm Bánh Của Minh — Từ Máy Ảo (VM) Đến VPS, Cloud VM, Container & Serverless" },
+    { id: "container-1-1", code: "1.1", title: "Bare Metal & VMs (Hypervisor Type 1/2 & VM Tax)", fullTitle: "Trạm 1.1: Bare Metal (Lãng phí 90–95% CPU) & Virtual Machines (Hypervisor Type 1 & Type 2, Guest OS, VM Tax)" },
+    { id: "container-1-2", code: "1.2", title: "Container Model (OS-level Virtualization vs VMs)", fullTitle: "Trạm 1.2: Container Model (OS-level Virtualization, Shared Host OS Kernel, 50+ Containers/host)" },
+    { id: "container-1-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 1", fullTitle: "Tóm tắt bỏ túi Chặng 1 & Checklist Tự kiểm tra (Tiến hóa Hạ tầng)" }
+  ];
+
+  const CONTAINER_CHANG2_STATIONS = [
+    { id: "container-2-1", code: "2.1", title: "Linux Namespaces (pid, net, mnt, ipc, uts, user)", fullTitle: "Trạm 2.1: Linux Namespaces — Lăng kính Ảo ảnh Cô lập Góc nhìn (Host PID 10423 ➔ Virtual PID 1)" },
+    { id: "container-2-2", code: "2.2", title: "Control Groups — cgroups v2 (cpu.max, memory.max, BlkIO)", fullTitle: "Trạm 2.2: Control Groups (cgroups v2) — Vòng Kim Cô Định mức Phần cứng (CPU, RAM & Disk I/O)" },
+    { id: "container-2-3", code: "2.3", title: "OverlayFS (LowerDir/UpperDir) & Security (Capabilities/Seccomp)", fullTitle: "Trạm 2.3: OverlayFS & Security Hardening (Image Layers, Syscalls clone/unshare/pivot_root, Capabilities & Seccomp)" },
+    { id: "container-2-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 2", fullTitle: "Tóm tắt bỏ túi Chặng 2 & Checklist Tự kiểm tra (Linux Kernel Foundations)" }
+  ];
+
+  const CONTAINER_CHANG3_STATIONS = [
+    { id: "container-3-1", code: "3.1", title: "Workflow Build - Ship - Run & Persistent Volumes", fullTitle: "Trạm 3.1: Workflow Vĩ mô Build - Ship - Run (Dockerfile, Multi-stage Build, OCI Image, Registry & Persistent Volumes)" },
+    { id: "container-3-2", code: "3.2", title: "Động cơ OCI Runtime (dockerd ➔ containerd ➔ shim ➔ runc)", fullTitle: "Trạm 3.2: Giải phẫu Động cơ OCI Runtime & Hệ sinh thái Công cụ (Docker vs Podman vs containerd vs CRI-O)" },
+    { id: "container-3-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 3", fullTitle: "Tóm tắt bỏ túi Chặng 3 & Checklist Tự kiểm tra (Build-Ship-Run & OCI Runtime)" }
+  ];
+
+  const CONTAINER_CHANG4_STATIONS = [
+    { id: "container-4-1", code: "4.1", title: "Bước ngoặt CRI & Triết lý Khai báo (Declarative YAML)", fullTitle: "Trạm 4.1: Bước ngoặt Chuẩn CRI & Triết lý Khai báo (Immutable Infrastructure, Desired State & GitOps)" },
+    { id: "container-4-2", code: "4.2", title: "Bộ não Control Plane & Cơ bắp Worker Nodes (Luồng 9 bước)", fullTitle: "Trạm 4.2: Giải phẫu Bộ não Control Plane (apiserver, etcd, Controller, Scheduler) & Worker Nodes (kubelet, Pod)" },
+    { id: "container-4-3", code: "4.3", title: "Vũ khí Vận hành Phân tán (Deployment, Service IPVS, Ingress)", fullTitle: "Trạm 4.3: Vũ khí Vận hành Phân tán (ReplicaSet, Deployment, DaemonSet, Service ClusterIP/IPVS, Ingress & Probes)" },
+    { id: "container-4-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 4 (Khép kín F06)", fullTitle: "Tóm tắt bỏ túi Chặng 4 & Khép kín Toàn bộ Hành trình Containerization & Orchestration" }
+  ];
+
+  function getContainerStations(stageId = activeStorageStage) {
+    if (stageId === 1) return CONTAINER_CHANG1_STATIONS;
+    if (stageId === 2) return CONTAINER_CHANG2_STATIONS;
+    if (stageId === 3) return CONTAINER_CHANG3_STATIONS;
+    if (stageId === 4) return CONTAINER_CHANG4_STATIONS;
+    return [];
+  }
+
   function getTopicStages(topic = activeTopic) {
     if (topic === "F01") return LINUX_STAGES;
     if (topic === "F03") return DB_STAGES;
+    if (topic === "F06") return CONTAINER_STAGES;
     if (topic === "D02") return STORAGE_STAGES;
     return [];
   }
@@ -5789,6 +6548,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   function getTopicStations(topic = activeTopic, stageId = activeStorageStage) {
     if (topic === "F01") return getLinuxStations(stageId);
     if (topic === "F03") return getDbStations(stageId);
+    if (topic === "F06") return getContainerStations(stageId);
     if (topic === "D02") return getStorageStations(stageId);
     return [];
   }
@@ -11261,6 +12021,1387 @@ WHERE TuyChonTopping @&gt; '{"toppings": ["Kem Cheese"]}'::jsonb;</code></pre>
     `;
   }
 
+  /* ==========================================================================
+     INTERACTIVE 2D SIMULATOR: CHUYỆN TIỆM BÁNH CỦA MINH (8 SLIDES)
+     ========================================================================== */
+  let infra2dCurrentSlide = 0;
+  let infra2dState = {
+    sliced: false,
+    productMode: "none",
+    noisyNeighbor: false,
+    vpsNeighborOverload: false,
+    vpsHardwareCrash: false,
+    cloudNodeACrash: false,
+    cloudScaled: false,
+    dedicatedTurbo: false,
+    dedicatedUpgrading: false,
+    raceStarted: false,
+    serverlessMode: "idle",
+    selectedCase: 0
+  };
+
+  const INFRA2D_SLIDES = [
+    {
+      id: "vm-root",
+      shortNav: "Gốc VM",
+      chapter: "Gốc rễ khái niệm",
+      analogy: "Ẩn dụ BĐS: Công nghệ cắt đất vs. Căn hộ bán ra",
+      title: "1. Tại sao dễ nhầm? \"VM\" khác gì \"VPS\" và \"Cloud VM\"?",
+      minhTitle: "Minh bối rối ngày đầu tìm hiểu:",
+      minhStory: "“Em định mở web bán bánh ngọt mà người bảo thuê VPS, người bảo tạo VM, người lại khuyên lên Cloud VM. Rốt cuộc 3 thứ này là một hay khác nhau?”",
+      keypoints: [
+        { badge: "VM", title: "VM (Virtual Machine) là CÔNG NGHỆ", desc: "Là kỹ thuật dùng phần mềm (Hypervisor) cắt 1 máy chủ vật lý khổng lồ thành nhiều máy tính ảo nhỏ độc lập." },
+        { badge: "SP", title: "VPS & Cloud VM là SẢN PHẨM THƯƠNG MẠI", desc: "Nhà cung cấp dùng công nghệ VM tạo sẵn máy ảo trên Internet rồi đóng gói bán cho bạn thuê theo tháng/giờ." },
+        { badge: "VD", title: "Ví dụ dễ hiểu nhất", desc: "Giống như \"Động cơ đốt trong\" là công nghệ (VM), còn \"Xe máy Honda\" (VPS) hay \"Xe hơi\" (Cloud VM) là sản phẩm dùng động cơ đó!" }
+      ],
+      verdict: "<strong>Chốt ngắn gọn:</strong> Tạo máy ảo trên Laptop cá nhân = <strong>VM</strong>. Thuê máy ảo trên 1 máy chủ đơn lẻ = <strong>VPS</strong>. Thuê máy ảo trên cụm đám mây = <strong>Cloud VM</strong>."
+    },
+    {
+      id: "shared-hosting",
+      shortNav: "Hosting",
+      chapter: "Chương 1: Khởi nghiệp 100k",
+      analogy: "Ẩn dụ BĐS: Thuê 1 chiếc giường trong Ký túc xá",
+      title: "2. Shared Hosting – \"Ở Ghép Ký Túc Xá Sinh Viên\"",
+      minhTitle: "Minh mở web giới thiệu tiệm bánh:",
+      minhStory: "“Mình mới bán bánh vốn ít, lại mù tịt Linux. Mình thuê Shared Hosting giá 50k/tháng, có sẵn bảng điều khiển cPanel chỉ việc thả code WordPress vào là chạy!”",
+      keypoints: [
+        { badge: "ALL", title: "Dùng chung mọi thứ", desc: "Hàng trăm website cùng nằm chung trong 1 phòng, dùng chung CPU, RAM và 1 đường ống nước (Băng thông/IP)." },
+        { badge: "NO", title: "Không có chìa khóa phòng (Không có quyền Root)", desc: "Ban quản lý cài sẵn gì dùng nấy, Minh không được tự ý cài phần mềm lạ hay đập sửa tường." },
+        { badge: "503", title: "Rủi ro: Hàng xóm ồn ào (Noisy Neighbor)", desc: "Nếu 1 web cùng phòng bị tấn công DDoS hoặc ngốn sạch RAM, web tiệm bánh của Minh cũng bị đơ theo!" }
+      ],
+      verdict: "<strong>Khi nào dùng?</strong> Web giới thiệu, blog nhỏ, mới học làm web, ngân sách siêu tiết kiệm."
+    },
+    {
+      id: "vps",
+      shortNav: "VPS",
+      chapter: "Chương 2: Ra riêng tự chủ",
+      analogy: "Ẩn dụ BĐS: Căn hộ khép kín trong 1 tòa chung cư",
+      title: "3. VPS (Virtual Private Server) – \"Chung Cư Mini Riêng Biệt\"",
+      minhTitle: "Khách mua bánh đông lên, Minh chuyển nhà:",
+      minhStory: "“Chán cảnh hàng xóm làm tắc nước ở ký túc xá, mình thuê hẳn 1 căn VPS! Có tường ngăn riêng, đồng hồ điện nước riêng và chìa khóa tự do đập sửa.”",
+      keypoints: [
+        { badge: "ISO", title: "Tài nguyên cách ly + Toàn quyền Root", desc: "Minh được cam kết riêng 4 CPU, 8GB RAM. Hàng xóm bên cạnh có quá tải thì tiệm bánh của Minh vẫn chạy mượt." },
+        { badge: "SU", title: "Tự do cài đặt mọi thứ", desc: "Minh toàn quyền chọn hệ điều hành Ubuntu/CentOS, cài Docker, cấu hình tường lửa theo ý thích." },
+        { badge: "SPOF", title: "Điểm yếu chí mạng: Nằm trên 1 tòa nhà duy nhất!", desc: "Nếu máy chủ vật lý mẹ bị cháy ổ cứng hoặc hỏng nguồn, căn hộ VPS của Minh sẽ SẬP ngay lập tức." }
+      ],
+      verdict: "<strong>Khi nào dùng?</strong> Web vừa và nhỏ, môi trường Dev/Test, cần quyền Root với chi phí cố định hàng tháng."
+    },
+    {
+      id: "cloud-vm",
+      shortNav: "Cloud VM",
+      chapter: "Chương 3: Lên mây bất tử",
+      analogy: "Ẩn dụ BĐS: Căn hộ thông minh trong Siêu đô thị liên kết",
+      title: "4. Cloud VM (Cloud Server) – \"Tự Dịch Chuyển Khi Có Sự Cố\"",
+      minhTitle: "Sau vụ sập VPS ngày Valentine, Minh lên Cloud:",
+      minhStory: "“Đúng lễ Valentine thì máy chủ vật lý của bên VPS cháy ổ cứng làm mình mất trăm đơn bánh! Mình chuyển sang Cloud VM để không bao giờ sợ hỏng phần cứng nữa.”",
+      keypoints: [
+        { badge: "SAN", title: "Khác VPS ở đâu? Ở hạ tầng cụm máy chủ!", desc: "VPS nằm trên 1 máy lẻ. Còn Cloud VM nằm trên hàng trăm máy chủ nối mạng với nhau + Hầm dữ liệu tách rời (sao lưu 3 bản Ceph/SAN)." },
+        { badge: "HA", title: "Tự phục hồi (Failover / Live Migration)", desc: "Tòa nhà số 1 bị mất điện? Đám mây tự động bế căn hộ của Minh sang Tòa nhà số 2 trong tích tắc, web vẫn sống!" },
+        { badge: "x10", title: "Co giãn linh hoạt (Auto-Scaling)", desc: "Dịp Trung Thu khách tăng gấp 10? Kéo thanh trượt tăng RAM/CPU hoặc nhân bản máy ảo trong vài giây, hết lễ thu nhỏ lại." }
+      ],
+      verdict: "<strong>Khi nào dùng?</strong> Web thương mại điện tử, hệ thống công ty, dự án cấm sập (Downtime = Mất tiền)."
+    },
+    {
+      id: "dedicated",
+      shortNav: "Dedicated",
+      chapter: "Chương 4: Độc quyền phần cứng",
+      analogy: "Ẩn dụ BĐS: Thuê đứt nguyên một căn Biệt thự mặt đất",
+      title: "5. Dedicated Server (Bare Metal) – \"Nguyên Cỗ Máy Vật Lý\"",
+      minhTitle: "Chuỗi bánh của Minh thành Tập đoàn lớn:",
+      minhStory: "“Khi công ty xử lý hàng triệu giao dịch tài chính và AI nặng mỗi giây, mình thuê đứt nguyên một cỗ máy chủ vật lý thật trong Data Center, không chia sẻ với ai!”",
+      keypoints: [
+        { badge: "100%", title: "100% Hiệu năng trần (Không qua Hypervisor)", desc: "Không bị hao hụt 2-5% sức mạnh cho lớp phần mềm cắt máy ảo. Toàn bộ CPU và RAM vật lý thuộc về một mình bạn." },
+        { badge: "SEC", title: "Bảo mật vật lý tuyệt đối", desc: "Phù hợp tiêu chuẩn ngân hàng, y tế hoặc game server cực lớn cấm nằm chung phần cứng với khách hàng khác." },
+        { badge: "RAM", title: "Kém linh hoạt & Đắt đỏ", desc: "Muốn nâng cấp thêm RAM? Phải chờ kỹ thuật viên cầm tua-vít ra cắm thanh RAM thật vào bo mạch!" }
+      ],
+      verdict: "<strong>Khi nào dùng?</strong> Tập đoàn lớn, Big Data, AI, Ngân hàng cần hiệu năng vật lý tối đa."
+    },
+    {
+      id: "container",
+      shortNav: "Container",
+      chapter: "Chương 5: Cách mạng đóng gói",
+      analogy: "Ẩn dụ BĐS: Thùng Container lắp ghép tiêu chuẩn hóa",
+      title: "6. Container (Docker) – \"Nhẹ Gấp Bội So Với Máy Ảo\"",
+      minhTitle: "Đội kỹ sư của Minh tối ưu tốc độ:",
+      minhStory: "“Mỗi lần bật thêm 1 máy ảo (VM) phải chờ 2 phút vì nó phải khởi động cả một Hệ điều hành riêng nặng hàng chục GB. Dùng Container (Docker), tiệm bánh khởi động chỉ mất 1 giây!”",
+      keypoints: [
+        { badge: "TAX", title: "Nỗi đau của VM: Cõng nhiều Hệ điều hành", desc: "Tạo 3 máy ảo là phải nuôi 3 bản Hệ điều hành (Guest OS) ngốn rất nhiều RAM (12GB) và ổ cứng." },
+        { badge: "OCI", title: "Giải pháp Container: Dùng chung nhân HĐH", desc: "Container chỉ đóng gói đúng \"Code tiệm bánh + Thư viện cần thiết\" vào 1 chiếc hộp siêu nhẹ, dùng chung nền móng Host OS Kernel." },
+        { badge: "1s", title: "Khởi động 1 giây & Chạy mọi nơi", desc: "Đặt thùng Container lên Laptop, VPS hay Cloud VM đều chạy giống hệt nhau, chấm dứt cảnh \"Máy em chạy được mà lên Server lại lỗi!\"" }
+      ],
+      verdict: "<strong>Thực tế:</strong> Ngày nay người ta thường thuê <strong>VPS / Cloud VM</strong> rồi cài <strong>Docker Container</strong> lên bên trong!"
+    },
+    {
+      id: "serverless",
+      shortNav: "Serverless",
+      chapter: "Chương 6: Quên luôn máy chủ",
+      analogy: "Ẩn dụ BĐS: Thuê dịch vụ bếp nướng bánh theo từng đơn",
+      title: "7. PaaS & Serverless – \"Chỉ Đưa Công Thức, Không Lo Nhà Cửa\"",
+      minhTitle: "Minh muốn rảnh tay 100% để sáng tạo bánh mới:",
+      minhStory: "“Mình không muốn thức đêm canh máy chủ hay cập nhật bảo mật Linux nữa! Mình đẩy thẳng Code lên Serverless (Vercel / Cloud Run / Lambda), có khách mua hệ thống mới tính tiền!”",
+      keypoints: [
+        { badge: "GIT", title: "Chỉ cần giao Công thức bánh (Code)", desc: "Nhà cung cấp lo toàn bộ máy chủ bên dưới. Bạn không cần biết mặt mũi con server trông như thế nào." },
+        { badge: "AUTO", title: "Co giãn từ 0 đến Hàng nghìn trong tích tắc", desc: "Có 1 khách bấm mua -> Bật 1 bếp nướng trong 0.2 giây (200ms) rồi tắt. Có 5.000 khách cùng lúc -> Tự nhân bản 5.000 bếp!" },
+        { badge: "0VND", title: "Ban đêm không có khách = 0 Đồng (Scale-to-Zero)", desc: "Khác với VPS phải trả tiền cả khi nửa đêm không ai vào web, Serverless chỉ thu phí đúng số mili-giây code chạy." }
+      ],
+      verdict: "<strong>Khi nào dùng?</strong> Startup muốn ra mắt sản phẩm thần tốc, API, Web hiện đại không muốn thuê nhân sự quản trị mạng."
+    },
+    {
+      id: "advisor",
+      shortNav: "Tư vấn",
+      chapter: "Tổng kết & Thực chiến",
+      analogy: "La bàn chọn đúng hạ tầng trong 5 giây",
+      title: "8. Câu Thần Chú Ghi Nhớ & Máy Tư Vấn Hạ Tầng",
+      minhTitle: "Minh đúc kết bí kíp cho bạn:",
+      minhStory: "“Đi từ tiệm bánh nhỏ đến chuỗi cửa hàng lớn, mình nhận ra không có hạ tầng nào tốt nhất cho mọi thứ, chỉ có hạ tầng phù hợp nhất với giai đoạn của bạn!”",
+      keypoints: [
+        { badge: "P1", title: "Thần chú phần 1: Công nghệ & Lưu trữ truyền thống", desc: "“VM là công nghệ chia máy. Hosting là ở ghép ký túc. VPS là chung cư đơn lẻ. Cloud VM là đô thị liên hoàn.”" },
+        { badge: "P2", title: "Thần chú phần 2: Hạ tầng hiện đại", desc: "“Dedicated là biệt thự nguyên căn. Container là nhà hộp lắp ghép. Còn Serverless là thuê bếp nướng theo giờ!”" },
+        { badge: "TRY", title: "Thử ngay Máy Tư Vấn bên phải", desc: "Hãy bấm chọn 1 trong 4 tình huống dự án thực tế ở khung bên phải để xem kiến trúc khuyên dùng!" }
+      ],
+      verdict: "<strong>Tổng kết:</strong> Bạn đã nắm vững toàn bộ bản đồ hạ tầng máy chủ từ gốc rễ kỹ thuật đến ứng dụng thực tế."
+    }
+  ];
+
+  function goToInfra2DSlide(idx) {
+    if (idx < 0 || idx >= INFRA2D_SLIDES.length) return;
+    infra2dCurrentSlide = idx;
+    infra2dState = {
+      sliced: false,
+      productMode: "none",
+      noisyNeighbor: false,
+      vpsNeighborOverload: false,
+      vpsHardwareCrash: false,
+      cloudNodeACrash: false,
+      cloudScaled: false,
+      dedicatedTurbo: false,
+      dedicatedUpgrading: false,
+      raceStarted: false,
+      serverlessMode: "idle",
+      selectedCase: 0
+    };
+    renderInfra2DSlide();
+  }
+
+  function changeInfra2DSlide(delta) {
+    goToInfra2DSlide(infra2dCurrentSlide + delta);
+  }
+
+  function toggleInfra2DSummaryModal() {
+    const panel = document.getElementById("infra2dSummaryDrawer");
+    if (!panel) return;
+    panel.style.display = panel.style.display === "none" ? "block" : "none";
+  }
+
+  function renderInfra2DSlide() {
+    const root = document.getElementById("infra2dWidgetRoot");
+    if (!root) return;
+    const slide = INFRA2D_SLIDES[infra2dCurrentSlide] || INFRA2D_SLIDES[0];
+
+    const dotsEl = document.getElementById("infra2dDots");
+    if (dotsEl) {
+      dotsEl.innerHTML = INFRA2D_SLIDES.map((s, idx) => `
+        <button type="button" class="infra2d-dot-btn ${idx === infra2dCurrentSlide ? 'active' : ''}" onclick="goToInfra2DSlide(${idx})">
+          ${idx + 1}. ${escapeHtml(s.shortNav)}
+        </button>
+      `).join("");
+    }
+
+    const chBadge = document.getElementById("infra2dChapterBadge");
+    if (chBadge) chBadge.textContent = slide.chapter;
+    const numPill = document.getElementById("infra2dSlideNumPill");
+    if (numPill) numPill.textContent = `SLIDE ${infra2dCurrentSlide + 1} / ${INFRA2D_SLIDES.length}`;
+    const anaPill = document.getElementById("infra2dAnalogyPill");
+    if (anaPill) anaPill.textContent = slide.analogy;
+    const titleEl = document.getElementById("infra2dSlideTitle");
+    if (titleEl) titleEl.textContent = slide.title;
+    const mTitle = document.getElementById("infra2dMinhTitle");
+    if (mTitle) mTitle.textContent = slide.minhTitle;
+    const mStory = document.getElementById("infra2dMinhStory");
+    if (mStory) mStory.textContent = slide.minhStory;
+
+    const kpEl = document.getElementById("infra2dKeypoints");
+    if (kpEl) {
+      kpEl.innerHTML = slide.keypoints.map(kp => `
+        <div class="infra2d-kp-item">
+          <div class="infra2d-kp-badge">${escapeHtml(kp.badge)}</div>
+          <div>
+            <div class="infra2d-kp-title">${escapeHtml(kp.title)}</div>
+            <p class="infra2d-kp-desc">${escapeHtml(kp.desc)}</p>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    const vEl = document.getElementById("infra2dVerdictBox");
+    if (vEl) vEl.innerHTML = slide.verdict;
+
+    const prevBtn = document.getElementById("infra2dBtnPrev");
+    if (prevBtn) prevBtn.disabled = (infra2dCurrentSlide === 0);
+    const nextBtn = document.getElementById("infra2dBtnNext");
+    if (nextBtn) {
+      if (infra2dCurrentSlide === INFRA2D_SLIDES.length - 1) {
+        nextBtn.textContent = "Xem Bảng Tổng Hợp ➔";
+        nextBtn.onclick = () => toggleInfra2DSummaryModal();
+      } else {
+        nextBtn.textContent = "Slide Tiếp Theo ➔";
+        nextBtn.onclick = () => changeInfra2DSlide(1);
+      }
+    }
+    const progEl = document.getElementById("infra2dProgressFill");
+    if (progEl) {
+      progEl.style.width = `${((infra2dCurrentSlide + 1) / INFRA2D_SLIDES.length) * 100}%`;
+    }
+
+    renderInfra2DSimStage();
+  }
+
+  function renderInfra2DSimStage() {
+    const stage = document.getElementById("infra2dSimStage");
+    const controls = document.getElementById("infra2dSimControls");
+    const statusText = document.getElementById("infra2dSimStatusText");
+    if (!stage || !controls || !statusText) return;
+
+    if (infra2dCurrentSlide === 0) {
+      if (!infra2dState.sliced) {
+        statusText.innerHTML = "<strong>[TRẠNG THÁI]:</strong> Đây là <strong>1 Máy chủ vật lý khổng lồ (64 CPU, 256GB RAM)</strong>. Hãy bấm nút cắt máy bằng Hypervisor!";
+        stage.innerHTML = `
+          <div class="infra2d-box infra2d-float" style="max-width:420px;width:100%;border-color:#6366f1;padding:18px;">
+            <div style="font-size:11px;font-weight:800;color:#818cf8;letter-spacing:0.06em;">MÁY CHỦ VẬT LÝ NGUYÊN KHỐI (BARE METAL HOST)</div>
+            <div style="font-size:18px;font-weight:800;color:#ffffff;margin:8px 0 4px;">64 CPU • 256 GB RAM</div>
+            <p style="font-size:12px;color:#94a3b8;margin:0 0 12px !important;">Quá to cho 1 tiệm bánh nhỏ! Nếu chỉ chạy 1 web sẽ lãng phí 95% sức mạnh.</p>
+            <div style="padding:8px 10px;border-radius:8px;background:#020617;border:1px solid #334155;font-size:12px;color:#fcd34d;">
+              [CHƯA ẢO HÓA] Chưa cài phần mềm <strong>Hypervisor</strong>
+            </div>
+          </div>
+        `;
+      } else {
+        let badgeLabel = "CÔNG NGHỆ GỐC: MÁY ẢO (VIRTUAL MACHINE - VM)";
+        let subNote = "<strong>[KẾT QUẢ]:</strong> Mỗi ô là 1 <strong>Virtual Machine (VM)</strong> có Hệ điều hành riêng, tưởng mình là máy thật!";
+        let borderCol = "#06b6d4";
+        let tagName = "Máy Ảo VM";
+        if (infra2dState.productMode === "vps") {
+          badgeLabel = "SẢN PHẨM 2: ĐÓNG GÓI THÀNH \"VPS\" CHO THUÊ THEO THÁNG";
+          subNote = "<strong>[VPS]:</strong> Nhà mạng gắn IP Internet vào từng chiếc VM trên cỗ máy đơn lẻ này rồi bán lẻ cho Minh thuê = <strong>VPS</strong>!";
+          borderCol = "#6366f1";
+          tagName = "Gói VPS";
+        } else if (infra2dState.productMode === "cloud") {
+          badgeLabel = "SẢN PHẨM 3: ĐÓNG GÓI THÀNH \"CLOUD VM\" TRÊN ĐÁM MÂY";
+          subNote = "<strong>[CLOUD VM]:</strong> Vẫn là chiếc VM đó, nhưng đặt trên hệ thống hàng trăm máy chủ liên kết tự phục hồi = <strong>Cloud VM</strong>!";
+          borderCol = "#10b981";
+          tagName = "Cloud VM";
+        }
+        statusText.innerHTML = subNote;
+        stage.innerHTML = `
+          <div style="width:100%;max-width:480px;">
+            <div style="text-align:center;margin-bottom:8px;">
+              <span class="infra2d-tag">${badgeLabel}</span>
+            </div>
+            <div class="infra2d-box" style="padding:12px;">
+              <div class="infra2d-card-grid2" style="margin-bottom:10px;">
+                ${[1, 2, 3, 4].map(n => `
+                  <div class="infra2d-box" style="border-color:${borderCol};background:rgba(15,23,42,0.9);">
+                    <div style="font-size:12.5px;font-weight:800;color:#ffffff;">${tagName} #${n}</div>
+                    <div style="font-size:11px;color:#cbd5e1;margin:2px 0;">16 CPU • 64GB RAM</div>
+                    <span style="display:inline-block;font-size:10.5px;padding:2px 6px;border-radius:4px;background:#1e293b;color:#6ee7b7;">HĐH Ubuntu Riêng</span>
+                  </div>
+                `).join("")}
+              </div>
+              <div style="padding:6px;border-radius:6px;background:linear-gradient(90deg,#e11d48,#f59e0b,#e11d48);color:#0b0f19;font-weight:800;font-size:11.5px;text-align:center;">
+                LỚP CẮT ẢO HÓA HYPERVISOR (KVM / VMware ESXi)
+              </div>
+              <div style="margin-top:6px;font-size:11px;color:#94a3b8;text-align:center;">
+                Phần cứng máy chủ vật lý bên dưới (64 CPU • 256 GB RAM)
+              </div>
+            </div>
+          </div>
+        `;
+      }
+      controls.innerHTML = `
+        <button type="button" class="infra2d-btn ${!infra2dState.sliced ? 'infra2d-btn-primary' : ''}" onclick="infra2dState.sliced = !infra2dState.sliced; infra2dState.productMode = 'none'; renderInfra2DSimStage();">
+          ${!infra2dState.sliced ? '1. Bấm cắt máy bằng Hypervisor (Tạo VM)' : 'Gộp lại máy vật lý'}
+        </button>
+        <button type="button" class="infra2d-btn" onclick="infra2dState.sliced = true; infra2dState.productMode = 'vps'; renderInfra2DSimStage();">
+          2. Biến VM thành gói VPS
+        </button>
+        <button type="button" class="infra2d-btn" onclick="infra2dState.sliced = true; infra2dState.productMode = 'cloud'; renderInfra2DSimStage();">
+          3. Biến VM thành Cloud VM
+        </button>
+      `;
+    } else if (infra2dCurrentSlide === 1) {
+      const noisy = infra2dState.noisyNeighbor;
+      statusText.innerHTML = noisy
+        ? "<strong>[HIỆU ỨNG HÀNG XÓM ỒN ÀO - NOISY NEIGHBOR]:</strong> Web hàng xóm số 2 bị tấn công DDoS hút cạn 95% ống nước CPU/RAM chung! Tiệm bánh của Minh bị vạ lây báo lỗi 503!"
+        : "<strong>[TRẠNG THÁI BÌNH THƯỜNG]:</strong> 4 giường ký túc xá ôn hòa chia nhau ống nước CPU/RAM chung. Web của Minh chạy ổn với giá 50k/tháng.";
+      stage.innerHTML = `
+        <div style="width:100%;max-width:480px;">
+          <div class="infra2d-box" style="margin-bottom:10px;text-align:left;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:6px;">
+              <span style="color:#7dd3fc;">Ống nước Tài nguyên Dùng chung (CPU &amp; RAM chung)</span>
+              <span style="color:${noisy ? '#fb7185' : '#34d399'};">${noisy ? '99% CẠN KIỆT!' : '35% Ổn định'}</span>
+            </div>
+            <div style="width:100%;height:12px;background:#1e293b;border-radius:999px;overflow:hidden;display:flex;">
+              <div style="height:100%;background:#fbbf24;width:${noisy ? '4%' : '15%'};transition:width 0.4s;"></div>
+              <div style="height:100%;background:${noisy ? '#f43f5e' : '#0ea5e9'};width:${noisy ? '95%' : '20%'};transition:width 0.4s;"></div>
+            </div>
+          </div>
+          <div class="infra2d-box ${noisy ? 'infra2d-glow-danger' : ''}" style="padding:12px;">
+            <div style="font-size:11.5px;font-weight:700;color:#94a3b8;margin-bottom:8px;">
+              PHÒNG KÝ TÚC XÁ SHARED HOSTING (Không có vách ngăn tài nguyên)
+            </div>
+            <div class="infra2d-card-grid2">
+              <div class="infra2d-box" style="border-color:${noisy ? '#f43f5e' : '#f59e0b'};background:${noisy ? 'rgba(136,19,55,0.35)' : 'rgba(245,158,11,0.1)'};">
+                <div style="font-size:12px;font-weight:800;color:#fcd34d;">Giường 1: Tiệm Bánh Minh</div>
+                <div style="font-size:11px;font-weight:700;margin-top:4px;color:${noisy ? '#fb7185' : '#34d399'};">
+                  ${noisy ? '[LỖI 503] Mất nước oan!' : '[ONLINE] Đang mở cửa (20 khách)'}
+                </div>
+              </div>
+              <div class="infra2d-box ${noisy ? 'infra2d-shake' : ''}" style="border-color:${noisy ? '#fb7185' : '#334155'};background:${noisy ? 'rgba(225,29,72,0.28)' : '#1e293b'};">
+                <div style="font-size:12px;font-weight:800;color:#ffffff;">Giường 2: Web Hàng Xóm</div>
+                <div style="font-size:11px;font-weight:700;margin-top:4px;color:${noisy ? '#fda4af' : '#94a3b8'};">
+                  ${noisy ? '[DDoS] Hút cạn 95% RAM!' : '[ONLINE] Bình thường'}
+                </div>
+              </div>
+              <div class="infra2d-box" style="padding:8px;">
+                <div style="font-size:11.5px;font-weight:700;color:#cbd5e1;">Giường 3: Blog Cá Nhân</div>
+                <div style="font-size:10.5px;color:${noisy ? '#fb7185' : '#94a3b8'};">${noisy ? '[503] Treo theo' : '[OK] Bình thường'}</div>
+              </div>
+              <div class="infra2d-box" style="padding:8px;">
+                <div style="font-size:11.5px;font-weight:700;color:#cbd5e1;">Giường 4: Web Áo Quần</div>
+                <div style="font-size:10.5px;color:${noisy ? '#fb7185' : '#94a3b8'};">${noisy ? '[503] Treo theo' : '[OK] Bình thường'}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      controls.innerHTML = `
+        <button type="button" class="infra2d-btn infra2d-btn-danger" onclick="infra2dState.noisyNeighbor = true; renderInfra2DSimStage();">
+          1. Cho Hàng Xóm Mở Tiệc / Bị DDoS (Noisy Neighbor)
+        </button>
+        <button type="button" class="infra2d-btn" onclick="infra2dState.noisyNeighbor = false; renderInfra2DSimStage();">
+          2. Khôi phục bình yên
+        </button>
+      `;
+    } else if (infra2dCurrentSlide === 2) {
+      const neighborHot = infra2dState.vpsNeighborOverload;
+      const crashed = infra2dState.vpsHardwareCrash;
+      if (crashed) {
+        statusText.innerHTML = "<strong>[ĐIỂM YẾU CHÍ MẠNG CỦA VPS - SPOF]:</strong> Máy chủ vật lý mẹ bị cháy ổ cứng! Vì toàn bộ căn hộ VPS nằm trên 1 tòa nhà duy nhất nên Tiệm bánh của Minh SẬP NGAY LẬP TỨC!";
+      } else if (neighborHot) {
+        statusText.innerHTML = "<strong>[ƯU ĐIỂM CỦA VPS]:</strong> Nhờ tường gạch Hypervisor ngăn căn hộ riêng, hàng xóm có quá tải 100% CPU của họ thì căn hộ VPS của Minh vẫn chạy mượt (CPU: 25%)!";
+      } else {
+        statusText.innerHTML = "<strong>[CẤU TRÚC VPS]:</strong> Mỗi VPS là 1 căn hộ khép kín có đồng hồ CPU/RAM riêng và chìa khóa Root trên <strong>1 tòa nhà máy chủ vật lý đơn lẻ</strong>.";
+      }
+      stage.innerHTML = `
+        <div style="width:100%;max-width:480px;">
+          <div class="infra2d-box ${crashed ? 'infra2d-glow-danger infra2d-shake' : ''}" style="padding:14px;border-color:${crashed ? '#f43f5e' : '#6366f1'};">
+            <div style="display:flex;justify-content:space-between;font-size:11.5px;font-weight:700;margin-bottom:10px;">
+              <span style="color:#a5b4fc;">TÒA NHÀ MÁY CHỦ VẬT LÝ ĐƠN LẺ (Single Physical Server)</span>
+              <span style="color:${crashed ? '#fb7185' : '#34d399'};">${crashed ? '[SPOF: HỎNG PHẦN CỨNG]' : '[ONLINE]'}</span>
+            </div>
+            <div class="infra2d-card-grid2">
+              <div class="infra2d-box" style="border-color:${crashed ? '#f43f5e' : '#10b981'};background:${crashed ? 'rgba(136,19,55,0.45)' : 'rgba(6,78,59,0.25)'};">
+                <div style="font-size:12px;font-weight:800;color:#ffffff;">Căn hộ VPS Của Minh [ROOT]</div>
+                <div style="font-size:11px;color:#cbd5e1;margin-top:2px;">Cam kết riêng: 4 CPU • 8GB RAM</div>
+                <div style="margin-top:8px;padding:4px 6px;border-radius:6px;background:#020617;font-size:11px;font-weight:700;color:${crashed ? '#fb7185' : '#34d399'};">
+                  ${crashed ? '[OFFLINE] SẬP WEB (Mất móng nhà!)' : '[ONLINE] Chạy mượt (CPU: 25%)'}
+                </div>
+              </div>
+              <div class="infra2d-box" style="border-color:${crashed ? '#f43f5e' : neighborHot ? '#f59e0b' : '#475569'};background:${crashed ? 'rgba(136,19,55,0.45)' : neighborHot ? 'rgba(120,53,15,0.4)' : '#1e293b'};">
+                <div style="font-size:12px;font-weight:800;color:#ffffff;">Căn hộ VPS Hàng Xóm</div>
+                <div style="font-size:11px;color:#cbd5e1;margin-top:2px;">Cam kết riêng: 4 CPU • 8GB RAM</div>
+                <div style="margin-top:8px;padding:4px 6px;border-radius:6px;background:#020617;font-size:11px;font-weight:700;color:${crashed ? '#fb7185' : neighborHot ? '#fbbf24' : '#cbd5e1'};">
+                  ${crashed ? '[OFFLINE] SẬP WEB' : neighborHot ? '[100% CPU] Quá tải riêng họ!' : '[ONLINE] Bình thường (CPU: 30%)'}
+                </div>
+              </div>
+            </div>
+            <div style="margin-top:10px;padding:8px;border-radius:8px;border:1px solid ${crashed ? '#fb7185' : '#1e293b'};background:${crashed ? '#e11d48' : '#020617'};color:${crashed ? '#ffffff' : '#cbd5e1'};font-size:11.5px;font-weight:700;text-align:center;">
+              ${crashed ? 'MÓNG TÒA NHÀ: CHÁY Ổ CỨNG VẬT LÝ / HỎNG NGUỒN!' : 'Móng tòa nhà: 1 Ổ cứng & Bo mạch vật lý duy nhất'}
+            </div>
+          </div>
+        </div>
+      `;
+      controls.innerHTML = `
+        <button type="button" class="infra2d-btn infra2d-btn-primary" onclick="infra2dState.vpsHardwareCrash = false; infra2dState.vpsNeighborOverload = true; renderInfra2DSimStage();">
+          1. Thử cho Hàng xóm quá tải 100%
+        </button>
+        <button type="button" class="infra2d-btn infra2d-btn-danger" onclick="infra2dState.vpsHardwareCrash = true; renderInfra2DSimStage();">
+          2. Thử làm cháy ổ cứng tòa nhà mẹ!
+        </button>
+        <button type="button" class="infra2d-btn" onclick="infra2dState.vpsHardwareCrash = false; infra2dState.vpsNeighborOverload = false; renderInfra2DSimStage();">
+          Reset
+        </button>
+      `;
+    } else if (infra2dCurrentSlide === 3) {
+      const nodeAFailed = infra2dState.cloudNodeACrash;
+      const scaled = infra2dState.cloudScaled;
+      if (nodeAFailed) {
+        statusText.innerHTML = "<strong>[PHÉP MÀU CLOUD VM - FAILOVER / LIVE MIGRATION]:</strong> Tòa nhà số 1 vừa mất điện, Đám mây lập tức dịch chuyển căn hộ của Minh sang Tòa nhà số 2! Dữ liệu dưới hầm Ceph/SAN 3 bản sao vẫn nguyên vẹn, web KHÔNG SẬP!";
+      } else if (scaled) {
+        statusText.innerHTML = "<strong>[CO GIÃN TỨC THÌ - AUTO-SCALING]:</strong> Đón bão khách Trung Thu, Cloud VM tự động nâng gấp đôi sức mạnh (16 CPU) và nhân bản thêm căn hộ phụ chỉ trong vài giây!";
+      } else {
+        statusText.innerHTML = "<strong>[KIẾN TRÚC ĐÁM MÂY]:</strong> Hàng trăm tòa nhà kết nối với nhau + Hầm dữ liệu phân tán độc lập (Cloud SAN / Ceph Storage sao lưu 3 bản).";
+      }
+      stage.innerHTML = `
+        <div style="width:100%;max-width:520px;">
+          <div class="infra2d-card-grid3">
+            <div class="infra2d-box ${!nodeAFailed ? 'infra2d-glow-success' : ''}" style="border-color:${nodeAFailed ? '#f43f5e' : '#10b981'};opacity:${nodeAFailed ? '0.75' : '1'};">
+              <div style="font-size:11px;font-weight:700;color:#94a3b8;">Tòa Nhà Cloud #1</div>
+              <div style="font-size:12px;font-weight:800;margin:6px 0;color:${nodeAFailed ? '#fb7185' : '#6ee7b7'};">
+                ${nodeAFailed ? '[MẤT ĐIỆN]' : 'Cloud VM Của Minh'}
+              </div>
+              <div style="font-size:10.5px;color:#cbd5e1;">
+                ${nodeAFailed ? 'Đã sơ tán sang #2 ➔' : scaled ? '16 CPU (Đã nâng!)' : '4 CPU • 8GB RAM'}
+              </div>
+            </div>
+            <div class="infra2d-box ${nodeAFailed ? 'infra2d-glow-success' : ''}" style="border-color:${nodeAFailed ? '#10b981' : scaled ? '#06b6d4' : '#334155'};">
+              <div style="font-size:11px;font-weight:700;color:#94a3b8;">Tòa Nhà Cloud #2</div>
+              <div style="font-size:12px;font-weight:800;margin:6px 0;color:${nodeAFailed ? '#6ee7b7' : scaled ? '#67e8f9' : '#94a3b8'};">
+                ${nodeAFailed ? 'Minh đã bay sang đây!' : scaled ? 'Bản sao Auto-Scale' : 'Dự phòng sẵn sàng'}
+              </div>
+              <div style="font-size:10.5px;color:#34d399;">
+                ${nodeAFailed ? '[HA] Web chạy 100%!' : scaled ? '[ACTIVE] Đón phụ 5.000 khách' : 'Chờ tiếp ứng'}
+              </div>
+            </div>
+            <div class="infra2d-box" style="border-color:${scaled ? '#06b6d4' : '#334155'};">
+              <div style="font-size:11px;font-weight:700;color:#94a3b8;">Tòa Nhà Cloud #3</div>
+              <div style="font-size:12px;font-weight:800;margin:6px 0;color:${scaled ? '#67e8f9' : '#94a3b8'};">
+                ${scaled ? 'Bản sao Auto-Scale' : 'Dự phòng sẵn sàng'}
+              </div>
+              <div style="font-size:10.5px;color:#34d399;">
+                ${scaled ? '[ACTIVE] Đón phụ 5.000 khách' : 'Chờ tiếp ứng'}
+              </div>
+            </div>
+          </div>
+          <div class="infra2d-pipe"></div>
+          <div class="infra2d-box" style="border-color:#6366f1;background:rgba(49,46,129,0.28);display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;">
+            <div>
+              <div style="font-size:12px;font-weight:800;color:#c7d2fe;">Hầm Dữ Liệu Phân Tán Độc Lập (Cloud SAN / Ceph Storage)</div>
+              <div style="font-size:11px;color:#cbd5e1;">Dữ liệu bánh &amp; đơn hàng được nhân làm 3 bản an toàn tuyệt đối (Tòa #1 cháy cũng không mất file!)</div>
+            </div>
+            <span style="padding:4px 8px;border-radius:6px;background:rgba(16,185,129,0.2);color:#6ee7b7;font-size:11px;font-weight:800;white-space:nowrap;">3 Bản Sao</span>
+          </div>
+        </div>
+      `;
+      controls.innerHTML = `
+        <button type="button" class="infra2d-btn infra2d-btn-danger" onclick="infra2dState.cloudNodeACrash = true; infra2dState.cloudScaled = false; renderInfra2DSimStage();">
+          1. Đánh sập Tòa nhà #1 (Xem tự chuyển nhà!)
+        </button>
+        <button type="button" class="infra2d-btn infra2d-btn-emerald" onclick="infra2dState.cloudScaled = true; infra2dState.cloudNodeACrash = false; renderInfra2DSimStage();">
+          2. Bão khách Trung Thu (Auto-Scale x3)
+        </button>
+        <button type="button" class="infra2d-btn" onclick="infra2dState.cloudNodeACrash = false; infra2dState.cloudScaled = false; renderInfra2DSimStage();">
+          Reset
+        </button>
+      `;
+    } else if (infra2dCurrentSlide === 4) {
+      const turbo = infra2dState.dedicatedTurbo;
+      const upgrading = infra2dState.dedicatedUpgrading;
+      if (upgrading) {
+        statusText.innerHTML = "<strong>[NHƯỢC ĐIỂM VẬT LÝ]:</strong> Vì là máy thật nguyên chiếc nên khi muốn gắn thêm ổ cứng hay thanh RAM mới, kỹ thuật viên phải tắt máy và cầm tua-vít lắp bằng tay!";
+      } else if (turbo) {
+        statusText.innerHTML = "<strong>[100% SỨC MẠNH BARE METAL]:</strong> Không có lớp ảo hóa trung gian Hypervisor, Minh vắt kiệt toàn bộ 100% xung nhịp CPU vật lý để chạy dữ liệu lớn!";
+      } else {
+        statusText.innerHTML = "<strong>[BARE METAL / DEDICATED]:</strong> Nguyên một căn biệt thự máy chủ vật lý thuộc độc quyền của công ty Minh, không có bất kỳ hàng xóm nào.";
+      }
+      stage.innerHTML = `
+        <div class="infra2d-box" style="max-width:440px;width:100%;border-color:#f59e0b;padding:16px;">
+          <span class="infra2d-pill-analogy" style="display:inline-block;margin-bottom:8px;">BIỆT THỰ ĐỘC QUYỀN (BARE METAL SERVER)</span>
+          <div style="font-size:16px;font-weight:800;color:#ffffff;">Dedicated Server Của Tập Đoàn Minh</div>
+          <p style="font-size:11.5px;color:#cbd5e1;margin:4px 0 12px !important;">Không chia sẻ • Không lớp cắt Hypervisor • Bảo mật vật lý</p>
+          <div style="background:#020617;border:1px solid #1e293b;border-radius:8px;padding:10px;text-align:left;font-size:12px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <span style="color:#94a3b8;">Hao hụt ảo hóa (Hypervisor Tax):</span>
+              <span style="font-weight:700;color:#34d399;">0% (Chạy thẳng trên phần cứng)</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <span style="color:#94a3b8;">Hàng xóm dùng chung:</span>
+              <span style="font-weight:700;color:#34d399;">0 người (Độc quyền 100%)</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;">
+              <span style="color:#94a3b8;">Trạng thái hiện tại:</span>
+              <span style="font-weight:700;color:${upgrading ? '#fbbf24' : '#38bdf8'};">
+                ${upgrading ? '[DOWNTIME] Tắt máy chờ lắp thêm thanh RAM thật...' : turbo ? '[MAX PERF] Full 100% Công Suất Vật Lý!' : '[READY] Sẵn sàng'}
+              </span>
+            </div>
+          </div>
+        </div>
+      `;
+      controls.innerHTML = `
+        <button type="button" class="infra2d-btn infra2d-btn-amber" onclick="infra2dState.dedicatedTurbo = true; infra2dState.dedicatedUpgrading = false; renderInfra2DSimStage();">
+          1. Chạy 100% Hiệu năng Bare Metal
+        </button>
+        <button type="button" class="infra2d-btn" onclick="infra2dState.dedicatedUpgrading = true; infra2dState.dedicatedTurbo = false; renderInfra2DSimStage();">
+          2. Thử nâng cấp thêm RAM vật lý
+        </button>
+      `;
+    } else if (infra2dCurrentSlide === 5) {
+      const started = infra2dState.raceStarted;
+      statusText.innerHTML = started
+        ? "<strong>[KẾT QUẢ CUỘC ĐUA]:</strong> Container (Docker) khởi động xong trong <strong>1 giây</strong> và chỉ tốn <strong>0.6 GB RAM</strong> cho 6 tiệm bánh vì bỏ qua cục tạ \"Hệ điều hành riêng (Guest OS)\"!"
+        : "<strong>[SO SÁNH TRỰC QUAN]:</strong> Hãy bấm nút <strong>\"Bấm Đua Khởi Động (VM vs. Container)\"</strong> để thấy vì sao Container nhẹ và nhanh gấp chục lần Máy ảo (VM)!";
+      stage.innerHTML = `
+        <div class="infra2d-card-grid2" style="max-width:520px;">
+          <div class="infra2d-box" style="text-align:left;display:flex;flex-direction:column;justify-content:space-between;">
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <span style="font-size:12px;font-weight:800;color:#fbbf24;">Cách Cũ: 3 Máy Ảo (VM)</span>
+                <span style="font-size:10.5px;padding:2px 6px;border-radius:4px;background:rgba(244,63,94,0.2);color:#fda4af;">${started ? '60 giây' : 'Nặng nề'}</span>
+              </div>
+              ${[1, 2, 3].map(i => `
+                <div style="padding:6px 8px;border-radius:6px;background:#020617;border:1px solid #1e293b;margin-bottom:6px;font-size:11px;">
+                  <div style="font-weight:700;color:#ffffff;">App Bánh #${i}</div>
+                  <div style="margin-top:3px;padding:2px 6px;border-radius:4px;background:rgba(136,19,55,0.5);color:#fda4af;font-weight:600;">
+                    Cõng HĐH Guest OS riêng (4GB RAM)
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+            <div style="padding-top:6px;border-top:1px solid #1e293b;font-size:11px;color:#94a3b8;text-align:center;">
+              Ngốn mất <strong>12 GB RAM</strong> chỉ để nuôi 3 Hệ điều hành!
+            </div>
+          </div>
+          <div class="infra2d-box ${started ? 'infra2d-glow-success' : ''}" style="border-color:#06b6d4;display:flex;flex-direction:column;justify-content:space-between;">
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <span style="font-size:12px;font-weight:800;color:#67e8f9;">Hiện Đại: 6 Container</span>
+                <span style="font-size:10.5px;padding:2px 6px;border-radius:4px;background:rgba(16,185,129,0.2);color:#6ee7b7;font-weight:700;">${started ? '1 GIÂY XONG!' : 'Siêu nhẹ'}</span>
+              </div>
+              <div class="infra2d-card-grid2" style="gap:6px;">
+                ${[1, 2, 3, 4, 5, 6].map(i => `
+                  <div style="padding:6px;border-radius:6px;background:rgba(8,145,178,0.18);border:1px solid rgba(6,182,212,0.4);">
+                    <div style="font-size:11px;font-weight:700;color:#ffffff;">Container #${i}</div>
+                    <div style="font-size:10px;color:#6ee7b7;">${started ? '[RUNNING] 1s!' : 'Chỉ 100MB'}</div>
+                  </div>
+                `).join("")}
+              </div>
+              <div style="margin-top:8px;padding:5px;border-radius:6px;background:rgba(8,145,178,0.22);border:1px solid rgba(6,182,212,0.4);font-size:11px;font-weight:700;color:#a5f3fc;">
+                Docker Engine + Dùng chung 1 Nhân HĐH Máy Chủ
+              </div>
+            </div>
+            <div style="padding-top:6px;border-top:1px solid #1e293b;font-size:11px;color:#6ee7b7;font-weight:600;">
+              Chạy gấp đôi số tiệm bánh mà chỉ tốn <strong>0.6 GB RAM</strong>!
+            </div>
+          </div>
+        </div>
+      `;
+      controls.innerHTML = `
+        <button type="button" class="infra2d-btn infra2d-btn-cyan" onclick="infra2dState.raceStarted = true; renderInfra2DSimStage();">
+          1. Bấm Đua Khởi Động (VM vs. Container)
+        </button>
+        <button type="button" class="infra2d-btn" onclick="infra2dState.raceStarted = false; renderInfra2DSimStage();">
+          Reset
+        </button>
+      `;
+    } else if (infra2dCurrentSlide === 6) {
+      const mode = infra2dState.serverlessMode;
+      if (mode === "idle") {
+        statusText.innerHTML = "<strong>[SCALE-TO-ZERO]:</strong> Trạng thái 0 Khách — Bếp Serverless tắt hoàn toàn. Minh tốn <strong>0 VNĐ</strong> (Trong khi thuê VPS vẫn bị trừ tiền đều đặn!).";
+      } else if (mode === "one") {
+        statusText.innerHTML = "<strong>[1 REQUEST]:</strong> Có 1 Khách đặt bánh — Hệ thống tự bật 1 đầu bếp Robot trong 0.2 giây (200ms), nướng xong giao bánh rồi tắt. Chỉ tốn <strong>2 đồng</strong>!";
+      } else {
+        statusText.innerHTML = "<strong>[FLASH SALE 1.000 KHÁCH]:</strong> Serverless lập tức triệu hồi 1.000 đầu bếp Robot chạy song song mà Minh không cần đụng tay vào bất kỳ máy chủ nào!";
+      }
+      stage.innerHTML = `
+        <div class="infra2d-box ${mode === 'flash' ? 'infra2d-glow-success' : ''}" style="max-width:480px;width:100%;border-color:${mode === 'flash' ? '#fbbf24' : mode === 'one' ? '#10b981' : '#334155'};padding:14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1e293b;padding-bottom:8px;margin-bottom:10px;font-size:11.5px;font-weight:700;">
+            <span style="color:#fb7185;">KHU BẾP SERVERLESS (AWS Lambda / Cloud Run / Vercel)</span>
+            <span style="padding:3px 8px;border-radius:999px;background:rgba(16,185,129,0.2);color:#6ee7b7;">
+              Chi phí: ${mode === 'idle' ? '0 VNĐ / giờ' : mode === 'one' ? '2 VNĐ / đơn' : 'Tính đúng 1.000 đơn'}
+            </span>
+          </div>
+          <div style="min-height:130px;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px;padding:12px;border-radius:8px;background:#020617;border:1px solid #1e293b;">
+            ${mode === "idle" ? `
+              <div style="color:#94a3b8;font-size:12px;">
+                <div style="font-weight:800;color:#e2e8f0;margin-bottom:4px;">[SCALE-TO-ZERO] Chỉ có bản Công thức bánh (Code) đang nằm chờ</div>
+                <div>Không tốn 1 xu tiền thuê mặt bằng khi vắng khách!</div>
+              </div>
+            ` : mode === "one" ? `
+              <div class="infra2d-box" style="border-color:#10b981;background:rgba(6,78,59,0.35);">
+                <div style="font-size:12.5px;font-weight:800;color:#6ee7b7;">Đầu Bếp Serverless #1</div>
+                <div style="font-size:11px;color:#cbd5e1;margin-top:4px;">Nướng xong trong 200ms ➔ Tự biến mất!</div>
+              </div>
+            ` : `
+              ${[1, 2, 3, 4, 5, 6, 7, 8].map(n => `
+                <div style="padding:6px 10px;border-radius:8px;background:rgba(245,158,11,0.16);border:1px solid rgba(251,191,36,0.5);font-size:11px;font-weight:700;color:#fcd34d;">
+                  Bếp #${n} [ACTIVE]
+                </div>
+              `).join("")}
+              <div style="width:100%;font-size:11.5px;font-weight:700;color:#34d399;margin-top:6px;">
+                + Tự động nhân bản 1.000 hàm xử lý song song rồi tự giải tán về 0đ!
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+      controls.innerHTML = `
+        <button type="button" class="infra2d-btn ${mode === 'idle' ? 'infra2d-btn-primary' : ''}" onclick="infra2dState.serverlessMode = 'idle'; renderInfra2DSimStage();">
+          1. Ban đêm 0 khách (0 VNĐ)
+        </button>
+        <button type="button" class="infra2d-btn infra2d-btn-emerald" onclick="infra2dState.serverlessMode = 'one'; renderInfra2DSimStage();">
+          2. Có 1 khách bấm mua bánh
+        </button>
+        <button type="button" class="infra2d-btn infra2d-btn-amber" onclick="infra2dState.serverlessMode = 'flash'; renderInfra2DSimStage();">
+          3. Bão Sale 1.000 khách cùng lúc!
+        </button>
+      `;
+    } else {
+      const scenarios = [
+        {
+          btn: "1. Làm Blog / Web giới thiệu nhỏ",
+          pick: "Shared Hosting (hoặc PaaS tĩnh miễn phí)",
+          badge: "[HOSTING / STATIC PAAS]",
+          color: "#0ea5e9",
+          why: "Ngân sách chỉ vài chục nghìn/tháng, không cần biết quản trị Linux, có sẵn cPanel để cài WordPress trong 5 phút.",
+          avoid: "Chưa cần thuê Dedicated hay Cloud VM phức tạp gây lãng phí."
+        },
+        {
+          btn: "2. Lập trình viên cần máy riêng giá rẻ",
+          pick: "VPS + Cài Docker Container bên trong",
+          badge: "[VPS + DOCKER ENGINE]",
+          color: "#6366f1",
+          why: "Chi phí cố định hàng tháng rất rẻ (100k - 300k), có toàn quyền Root để vọc Linux và chạy nhiều dự án nhỏ bằng Docker.",
+          avoid: "Nhớ tự sao lưu dữ liệu (Backup) định kỳ đề phòng ổ cứng máy mẹ hỏng (SPOF)."
+        },
+        {
+          btn: "3. Sàn TMĐT / Hệ thống công ty cấm sập",
+          pick: "Cloud VM + Kubernetes (AWS / GCP / Viettel / VNG Cloud)",
+          badge: "[CLOUD VM + K8S HA]",
+          color: "#10b981",
+          why: "Tự động chuyển đổi dự phòng (Failover) khi lỗi phần cứng, dễ dàng nâng/hạ cấu hình theo mùa cao điểm mà không gián đoạn.",
+          avoid: "Nhớ cài cảnh báo ngân sách (Billing Alert) để kiểm soát chi phí."
+        },
+        {
+          btn: "4. Startup muốn ra mắt App thần tốc, ít người",
+          pick: "PaaS / Serverless (Vercel, Cloud Run, Render)",
+          badge: "[SERVERLESS SCALE-TO-ZERO]",
+          color: "#f59e0b",
+          why: "Đội ngũ chỉ việc viết Code và đẩy lên Git. Không tốn tiền thuê kỹ sư trực máy chủ, vắng khách chi phí gần như bằng 0.",
+          avoid: "Rất tuyệt vời cho giai đoạn tăng trưởng nhanh."
+        }
+      ];
+      const cur = scenarios[infra2dState.selectedCase || 0];
+      statusText.innerHTML = "<strong>[MÁY TƯ VẤN HẠ TẦNG]:</strong> Hãy bấm chọn 1 trong 4 bài toán thực tế bên dưới để xem lời khuyên thiết kế hạ tầng!";
+      stage.innerHTML = `
+        <div class="infra2d-box" style="max-width:480px;width:100%;border-color:${cur.color};padding:16px;">
+          <div style="font-size:11.5px;font-weight:800;color:${cur.color};margin-bottom:4px;">${cur.badge} — GIẢI PHÁP KHUYÊN DÙNG</div>
+          <div style="font-size:17px;font-weight:800;color:#ffffff;margin-bottom:10px;">${cur.pick}</div>
+          <div style="background:#020617;border:1px solid #1e293b;border-radius:8px;padding:12px;text-align:left;font-size:12px;">
+            <p style="color:#6ee7b7;margin:0 0 6px !important;"><strong>[TẠI SAO PHÙ HỢP]:</strong> ${cur.why}</p>
+            <p style="color:#fcd34d;margin:0 !important;"><strong>[LƯU Ý THỰC CHIẾN]:</strong> ${cur.avoid}</p>
+          </div>
+        </div>
+      `;
+      controls.innerHTML = scenarios.map((sc, idx) => `
+        <button type="button" class="infra2d-btn ${(infra2dState.selectedCase || 0) === idx ? 'infra2d-btn-primary' : ''}" onclick="infra2dState.selectedCase = ${idx}; renderInfra2DSimStage();">
+          ${sc.btn}
+        </button>
+      `).join("");
+    }
+  }
+
+  function buildInfra2DSimulatorHtml() {
+    return `
+      <div class="infra2d-wrap" id="infra2dWidgetRoot">
+        <div class="infra2d-header">
+          <div class="infra2d-brand">
+            <div class="infra2d-brand-icon">2D</div>
+            <div>
+              <div class="infra2d-brand-badges">
+                <span class="infra2d-tag">Storytelling 2D</span>
+                <span class="infra2d-chapter" id="infra2dChapterBadge">Gốc rễ khái niệm</span>
+              </div>
+              <h4 class="infra2d-title-bar">Chuyện Tiệm Bánh Của Minh: Từ Máy Ảo Đến Đám Mây</h4>
+            </div>
+          </div>
+          <div class="infra2d-dots" id="infra2dDots"></div>
+          <button type="button" class="infra2d-btn" onclick="toggleInfra2DSummaryModal()">Bảng So Sánh Nhanh</button>
+        </div>
+
+        <div id="infra2dSummaryDrawer" style="display:none;padding:14px 16px;background:#020617;border-bottom:1px solid #1e293b;">
+          <div style="padding:10px 12px;border-radius:8px;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.35);font-size:12.5px;color:#c7d2fe;margin-bottom:10px;">
+            <strong>Quy tắc vàng:</strong> <strong>VM (Virtual Machine)</strong> là <em>công nghệ chia cắt máy tính bằng Hypervisor</em>. Còn <strong>VPS</strong> và <strong>Cloud VM</strong> là <em>gói sản phẩm thương mại</em> ứng dụng công nghệ VM đó để cho bạn thuê!
+          </div>
+          <div class="table-wrap" style="margin:0;">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Loại hình</th>
+                  <th>Ẩn dụ Bất động sản</th>
+                  <th>Điểm mạnh nhất</th>
+                  <th>Rủi ro / Hạn chế</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Shared Hosting</strong></td>
+                  <td>Giường ký túc xá ở ghép</td>
+                  <td>Rẻ nhất (50k/tháng), có sẵn cPanel, không cần biết kỹ thuật Linux</td>
+                  <td>Không có quyền Root; hàng xóm bị DDoS (Noisy Neighbor) là mình sập lỗi 503 theo</td>
+                </tr>
+                <tr>
+                  <td><strong>VPS</strong></td>
+                  <td>Căn hộ chung cư đơn lẻ</td>
+                  <td>Toàn quyền Root, tài nguyên cam kết riêng (4 CPU, 8GB RAM), giá cố định</td>
+                  <td>Nằm trên 1 máy vật lý mẹ duy nhất (SPOF): cháy ổ cứng máy mẹ là sập ngay</td>
+                </tr>
+                <tr>
+                  <td><strong>Cloud VM</strong></td>
+                  <td>Căn hộ thông minh liên kết</td>
+                  <td>Tự chuyển nhà (Failover / Live Migration) + hầm Ceph/SAN 3 bản sao, Auto-Scaling</td>
+                  <td>Chi phí tính theo mức dùng (Pay-as-you-go), cần cài Billing Alert tối ưu</td>
+                </tr>
+                <tr>
+                  <td><strong>Dedicated Server</strong></td>
+                  <td>Thuê nguyên căn biệt thự</td>
+                  <td>100% sức mạnh phần cứng trần (0% Hypervisor Tax), bảo mật vật lý tuyệt đối</td>
+                  <td>Đắt đỏ, nâng cấp phải tắt máy chờ kỹ thuật viên lắp thanh RAM bằng tay</td>
+                </tr>
+                <tr>
+                  <td><strong>Container (Docker)</strong></td>
+                  <td>Nhà hộp lắp ghép tiêu chuẩn</td>
+                  <td>Khởi động 1 giây, cực nhẹ (6 containers = 0.6GB RAM) vì dùng chung Host OS Kernel</td>
+                  <td>Cần học quy trình đóng gói Docker / điều phối Kubernetes</td>
+                </tr>
+                <tr>
+                  <td><strong>Serverless / PaaS</strong></td>
+                  <td>Thuê bếp nướng bánh theo lượt</td>
+                  <td>Chỉ cần đưa Code, tự nhân bản 1.000 bếp (200ms/đơn), ban đêm 0 khách = 0 VNĐ</td>
+                  <td>Phụ thuộc nền tảng của nhà cung cấp (Cloud Run / AWS Lambda / Vercel)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="infra2d-grid">
+          <div class="infra2d-col-left">
+            <div>
+              <div class="infra2d-pills">
+                <span class="infra2d-pill-num" id="infra2dSlideNumPill">SLIDE 1 / 8</span>
+                <span class="infra2d-pill-analogy" id="infra2dAnalogyPill">Ẩn dụ Bất động sản</span>
+              </div>
+              <h3 class="infra2d-slide-h3" id="infra2dSlideTitle"></h3>
+              <div class="infra2d-story-box">
+                <div class="infra2d-avatar" title="Minh - Chủ tiệm bánh">MINH</div>
+                <div>
+                  <span class="infra2d-story-title" id="infra2dMinhTitle"></span>
+                  <p class="infra2d-story-text" id="infra2dMinhStory"></p>
+                </div>
+              </div>
+              <div class="infra2d-keypoints" id="infra2dKeypoints"></div>
+            </div>
+            <div class="infra2d-verdict" id="infra2dVerdictBox"></div>
+          </div>
+
+          <div class="infra2d-col-right">
+            <div>
+              <div class="infra2d-sim-top">
+                <div class="infra2d-sim-live">
+                  <span class="infra2d-sim-dot"></span>
+                  <span>Mô Phỏng Tương Tác 2D</span>
+                </div>
+                <span class="infra2d-sim-hint">Hãy bấm các nút bên dưới để thử nghiệm!</span>
+              </div>
+              <div class="infra2d-stage" id="infra2dSimStage"></div>
+            </div>
+            <div>
+              <div class="infra2d-status" id="infra2dSimStatusText">Sẵn sàng tương tác.</div>
+              <div class="infra2d-controls" id="infra2dSimControls"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="infra2d-footer">
+          <button type="button" class="infra2d-btn" id="infra2dBtnPrev" onclick="changeInfra2DSlide(-1)">← Slide Trước</button>
+          <div class="infra2d-progress-wrap">
+            <div class="infra2d-progress-track">
+              <div class="infra2d-progress-fill" id="infra2dProgressFill" style="width:12.5%;"></div>
+            </div>
+            <span style="font-size:11px;color:#94a3b8;">Bấm chọn từng Slide (1–8) hoặc nút điều khiển bên phải để tương tác trực tiếp</span>
+          </div>
+          <button type="button" class="infra2d-btn infra2d-btn-primary" id="infra2dBtnNext" onclick="changeInfra2DSlide(1)">Slide Tiếp Theo ➔</button>
+        </div>
+      </div>
+    `;
+  }
+
+  /* ==========================================================================
+     F06 · CONTAINERIZATION & ORCHESTRATION (CHẶNG 1 – CHẶNG 4, 10 TRẠM)
+     ========================================================================== */
+  function renderContainerChang1() {
+    const d = HUB_DATA.container_diagrams;
+    return `
+      <div class="prose">
+        <p>Dưới đây là toàn bộ hành trình xuyên suốt <strong>4 Chặng (10 Trạm)</strong> của nhân vật chính — <strong>Tiến trình dịch vụ <code>order-api</code> (mã nguồn <code>app.py</code> chạy trên nền <code>python:3.11-slim</code>, đi kèm cơ sở dữ liệu <code>PostgreSQL</code>)</strong> — tiến hóa từ máy chủ vật lý nguyên khối (<code>Bare Metal</code>) chỉ khai thác <code>5–10% CPU</code>, qua thời kỳ máy ảo (<code>VM / VPS / Cloud VM</code>), lột xác thành <code>Container</code> siêu nhẹ ở tầng nhân Linux (<code>Host PID: 10423</code> ➔ <code>Virtual PID: 1</code>) và nhân bản thành <code>3 Pod Replicas</code> bất tử trên cụm điều phối <code>Kubernetes (K8s)</code>.</p>
+
+        <h2 id="container-0-map" tabindex="-1">Trạm 0.0: Nhân vật chính <code>order-api</code> (<code>app.py</code> + <code>PostgreSQL</code>) &amp; Bản đồ Tư duy 4 Chặng — 10 Trạm</h2>
+
+        ${buildSpineHeroBanner(
+          "assets/visuals/container-0-map.jpg",
+          "Bản đồ Kiến trúc Toàn cảnh F06 · Containerization & Orchestration — Từ Bare Metal & VM Tax đến Linux Kernel (Namespaces, cgroups v2, OverlayFS), Động cơ OCI Runtime (containerd / runc) và Cụm Điều phối Kubernetes (3 Pod Replicas)",
+          "SPINE MINDMAP · F06 CONTAINER & K8S (4 CHẶNG · 10 TRẠM)",
+          "Bản đồ Kiến trúc Toàn cảnh Học phần F06 — Hành trình Tiến trình <code>order-api</code> (<code>app.py</code>) từ Bare Metal &amp; Máy ảo đến Container &amp; Đại dương Kubernetes"
+        )}
+
+        <h3>1. Khởi tạo "Nhân Vật Chính" Xuyên Suốt Học Phần</h3>
+        <p>Để biến toàn bộ các khái niệm từ tầng nhân hệ điều hành (<code>OS Kernel</code>) lên đến cụm phân tán thành một mạch truyện Nhân - Quả duy nhất, chúng ta sẽ đồng hành cùng một nhân vật chính: <strong>Tiến trình dịch vụ <code>order-api</code> (mã nguồn <code>app.py</code> chạy trên nền <code>python:3.11-slim</code>, đi kèm cơ sở dữ liệu <code>PostgreSQL</code>)</strong>:</p>
+        <ul>
+          <li><strong>Xuất thân</strong>: Ứng dụng xử lý đơn hàng viết bằng Python (<code>app.py</code>) + Database <code>PostgreSQL</code>.</li>
+          <li><strong>Nỗi sợ lớn</strong>: Xung đột thư viện (<code>Dependency Hell</code>), bị cướp RAM/CPU, mất dữ liệu khi tắt máy.</li>
+          <li><strong>Hành trình 4 Hình thái tiến hóa</strong>:
+            <ol>
+              <li><strong>Hình thái 1 — Lạc lõng trên <code>Bare Metal</code></strong>: Chạy trực tiếp trên máy chủ vật lý nhưng chỉ khai thác <code>5–10% CPU/RAM</code>, lãng phí <code>90–95%</code> tài nguyên vì không dám cài chung nhiều ứng dụng sợ xung đột thư viện.</li>
+              <li><strong>Hình thái 2 — Bị nhốt trong Máy ảo (<code>Virtual Machine</code>)</strong>: Dùng <code>Hypervisor</code> (<code>Type 1 &amp; Type 2</code>) cắt phần cứng vật lý nhưng phải chịu <strong>thuế máy ảo (<code>VM Tax</code>)</strong> — mỗi VM phải nuôi một <code>Guest OS</code> riêng nặng hàng chục GB, khởi động mất hàng phút, giới hạn tối đa <code>~10 VMs/host</code>.</li>
+              <li><strong>Hình thái 3 — Tiến hóa thành <code>Container</code> (<code>OS-level Virtualization</code>)</strong>: Vứt bỏ <code>Guest OS</code>, dùng chung <code>Host OS Kernel</code> qua <code>Linux Namespaces</code> (<code>Host PID: 10423</code> nhưng tự thấy mình là <code>Virtual PID: 1</code>), khóa định mức bằng <code>cgroups v2</code> và xếp lớp bằng <code>OverlayFS</code> — gói gọn vài MB, boot tính bằng giây, chạy <code>50+ Containers/host</code>.</li>
+              <li><strong>Hình thái 4 — Nhân bản thành <code>3 Pod Replicas</code> bất tử trên <code>Kubernetes (K8s)</code></strong>: Điều phối qua chuẩn <code>CRI</code> (<code>containerd</code> / <code>CRI-O</code>) và bản khai báo <code>Declarative YAML</code> — duy trì <code>3 Pod Replicas</code> (<code>01</code>, <code>02</code> trên Node 1 và <code>03</code> dự phòng HA trên Node 2) kèm <code>Liveness/Readiness Probes</code> đảm bảo <code>Zero-downtime</code>.</li>
+            </ol>
+          </li>
+        </ul>
+
+        <h4>Sơ đồ 0.1: Hồ sơ Nhân vật chính <code>order-api</code> (<code>app.py</code>) &amp; 4 Hình thái Tiến hóa Hạ tầng</h4>
+        ${buildVisualBlock(
+          "container-0-1",
+          "Sơ đồ 0.1 — Hồ sơ Nhân vật chính order-api (app.py + PostgreSQL): Từ Bare Metal (5–10% CPU) và Thuế Máy ảo (VM Tax) đến Linux Container (PID 1) và 3 Pod Replicas trên Kubernetes",
+          d["0.1"].ascii,
+          d["0.1"].mermaid,
+          "Hành trình 4 hình thái của dịch vụ <code>order-api</code> (<code>app.py</code>): Thoát khỏi cảnh lãng phí <code>90–95% CPU</code> trên <code>Bare Metal</code> và gánh nặng <code>Guest OS</code> hàng chục GB của <code>VM</code> để trở thành <code>Container</code> siêu nhẹ (<code>Host PID 10423</code> ➔ <code>Virtual PID 1</code>) và vận hành bất tử với <code>3 Pod Replicas</code> trên <code>Kubernetes</code>."
+        )}
+
+        <h3>2. Bản Đồ Tư Duy 1 Dòng (Mental Map) — Mạch Nhân Quả Toàn Học Phần</h3>
+        <p>Toàn bộ khung xương sống từ Slide bài giảng (<code>course-slides/06-containerization-and-orchestration.pdf</code>), bản vẽ tổng hợp Excalidraw và hai cuốn sách (<em>Docker Deep Dive</em> của Nigel Poulton &amp; <em>Kubernetes: Up and Running</em> của Brendan Burns, Joe Beda, Kelsey Hightower) được nén vào một luồng tiến hóa Nhân - Quả gồm <strong>4 Chặng (10 Trạm)</strong>:</p>
+        <ul>
+          <li><strong>Chặng 1 (Trạm 1.1 ➔ 1.2) — Tiến hóa Hạ tầng (Thời kỳ 1 ➔ Thời kỳ 2)</strong>: Từ <code>Bare Metal</code> lãng phí <code>90–95% CPU/RAM</code> đẻ ra <code>Hypervisor Type 1 &amp; Type 2</code> ➔ Gặp nỗi đau <strong>"Thuế máy ảo" (<code>VM Tax</code>)</strong> (mỗi VM nuôi 1 <code>Guest OS</code> nặng hàng GB, boot mất cả phút, tối đa <code>~10 VMs/host</code>) ➔ Tiến lên <code>Container Model</code> (<code>OS-level Virtualization</code>) dùng chung <code>Host OS Kernel</code>, gói gọn vài MB, boot tính bằng giây, chạy <code>50+ Containers/host</code>.<br/>
+          <em>➔ Nỗi đau chuyển giao sang Chặng 2: Dùng chung 1 Kernel thì làm sao ngăn các tiến trình nhìn trộm và cướp sạch RAM/CPU của nhau?</em></li>
+          <li><strong>Chặng 2 (Trạm 2.1 ➔ 2.3) — Giải phẫu Học Tầng Nhân Linux (Linux Kernel Foundations)</strong>: Dùng 6 <code>Linux Namespaces</code> (<code>pid</code>, <code>net</code>, <code>mnt</code>, <code>ipc</code>, <code>uts</code>, <code>user</code>) tạo lăng kính ảo ảnh cô lập góc nhìn (<code>Host PID 10423</code> thấy mình là <code>PID 1</code>, IP riêng <code>172.17.0.2</code>, gốc <code>/app</code> riêng) ➔ Dùng <code>Control Groups (cgroups v2)</code> khóa cứng định mức vật lý (<code>2 CPU cores</code>, <code>512 MB RAM</code>, <code>100 MB/s Disk I/O</code>) ➔ Dùng <code>OverlayFS</code> xếp chồng <code>LowerDir</code> (Read-Only) + <code>UpperDir</code> (Writable), kết hợp <code>Capabilities</code> &amp; <code>Seccomp</code>.<br/>
+          <em>➔ Nỗi đau chuyển giao sang Chặng 3: Cấu hình bằng tay hàng chục lệnh Kernel (Namespaces, cgroups, OverlayFS) quá phức tạp với kỹ sư phần mềm!</em></li>
+          <li><strong>Chặng 3 (Trạm 3.1 ➔ 3.2) — Chu trình Build-Ship-Run &amp; Động cơ OCI Runtime</strong>: Đóng gói <code>Dockerfile</code> (<code>Multi-stage Build</code>) thành <code>OCI Image</code> bất biến đẩy lên <code>Registry</code>, tách dữ liệu <code>PostgreSQL</code> khỏi lớp <code>UpperDir</code> tạm bợ bằng <code>Persistent Volume</code> &amp; <code>Bind Mount</code>; đồng thời bóc tách chuỗi <code>Docker CLI --[REST]--&gt; dockerd --[gRPC]--&gt; containerd --&gt; containerd-shim --&gt; runc --[libcontainer]--&gt; Kernel</code> (rồi <code>runc</code> tự thoát tạo <code>Daemonless containers</code>) và đối chiếu <code>Docker vs. Podman vs. containerd vs. CRI-O</code>.<br/>
+          <em>➔ Nỗi đau chuyển giao sang Chặng 4: Chạy tốt trên 1 máy, nhưng khi mở rộng lên 100 máy chủ vật lý, 2 giờ sáng 1 máy cháy RAM thì ai bật lại app? Ai cân bằng tải và nâng cấp không gián đoạn (Zero-downtime)?</em></li>
+          <li><strong>Chặng 4 (Trạm 4.1 ➔ 4.3) — Thời kỳ 3: Điều phối Phân tán với Kubernetes (Orchestration)</strong>: <code>Kubernetes</code> loại bỏ <code>dockerd</code> cồng kềnh, dùng chuẩn <code>CRI</code> gọi thẳng <code>containerd</code>/<code>CRI-O</code> và chuyển sang <code>Declarative YAML</code> (<code>Desired State</code> lưu trên Git) ➔ Vận hành luồng 9 bước từ <code>kubectl apply</code> qua <code>kube-apiserver</code>, <code>etcd</code>, <code>Controller Manager</code>, <code>Scheduler</code>, <code>kubelet</code> xuống <code>Pod</code> (dùng chung <code>Network Namespace</code>) ➔ Duy trì <code>3 Pod Replicas</code> bất tử bằng <code>ReplicaSet</code>, <code>Deployment</code>, <code>Service (ClusterIP/IPVS)</code>, <code>Ingress</code> và <code>Probes</code>.</li>
+        </ul>
+
+        <h4>Sơ đồ 0.2: Bản đồ Tư duy 1 Dòng (Mental Map) — Mạch Nhân Quả 4 Chặng (10 Trạm)</h4>
+        ${buildVisualBlock(
+          "container-0-2",
+          "Sơ đồ 0.2 — Bản đồ Tư duy 1 Dòng (One-Line Mental Map): Mạch Nhân – Quả & Nỗi đau Chuyển giao xuyên suốt 4 Chặng — 10 Trạm",
+          d["0.2"].ascii,
+          d["0.2"].mermaid,
+          "Mạch nhân quả 10 Trạm: Mỗi công nghệ mới ra đời đều để giải quyết trực tiếp nỗi đau vật lý của trạm đứng trước — từ thuế <code>VM Tax</code> (Chặng 1) ➔ cô lập <code>Namespaces / cgroups v2 / OverlayFS</code> (Chặng 2) ➔ chuẩn hóa <code>OCI Runtime &amp; Volumes</code> (Chặng 3) ➔ điều phối tự hành trên cụm <code>Kubernetes</code> (Chặng 4)."
+        )}
+
+        <h3>3. Bảng Đối Chiếu Lộ Trình &amp; Neo Định Lượng (Slide + Sách + Excalidraw)</h3>
+        <div class="table-wrap">
+          <table class="clean-table">
+            <thead>
+              <tr>
+                <th>Chặng</th>
+                <th>Trạm kiến thức</th>
+                <th>Từ khóa Xương sống (Slide &amp; Excalidraw)</th>
+                <th>Số liệu &amp; Cơ chế Thịt (Sách Docker &amp; K8s)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td rowspan="2"><strong>Chặng 1</strong><br/>Tiến hóa Hạ tầng</td>
+                <td><strong>Trạm 1.1</strong><br/>Bare Metal &amp; VMs</td>
+                <td><code>Bare Metal</code>, <code>Hypervisor</code> (Type 1 &amp; Type 2), <code>Guest OS</code>, <code>VM Tax</code>.</td>
+                <td>Bare Metal chỉ khai thác <strong>5–10%</strong> CPU/RAM; VM tốn <strong>hàng GB</strong> đĩa/RAM cho mỗi Guest OS, khởi động mất <strong>nhiều phút</strong>, giới hạn <strong>~10 VMs/host</strong>.</td>
+              </tr>
+              <tr>
+                <td><strong>Trạm 1.2</strong><br/>Containers vs. VMs</td>
+                <td><code>OS-level Virtualization</code>, <code>Container Engine</code>, <code>Shared Host OS Kernel</code>.</td>
+                <td>Container nhẹ chỉ <strong>vài MB</strong>, khởi động tính bằng <strong>giây</strong>, sức chứa vọt lên <strong>50+ Containers/host</strong> (gấp <strong>3x–5x</strong> mật độ VMs).</td>
+              </tr>
+              <tr>
+                <td rowspan="3"><strong>Chặng 2</strong><br/>Giải phẫu Nhân Linux</td>
+                <td><strong>Trạm 2.1</strong><br/>Linux Namespaces</td>
+                <td><code>pid</code>, <code>net</code>, <code>mnt</code>, <code>ipc</code>, <code>uts</code>, <code>user</code> — Cô lập góc nhìn (Isolation).</td>
+                <td>Tiến trình <code>Nginx</code> (Host PID <code>10423</code>) và <code>PostgreSQL</code> (Host PID <code>10424</code>) đều tự thấy mình là <strong>Virtual PID <code>1</code></strong>, IP riêng <code>172.17.0.2</code> &amp; <code>172.17.0.3</code>.</td>
+              </tr>
+              <tr>
+                <td><strong>Trạm 2.2</strong><br/>Control Groups</td>
+                <td><code>cgroups v2</code> (<code>cpu.max</code>, <code>memory.max</code>, <code>BlkIO</code>) — Giới hạn vật lý (Limits).</td>
+                <td>Khóa cứng Container A tối đa <strong>2 CPU cores</strong>, <strong>512 MB</strong> RAM; Container B tối đa <strong>1 CPU core</strong>, <strong>1 GB</strong> RAM; Disk I/O <strong>100 MB/s</strong> chống OOM/DoS.</td>
+              </tr>
+              <tr>
+                <td><strong>Trạm 2.3</strong><br/>OverlayFS &amp; Security</td>
+                <td><code>LowerDir</code> (Read-Only), <code>UpperDir</code> (Writable), <code>Merged View</code>, <code>Capabilities</code>, <code>Seccomp</code>.</td>
+                <td>Syscalls hạt nhân: <code>clone(2)</code> với cờ <code>CLONE_NEW*</code>, <code>unshare(2)</code>, <code>pivot_root(2)</code>; tước đặc quyền <code>root</code> và lọc lời gọi hệ thống độc hại.</td>
+              </tr>
+              <tr>
+                <td rowspan="2"><strong>Chặng 3</strong><br/>Động cơ Docker &amp; OCI</td>
+                <td><strong>Trạm 3.1</strong><br/>Build - Ship - Run</td>
+                <td><code>Dockerfile</code>, <code>Multi-stage Build</code>, <code>OCI Image</code>, <code>Registry</code>, <code>Volume</code> vs <code>Bind Mount</code>.</td>
+                <td>Tách rời dữ liệu của <code>PostgreSQL</code> khỏi lớp <code>UpperDir</code> tạm bợ (ephemeral) sang <code>/var/lib/docker/volumes</code> để không mất data khi xóa container.</td>
+              </tr>
+              <tr>
+                <td><strong>Trạm 3.2</strong><br/>OCI Runtime Stack</td>
+                <td><code>dockerd</code>, <code>containerd</code>, <code>containerd-shim</code>, <code>runc</code> (<code>libcontainer</code>), <code>Podman</code>, <code>CRI-O</code>.</td>
+                <td><code>runc</code> dựng xong Namespaces/cgroups cho container thì <strong>lập tức tự thoát (exit)</strong> trả lại RAM; <code>shim</code> giữ <code>stdio</code> giúp tạo ra <strong>Daemonless containers</strong>.</td>
+              </tr>
+              <tr>
+                <td rowspan="3"><strong>Chặng 4</strong><br/>Điều phối Kubernetes</td>
+                <td><strong>Trạm 4.1</strong><br/>CRI &amp; Declarative</td>
+                <td><code>Immutable Infrastructure</code>, <code>Declarative YAML</code>, <code>Desired State</code>, chuẩn <code>CRI</code>.</td>
+                <td>K8s loại bỏ <code>dockerd</code> để <code>kubelet</code> gọi thẳng <code>containerd</code>/<code>CRI-O</code> qua gRPC CRI; quản lý tối đa <strong>3 phiên bản</strong> active trên toàn cầu qua GitOps.</td>
+              </tr>
+              <tr>
+                <td><strong>Trạm 4.2</strong><br/>K8s Architecture</td>
+                <td><code>kube-apiserver</code>, <code>etcd</code>, <code>Controller Manager</code>, <code>Scheduler</code>, <code>kubelet</code>, <code>kube-proxy</code>, <code>Pod</code>.</td>
+                <td><code>Pod</code> gom các containers chạy riêng <code>cgroups</code> nhưng <strong>dùng chung <code>net</code>, <code>ipc</code>, <code>uts</code> namespaces</strong> (chung 1 địa chỉ IP và không gian port).</td>
+              </tr>
+              <tr>
+                <td><strong>Trạm 4.3</strong><br/>Workloads &amp; Network</td>
+                <td><code>ReplicaSet</code>, <code>Deployment</code>, <code>DaemonSet</code>, <code>Service</code> (<code>ClusterIP</code>/IPVS), <code>Ingress</code>, <code>Probes</code>.</td>
+                <td>Duy trì <strong>3 Pod Replicas</strong> (<code>01</code>, <code>02</code> trên Node 1 và <code>03</code> dự phòng HA trên Node 2) kèm <code>Liveness/Readiness Probes</code> đảm bảo <strong>Zero-downtime</strong>.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <hr style="border:0;border-top:1px solid var(--border);margin:36px 0;" />
+
+        <h2 id="container-1-0-sim" tabindex="-1">Trạm 1.0 (Mô phỏng Tương tác 2D): Chuyện Tiệm Bánh Của Minh — Từ Máy Ảo (<code>VM</code>) Đến <code>VPS</code>, <code>Cloud VM</code>, <code>Container</code> &amp; <code>Serverless</code></h2>
+        <p>Trước khi đi sâu vào cấu trúc <code>Hypervisor</code> và <code>Container Engine</code>, rất nhiều kỹ sư mới vào nghề thường nhầm lẫn giữa <strong>công nghệ ảo hóa (<code>VM</code>)</strong> với <strong>các gói sản phẩm thương mại (<code>Shared Hosting</code>, <code>VPS</code>, <code>Cloud VM</code>, <code>Dedicated Server</code>, <code>Container</code>, <code>Serverless</code>)</strong>. Hãy tương tác trực tiếp với <strong>8 Slide Mô phỏng 2D</strong> dưới đây để tháo gỡ tận gốc sự khác biệt thông qua hành trình mở tiệm bánh của Minh:</p>
+
+        ${buildInfra2DSimulatorHtml()}
+
+        <h4>Sơ đồ 1.0: Kiến trúc Tổng quan Chặng 1 — Tiến hóa Hạ tầng từ Bare Metal &amp; VM Tax đến Container &amp; Serverless</h4>
+        ${buildVisualBlock(
+          "container-1-0",
+          "Sơ đồ 1.0 — Tiến hóa Hạ tầng (Thời kỳ 1 ➔ Thời kỳ 2): Bare Metal & Shared Hosting, VM / VPS / Cloud VM (VM Tax) và Container / Serverless",
+          d["1.0"].ascii,
+          d["1.0"].mermaid,
+          "So sánh trực diện 3 thế hệ hạ tầng: (1) <code>Bare Metal</code> lãng phí <code>90–95% CPU</code> &amp; <code>Shared Hosting</code> dính hiệu ứng <code>Noisy Neighbor (503)</code>; (2) <code>VM / VPS / Cloud VM</code> cắt máy bằng <code>Hypervisor</code> nhưng chịu thuế <code>VM Tax</code> (mỗi VM gánh 1 <code>Guest OS</code> hàng GB); (3) <code>Container</code> dùng chung <code>Host OS Kernel</code>, nhẹ vài MB, khởi động 1 giây, mật độ <code>50+ Containers/host</code>."
+        )}
+
+        <hr style="border:0;border-top:1px solid var(--border);margin:32px 0;" />
+
+        <h2 id="container-1-1" tabindex="-1">Trạm 1.1: Bare Metal (Lãng phí 90–95% CPU) &amp; Virtual Machines (<code>Hypervisor Type 1 &amp; Type 2</code>, <code>Guest OS</code>, <code>VM Tax</code>)</h2>
+        <ul>
+          <li><strong>[Bối cảnh &amp; Nỗi đau Thời kỳ 1 — Bare Metal &amp; Dependency Hell]</strong>: Khi triển khai dịch vụ <code>order-api</code> (<code>app.py</code> cần <code>Python 3.11</code> và thư viện <code>libpq v15</code>) cùng một dịch vụ kế toán cũ (cần <code>Python 2.7</code> và <code>libpq v10</code>) lên cùng một máy chủ vật lý <code>Bare Metal</code> (<code>64 CPU, 256GB RAM</code>), hai ứng dụng lập tức đè bẹp thư viện hệ thống của nhau (<code>Dependency Hell</code>). Để an toàn, doanh nghiệp buộc phải áp dụng quy tắc <em>"Mỗi ứng dụng một máy chủ vật lý riêng"</em> — dẫn đến <code>order-api</code> chỉ dùng <strong><code>5–10% CPU/RAM</code></strong>, lãng phí <strong><code>90–95%</code></strong> công suất phần cứng và điện năng làm mát.</li>
+          <li><strong>[Cơ chế Ảo hóa Phần cứng — Hypervisor Type 1 vs. Type 2]</strong>: Để giải cứu phần cứng bị bỏ hoang, công nghệ <strong>Máy ảo (<code>Virtual Machine - VM</code>)</strong> ra đời với lớp phần mềm trung gian <code>Hypervisor</code> làm nhiệm vụ giả lập phần cứng (CPU ảo, RAM ảo, Card mạng ảo, Đĩa ảo):
+            <ul>
+              <li><strong><code>Hypervisor Type 1 (Bare-Metal Hypervisor)</code></strong>: Cài đặt trực tiếp lên phần cứng vật lý không qua hệ điều hành chủ (ví dụ: <code>VMware ESXi</code>, <code>Microsoft Hyper-V</code>, <code>Xen</code>, hoặc <code>Linux KVM</code> tích hợp ngay trong nhân Linux). Đây là chuẩn bắt buộc trong Data Center của <code>VPS</code> và <code>Cloud VM</code> nhờ độ trễ thấp.</li>
+              <li><strong><code>Hypervisor Type 2 (Hosted Hypervisor)</code></strong>: Chạy như một ứng dụng bình thường nằm trên hệ điều hành cá nhân Windows/macOS/Linux (ví dụ: <code>Oracle VirtualBox</code>, <code>VMware Workstation</code>) — phù hợp để lập trình viên tạo VM học tập trên Laptop.</li>
+            </ul>
+          </li>
+          <li><strong>[Nỗi đau mới — "Thuế Máy Ảo" (<code>VM Tax</code>)]</strong>: Dù <code>Hypervisor</code> giúp chia 1 máy chủ vật lý thành nhiều máy ảo cách ly hoàn toàn, mỗi <code>VM</code> muốn chạy được một tệp <code>app.py</code> nặng vài KB vẫn bắt buộc phải cõng theo <strong>nguyên một Hệ điều hành khách (<code>Guest OS</code>)</strong> đầy đủ (nhân Kernel riêng, systemd, trình điều khiển thiết bị, dịch vụ ngầm):
+            <ul>
+              <li><strong>Chi phí RAM &amp; Đĩa (Memory/Storage Footprint)</strong>: Mỗi <code>Guest OS</code> ngốn từ <strong><code>1 GB – 4 GB RAM</code></strong> và <strong><code>10 GB – 20 GB</code></strong> dung lượng đĩa ngay cả khi chưa xử lý bất kỳ đơn hàng nào (3 VMs ngốn <code>12 GB RAM</code> chỉ để nuôi hệ điều hành).</li>
+              <li><strong>Thời gian khởi động (Boot Latency)</strong>: Khởi động một <code>VM</code> phải đi qua toàn bộ quy trình BIOS виртуаль ➔ Bootloader (GRUB) ➔ Khởi tạo <code>Guest Kernel</code> ➔ <code>systemd</code> mất từ <strong><code>1 đến vài phút</code></strong>, không thể phản ứng kịp khi lượng khách tăng đột biến trong vài giây.</li>
+              <li><strong>Giới hạn mật độ (Density Limit)</strong>: Do gánh nặng <code>VM Tax</code>, một máy chủ vật lý thông thường chỉ chứa được khoảng <strong><code>~10 VMs/host</code></strong> kèm chi phí bản quyền OS và công sức vá lỗi bảo mật cho từng <code>Guest OS</code>.</li>
+            </ul>
+          </li>
+        </ul>
+
+        <hr style="border:0;border-top:1px solid var(--border);margin:32px 0;" />
+
+        <h2 id="container-1-2" tabindex="-1">Trạm 1.2: Container Model (<code>OS-level Virtualization</code>, <code>Shared Host OS Kernel</code>, <code>50+ Containers/host</code>)</h2>
+        <ul>
+          <li><strong>[Bước nhảy vọt Thời kỳ 2 — Phẫu thuật cắt bỏ <code>Guest OS</code>]</strong>: Các kỹ sư hệ thống đặt câu hỏi: <em>"Tại sao dịch vụ <code>order-api</code> phải nuôi riêng một nhân Linux (<code>Guest Kernel</code>) trong khi máy chủ bên dưới vốn dĩ đã có sẵn một nhân <code>Host OS Kernel</code> đang chạy?"</em> Từ đó, mô hình <strong>Ảo hóa cấp Hệ điều hành (<code>OS-level Virtualization</code> — <code>Container</code>)</strong> ra đời.</li>
+          <li><strong>[Giải phẫu Kiến trúc <code>Container Model</code>]</strong>:
+            <ul>
+              <li><strong>Dùng chung <code>Host OS Kernel</code></strong>: Toàn bộ các <code>Containers</code> chạy trên cùng một máy chủ đều gọi chung lời gọi hệ thống (<code>System Calls</code>) xuống duy nhất một <code>Host OS Kernel</code> bên dưới. Không có lớp giả lập phần cứng <code>Hypervisor</code>, không có <code>Guest OS</code> dư thừa.</li>
+              <li><strong>Đóng gói tối giản (Application + Bins/Libs)</strong>: Một <code>Container</code> chỉ đóng gói đúng mã nguồn <code>order-api</code> (<code>app.py</code>) cùng các thư viện phụ thuộc tối thiểu (<code>python:3.11-slim</code>, <code>psycopg2</code>) vào một chiếc hộp nhẹ chỉ <strong>vài chục MB</strong>.</li>
+              <li><strong>Hiệu năng &amp; Mật độ vượt trội</strong>: Vì thực chất <code>Container</code> chỉ là một tiến trình Linux thông thường được khoác áo tàng hình, nó khởi động trong <strong><code>&lt; 1 giây</code></strong>, tiêu thụ đúng lượng RAM của tiến trình (<code>~100 MB</code>), đẩy sức chứa từ <code>~10 VMs/host</code> vọt lên <strong><code>50+ Containers/host</code></strong> (tăng mật độ gấp <strong><code>3x–5x</code></strong>).</li>
+            </ul>
+          </li>
+        </ul>
+
+        <div class="table-wrap">
+          <table class="clean-table">
+            <thead>
+              <tr>
+                <th>Tiêu chí Kỹ thuật</th>
+                <th>Bare Metal (Máy vật lý trần)</th>
+                <th>Virtual Machine (VM / VPS / Cloud VM)</th>
+                <th>Container (Docker / OCI Runtime)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Tầng ảo hóa</strong></td>
+                <td>Không ảo hóa (Chạy thẳng trên phần cứng)</td>
+                <td>Ảo hóa phần cứng (<code>Hardware Virtualization</code> qua <code>Hypervisor</code>)</td>
+                <td>Ảo hóa cấp Hệ điều hành (<code>OS-level Virtualization</code>)</td>
+              </tr>
+              <tr>
+                <td><strong>Hệ điều hành (OS Kernel)</strong></td>
+                <td>1 <code>Host OS Kernel</code> duy nhất (dễ xung đột thư viện)</td>
+                <td>Mỗi VM phải nuôi 1 <code>Guest OS Kernel</code> riêng biệt (<code>VM Tax</code>)</td>
+                <td><strong>Dùng chung <code>Host OS Kernel</code></strong> (mỗi container có <code>RootFS</code> nhẹ riêng)</td>
+              </tr>
+              <tr>
+                <td><strong>Kích thước đóng gói</strong></td>
+                <td>Toàn bộ đĩa vật lý (Hàng trăm GB – TB)</td>
+                <td>Nặng <strong>hàng GB đến hàng chục GB</strong> (Image đĩa ảo <code>.vmdk/.qcow2</code>)</td>
+                <td>Siêu nhẹ, chỉ <strong>vài MB đến vài chục MB</strong> (<code>OCI Image Layers</code>)</td>
+              </tr>
+              <tr>
+                <td><strong>Thời gian khởi động (Boot)</strong></td>
+                <td>Nhiều phút (POST BIOS + OS Boot)</td>
+                <td>Mất <strong><code>1 – 3 phút</code></strong> (Khởi động lại cả Guest OS)</td>
+                <td>Tính bằng <strong>mili-giây đến <code>1 giây</code></strong> (Khởi tạo tiến trình <code>PID</code>)</td>
+              </tr>
+              <tr>
+                <td><strong>Mật độ trên 1 Host</strong></td>
+                <td>1 ứng dụng chính (Chỉ dùng <strong><code>5–10% CPU</code></strong>)</td>
+                <td>Giới hạn khoảng <strong><code>~10 VMs/host</code></strong></td>
+                <td>Vọt lên <strong><code>50+ Containers/host</code></strong> (Gấp <strong><code>3x–5x</code></strong> mật độ VM)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <section class="callout callout-tip" id="container-1-summary" tabindex="-1">
+          <div class="callout-title">Tóm tắt bỏ túi Chặng 1 &amp; Nỗi đau Chuyển giao sang Chặng 2</div>
+          <ul>
+            <li><strong>Quy tắc phân biệt 6 loại hình hạ tầng</strong>: <code>VM</code> là công nghệ dùng <code>Hypervisor</code> cắt máy vật lý; <code>Shared Hosting</code> là ở ghép ký túc xá (dễ dính lỗi <code>503 Noisy Neighbor</code>); <code>VPS</code> là căn hộ chung cư trên 1 máy mẹ đơn lẻ (rủi ro <code>SPOF</code> khi cháy ổ cứng); <code>Cloud VM</code> là đô thị liên kết có <code>Live Migration</code> + hầm lưu trữ <code>3 bản sao Ceph/SAN</code>; <code>Dedicated</code> là biệt thự nguyên căn; <code>Container</code> là hộp lắp ghép dùng chung <code>Host Kernel</code>; và <code>Serverless</code> là thuê bếp nướng theo đơn (<code>Scale-to-Zero</code>).</li>
+            <li><strong>Câu hỏi chuyển giao sang Chặng 2</strong>: Nếu <code>50+ Containers</code> trên cùng một máy chủ đều dùng chung duy nhất một <strong><code>Host OS Kernel</code></strong>, làm sao ngăn tiến trình của Container A nhìn trộm danh sách tiến trình của Container B, và làm sao ngăn một tiến trình bị <code>Memory Leak</code> hút cạn 100% RAM làm sập toàn bộ máy chủ? Hãy sang <strong>Chặng 2: Giải phẫu Học Tầng Nhân Linux</strong>!</li>
+          </ul>
+          <p style="margin-top:14px;"><a href="#topic=F06&stage=2" onclick="selectStorageStage(2);return false;">Sang Chặng 2: Giải phẫu Học Tầng Nhân Linux (Namespaces, cgroups v2 &amp; OverlayFS) ➔</a></p>
+        </section>
+      </div>
+    `;
+  }
+
+  function renderContainerChang2() {
+    const d = HUB_DATA.container_diagrams;
+    return `
+      <div class="prose">
+        <p>Ở <strong>Chặng 1</strong>, chúng ta đã biết <code>Container</code> vứt bỏ <code>Guest OS</code> để dùng chung <code>Host OS Kernel</code> nhằm đạt tốc độ khởi động <code>1 giây</code> và mật độ <code>50+ Containers/host</code>. Bước vào <strong>Chặng 2 (Trạm 2.1 ➔ 2.3): Giải phẫu Học Tầng Nhân Linux (Linux Kernel Foundations)</strong>, chúng ta phanh phui sự thật kỹ thuật quan trọng nhất: <strong>Trong nhân Linux không hề có thực thể nào tên là "Container"</strong> — một Container thực chất là sự kết hợp của 3 cơ chế hạt nhân: <code>Linux Namespaces</code> (Cô lập góc nhìn), <code>Control Groups - cgroups v2</code> (Giới hạn tài nguyên vật lý) và <code>OverlayFS + Seccomp/Capabilities</code> (Xếp chồng hệ thống tệp &amp; Khóa an ninh).</p>
+
+        <h4>Sơ đồ 2.0: Kiến trúc Tổng quan Chặng 2 — Giải phẫu Học Tầng Nhân Linux (Namespaces, cgroups v2 &amp; OverlayFS)</h4>
+        ${buildVisualBlock(
+          "container-2-0",
+          "Sơ đồ 2.0 — Giải phẫu Tầng Nhân Linux: 6 Linux Namespaces (PID 10423 ➔ PID 1), Control Groups (cgroups v2) và OverlayFS / Seccomp",
+          d["2.0"].ascii,
+          d["2.0"].mermaid,
+          "Bộ tam nguyên tử tạo nên Container trong nhân Linux: (1) <code>Linux Namespaces</code> tạo lăng kính ảo ảnh để <code>Host PID 10423</code> tự thấy mình là <code>Virtual PID 1</code>; (2) <code>cgroups v2</code> đóng vòng kim cô khóa cứng <code>2 CPU cores, 512MB RAM</code>; (3) <code>OverlayFS</code> xếp chồng các lớp <code>LowerDir</code> chỉ đọc với <code>UpperDir</code> ghi mỏng kèm khiên chắn <code>Capabilities &amp; Seccomp</code>."
+        )}
+
+        <hr style="border:0;border-top:1px solid var(--border);margin:32px 0;" />
+
+        <h2 id="container-2-1" tabindex="-1">Trạm 2.1: Linux Namespaces — Lăng kính Ảo ảnh Cô lập Góc nhìn (<code>Host PID 10423</code> ➔ <code>Virtual PID 1</code>)</h2>
+        <ul>
+          <li><strong>[Bản chất Cơ chế — Cô lập Góc nhìn (Isolation)]</strong>: Khi cả dịch vụ <code>order-api</code>/<code>Nginx</code> và <code>PostgreSQL</code> cùng chạy trên một <code>Host OS Kernel</code>, nhân Linux sử dụng <strong><code>Linux Namespaces</code></strong> để bọc mỗi tiến trình vào một "chiếc gương ảo ảnh" riêng biệt. Tiến trình bên trong chỉ nhìn thấy những tài nguyên thuộc về Namespace của nó và hoàn toàn mù tịt về sự tồn tại của các tiến trình hàng xóm.</li>
+          <li><strong>[Giải phẫu 6 Linux Namespaces Cốt lõi của Container]</strong>:
+            <ol>
+              <li><strong><code>pid</code> (Process ID Namespace)</strong>: Trên máy chủ vật lý (Host OS), tiến trình <code>Nginx / order-api</code> mang mã <strong><code>Host PID 10423</code></strong> và <code>PostgreSQL</code> mang mã <strong><code>Host PID 10424</code></strong>. Nhưng khi nhìn vào bên trong <code>pid namespace</code> của chính mình, cả hai tiến trình đều tự thấy mình là <strong><code>Virtual PID 1</code></strong> (tiến trình khởi thủy trong không gian riêng của nó) và không thể dùng lệnh <code>kill</code> hay <code>ps aux</code> để nhìn trộm sang nhau.</li>
+              <li><strong><code>net</code> (Network Namespace)</strong>: Cấp cho mỗi container một ngăn xếp mạng riêng biệt (giao diện mạng ảo <code>veth pair</code>, bảng định tuyến, bảng <code>iptables</code> và không gian cổng riêng) — ví dụ Container A mang IP riêng <strong><code>172.17.0.2</code></strong> và Container B mang IP riêng <strong><code>172.17.0.3</code></strong> nối vào cầu nối ảo <code>docker0</code>.</li>
+              <li><strong><code>mnt</code> (Mount Namespace)</strong>: Cô lập danh sách điểm gắn kết hệ thống tệp (<code>Filesystem Mount Points</code>), giúp dịch vụ <code>order-api</code> có cây thư mục gốc <code>/app</code> riêng mà không chạm vào cây thư mục gốc <code>/</code> của máy chủ vật lý.</li>
+              <li><strong><code>ipc</code> (Inter-Process Communication Namespace)</strong>: Cô lập vùng bộ nhớ dùng chung (<code>Shared Memory</code>, <code>POSIX Message Queues</code>, <code>Semaphores</code>) giữa các container.</li>
+              <li><strong><code>uts</code> (UNIX Time-Sharing Namespace)</strong>: Cho phép mỗi container đặt <code>hostname</code> và <code>domainname</code> riêng (ví dụ: <code>order-api-prod</code>) độc lập với tên máy chủ vật lý.</li>
+              <li><strong><code>user</code> (User Namespace)</strong>: Ánh xạ định danh người dùng — cho phép tiến trình chạy dưới quyền <code>UID 0 (root)</code> bên trong container nhưng thực chất chỉ là một tài khoản không đặc quyền (ví dụ <code>UID 100000</code>) ngoài máy chủ vật lý.</li>
+            </ol>
+          </li>
+        </ul>
+
+        <hr style="border:0;border-top:1px solid var(--border);margin:32px 0;" />
+
+        <h2 id="container-2-2" tabindex="-1">Trạm 2.2: Control Groups (<code>cgroups v2</code>) — Vòng Kim Cô Định mức Phần cứng (<code>CPU</code>, <code>RAM</code> &amp; <code>Disk I/O</code>)</h2>
+        <ul>
+          <li><strong>[Nỗi đau phát sinh sau khi có Namespaces]</strong>: <code>Namespaces</code> mới chỉ che mắt các tiến trình không cho nhìn thấy nhau (<em>Isolation</em>), nhưng chưa hề giới hạn lượng tài nguyên vật lý mà chúng được phép tiêu thụ! Nếu tiến trình <code>order-api</code> (<code>app.py</code>) bị lỗi rò rỉ bộ nhớ (<code>Memory Leak</code>) hoặc vòng lặp vô tận, nó sẽ hút cạn 100% RAM và CPU của máy chủ vật lý, kéo sập luôn cả <code>PostgreSQL</code> bên cạnh.</li>
+          <li><strong>[Cơ chế Vòng Kim Cô — <code>Control Groups (cgroups v2)</code>]</strong>: Nhân Linux cung cấp hệ thống phân cấp thống nhất <code>cgroups v2</code> (tại <code>/sys/fs/cgroup/</code>) để đo đếm và khóa cứng trần tiêu thụ phần cứng cho từng nhóm tiến trình:
+            <ul>
+              <li><strong>Giới hạn CPU (<code>cpu.max</code> / <code>cpu.weight</code>)</strong>: Khóa cứng <strong>Container A (<code>order-api</code>)</strong> tối đa <strong><code>2 CPU cores</code></strong> (ví dụ <code>cpu.max = "200000 100000"</code> ứng với 200ms trên mỗi chu kỳ 100ms) và <strong>Container B (<code>PostgreSQL</code>)</strong> tối đa <strong><code>1 CPU core</code></strong>. Nếu vượt ngưỡng, nhân Linux chỉ điều tiết (<code>CPU Throttling</code>) đúng container đó.</li>
+              <li><strong>Giới hạn Bộ nhớ RAM (<code>memory.max</code>)</strong>: Khóa cứng <strong>Container A</strong> tối đa <strong><code>512 MB RAM</code></strong> và <strong>Container B</strong> tối đa <strong><code>1 GB RAM</code></strong>. Khi vượt quá trần này, <code>Kernel OOM Killer</code> sẽ chỉ tiêu diệt duy nhất tiến trình vi phạm (báo mã lỗi <code>Exit Code 137 / OOMKilled</code>) thay vì làm sập cả máy chủ.</li>
+              <li><strong>Giới hạn Băng thông Đĩa (<code>BlkIO / io.max</code>) &amp; Số lượng Tiến trình (<code>pids.max</code>)</strong>: Khóa cứng tốc độ đọc/ghi ổ cứng ở mức <strong><code>100 MB/s</code></strong> để ngăn một container ghi log ồ ạt làm nghẽn I/O của Database, đồng thời chặn đứng tấn công <code>Fork Bomb</code>.</li>
+            </ul>
+          </li>
+        </ul>
+
+        <hr style="border:0;border-top:1px solid var(--border);margin:32px 0;" />
+
+        <h2 id="container-2-3" tabindex="-1">Trạm 2.3: <code>OverlayFS</code> &amp; Security Hardening (<code>LowerDir/UpperDir</code>, Syscalls, <code>Capabilities</code> &amp; <code>Seccomp</code>)</h2>
+        <ul>
+          <li><strong>[Nỗi đau Nhân bản Đĩa &amp; Giải pháp <code>OverlayFS</code>]</strong>: Nếu chạy <code>50 Containers</code> của <code>order-api</code> trên cùng một máy chủ mà phải sao chép 50 bản thư viện <code>python:3.11-slim</code> (mỗi bản 150MB) ra ổ cứng thì vừa tốn hàng GB đĩa vừa làm chậm tốc độ khởi tạo. Nhân Linux giải quyết triệt để bằng hệ thống tệp hợp nhất <strong><code>OverlayFS</code></strong> (theo cơ chế <code>Copy-on-Write - CoW</code>):
+            <ul>
+              <li><strong><code>LowerDir</code> (Read-Only Image Layers)</strong>: Các lớp ảnh gốc bất biến (<code>Debian Base</code> ➔ <code>Python 3.11</code> ➔ <code>pip dependencies</code> ➔ <code>app.py</code>) được khóa <strong>Chỉ đọc (Read-Only)</strong> và <strong>dùng chung 1 bản duy nhất</strong> trên đĩa vật lý cho cả 50 containers.</li>
+              <li><strong><code>UpperDir</code> (Writable Container Layer)</strong>: Một lớp ghi siêu mỏng, tạm bợ (<code>ephemeral</code>) dành riêng cho từng container đang chạy. Khi container cần sửa một tệp ở <code>LowerDir</code>, <code>OverlayFS</code> mới sao chép tệp đó lên <code>UpperDir</code> (<code>Copy-on-Write</code>) để ghi.</li>
+              <li><strong><code>Merged View</code></strong>: Điểm gắn kết hợp nhất mà tiến trình <code>order-api</code> nhìn thấy như một cây thư mục liền mạch duy nhất.</li>
+            </ul>
+          </li>
+          <li><strong>[Các Lời gọi Hệ thống Hạt nhân (Kernel Syscalls) &amp; Gia cố Bảo mật (Security Hardening)]</strong>:
+            <ul>
+              <li><strong>3 Syscalls tạo lập Container</strong>: Runtime gọi <code>clone(2)</code> kèm các cờ <code>CLONE_NEWPID | CLONE_NEWNET | CLONE_NEWNS...</code> (hoặc <code>unshare(2)</code>) để tách Namespaces, sau đó gọi <code>pivot_root(2)</code> để đổi thư mục gốc của tiến trình sang <code>Merged View</code> của <code>OverlayFS</code>.</li>
+              <li><strong>Tước đặc quyền <code>root</code> bằng <code>Linux Capabilities</code></strong>: Chia nhỏ quyền tối thượng của <code>root</code> thành hàng chục quyền con độc lập (như <code>CAP_NET_BIND_SERVICE</code> để mở cổng &lt; 1024, nhưng tước bỏ <code>CAP_SYS_ADMIN</code>, <code>CAP_SYS_MODULE</code> để cấm container nạp Kernel Module hay can thiệp phần cứng).</li>
+              <li><strong>Lọc Syscall bằng <code>Seccomp (Secure Computing Mode)</code></strong>: Áp bộ lọc BPF ngay tại cửa ngõ Kernel để chặn đứng hơn 44+ lời gọi hệ thống nguy hiểm (như <code>reboot</code>, <code>kexec_load</code>, <code>mount</code>) ngay cả khi kẻ tấn công chiếm được quyền thực thi bên trong container.</li>
+            </ul>
+          </li>
+        </ul>
+
+        <section class="callout callout-tip" id="container-2-summary" tabindex="-1">
+          <div class="callout-title">Tóm tắt bỏ túi Chặng 2 &amp; Nỗi đau Chuyển giao sang Chặng 3</div>
+          <ul>
+            <li><strong>Công thức Bất biến của Container</strong>: $\text{Container} = \text{Linux Namespaces (Cô lập góc nhìn)} + \text{cgroups v2 (Khóa trần CPU/RAM/I/O)} + \text{OverlayFS (CoW Layers)} + \text{Capabilities/Seccomp (Khiên bảo mật)}$.</li>
+            <li><strong>Câu hỏi chuyển giao sang Chặng 3</strong>: Tự tay viết code C gọi <code>clone()</code>, <code>pivot_root()</code>, cấu hình <code>/sys/fs/cgroup</code> và mount <code>OverlayFS</code> cho từng ứng dụng là cơn ác mộng với kỹ sư phần mềm; hơn nữa lớp <code>UpperDir</code> sẽ biến mất sạch khi xóa container! Làm sao tự động hóa chu trình đóng gói và bảo toàn dữ liệu cho <code>PostgreSQL</code>? Hãy sang <strong>Chặng 3: Chu trình Build-Ship-Run &amp; Động cơ OCI Runtime</strong>!</li>
+          </ul>
+          <p style="margin-top:14px;"><a href="#topic=F06&stage=3" onclick="selectStorageStage(3);return false;">Sang Chặng 3: Chu trình Build-Ship-Run &amp; Động cơ OCI Runtime ➔</a></p>
+        </section>
+      </div>
+    `;
+  }
+
+  function renderContainerChang3() {
+    const d = HUB_DATA.container_diagrams;
+    return `
+      <div class="prose">
+        <p>Ở <strong>Chặng 2</strong>, chúng ta đã mổ xẻ các bánh răng tầng nhân Linux (<code>Namespaces</code>, <code>cgroups v2</code>, <code>OverlayFS</code>). Bước vào <strong>Chặng 3 (Trạm 3.1 ➔ 3.2): Chu trình Build-Ship-Run &amp; Động cơ OCI Runtime</strong>, chúng ta khám phá cách <code>Docker</code> và chuẩn mở <code>OCI (Open Container Initiative)</code> gói gọn hàng chục thao tác Kernel phức tạp thành 3 bước <code>Build - Ship - Run</code>, giải quyết bài toán mất dữ liệu của <code>PostgreSQL</code> bằng <code>Persistent Volume</code>, và bóc tách chuỗi tiến trình bên dưới lệnh <code>docker run</code>.</p>
+
+        <h4>Sơ đồ 3.0: Kiến trúc Tổng quan Chặng 3 — Chu trình Build-Ship-Run, Persistent Volumes &amp; Chuỗi Động cơ OCI Runtime</h4>
+        ${buildVisualBlock(
+          "container-3-0",
+          "Sơ đồ 3.0 — Chu trình Build-Ship-Run, Persistent Volumes (/var/lib/docker/volumes) & Giải phẫu Động cơ OCI Runtime (dockerd ➔ containerd ➔ shim ➔ runc)",
+          d["3.0"].ascii,
+          d["3.0"].mermaid,
+          "Giải phẫu 2 nửa của hệ sinh thái Container: (1) Chu trình <code>Build - Ship - Run</code> đóng gói <code>order-api</code> qua <code>Dockerfile (Multi-stage Build)</code> và tách dữ liệu <code>PostgreSQL</code> khỏi lớp <code>UpperDir</code> tạm bợ sang <code>Persistent Volume</code>; (2) Chuỗi lắp ráp <code>Docker CLI ➔ dockerd ➔ containerd ➔ containerd-shim ➔ runc</code> (trong đó <code>runc</code> dựng xong container thì lập tức tự thoát để tạo <code>Daemonless containers</code>)."
+        )}
+
+        <hr style="border:0;border-top:1px solid var(--border);margin:32px 0;" />
+
+        <h2 id="container-3-1" tabindex="-1">Trạm 3.1: Workflow Vĩ mô <code>Build - Ship - Run</code> (<code>Dockerfile</code>, <code>Multi-stage Build</code>, <code>OCI Image</code>, <code>Registry</code> &amp; <code>Persistent Volumes</code>)</h2>
+        <ul>
+          <li><strong>[Ba bước Chuẩn hóa Vòng đời Ứng dụng: <code>Build - Ship - Run</code>]</strong>:
+            <ol>
+              <li><strong><code>BUILD</code> (Đóng gói bất biến)</strong>: Từ bản thiết kế văn bản <code>Dockerfile</code>, kỹ sư áp dụng kỹ thuật <strong><code>Multi-stage Build</code></strong> (tách tầng biên dịch chứa trình dịch nặng <code>gcc/build-essential</code> khỏi tầng chạy thực tế chỉ chứa <code>python:3.11-slim</code> + <code>app.py</code>) để tạo ra một <strong><code>OCI Image</code></strong> bất biến (<code>Immutable</code>) được định danh bằng mã băm mật mã <code>SHA-256 Digest</code>.</li>
+              <li><strong><code>SHIP</code> (Phân phối qua kho lưu trữ)</strong>: Đẩy (<code>docker push</code>) các lớp <code>Image Layers</code> lên kho <strong><code>Container Registry</code></strong> (Docker Hub, Harbor, AWS ECR, GCP Artifact Registry). Nhờ cấu trúc phân lớp của <code>OverlayFS</code>, chỉ những lớp thay đổi mới cần truyền qua mạng.</li>
+              <li><strong><code>RUN</code> (Khởi chạy đồng nhất)</strong>: Bất kỳ máy chủ nào kéo (<code>docker pull</code>) đúng <code>OCI Image</code> đó về và chạy (<code>docker run</code> / <code>docker compose up</code>) đều tái tạo chính xác 100% môi trường của <code>order-api</code>.</li>
+            </ol>
+          </li>
+          <li><strong>[Giải cứu Dữ liệu <code>PostgreSQL</code> khỏi Lớp <code>UpperDir</code> Tạm bợ]</strong>: Vì lớp ghi <code>UpperDir</code> của container là <strong>tạm bợ (<code>ephemeral</code>)</strong> — sẽ bị xóa sổ hoàn toàn khi ta xóa hoặc nâng cấp container — cơ sở dữ liệu <code>PostgreSQL</code> bắt buộc phải tách dữ liệu ra ngoài thông qua 2 cơ chế gắn kết (<code>Mount</code>) xuyên qua <code>OverlayFS</code>:
+            <ul>
+              <li><strong><code>Persistent Volume</code> (Khuyên dùng cho Production DB)</strong>: Do Docker quản lý trực tiếp tại thư mục tách biệt <strong><code>/var/lib/docker/volumes/</code></strong> trên đĩa vật lý của Host. Khi container <code>PostgreSQL</code> bị xóa và tạo lại phiên bản mới, chỉ cần gắn lại <code>Volume</code> này là toàn bộ các trang dữ liệu <code>8KB</code> và <code>WAL Files</code> vẫn còn nguyên vẹn 100%.</li>
+              <li><strong><code>Bind Mount</code> (Phù hợp cho Local Dev)</strong>: Ánh xạ trực tiếp một đường dẫn thư mục bất kỳ trên máy chủ Host (ví dụ <code>/Users/dev/order-api/src:/app</code>) vào trong container để sửa code trực tiếp không cần build lại Image.</li>
+            </ul>
+          </li>
+        </ul>
+
+        <hr style="border:0;border-top:1px solid var(--border);margin:32px 0;" />
+
+        <h2 id="container-3-2" tabindex="-1">Trạm 3.2: Giải phẫu Động cơ <code>OCI Runtime</code> (<code>dockerd ➔ containerd ➔ shim ➔ runc</code>) &amp; Hệ sinh thái Công cụ</h2>
+        <ul>
+          <li><strong>[Câu hỏi Bản chất — Tại sao Restart <code>Docker Daemon</code> không làm chết Container đang chạy?]</strong>: Thời kỳ đầu, một mình tiến trình <code>dockerd</code> ôm đồm mọi việc từ kéo Image đến giữ tiến trình con, khiến mỗi lần nâng cấp <code>dockerd</code> là toàn bộ containers trên máy chủ chết theo. Để khắc phục, kiến trúc hiện đại tách rời thành chuỗi <strong>4 tầng chuẩn hóa <code>OCI</code></strong>:
+            <ol>
+              <li><strong><code>Docker CLI</code> ➔ <code>dockerd (Docker Daemon)</code></strong>: Khi bạn gõ <code>docker run order-api</code>, <code>Docker CLI</code> gửi yêu cầu <code>REST API</code> qua Unix Socket tới <code>dockerd</code>.</li>
+              <li><strong><code>dockerd</code> ➔ <code>containerd</code> (High-level CRI Runtime)</strong>: <code>dockerd</code> không tự tạo container mà gọi qua giao thức <code>gRPC</code> xuống <code>containerd</code> — trình quản lý vòng đời container cấp cao (quản lý kéo Image, mạng, lưu trữ).</li>
+              <li><strong><code>containerd</code> ➔ <code>containerd-shim</code></strong>: Với mỗi container cần chạy, <code>containerd</code> sinh ra một tiến trình đệm siêu nhẹ tên là <strong><code>containerd-shim</code></strong>.</li>
+              <li><strong><code>containerd-shim</code> ➔ <code>runc (libcontainer)</code> ➔ <code>Linux Kernel</code></strong>: <code>shim</code> gọi trình thực thi cấp thấp <strong><code>runc</code></strong> (chuẩn <code>OCI Runtime Spec</code>). <code>runc</code> dùng thư viện <code>libcontainer</code> nói chuyện trực tiếp với <code>Linux Kernel</code> để dựng <code>Namespaces</code>, khóa <code>cgroups v2</code>, gắn <code>OverlayFS</code> và khởi chạy tiến trình <code>order-api</code> (<code>app.py</code>). <strong>Ngay khoảnh khắc container khởi chạy xong, tiến trình <code>runc</code> lập tức tự thoát (exit) trả lại toàn bộ RAM!</strong> Tiến trình <code>containerd-shim</code> ở lại làm cha (parent process) giữ luồng <code>stdin/stdout</code> và báo cáo mã thoát cho <code>containerd</code> — tạo nên cơ chế <strong><code>Daemonless containers</code></strong> (khởi động lại <code>dockerd</code> mà <code>order-api</code> vẫn chạy bình thường!).</li>
+            </ol>
+          </li>
+        </ul>
+
+        <div class="table-wrap">
+          <table class="clean-table">
+            <thead>
+              <tr>
+                <th>Công cụ / Runtime</th>
+                <th>Phân loại Kiến trúc</th>
+                <th>Đặc điểm Cốt lõi &amp; Cơ chế Vận hành</th>
+                <th>Vị trí trong Thực tế Production</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong><code>Docker</code> (<code>dockerd</code>)</strong></td>
+                <td>Full Developer Platform (Client-Daemon)</td>
+                <td>Bao gồm đầy đủ <code>CLI + BuildKit + Volume/Network + dockerd + containerd + runc</code>.</td>
+                <td>Chuẩn vàng cho máy tính lập trình viên (Local Dev), CI/CD build pipeline và Docker Compose.</td>
+              </tr>
+              <tr>
+                <td><strong><code>Podman</code></strong></td>
+                <td><strong>Daemonless &amp; Rootless</strong> Engine</td>
+                <td>Không có tiến trình ngầm <code>daemon</code> chạy quyền root; gọi trực tiếp OCI runtime (<code>crun</code>/<code>runc</code>) theo mô hình <code>fork-exec</code>, tương thích 100% cú pháp CLI với Docker (<code>alias docker=podman</code>).</td>
+                <td>Môi trường yêu cầu bảo mật cao (RHEL / Enterprise Linux), tránh điểm lỗi đơn của Daemon.</td>
+              </tr>
+              <tr>
+                <td><strong><code>containerd</code></strong></td>
+                <td>High-level OCI / CRI Runtime</td>
+                <td>Tách bỏ lớp vỏ REST API và Build của <code>dockerd</code>, chỉ giữ lại lõi quản lý Image và điều phối <code>shim ➔ runc</code> siêu gọn nhẹ.</td>
+                <td><strong>Runtime mặc định</strong> bên dưới các nút Worker của <strong><code>Kubernetes</code></strong> (EKS, GKE, AKS).</td>
+              </tr>
+              <tr>
+                <td><strong><code>CRI-O</code></strong></td>
+                <td>Kubernetes-native Lightweight Runtime</td>
+                <td>Được thiết kế thuần túy để phục vụ chuẩn <code>Kubernetes CRI</code>, gọi thẳng xuống <code>runc</code>/<code>crun</code> mà không kèm bất kỳ tính năng thừa nào ngoài K8s.</td>
+                <td>Trái tim của cụm <strong>Red Hat OpenShift</strong> và các cụm Kubernetes tối ưu hóa hiệu năng.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <section class="callout callout-tip" id="container-3-summary" tabindex="-1">
+          <div class="callout-title">Tóm tắt bỏ túi Chặng 3 &amp; Nỗi đau Chuyển giao sang Chặng 4</div>
+          <ul>
+            <li><strong>Chuỗi thực thi bất biến dưới nắp capo</strong>: <code>Docker CLI --[REST]--&gt; dockerd --[gRPC]--&gt; containerd --&gt; containerd-shim --&gt; runc --[libcontainer]--&gt; Linux Kernel</code> (sau đó <code>runc</code> tự thoát, để <code>shim</code> giữ <code>stdio</code>).</li>
+            <li><strong>Câu hỏi chuyển giao sang Chặng 4</strong>: Chạy <code>order-api</code> và <code>PostgreSQL</code> trên 1 máy chủ bằng Docker đã rất mượt; nhưng khi hệ thống mở rộng lên <strong>100 máy chủ vật lý</strong>, nếu lúc 2 giờ sáng Máy chủ #42 bị cháy RAM làm chết container thì ai tự động bật lại nó sang máy chủ khác? Ai cân bằng tải và nâng cấp phiên bản mới không gián đoạn (<code>Zero-downtime</code>)? Hãy tiến vào <strong>Chặng 4: Điều phối Phân tán với Kubernetes (Orchestration)</strong>!</li>
+          </ul>
+          <p style="margin-top:14px;"><a href="#topic=F06&stage=4" onclick="selectStorageStage(4);return false;">Sang Chặng 4: Thời kỳ 3 — Điều phối Phân tán với Kubernetes (Orchestration) ➔</a></p>
+        </section>
+      </div>
+    `;
+  }
+
+  function renderContainerChang4() {
+    const d = HUB_DATA.container_diagrams;
+    return `
+      <div class="prose">
+        <p>Ở <strong>Chặng 3</strong>, chúng ta đã đóng gói và vận hành <code>order-api</code> mượt mà trên một máy chủ đơn lẻ. Khi bước vào quy mô cụm hàng trăm máy chủ phân tán phải hoạt động 24/7 không ngừng nghỉ, chúng ta tiến vào <strong>Chặng 4 (Trạm 4.1 ➔ 4.3): Thời kỳ 3 — Điều phối Phân tán với Kubernetes (Orchestration)</strong>: Giải phẫu bước ngoặt chuẩn <code>CRI</code>, triết lý khai báo <code>Declarative YAML</code>, bộ não <code>Control Plane</code>, cơ bắp <code>Worker Nodes</code> và kiến trúc <code>3 Pod Replicas</code> bất tử.</p>
+
+        <h4>Sơ đồ 4.0: Kiến trúc Tổng quan Chặng 4 — Điều phối Phân tán với Kubernetes (CRI, Control Plane &amp; 3 Pod Replicas)</h4>
+        ${buildVisualBlock(
+          "container-4-0",
+          "Sơ đồ 4.0 — Điều phối Phân tán với Kubernetes (K8s): Chuẩn CRI & Declarative YAML, Bộ não Control Plane + Worker Nodes và 3 Pod Replicas (HA)",
+          d["4.0"].ascii,
+          d["4.0"].mermaid,
+          "Kiến trúc tổng thể Kubernetes: (1) <code>kubelet</code> loại bỏ <code>dockerd</code> để gọi thẳng <code>containerd / CRI-O</code> qua chuẩn <code>gRPC CRI</code> theo bản thiết kế <code>Declarative YAML</code>; (2) Luồng 9 bước từ <code>kubectl apply</code> qua <code>kube-apiserver</code>, kho <code>etcd</code>, <code>Controller Manager</code>, <code>Scheduler</code> xuống <code>Pod</code> (dùng chung <code>net, ipc, uts</code> namespaces); (3) Duy trì <code>3 Pod Replicas</code> bất tử trải trên nhiều Node."
+        )}
+
+        <hr style="border:0;border-top:1px solid var(--border);margin:32px 0;" />
+
+        <h2 id="container-4-1" tabindex="-1">Trạm 4.1: Bước ngoặt Chuẩn <code>CRI</code> &amp; Triết lý Khai báo (<code>Immutable Infrastructure</code>, <code>Declarative YAML</code>, <code>Desired State</code> &amp; <code>GitOps</code>)</h2>
+        <ul>
+          <li><strong>[Bước ngoặt lịch sử — Tại sao Kubernetes loại bỏ <code>dockershim / dockerd</code>?]</strong>: Như đã mổ xẻ ở Trạm 3.2, <code>dockerd</code> thực chất chỉ là lớp vỏ cho người dùng gõ lệnh và bên dưới nó vẫn phải gọi xuống <code>containerd</code>. Khi vận hành trên cụm <code>Kubernetes</code>, việc đi vòng <code>kubelet ➔ dockershim ➔ dockerd ➔ containerd ➔ runc</code> vừa thừa thãi vừa tốn RAM/CPU. Do đó, Kubernetes chuẩn hóa giao diện <strong><code>CRI (Container Runtime Interface)</code></strong> qua giao thức <code>gRPC</code> để <strong><code>kubelet</code> gọi thẳng xuống <code>containerd</code> hoặc <code>CRI-O</code></strong> (Image bạn đóng gói bằng <code>Dockerfile</code> vẫn là chuẩn <code>OCI Image</code> nên chạy 100% tương thích trên K8s!).</li>
+          <li><strong>[Triết lý Khai báo (<code>Declarative Spec</code>) vs. Mệnh lệnh (<code>Imperative</code>)]</strong>:
+            <ul>
+              <li><strong>Imperative (Gõ lệnh thủ công)</strong>: Bạn tự SSH vào từng máy gõ <code>docker run</code>. Nếu máy sập lúc 2 giờ sáng, trạng thái biến mất.</li>
+              <li><strong>Declarative YAML (Khai báo Trạng thái Mong muốn — <code>Desired State</code>)</strong>: Bạn nộp một bản thiết kế <code>deployment.yaml</code> tuyên bố: <em>"Tôi luôn muốn có đúng <code>replicas: 3</code> của <code>order-api:v1.2</code> đang chạy khỏe mạnh"</em>. Vòng lặp đối soát (<code>Reconciliation Loop</code>) của K8s sẽ liên tục so sánh <code>Actual State</code> với <code>Desired State</code> để tự động bù đắp nếu bất kỳ Pod nào ngã xuống.</li>
+              <li><strong>Hạ tầng Bất biến (<code>Immutable Infrastructure</code>) &amp; <code>GitOps</code></strong>: Cấm tuyệt đối việc SSH vào sửa code bên trong container đang chạy; mọi thay đổi đều phải đóng thành <code>OCI Image</code> mới, lưu lịch sử YAML trên Git và chỉ duy trì tối đa <strong><code>3 phiên bản</code></strong> active trên toàn cầu để có thể <code>Rollback</code> tức thì trong vài giây.</li>
+            </ul>
+          </li>
+        </ul>
+
+        <hr style="border:0;border-top:1px solid var(--border);margin:32px 0;" />
+
+        <h2 id="container-4-2" tabindex="-1">Trạm 4.2: Giải phẫu Bộ não <code>Control Plane</code> &amp; Cơ bắp <code>Worker Nodes</code> (Luồng 9 bước &amp; Cấu trúc <code>Pod</code>)</h2>
+        <ul>
+          <li><strong>[Luồng 9 Bước Nhân - Quả khi Gõ <code>kubectl apply -f order-api.yaml</code>]</strong>:
+            <ol>
+              <li><strong>Bước 1 (<code>kubectl</code>)</strong>: Công cụ CLI gửi bản khai báo YAML qua HTTPS REST tới cổng chính của cụm.</li>
+              <li><strong>Bước 2 (<code>kube-apiserver</code>)</strong>: Cửa ngõ trung tâm duy nhất của <code>Control Plane</code> kiểm tra xác thực (<code>AuthN</code>), phân quyền (<code>RBAC AuthZ</code>) và tính hợp lệ của cấu hình (<code>Admission Control</code>).</li>
+              <li><strong>Bước 3 (<code>etcd</code>)</strong>: <code>kube-apiserver</code> ghi trạng thái mong muốn (<code>Desired State: 3 Pods</code>) vào kho dữ liệu phân tán <strong><code>etcd</code></strong> (dùng thuật toán đồng thuận <code>Raft</code>).</li>
+              <li><strong>Bước 4 (<code>kube-controller-manager</code>)</strong>: Phát hiện <code>Desired = 3</code> nhưng <code>Actual = 0</code>, lập tức khởi tạo đối tượng <code>ReplicaSet</code> và tạo ra 3 bản ghi <code>Pod</code> đang chờ xếp chỗ (<code>Pending</code>).</li>
+              <li><strong>Bước 5 (<code>kube-scheduler</code>)</strong>: Quét các <code>Worker Nodes</code> để chấm điểm lọc (<code>Filtering</code> đủ CPU/RAM) và xếp hạng (<code>Scoring</code> trải đều chống sập), sau đó gán <code>Pod 01, 02</code> vào <code>Node 1</code> và <code>Pod 03</code> vào <code>Node 2</code>.</li>
+              <li><strong>Bước 6 (<code>kubelet</code>)</strong>: Đặc vụ <code>kubelet</code> trên từng <code>Worker Node</code> nhận lệnh từ <code>apiserver</code> rằng có Pod mới được giao cho mình.</li>
+              <li><strong>Bước 7 (Chuẩn <code>CRI</code>)</strong>: <code>kubelet</code> gọi qua <code>gRPC CRI</code> xuống <code>containerd</code> / <code>CRI-O</code> trên máy đó.</li>
+              <li><strong>Bước 8 (Khởi tạo <code>Pause Container</code> &amp; <code>Pod</code>)</strong>: Runtime tạo một <code>Pause (Infra) Container</code> giữ chỗ trước, rồi gọi <code>runc</code> đẻ ra container <code>order-api</code>.</li>
+              <li><strong>Bước 9 (<code>kube-proxy</code> &amp; Đồng bộ)</strong>: <code>kube-proxy</code> cập nhật bảng định tuyến mạng (<code>iptables</code> / <code>IPVS</code>) để dẫn luồng khách hàng vào 3 Pods vừa lên đèn!</li>
+            </ol>
+          </li>
+          <li><strong>[Giải phẫu Nguyên tử <code>Pod</code> — Tại sao K8s không điều phối trực tiếp từng Container lẻ?]</strong>: Một <strong><code>Pod</code></strong> là đơn vị triển khai nhỏ nhất trên Kubernetes, đóng vai trò như một "chiếc kén logic" bọc 1 hoặc nhiều containers gắn bó chặt chẽ (ví dụ: container chính <code>order-api</code> + container phụ <code>sidecar</code> thu thập log):
+            <ul>
+              <li><strong>Tách biệt giới hạn <code>cgroups</code></strong>: Mỗi container bên trong cùng 1 Pod vẫn có trần <code>cgroups v2</code> (CPU/RAM) và hệ thống tệp <code>OverlayFS</code> riêng.</li>
+              <li><strong>Dùng chung <code>net</code>, <code>ipc</code>, <code>uts</code> Namespaces</strong>: Nhờ bám vào <code>Pause Container</code>, mọi containers trong cùng 1 Pod <strong>dùng chung duy nhất 1 địa chỉ IP và không gian cổng (Port Space)</strong> — chúng có thể gọi nhau qua <code>localhost</code> siêu tốc!</li>
+            </ul>
+          </li>
+        </ul>
+
+        <hr style="border:0;border-top:1px solid var(--border);margin:32px 0;" />
+
+        <h2 id="container-4-3" tabindex="-1">Trạm 4.3: Vũ khí Vận hành Phân tán (<code>ReplicaSet</code>, <code>Deployment</code>, <code>DaemonSet</code>, <code>Service ClusterIP/IPVS</code>, <code>Ingress</code> &amp; <code>Probes</code>)</h2>
+        <ul>
+          <li><strong>[Các Bộ Điều khiển Khối lượng Công việc (Workload Controllers)]</strong>:
+            <ul>
+              <li><strong><code>ReplicaSet</code> (Khiên Tự phục hồi — Self-Healing)</strong>: Canh gác số lượng bản sao 24/7. Nếu <code>Node 1</code> bị sập nguồn lúc 2 giờ sáng làm chết 2 Pods, <code>ReplicaSet</code> lập tức yêu cầu đẻ bù 2 Pods mới sang các Node còn sống.</li>
+              <li><strong><code>Deployment</code> (Nâng cấp Không gián đoạn — <code>Rolling Update</code>)</strong>: Quản lý các <code>ReplicaSet</code> để nâng cấp từ <code>order-api:v1</code> lên <code>order-api:v2</code> theo từng bước (bật Pod <code>v2</code> mới khỏe mạnh rồi mới tắt dần Pod <code>v1</code> cũ) hoặc quay lui (<code>kubectl rollout undo</code>) tức thì.</li>
+              <li><strong><code>DaemonSet</code></strong>: Đảm bảo mỗi <code>Worker Node</code> trong cụm luôn chạy đúng 1 bản sao của dịch vụ hạ tầng (như trình thu thập log <code>FluentBit</code> hoặc giám sát <code>Prometheus Node Exporter</code>).</li>
+            </ul>
+          </li>
+          <li><strong>[Định tuyến Lưu lượng Mạng &amp; Chốt chặn Sức khỏe Tự động]</strong>:
+            <ul>
+              <li><strong><code>Service (ClusterIP / IPVS)</code></strong>: Vì Pod sinh ra và chết đi liên tục nên địa chỉ IP của Pod luôn thay đổi. <code>Service</code> cung cấp một địa chỉ <strong>IP ảo bất biến (<code>ClusterIP</code>) và tên DNS cố định</strong>, dùng nhân Linux <code>IPVS / iptables</code> để cân bằng tải đều vào <code>3 Pod Replicas</code> (<code>Pod 01, 02</code> trên Node 1 và <code>Pod 03</code> dự phòng HA trên Node 2).</li>
+              <li><strong><code>Ingress</code></strong>: Cổng điều phối tầng <code>HTTP/HTTPS (Layer 7)</code> đứng trước cụm, phân luồng theo tên miền và đường dẫn (ví dụ <code>api.shop.vn/orders</code> ➔ <code>order-api Service</code>).</li>
+              <li><strong>Chốt chặn Sức khỏe (<code>Liveness Probe</code> &amp; <code>Readiness Probe</code>)</strong>:
+                <ul>
+                  <li><strong><code>Readiness Probe</code></strong>: Kiểm tra xem <code>order-api</code> đã kết nối xong tới <code>PostgreSQL</code> và sẵn sàng nhận khách chưa. Nếu chưa sẵn sàng, <code>Service</code> tạm ngắt luồng khách khỏi Pod đó (không giết Pod) để tránh trả lỗi 500 cho khách.</li>
+                  <li><strong><code>Liveness Probe</code></strong>: Kiểm tra xem tiến trình <code>app.py</code> có bị treo cứng (<code>Deadlock</code>) hay không. Nếu thất bại, <code>kubelet</code> tự động khởi động lại container đó ngay lập tức để đạt chuẩn <strong><code>Zero-downtime</code></strong>!</li>
+                </ul>
+              </li>
+            </ul>
+          </li>
+        </ul>
+
+        <section class="callout callout-tip" id="container-4-summary" tabindex="-1">
+          <div class="callout-title">Tóm tắt bỏ túi Chặng 4 &amp; Khép kín Toàn bộ Hành trình F06 · Containerization &amp; Orchestration</div>
+          <p><strong>Mạch Nhân - Quả Khép kín Toàn khóa (1 Câu chuyện Xuyên suốt của Dịch vụ <code>order-api</code>):</strong></p>
+          <ul>
+            <li><strong>[Chặng 1]</strong> Dịch vụ <code>order-api</code> (<code>app.py</code> + <code>PostgreSQL</code>) thoát khỏi cảnh lãng phí <code>90–95% CPU</code> trên <code>Bare Metal</code> và gánh nặng <code>Guest OS</code> hàng chục GB của <code>VM / VPS / Cloud VM</code> (<code>VM Tax</code>) để tiến lên mô hình <code>Container</code> dùng chung <code>Host OS Kernel</code> (nhẹ vài MB, khởi động <code>1 giây</code>, mật độ <code>50+ Containers/host</code>) ➔</li>
+            <li><strong>[Chặng 2]</strong> Bên dưới nhân Linux, <code>order-api</code> được cô lập góc nhìn bằng 6 <code>Linux Namespaces</code> (<code>Host PID 10423</code> ➔ <code>Virtual PID 1</code>, IP riêng <code>172.17.0.2</code>), khóa cứng trần tài nguyên bằng <code>cgroups v2</code> (<code>2 CPU cores, 512MB RAM, 100MB/s Disk I/O</code>), và xếp chồng hệ thống tệp <code>OverlayFS</code> (<code>LowerDir + UpperDir</code>) kèm khiên chắn <code>Capabilities &amp; Seccomp</code> ➔</li>
+            <li><strong>[Chặng 3]</strong> Chu trình <code>Build - Ship - Run</code> đóng gói <code>Dockerfile (Multi-stage Build)</code> thành <code>OCI Image</code> bất biến, tách dữ liệu <code>PostgreSQL</code> sang <code>Persistent Volume (/var/lib/docker/volumes)</code>, và vận hành qua chuỗi <code>dockerd ➔ containerd ➔ containerd-shim ➔ runc</code> (trong đó <code>runc</code> tự thoát ngay sau khi tạo container để tạo <code>Daemonless containers</code>) ➔</li>
+            <li><strong>[Chặng 4]</strong> Trên cụm <code>Kubernetes</code>, <code>kubelet</code> gọi thẳng <code>containerd / CRI-O</code> qua chuẩn <code>gRPC CRI</code> theo bản thiết kế <code>Declarative YAML</code>, phối hợp giữa bộ não <code>Control Plane</code> (<code>apiserver</code>, <code>etcd</code>, <code>Controller Manager</code>, <code>Scheduler</code>) và <code>Worker Nodes</code> để duy trì <strong><code>3 Pod Replicas</code></strong> bất tử kèm <code>Service (ClusterIP/IPVS)</code>, <code>Ingress</code> và <code>Liveness/Readiness Probes</code> đảm bảo <code>Zero-downtime</code>.</li>
+          </ul>
+          <p><strong>Checklist tự kiểm tra cuối khóa (5 Câu hỏi Bản chất để làm chủ Container &amp; Kubernetes):</strong></p>
+          <ol>
+            <li>Hãy phân biệt rạch ròi giữa công nghệ <code>VM (Hypervisor)</code> với các gói sản phẩm <code>Shared Hosting</code>, <code>VPS</code>, <code>Cloud VM</code>, <code>Dedicated Server</code>, <code>Container</code> và <code>Serverless</code>. Tại sao <code>VPS</code> lại có điểm yếu chí mạng <code>SPOF</code> khi cháy ổ cứng máy mẹ còn <code>Cloud VM</code> thì tự chuyển nhà (<code>Live Migration</code>) được?</li>
+            <li>Tại sao nói <em>"Trong nhân Linux không có thực thể nào tên là Container"</em>? Hãy giải thích vai trò phối hợp của <code>Linux Namespaces</code> (<code>pid, net, mnt, ipc, uts, user</code>), <code>cgroups v2</code> và <code>OverlayFS</code> khi tiến trình <code>order-api</code> (<code>Host PID 10423</code>) khởi chạy.</li>
+            <li>Điều gì xảy ra với dữ liệu của <code>PostgreSQL</code> nếu lưu trực tiếp trong lớp <code>UpperDir</code> của <code>OverlayFS</code> khi xóa container? Sự khác biệt cốt lõi giữa <code>Persistent Volume</code> và <code>Bind Mount</code> là gì?</li>
+            <li>Khi bạn gõ lệnh <code>docker run</code>, chuỗi lời gọi <code>dockerd ➔ containerd ➔ containerd-shim ➔ runc</code> diễn ra như thế nào, và tại sao <code>runc</code> lại lập tức tự thoát (exit) ngay sau khi tạo xong container?</li>
+            <li>Tại sao <code>Kubernetes</code> loại bỏ <code>dockerd</code> để dùng chuẩn <code>CRI</code> gọi thẳng <code>containerd / CRI-O</code>? Bên trong một <code>Pod</code>, các containers chia sẻ những <code>Namespaces</code> nào với nhau và tách riêng những gì?</li>
+          </ol>
+          <p style="margin-top:14px;"><a href="#topic=F06&stage=1" onclick="selectStorageStage(1);return false;">Quay lại Chặng 1 (Trạm 0.0 — Bản đồ Tư duy &amp; Mô phỏng 2D Học phần F06 · Containerization &amp; Orchestration) ➔</a></p>
+        </section>
+      </div>
+    `;
+  }
+
+  function renderContainerTopic() {
+    const totalStages = CONTAINER_STAGES.length;
+    const currentStage = CONTAINER_STAGES.find(s => s.id === activeStorageStage) || CONTAINER_STAGES[0];
+    const prevId = activeStorageStage > 1 ? activeStorageStage - 1 : null;
+    const nextId = activeStorageStage < totalStages ? activeStorageStage + 1 : null;
+    const padNum = n => String(n).padStart(2, "0");
+
+    const stageRows = CONTAINER_STAGES.map(st => `
+      <button type="button" class="stage-dir-item ${st.id === activeStorageStage ? 'active' : ''}" onclick="selectStorageStage(${st.id})">
+        <span class="stage-dir-code">Chặng ${padNum(st.id)}</span>
+        <span>${escapeHtml(st.title.replace(/^Chặng \d+:\s*/, ""))}</span>
+        <span class="stage-dir-meta">Đã có bài</span>
+      </button>
+    `).join("");
+
+    let bodyHtml = "";
+    if (activeStorageStage === 1) {
+      bodyHtml = renderContainerChang1();
+    } else if (activeStorageStage === 2) {
+      bodyHtml = renderContainerChang2();
+    } else if (activeStorageStage === 3) {
+      bodyHtml = renderContainerChang3();
+    } else if (activeStorageStage === 4) {
+      bodyHtml = renderContainerChang4();
+    } else {
+      bodyHtml = renderContainerChang1();
+    }
+
+    return `
+      <header class="lesson-header">
+        <div class="lesson-meta">
+          <span>I. Engineering Foundation · F06 · Containerization &amp; Orchestration</span>
+          <a href="course-slides/06-containerization-and-orchestration.pdf" target="_blank" rel="noopener">Slide gốc: 06-containerization-and-orchestration.pdf (72 trang)</a>
+        </div>
+        <h1 class="lesson-title">Fundamentals of Engineering — Containerization (Docker / OCI) &amp; Kubernetes Orchestration</h1>
+        <p class="lesson-lead">Hành trình tiến hóa Nhân - Quả qua 4 Chặng (10 Trạm) của <strong>Tiến trình dịch vụ <code>order-api</code> (<code>app.py</code> trên <code>python:3.11-slim</code> + <code>PostgreSQL</code>)</strong>: Từ phân biệt <code>VM / Hosting / VPS / Cloud VM / Bare Metal / Serverless</code> (kèm <strong>Mô phỏng Tương tác 2D 8 Slide</strong>), giải phẫu tầng nhân Linux (<code>Namespaces PID 10423 ➔ PID 1</code>, <code>cgroups v2</code>, <code>OverlayFS</code>, <code>Seccomp</code>), bóc tách động cơ <code>OCI Runtime</code> (<code>dockerd ➔ containerd ➔ shim ➔ runc</code>), đến điều phối <code>3 Pod Replicas</code> bất tử trên cụm <code>Kubernetes (K8s)</code>.</p>
+        <div aria-label="Điều hướng chặng kiến thức">
+          <div class="stage-bar">
+            <div class="stage-bar-current">
+              <span class="stage-bar-idx">Chặng ${padNum(currentStage.id)} / ${padNum(totalStages)}</span>
+              <span class="stage-bar-title">${escapeHtml(currentStage.title.replace(/^Chặng \d+:\s*/, ""))}</span>
+            </div>
+            <div class="stage-bar-actions">
+              <button type="button" class="ui-btn" ${prevId ? `onclick="selectStorageStage(${prevId})"` : 'disabled style="opacity:0.4;cursor:default;"'}>Trước</button>
+              <button type="button" class="ui-btn" ${nextId ? `onclick="selectStorageStage(${nextId})"` : 'disabled style="opacity:0.4;cursor:default;"'}>Tiếp</button>
+              <button type="button" class="ui-btn" id="stageDirectoryToggleBtn" aria-expanded="false" aria-controls="stageDirectoryPanel" onclick="toggleStageDirectory()">Danh sách chặng (${padNum(totalStages)})</button>
+            </div>
+          </div>
+          <div class="stage-directory" id="stageDirectoryPanel" role="region" aria-label="Danh mục toàn bộ các chặng">
+            ${stageRows}
+          </div>
+        </div>
+      </header>
+      ${bodyHtml}
+    `;
+  }
+
   function renderStorageTopic() {
     const totalStages = STORAGE_STAGES.length;
     const currentStage = STORAGE_STAGES.find(s => s.id === activeStorageStage) || STORAGE_STAGES[0];
@@ -11955,6 +14096,11 @@ WHERE TuyChonTopping @&gt; '{"toppings": ["Kem Cheese"]}'::jsonb;</code></pre>
       container.innerHTML = renderLinuxTopic();
     } else if (activeTopic === "F03") {
       container.innerHTML = renderDatabaseTopic();
+    } else if (activeTopic === "F06") {
+      container.innerHTML = renderContainerTopic();
+      if (activeStorageStage === 1) {
+        renderInfra2DSlide();
+      }
     } else {
       const { group, item } = findTopicContext(activeTopic);
       container.innerHTML = renderPendingTopic(item, group.title);
@@ -12134,6 +14280,61 @@ WHERE TuyChonTopping @&gt; '{"toppings": ["Kem Cheese"]}'::jsonb;</code></pre>
         stage: stg.id,
         section: null,
         keywords: normalizeSearch(`F03 database postgresql sql nosql ${stg.title}`)
+      });
+    }
+    for (const st of CONTAINER_CHANG1_STATIONS) {
+      entries.push({
+        kind: "Trạm kiến thức",
+        title: st.fullTitle,
+        sub: "I. Engineering Foundation / F06 · Containerization & Orchestration / Chặng 1",
+        topic: "F06",
+        stage: 1,
+        section: st.id,
+        keywords: normalizeSearch(`${st.code} ${st.fullTitle} bare metal hypervisor vm vps cloud vm shared hosting noisy neighbor spof vm tax guest os container os-level virtualization serverless scale to zero order-api app.py tiem banh cua minh`)
+      });
+    }
+    for (const st of CONTAINER_CHANG2_STATIONS) {
+      entries.push({
+        kind: "Trạm kiến thức",
+        title: st.fullTitle,
+        sub: "I. Engineering Foundation / F06 · Containerization & Orchestration / Chặng 2",
+        topic: "F06",
+        stage: 2,
+        section: st.id,
+        keywords: normalizeSearch(`${st.code} ${st.fullTitle} linux namespaces pid net mnt ipc uts user host pid 10423 virtual pid 1 control groups cgroups v2 cpu.max memory.max blkio oom killer overlayfs lowerdir upperdir merged copy-on-write clone unshare pivot_root linux capabilities seccomp`)
+      });
+    }
+    for (const st of CONTAINER_CHANG3_STATIONS) {
+      entries.push({
+        kind: "Trạm kiến thức",
+        title: st.fullTitle,
+        sub: "I. Engineering Foundation / F06 · Containerization & Orchestration / Chặng 3",
+        topic: "F06",
+        stage: 3,
+        section: st.id,
+        keywords: normalizeSearch(`${st.code} ${st.fullTitle} build ship run dockerfile multi-stage build oci image container registry persistent volumes var lib docker volumes docker cli dockerd containerd containerd-shim runc libcontainer podman daemonless rootless cri-o`)
+      });
+    }
+    for (const st of CONTAINER_CHANG4_STATIONS) {
+      entries.push({
+        kind: "Trạm kiến thức",
+        title: st.fullTitle,
+        sub: "I. Engineering Foundation / F06 · Containerization & Orchestration / Chặng 4",
+        topic: "F06",
+        stage: 4,
+        section: st.id,
+        keywords: normalizeSearch(`${st.code} ${st.fullTitle} kubernetes k8s orchestration cri container runtime interface declarative yaml desired state control plane kube-apiserver etcd kube-scheduler kube-controller-manager worker node kubelet kube-proxy pod replicaset deployment service clusterip ipvs ingress liveness readiness startup probes`)
+      });
+    }
+    for (const stg of CONTAINER_STAGES) {
+      entries.push({
+        kind: "Lộ trình Chặng",
+        title: `F06 · ${stg.title}`,
+        sub: "I. Engineering Foundation / Containerization & Orchestration",
+        topic: "F06",
+        stage: stg.id,
+        section: null,
+        keywords: normalizeSearch(`F06 docker container kubernetes k8s podman containerd runc ${stg.title}`)
       });
     }
     for (const st of STORAGE_CHANG1_STATIONS) {
@@ -13767,6 +15968,84 @@ def main():
     C1 --> C2""",
     }
 
+    container_ascii = build_container_ascii_diagrams()
+    container_mermaid = {
+        "0.1": """flowchart LR
+    subgraph S1 ["1. BARE METAL (THỜI KỲ 1)"]
+        C01A["• Chạy thẳng order-api (app.py) trên máy vật lý<br/>• Lãng phí 90-95% CPU/RAM (chỉ dùng 5-10%)<br/>• Sợ xung đột thư viện (Dependency Hell)"]
+    end
+    subgraph S2 ["2. VIRTUAL MACHINE (THỜI KỲ 2)"]
+        C01B["• Hypervisor chia phần cứng thành nhiều VMs<br/>• Chịu 'Thuế máy ảo' (VM Tax): Guest OS nặng hàng chục GB<br/>• Boot mất hàng phút, tối đa ~10 VMs/host"]
+    end
+    subgraph S3 ["3. CONTAINER (OS-LEVEL VIRTUALIZATION)"]
+        C01C["• Vứt bỏ Guest OS, dùng chung Host OS Kernel<br/>• Host PID: 10423 -> Tự thấy mình là Virtual PID: 1<br/>• Gói gọn vài MB, boot 1 giây, chạy 50+ Containers/host"]
+    end
+    subgraph S4 ["4. KUBERNETES ORCHESTRATION (K8S)"]
+        C01D["• Nhân bản thành 3 Pod Replicas bất tử trên cụm Node<br/>• Tự chữa lành (Self-healing) khi Node sập lúc 2h sáng<br/>• Cân bằng tải qua Service ClusterIP / IPVS & Rolling Update"]
+    end
+    S1 --> S2 --> S3 --> S4""",
+
+        "0.2": """flowchart LR
+    subgraph P1 ["CHẶNG 1: TIẾN HÓA HẠ TẦNG (1.1 - 1.2)"]
+        M02A["• Trạm 1.1: Bare Metal (5-10% CPU) -> Hypervisor & VM Tax<br/>• Trạm 1.2: Container Model (50+ Containers/host)<br/>• [!] Nỗi đau: Dùng chung Kernel làm sao cô lập & giới hạn RAM/CPU?"]
+    end
+    subgraph P2 ["CHẶNG 2: HẠT NHÂN LINUX (2.1 - 2.3)"]
+        M02B["• Trạm 2.1: Linux Namespaces (pid, net, mnt, ipc, uts, user)<br/>• Trạm 2.2: Control Groups (cgroups v2) + OOM Killer<br/>• Trạm 2.3: OverlayFS (LowerDir + UpperDir) & Seccomp/Capabilities"]
+    end
+    subgraph P3 ["CHẶNG 3: ĐÓNG GÓI & OCI RUNTIME (3.1 - 3.2)"]
+        M02C["• Trạm 3.1: Build - Ship - Run (Dockerfile) + Persistent Volumes<br/>• Trạm 3.2: Docker CLI -> dockerd -> containerd -> shim -> runc<br/>• [!] Nỗi đau: Chạy 100 máy chủ sập lúc 2h sáng ai thức dậy cứu?"]
+    end
+    subgraph P4 ["CHẶNG 4: ĐẠI DƯƠNG KUBERNETES (4.1 - 4.3)"]
+        M02D["• Trạm 4.1: CRI + Declarative YAML (Desired State)<br/>• Trạm 4.2: Control Plane (API Server, etcd, Scheduler) & Pod<br/>• Trạm 4.3: ReplicaSet, Deployment, Service (IPVS), Ingress & Probes"]
+    end
+    P1 --> P2 --> P3 --> P4""",
+
+        "1.0": """flowchart LR
+    subgraph H1 ["1. BARE METAL & SHARED HOSTING"]
+        C10A["• Bare Metal: 1 App độc chiếm máy chủ (Lãng phí 90-95% CPU/RAM)<br/>• Shared Hosting: Chung OS & tài nguyên -> Hiệu ứng Noisy Neighbor (503)<br/>• Cài chung thư viện trên 1 OS -> Xung đột phiên bản (Dependency Hell)"]
+    end
+    subgraph H2 ["2. HYPERVISOR: VM, VPS & CLOUD VM"]
+        C10B["• Hypervisor (Type 1 Bare-Metal / Type 2 Hosted) chia cắt phần cứng<br/>• VPS (1 máy mẹ vật lý -> Rủi ro SPOF) vs Cloud VM (SAN/Ceph 3x + Live Migration)<br/>• Nỗi đau 'VM Tax': Mỗi VM cõng 1 Guest OS nặng hàng GB, boot mất cả phút (~10 VMs/host)"]
+    end
+    subgraph H3 ["3. CONTAINER MODEL & SERVERLESS"]
+        C10C["• Container (OS-level Virtualization): Dùng chung Host OS Kernel, bỏ Guest OS<br/>• Nhẹ vài chục MB, boot tính bằng giây, mật độ 50+ Containers/host<br/>• PaaS / Serverless (Cloud Run / Lambda): Scale-to-Zero (0 VND khi vắng khách)"]
+    end
+    H1 --> H2 --> H3""",
+
+        "2.0": """flowchart LR
+    subgraph K1 ["TRẠM 2.1: 6 LINUX NAMESPACES (CÔ LẬP TẦM NHÌN)"]
+        C20A["• pid: Host PID 10423 -> Trong Container thấy là Virtual PID 1<br/>• net: Cấp veth pair + IP riêng (172.17.0.2 vs 172.17.0.3)<br/>• mnt, ipc, uts, user: Cô lập gốc '/', bộ nhớ chung, hostname & UID"]
+    end
+    subgraph K2 ["TRẠM 2.2: CONTROL GROUPS (CGROUPS V2 - GIỚI HẠN TÀI NGUYÊN)"]
+        C20B["• Container A (order-api): cpu.max = 2 CPUs | memory.max = 512MB<br/>• Container B (PostgreSQL): cpu.max = 1 CPU | memory.max = 1GB | BlkIO = 100MB/s<br/>• Vượt trần RAM -> Kernel kích hoạt OOM Killer tiêu diệt đúng tiến trình vi phạm"]
+    end
+    subgraph K3 ["TRẠM 2.3: OVERLAYFS, SYSCALLS & BẢO MẬT KERNEL"]
+        C20C["• OverlayFS (Copy-on-Write): LowerDir (Read-Only Image) + UpperDir (Read-Write)<br/>• 3 Syscalls khai sinh: clone() -> unshare() -> pivot_root()<br/>• Tước quyền root bằng Linux Capabilities (CAP_NET_BIND_SERVICE) & Seccomp Filter"]
+    end
+    K1 --> K2 --> K3""",
+
+        "3.0": """flowchart LR
+    subgraph R1 ["TRẠM 3.1: BUILD - SHIP - RUN & PERSISTENT VOLUMES"]
+        C30A["• BUILD: Từ Dockerfile đóng gói Multi-stage thành OCI Image bất biến<br/>• SHIP: Push / Pull các Layer qua Container Registry (Docker Hub / Harbor)<br/>• RUN & VOLUMES: Mount /var/lib/docker/volumes vào /var/lib/postgresql/data giữ bền dữ liệu"]
+    end
+    subgraph R2 ["TRẠM 3.2: GIẢI PHẪU OCI RUNTIME STACK & ĐỐI CHIẾU"]
+        C30B["• Luồng chuẩn OCI: Docker CLI --(REST)--> dockerd -> containerd -> containerd-shim<br/>• runc (libcontainer) gọi Kernel tạo Container rồi tự thoát, nhường shim giữ stdio/exit code<br/>• Đối chiếu: Docker (Daemon root) vs Podman (Daemonless/Rootless) vs CRI-O (Thuần K8s CRI)"]
+    end
+    R1 --> R2""",
+
+        "4.0": """flowchart LR
+    subgraph W1 ["TRẠM 4.1: CRI & BẢN KÊ KHAI DECLARATIVE YAML"]
+        C40A["• K8s vứt bỏ lệ thuộc Docker, gọi thẳng containerd / CRI-O qua chuẩn CRI<br/>• Chuyển từ Imperative (ra lệnh tay) sang Declarative YAML (Kê khai Desired State: replicas: 3)<br/>• Triết lý Immutable Infrastructure: Hỏng là đập bỏ tạo Pod mới từ Image gốc"]
+    end
+    subgraph W2 ["TRẠM 4.2: CONTROL PLANE, WORKER NODE & GIẢI PHẪU POD"]
+        C40B["• Control Plane: kube-apiserver + sổ cái etcd (Raft) + Scheduler + Controller Manager<br/>• Worker Node: kubelet + Container Runtime + kube-proxy (Luồng 9 bước tự động)<br/>• Pod: Bọc chung order-api & Sidecar, chia sẻ chung net (localhost), ipc, uts Namespace"]
+    end
+    subgraph W3 ["TRẠM 4.3: REPLICASET, DEPLOYMENT, SERVICE & PROBES"]
+        C40C["• ReplicaSet (Canh đủ 3 Pods) + Deployment (Rolling Update & Rollback 0-downtime)<br/>• Service (ClusterIP / IPVS bất biến) + Ingress Controller (Định tuyến HTTP/HTTPS)<br/>• 3 chốt khám sức khỏe tự động: Startup Probe, Liveness Probe & Readiness Probe"]
+    end
+    W1 --> W2 --> W3""",
+    }
+
     import html as html_lib
     import re
     import textwrap
@@ -13833,7 +16112,7 @@ def main():
         # Extract quantitative metrics & key tokens from Mermaid + Caption for the Telemetry Strip
         combined_text = strip_html_tags(f"{title_txt} {mermaid_code} {caption_txt}")
         metric_matches = re.findall(
-            r"(?:#8888|#HD01|\b\d+(?:\.\d+)?\s*(?:ns|ms|s|KB|MB|GB|TB|PB|%|x|B|rows|cols|days|mins)\b|ACID|MVCC|OCC|COW|MOR|Parquet|Arrow|Iceberg|Delta|Hudi|SCD\s*Type\s*\d|3NF|BCNF|Star\s*Schema|Inode|PID|Pipe|VFS|WAL|LSN|B-Tree|LSM-Tree|PGD|CAP|BASE)",
+            r"(?:#8888|#HD01|order-api|\b\d+(?:\.\d+)?\s*(?:ns|ms|s|KB|MB|GB|TB|PB|%|x|B|rows|cols|days|mins)\b|ACID|MVCC|OCC|COW|MOR|Parquet|Arrow|Iceberg|Delta|Hudi|SCD\s*Type\s*\d|3NF|BCNF|Star\s*Schema|Inode|PID|Pipe|VFS|WAL|LSN|B-Tree|LSM-Tree|PGD|CAP|BASE|Namespaces|cgroups|OverlayFS|containerd|runc|Podman|CRI-O|kubelet|etcd)",
             combined_text,
             flags=re.IGNORECASE,
         )
@@ -14000,6 +16279,12 @@ def main():
         "db-2-0",
         "db-3-0",
         "db-4-0",
+        "container-0-1",
+        "container-0-2",
+        "container-1-0",
+        "container-2-0",
+        "container-3-0",
+        "container-4-0",
         "storage-0-1",
     }
 
@@ -14009,10 +16294,11 @@ def main():
         safe_id = re.sub(r"[^a-zA-Z0-9_-]", "_", raw_id)
         is_linux = safe_id.startswith("linux")
         is_db = safe_id.startswith("db")
+        is_container = safe_id.startswith("container")
         role = "spine" if safe_id in spine_ids else "diagram"
 
         story_kw = re.search(
-            r"(bếp|kitchen|bẫy|trap|case|sự cố|đánh đổi|vs\.|so sánh|silent|ngầm|cạm bẫy|nỗi đau|swamp|đầm lầy|hình thái)",
+            r"(bếp|kitchen|bẫy|trap|case|sự cố|đánh đổi|vs\.|so sánh|silent|ngầm|cạm bẫy|nỗi đau|swamp|đầm lầy|hình thái|nhân vật)",
             f"{title_txt} {caption_txt}",
             re.IGNORECASE,
         )
@@ -14034,6 +16320,9 @@ def main():
             elif is_db:
                 m_code = db_mermaid.get(diag_key, "")
                 a_code = db_ascii.get(diag_key, {}).get("ascii", "")
+            elif is_container:
+                m_code = container_mermaid.get(diag_key, "")
+                a_code = container_ascii.get(diag_key, {}).get("ascii", "")
             else:
                 m_code = storage_mermaid.get(diag_key, "")
                 a_code = storage_ascii.get(diag_key, {}).get("ascii", "")
@@ -14108,6 +16397,14 @@ def main():
                 "mermaid": db_mermaid[k],
             }
             for k in db_ascii
+        },
+        "container_diagrams": {
+            k: {
+                "kind": container_ascii[k]["kind"],
+                "ascii": container_ascii[k]["ascii"],
+                "mermaid": container_mermaid[k],
+            }
+            for k in container_ascii
         },
         "visual_assets": visual_assets,
         "glossary": {

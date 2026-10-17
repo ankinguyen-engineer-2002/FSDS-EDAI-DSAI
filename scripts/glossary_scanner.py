@@ -1274,6 +1274,89 @@ RAW_GLOSSARY = [
         "{\"_id\": \"HD01\", \"khach\": \"Lan\", \"mon\": [{\"ten\": \"Oolong Sua\", \"gia\": 30000, \"sl\": 2}]}",
         "Không có hệ thống phân tán nào đạt `CA` thực sự khi mạng vật lý chắc chắn có lúc đứt (`P`); thực tế kỹ sư luôn phải thiết kế đánh đổi giữa `CP` và `AP`."
     ),
+
+    # =========================================================================
+    # F06: CONTAINERIZATION & ORCHESTRATION (CHẶNG 1 -> CHẶNG 4)
+    # =========================================================================
+    (
+        "container.infra-vm-vs-container",
+        "Tiến hóa Hạ tầng: Bare Metal, Hypervisor (VM / VPS / Cloud VM) vs. Container (OS-Level Virtualization)",
+        "CONTAINER & VIRTUALIZATION",
+        ["F06", "P02"],
+        [
+            "bare metal", "shared hosting", "noisy neighbor", "hypervisor", "type 1", "type 2",
+            "virtual machine", "vm", "vms", "vps", "cloud vm", "guest os", "vm tax", "thuế máy ảo",
+            "os-level virtualization", "live migration", "ceph/san", "scale-to-zero", "order-api",
+            "app.py", "python:3.11-slim"
+        ],
+        "Nếu Máy ảo (`VM / VPS / Cloud VM`) là những 'căn nhà phố độc lập' mà mỗi căn phải tự xây móng, tự cõng một hệ điều hành riêng (`Guest OS`) nặng hàng chục GB ('Thuế máy ảo' — `VM Tax`), thì **Container** là những 'căn hộ studio' dùng chung toàn bộ móng và hệ thống điện nước (`Host OS Kernel`), chỉ mang theo đúng đồ đạc của ứng dụng (`order-api` vài chục MB) nên khởi động trong 1 giây.",
+        "Trên `Bare Metal`, chạy 1 ứng dụng gây lãng phí `90-95% CPU/RAM`, còn cài chung nhiều ứng dụng dễ dính xung đột thư viện (`Dependency Hell`) hoặc hiệu ứng hàng xóm ồn ào (`Noisy Neighbor` trên `Shared Hosting`). `Hypervisor` (`Type 1` Bare-metal như KVM/ESXi hoặc `Type 2` Hosted như VirtualBox) chia cắt phần cứng thành các `VM` (`VPS` nằm trên 1 máy mẹ dễ dính `SPOF`; `Cloud VM` lưu đĩa trên `SAN/Ceph` 3x và có `Live Migration`). `Container` tiến thêm một bước đột phá: vứt bỏ `Guest OS`, ảo hóa ngay ở tầng Hệ điều hành (`OS-level Virtualization`) giúp chạy `50+ Containers/host` thay vì chỉ `~10 VMs/host`.",
+        "docker run -d --name order-api -p 8080:8080 order-api:1.0   # Khởi động trong ~1 giây",
+        "Nhân vật chính xuyên suốt F06 là tiến trình `order-api` (`app.py` chạy trên `python:3.11-slim` + `PostgreSQL`) tiến hóa từ Bare Metal -> VM -> Container -> 3 Pod Replicas trên Kubernetes."
+    ),
+    (
+        "container.linux-namespaces-cgroups",
+        "Linux Namespaces (Cô lập tầm nhìn: pid, net, mnt, ipc, uts, user) & Control Groups (cgroups v2 · OOM Killer)",
+        "KERNEL ISOLATION & LIMITS",
+        ["F06", "F01"],
+        [
+            "linux namespaces", "pid namespace", "net namespace", "mnt namespace", "ipc namespace",
+            "uts namespace", "user namespace", "host pid: 10423", "virtual pid: 1", "veth",
+            "cgroups v2", "cpu.max", "memory.max", "blkio", "oom killer", "sigkill"
+        ],
+        "Container thực chất là một Process Linux bình thường bị Kernel 'bịt mắt' bằng **6 bức tường kính `Linux Namespaces`** (chỉ nhìn thấy tài nguyên của riêng mình) và 'khóa van điện nước' bằng **`Control Groups (cgroups v2)`** (cấm xài lố CPU/RAM).",
+        "**6 Namespaces** cô lập tầm nhìn: `pid` (tiến trình `order-api` có `Host PID: 10423` ngoài máy chủ nhưng tự nhìn thấy mình là `Virtual PID: 1` bên trong Container), `net` (cấp card mạng ảo `veth` và IP riêng `172.17.0.2`), `mnt` (gốc `/` riêng), `ipc`, `uts` (hostname riêng), và `user` (ánh xạ UID `0` trong container sang UID thường ngoài host). **Control Groups (`cgroups v2`)** kiểm soát định lượng qua `/sys/fs/cgroup`: giới hạn `cpu.max`, `memory.max` (ví dụ `512MB` cho `order-api`) và băng thông đĩa `BlkIO`. Nếu tiến trình cố tình vượt trần `memory.max`, `OOM Killer` của Kernel sẽ bắn tín hiệu `SIGKILL (Exit Code 137)` tiêu diệt đúng tiến trình đó để bảo vệ máy chủ.",
+        "lsns   # Liệt kê các Namespaces; hoặc xem giới hạn tại /sys/fs/cgroup/memory.max",
+        "Hiểu rõ `Host PID: 10423` vs. `Virtual PID: 1` giúp kỹ sư hiểu tại sao `ps aux` trên máy chủ thấy toàn bộ các container, còn `ps aux` trong container chỉ thấy mỗi `app.py`."
+    ),
+    (
+        "container.overlayfs-seccomp",
+        "Union Filesystem (OverlayFS Copy-on-Write: LowerDir, UpperDir, Merged), Syscalls (clone, unshare, pivot_root) & Bảo mật (Capabilities, Seccomp)",
+        "FILESYSTEM & CONTAINER SECURITY",
+        ["F06", "F01"],
+        [
+            "overlayfs", "union filesystem", "lowerdir", "upperdir", "workdir", "merged",
+            "clone()", "unshare()", "pivot_root()", "chroot()", "linux capabilities",
+            "cap_net_bind_service", "cap_sys_admin", "seccomp", "seccomp filter"
+        ],
+        "Thay vì nhân bản 50 bản hệ điều hành Debian cho 50 Container, **`OverlayFS`** cho cả 50 Container dùng chung 1 tầng đĩa gốc chỉ-đọc (`LowerDir`) và chỉ tạo 1 tờ giấy kính mỏng ghi-được (`UpperDir`) trên đỉnh từng Container theo cơ chế `Copy-on-Write`.",
+        "Khi khởi tạo Container, Runtime gọi 3 System Calls cốt lõi: `clone()` (tạo tiến trình kèm cờ Namespaces), `unshare()` (tách không gian tên), và `pivot_root()` (đổi gốc `/` sang thư mục `Merged` của `OverlayFS`, an toàn hơn `chroot()`). Để khóa chặt bảo mật khi dùng chung Kernel, Container bị tước bỏ quyền tối thượng của `root` thành các mảnh nhỏ qua **Linux Capabilities** (chỉ giữ quyền cần thiết như `CAP_NET_BIND_SERVICE`, tước bỏ `CAP_SYS_ADMIN`) và gắn phễu lọc **Seccomp (`Secure Computing Mode`)** chặn hơn 44 System Calls nguy hiểm (như `reboot`, `mount`, `kexec_load`).",
+        "docker run --cap-drop=ALL --cap-add=NET_BIND_SERVICE --security-opt seccomp=default.json order-api:1.0",
+        "Vì tầng `UpperDir` của `OverlayFS` sẽ biến mất vĩnh viễn ngay khi xóa Container, tuyệt đối không bao giờ lưu dữ liệu Database trực tiếp vào tầng ghi của Container!"
+    ),
+    (
+        "container.oci-runtime-stack",
+        "Luồng Build-Ship-Run, Persistent Volumes & Giải phẫu Chuỗi Thực thi Chuẩn OCI (Docker CLI -> dockerd -> containerd -> shim -> runc vs. Podman / CRI-O)",
+        "OCI RUNTIME & PACKAGING",
+        ["F06", "P02"],
+        [
+            "build-ship-run", "oci image", "container registry", "persistent volume",
+            "persistent volumes", "/var/lib/docker/volumes", "/var/lib/postgresql/data",
+            "docker cli", "dockerd", "containerd-shim", "runc", "libcontainer",
+            "podman", "cri-o", "daemonless", "rootless"
+        ],
+        "Khi bạn gõ `docker run`, `Docker Daemon (dockerd)` không trực tiếp tạo Container mà chuyển việc qua dây chuyền chuẩn công nghiệp **OCI**: `Docker CLI ➔ dockerd ➔ containerd ➔ containerd-shim ➔ runc (libcontainer)`.",
+        "Giải phẫu từng mắt xích: (1) `Docker CLI` gửi REST API tới `dockerd`; (2) `dockerd` ủy quyền quản lý vòng đời cho `containerd`; (3) `containerd` đẻ ra tiến trình giữ chỗ nhẹ `containerd-shim`; (4) `shim` gọi `runc` (`libcontainer`) nói chuyện trực tiếp với Linux Kernel để dựng Namespaces/cgroups cho `order-api`. Ngay khi Container chạy lên, **`runc` lập tức tự thoát**, nhường quyền làm cha cho `containerd-shim` giữ cổng `stdin/stdout` — nhờ vậy dù bạn khởi động lại `dockerd`, Container `order-api` vẫn sống bình thường! Với Database `PostgreSQL`, kỹ sư bắt buộc gắn **Persistent Volume** (`/var/lib/docker/volumes/...` ánh xạ vào `/var/lib/postgresql/data`) để dữ liệu đi xuyên qua `OverlayFS` xuống thẳng đĩa Host. Ngoài Docker, hệ sinh thái còn có **Podman** (`Daemonless & Rootless` — không cần daemon chạy ngầm quyền root) và **CRI-O** (Runtime tối giản chuyên biệt cho Kubernetes).",
+        "docker volume create pgdata && docker run -v pgdata:/var/lib/postgresql/data postgres:16",
+        "Nhờ kiến trúc tách rời `containerd-shim`, việc nâng cấp hoặc khởi động lại Docker Engine không còn làm chết toàn bộ các Container đang chạy trên máy chủ."
+    ),
+    (
+        "container.kubernetes-orchestration",
+        "Kubernetes (K8s) Orchestration: CRI, Declarative YAML, Control Plane (API Server, etcd, Scheduler, Controller), Worker Node (kubelet, kube-proxy) & Workloads (Pod, ReplicaSet, Deployment, Service IPVS, Probes)",
+        "KUBERNETES ORCHESTRATION",
+        ["F06", "P02"],
+        [
+            "cri", "container runtime interface", "declarative yaml", "desired state",
+            "immutable infrastructure", "control plane", "kube-apiserver", "etcd",
+            "kube-scheduler", "kube-controller-manager", "worker node", "kubelet",
+            "kube-proxy", "replicaset", "clusterip", "ipvs", "ingress controller",
+            "liveness probe", "readiness probe", "startup probe", "3 pod replicas"
+        ],
+        "Khi quy mô vượt lên hàng trăm máy chủ, **Kubernetes (`K8s`)** đóng vai trò 'nhạc trưởng tự động 24/7': bạn chỉ cần nộp bản kê khai trạng thái mong muốn (**`Declarative YAML`** — ví dụ `replicas: 3`), bộ não **`Control Plane`** sẽ tự động xếp lịch, canh gác và hồi sinh các **`Pod`** của `order-api` ngay cả khi 1 máy chủ bốc cháy lúc 2 giờ sáng.",
+        "Kiến trúc K8s gồm 2 nửa: (1) **Control Plane**: mọi lệnh đều đi qua cổng chính `kube-apiserver` để lưu vào sổ cái phân tán `etcd` (đồng thuận `Raft`); `kube-controller-manager` chạy vòng lặp đối soát (`Reconciliation Loop`: thấy `Actual State = 2` khác `Desired State = 3` liền yêu cầu tạo bù 1 Pod); `kube-scheduler` chấm điểm chọn `Worker Node` còn trống tài nguyên. (2) **Worker Node**: đặc vụ `kubelet` nhận lệnh và gọi thẳng `containerd / CRI-O` qua giao diện chuẩn **`CRI` (`Container Runtime Interface` — bỏ qua `dockerd`)** để dựng **Pod** (đơn vị nhỏ nhất bọc các container dùng chung `net/ipc/uts` Namespace và IP nội bộ). Tầng mạng dùng **Service (`ClusterIP` + bảng định tuyến `iptables / IPVS` của `kube-proxy`)** kết hợp **Ingress** và 3 chốt khám sức khỏe (**`Startup / Liveness / Readiness Probes`**) để cân bằng tải và cập nhật phiên bản mới không gián đoạn (`Rolling Update`).",
+        "kubectl apply -f order-api-deployment.yaml && kubectl get pods -o wide",
+        "Trong một `Pod`, các container (như `order-api` và `log-agent` sidecar) dùng chung `Network Namespace` nên gọi nhau trực tiếp qua `localhost`, nhưng vẫn bị cô lập hệ thống tệp (`mnt` Namespace riêng)."
+    ),
 ]
 
 

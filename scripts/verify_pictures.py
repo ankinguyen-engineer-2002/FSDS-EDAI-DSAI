@@ -175,6 +175,7 @@ def verify_all_pictures(verbose: bool = True) -> list[str]:
     for spine_id, spine_src in (
         ("__spine_linux_0_map__", "assets/visuals/linux-0-map.jpg"),
         ("__spine_db_0_map__", "assets/visuals/db-0-map.jpg"),
+        ("__spine_container_0_map__", "assets/visuals/container-0-map.jpg"),
     ):
         if spine_src not in [src for _, src in all_checked_items]:
             all_checked_items.append((spine_id, spine_src))
