@@ -1,0 +1,216 @@
+      <div class="prose">
+        <p>Ở <strong>Chặng 1</strong>, chúng ta đã rút ra kết luận vật lý sống còn: Vì bộ nhớ RAM quá đắt (~$10/GB) và mất sạch dữ liệu ngay khi cúp điện, <strong>Đơn hàng #8888</strong> sau khi sinh ra từ hệ thống bán hàng (OLTP) bắt buộc phải được chuyển sang một kho lưu trữ bền vững giá rẻ để bảo quản lâu dài cùng hàng triệu đơn hàng khác.</p>
+
+        <p>Bước sang <strong>Chặng 2</strong>, người kỹ sư dữ liệu phải trả lời liên tiếp <strong>4 câu hỏi thiết kế cốt lõi</strong>:</p>
+        <ol>
+          <li><strong>Chọn "nhà kho" nào?</strong> Lưu theo cây thư mục (<strong>File Storage</strong>), xé thành khối byte thô (<strong>Block Storage</strong>), hay đóng gói thành kiện hàng phẳng (<strong>Object Storage</strong>)?</li>
+          <li><strong>Xếp dữ liệu trên đĩa ra sao?</strong> Xếp nối tiếp theo hàng (<strong>Row: CSV, JSONL, Avro</strong>) hay xoay dọc theo cột (<strong>Columnar: Parquet, ORC</strong>)?</li>
+          <li><strong>Khi bốc dữ liệu lên RAM tính toán thì sao?</strong> Làm thế nào để các công cụ khác ngôn ngữ đọc chung dữ liệu trên RAM mà không tốn CPU dịch lại (<strong>Apache Arrow</strong>)?</li>
+          <li><strong>Nén chặt mà vẫn chia nhỏ được?</strong> Chọn thuật toán nén nào (<strong>Snappy, ZSTD, Gzip, Bzip2</strong>) để vừa nhẹ dung lượng, vừa khuếch đại băng thông đĩa/mạng mà không làm tê liệt cụm máy tính phân tán (<strong>Splittability</strong>)?</li>
+        </ol>
+
+        <hr />
+
+        <h2 id="storage-2-1" tabindex="-1">Trạm 2.1: Bộ ba mô hình lưu trữ cơ sở — File vs. Block vs. Object storage</h2>
+
+        <h3 id="storage-2-1-analogy">1. Ẩn dụ đời thực: 3 Cách quản lý kho hàng</h3>
+        <p>Khi dữ liệu nhị phân của Đơn hàng #8888 nằm trên các cụm máy chủ, có 3 cách tổ chức logic hoàn toàn khác nhau:</p>
+        <ul>
+          <li><strong>File Storage ("Tủ hồ sơ văn phòng nhiều ngăn"):</strong> Bạn cất tờ hóa đơn #8888 vào ngăn tủ KinhDoanh, mở tiếp cặp tài liệu Năm 2026, tìm kẹp giấy Tháng 10, rồi mới rút tờ <code>DonHang.csv</code> ra. Muốn lấy tài liệu, bạn bắt buộc phải đi theo đúng đường dẫn phân cấp từ gốc đến ngọn.</li>
+          <li><strong>Block Storage ("Các mảnh ghép Lego đánh số"):</strong> Bạn lấy kéo cắt tờ hóa đơn #8888 thành những mảnh giấy vuông vức bằng nhau (ví dụ 4KB hoặc 512KB), đánh số mã vạch (Unique ID) lên từng mảnh rồi rải vào các hộp đĩa khác nhau để lấy ra lắp lại nhanh nhất.</li>
+          <li><strong>Object Storage ("Siêu kho bưu kiện phẳng kèm phiếu gửi đồ"):</strong> Không có tủ nhiều ngăn cũng không cắt vụn theo rãnh đĩa cấp thấp. Bạn bỏ toàn bộ dữ liệu vào một thùng hàng nguyên vẹn, dán lên vỏ thùng một chiếc tem gồm <strong>Mã định danh duy nhất (ID)</strong> và <strong>Phiếu mô tả chi tiết (Metadata)</strong>, rồi đặt vào một nhà kho mặt phẳng mênh mông (Bucket).</li>
+        </ul>
+
+        <h3 id="storage-2-1-visual">2. Sơ đồ trực quan hóa 3 Mô hình Lưu trữ Vật lý</h3>
+        <x-figure id="storage-2-1" key="2.1" title="Hình 2.1a — Ba Mô hình Lưu trữ Cơ sở: File Storage vs. Block Storage vs. Object Storage">Đối chiếu kiến trúc cây thư mục phân cấp (File), khối byte cố định (Block) và không gian phẳng định danh qua Key-Value (Object).</x-figure>
+
+        <h3 id="storage-2-1-trials">3. Hành trình thử nghiệm chọn kho của Đơn hàng #8888</h3>
+        <ul>
+          <li><strong>[x] Thử nghiệm 1 — File Storage (NTFS/ext4, NAS/NFS/SMB):</strong> Lưu cây thư mục phân cấp (directory tree) kèm quyền truy cập, con trỏ thư mục và nhật ký phục hồi (journaling). Khi tích lũy hàng chục triệu tệp hóa đơn, bảng chỉ mục inode table và khóa đường dẫn (path traversal locks) bị quá tải, không thể mở rộng cho Big Data.</li>
+          <li><strong>[x] Thử nghiệm 2 — Block Storage (SAN, AWS EBS, Local NVMe Instance Store):</strong> Chia dữ liệu thành khối cố định (4KB–512KB) cho độ trễ &lt; 1 ms. Trên đám mây có 2 nhánh: <strong>Virtualized Network Block (AWS EBS)</strong> nhân bản trong cùng 1 Availability Zone (tới 64 TiB, 256.000 IOPS, 4.000 MiB/s, hỗ trợ Point-in-time Differential Snapshots xuống S3) và <strong>Local Instance Store (NVMe)</strong> làm bộ đệm tạm (mất sạch khi dừng VM). Lý tưởng cho OLTP DB / VM nhưng đắt đỏ và không thể chia sẻ song song xuyên cụm.</li>
+          <li><strong>[+] Giải pháp đích thực — Cloud Object Storage (Amazon S3 / Azure Blob &amp; ADLS / GCS):</strong> Dịch vụ serverless hoạt động như kho key-value phẳng trong Bucket. Mỗi Object gồm <strong>3 thành phần</strong>: <strong>(1) ID (Object Key</strong> như <code>orders/8888.parquet</code> — dấu <code>/</code> chỉ là tên chuỗi phẳng), <strong>(2) Metadata</strong> tùy biến không giới hạn, và <strong>(3) Data</strong> (chuỗi byte nhị phân truy cập qua HTTP REST API PUT/GET, tự động băm và rải qua nhiều Availability Zones).</li>
+        </ul>
+
+        <h3 id="storage-2-1-less-is-more">4. Triết lý &quot;Less is More&quot; (Ít hơn lại là Nhiều hơn) &amp; Quản trị Vòng đời Object Storage</h3>
+        <p>Chính việc lược bỏ khả năng sửa tại chỗ (Immutability) và cây thư mục vật lý lại tạo nên sức mạnh quy mô đám mây của Object Storage:</p>
+
+        <x-figure id="storage-2-1b" key="2.1b" title="Hình 2.1b — Triết lý &#x27;Less is More&#x27; của Cloud Object Storage: Immutability, Versioning &amp; Lifecycle">Đánh đổi tính bất biến (Immutability) và độ trễ ~100 ms để loại bỏ cơ chế khóa tệp, đạt băng thông song song ~3 GB/s, tách rời Compute – Storage và quản trị vòng đời dữ liệu qua Storage Classes.</x-figure>
+
+        <ul>
+          <li><strong>Lưu ý vận hành thực tế:</strong> Dù Object Storage hỗ trợ đọc một phần tệp qua HTTP Range Requests (để đọc riêng Footer của Parquet) và đảm bảo <strong>Strong Read-After-Write Consistency</strong>, tính năng Object Versioning lưu <strong>bản sao nguyên khối (brute-force full copy)</strong> cho mỗi lần ghi đè (khác với Differential Snapshot của EBS) nên bắt buộc phải đi kèm <strong>Lifecycle Policies</strong> hạ cấp sang Standard-IA, One Zone-IA hoặc Glacier Deep Archive (~$1/TB/tháng).</li>
+        </ul>
+
+        <h3 id="storage-2-1-table">5. Bảng so sánh tổng hợp: Object Storage vs. Block Storage vs. File Storage</h3>
+        <div class="table-wrap">
+          <table class="clean-table">
+            <thead>
+              <tr>
+                <th>Tiêu chí kỹ thuật</th>
+                <th>Object Storage (S3 / ADLS / GCS)</th>
+                <th>Block Storage (SAN / EBS)</th>
+                <th>File Storage (NAS / NTFS / ext4)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Đơn vị lưu trữ</strong></td>
+                <td>Objects (ID + Metadata + Data)</td>
+                <td>Blocks (Khối byte cố định có ID)</td>
+                <td>Files (Tệp tin)</td>
+              </tr>
+              <tr>
+                <td><strong>Cấu trúc tổ chức</strong></td>
+                <td>Phẳng với các Buckets (Flat with buckets)</td>
+                <td>Không có cấu trúc thư mục (None)</td>
+                <td>Cây thư mục phân cấp (Files and folders)</td>
+              </tr>
+              <tr>
+                <td><strong>Siêu dữ liệu (Metadata)</strong></td>
+                <td>Gần như vô hạn và tùy biến tự do</td>
+                <td>Hạn chế (Limited)</td>
+                <td>Hạn chế (Limited: tên, quyền, con trỏ)</td>
+              </tr>
+              <tr>
+                <td><strong>Hiệu năng &amp; Độ trễ</strong></td>
+                <td>Độ trễ đầu tiên cao (~100 ms), nhưng băng thông đọc/ghi song song cực lớn (~3 GB/s)</td>
+                <td>Hiệu năng cao, độ trễ cực thấp (&lt; 1 ms, tới 256.000 IOPS)</td>
+                <td>Chậm hơn Block Storage, nghẽn khi duyệt cây thư mục quá lớn</td>
+              </tr>
+              <tr>
+                <td><strong>Khả năng mở rộng (Scalability)</strong></td>
+                <td>Dễ dàng, gần như vô hạn (Easy / Serverless)</td>
+                <td>Khó mở rộng xuyên cụm (Not easy)</td>
+                <td>Dễ mở rộng ở quy mô vừa (Easy)</td>
+              </tr>
+              <tr>
+                <td><strong>Sửa đổi tại chỗ (Modification)</strong></td>
+                <td><strong>Không thể</strong> (Bất biến — phải tạo lại toàn bộ Object)</td>
+                <td><strong>Có thể</strong> (Sửa trực tiếp từng Block tại chỗ)</td>
+                <td><strong>Có thể</strong> (Sửa và ghi nối tiếp trực tiếp tệp)</td>
+              </tr>
+              <tr>
+                <td><strong>Chi phí (Cost)</strong></td>
+                <td>Rẻ (~$0.02 / GB / tháng)</td>
+                <td>Đắt đỏ (Expensive)</td>
+                <td>Đắt đỏ (Expensive)</td>
+              </tr>
+              <tr>
+                <td><strong>Trường hợp sử dụng chính</strong></td>
+                <td>Data Lake, Lakehouse, Backup, lưu trữ đa định dạng quy mô lớn</td>
+                <td>Lưu trữ CSDL giao dịch (OLTP Database) và Máy ảo (VM)</td>
+                <td>Chia sẻ tệp tin nội bộ (File sharing)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <hr />
+
+        <h2 id="storage-2-2" tabindex="-1">Trạm 2.2: Định dạng tệp &amp; tuần tự hóa (Serialization) — Row (CSV, Avro) vs. columnar (Parquet, ORC)</h2>
+
+        <h3 id="storage-2-2-story">1. Câu chuyện nối tiếp: Đã có kho S3, nhưng đóng gói Đơn hàng #8888 kiểu gì?</h3>
+        <p>Đơn hàng #8888 đã được quyết định lưu trên <strong>Object Storage (S3)</strong>. Nhưng dữ liệu khi nằm trong bộ nhớ của phần mềm thường tồn tại dưới dạng các đối tượng phức tạp nối nhau bằng con trỏ, không thể bê nguyên xi xuống đĩa hay truyền qua mạng. Quá trình làm phẳng (flattening) và đóng gói cấu trúc dữ liệu thành một chuỗi các byte tiêu chuẩn để đầu bên kia giải mã được gọi là <strong>Tuần tự hóa (Serialization)</strong>. Cách bạn chọn định dạng tuần tự hóa (File Format) sẽ quyết định trực tiếp chi phí CPU, tỷ lệ nén và tốc độ truy vấn của toàn hệ thống.</p>
+        <p>Có 2 trường phái sắp xếp dữ liệu trái ngược nhau trên đĩa: <strong>Theo hàng (Row-oriented)</strong> và <strong>Theo cột theo phân đoạn (Column-oriented / Columnar)</strong>:</p>
+
+        <x-figure id="storage-2-2a" key="2.2a" title="Hình 2.2a — Đối chiếu Tuần tự hóa: Row-Oriented (CSV, Avro) vs. Column-Oriented (Parquet, ORC)">Bố trí nối tiếp từng bản ghi theo hàng (tối ưu ghi luồng/đọc trọn dòng) so với xoay dọc theo từng cột trong Row Group (tối ưu quét phân tích và nén).</x-figure>
+
+        <h3 id="storage-2-2-row">2. Trường phái 1: Định dạng theo Hàng (Row-Oriented: CSV, JSONL, Apache Avro)</h3>
+        <ul>
+          <li><strong>Văn bản thô (CSV, JSON, XML) vs. JSON Lines (JSONL):</strong> Định dạng theo hàng tối ưu khi đọc trọn vẹn một bản ghi hoặc ghi nối đuôi luồng sự kiện. Tuy nhiên, CSV thiếu schema chặt chẽ, dễ lỗi ký tự thoát và tốn CPU phân tách chuỗi (parse overhead); còn <strong>JSONL</strong> (mỗi dòng 1 đối tượng JSON ngăn bởi \n) phù hợp làm bước đệm thu thập REST API trước khi chuyển sang dạng nhị phân/cột.</li>
+          <li><strong>Chuẩn nhị phân theo hàng Apache Avro:</strong> Nhúng trực tiếp <strong>Schema JSON ở phần Header</strong> (Self-describing, hỗ trợ Schema Evolution) và mã hóa dữ liệu thành <strong>nhị phân (binary)</strong> nhỏ gọn. Đặc biệt, Avro chèn các mốc đồng bộ <strong>Sync Markers 16-byte</strong> giữa các khối giúp tệp vừa <strong>chia nhỏ đọc song song được (splittable)</strong>, vừa <strong>phục hồi an toàn đến mốc Sync Marker gần nhất</strong> nếu luồng ghi Streaming / Kafka / CDC bị sập nguồn giữa chừng.</li>
+        </ul>
+
+        <h3 id="storage-2-2-columnar">3. Trường phái 2: Định dạng theo Cột (Columnar-Oriented: Apache Parquet &amp; Apache ORC)</h3>
+        <p>Khi Giám đốc hỏi: <em>"Tính tổng cột Amount của 10 triệu đơn hàng trong năm nay"</em>, định dạng theo hàng (CSV/Avro) buộc ổ đĩa phải đọc lướt qua toàn bộ các cột không liên quan (như Tên khách, Địa chỉ, Ghi chú). Định dạng theo cột (<strong>Apache Parquet</strong> và <strong>Apache ORC</strong>) giải quyết triệt để bài toán này bằng cách chia bảng thành các phân đoạn hàng (Row Groups), sau đó xoay trục dữ liệu và đóng gói riêng từng cột.</p>
+
+        <h4>Giải phẫu bên trong một tệp Apache Parquet:</h4>
+        <x-figure id="storage-2-2b" key="2.2b" title="Hình 2.2b — Giải phẫu Cấu trúc Vật lý Bên trong Tệp Apache Parquet">Động cơ truy vấn (Spark/Trino/DuckDB) luôn đọc phần Footer Metadata ở đáy tệp trước tiên để cắt tỉa cột (Column Pruning) và nhảy cóc qua các Row Group không khớp điều kiện lọc (Data Skipping).</x-figure>
+
+        <ul>
+          <li><strong>3 Vũ khí cốt lõi của Parquet &amp; Thuật toán Google Dremel:</strong> (1) <strong>Column Pruning</strong> đọc đúng Byte Offset của các cột cần thiết (giảm <strong>80–95% I/O</strong>); (2) <strong>Nén chuyên biệt theo cột</strong> nhờ Dictionary Encoding, Run-Length Encoding (RLE) và Delta Encoding; (3) <strong>Data Skipping / Predicate Pushdown</strong> nhảy bỏ qua cả Row Group dựa vào thống kê Min / Max / Null Count ở Footer; kết hợp thuật toán <strong>Google Dremel</strong> (dùng Definition Levels và Repetition Levels) để ép phẳng JSON lồng nhau thành các cột độc lập.</li>
+          <li><strong>Đánh đổi của định dạng cột &amp; Mô hình Hybrid Serialization:</strong> Parquet tốn RAM giữ đệm Row Group (128MB–1GB), hỏng tệp nếu sập nguồn trước khi ghi Footer, và cực đắt khi sửa lẻ 1 dòng; so với Apache ORC, Parquet được hỗ trợ rộng rãi hơn trên Cloud (Snowflake/BigQuery hỗ trợ cả import và export Parquet). Để vừa ghi luồng nhanh vừa quét cột nhanh, các bảng Lakehouse (Hudi, Iceberg) áp dụng <strong>Tuần tự hóa Lai (Hybrid Serialization)</strong>: bắt luồng cập nhật vào tệp dòng Avro rồi định kỳ Compaction sang tệp cột Parquet.</li>
+        </ul>
+
+        <hr />
+
+        <h2 id="storage-2-3" tabindex="-1">Trạm 2.3: Tuần tự hóa trong bộ nhớ (In-Memory Serialization) — Apache Arrow</h2>
+
+        <h3 id="storage-2-3-pain">1. Nỗi đau khi dữ liệu đã lên tới RAM &amp; Giải pháp Chuẩn bộ nhớ cột Zero-Copy</h3>
+        <p>Khi tệp Parquet chứa Đơn hàng #8888 đã được đọc từ S3 lên RAM của Apache Spark (JVM) và cần truyền sang thư viện Python (Pandas / PyArrow / ML) trên cùng máy chủ: trước đây, vì mỗi ngôn ngữ sắp xếp byte trong RAM một kiểu, CPU lãng phí tới <strong>70–80% thời gian</strong> chỉ để <strong>Serialize / Deserialize</strong> và chép lại vùng nhớ. <strong>Apache Arrow</strong> giải quyết triệt để bằng cách thống nhất một bố cục bộ nhớ cột duy nhất trên RAM cho mọi ngôn ngữ (C, C++, Go, Java, Python, R, Rust):</p>
+
+        <x-figure id="storage-2-3" key="2.3" title="Hình 2.3 — Tuần tự hóa Trong Bộ nhớ: Truyền thống vs. Apache Arrow Zero-Copy">Apache Arrow thống nhất một bố cục bộ nhớ cột duy nhất trên RAM, cho phép Spark (JVM), Python (Pandas/Polars) và C++/Rust đọc chung vùng nhớ qua con trỏ mà không tốn CPU dịch lại.</x-figure>
+
+        <ul>
+          <li><strong>Cơ chế Zero-copy, Shredding &amp; Virtual Memory (mmap):</strong> Các tiến trình khác ngôn ngữ chỉ cần truyền con trỏ địa chỉ RAM để đọc trực tiếp dữ liệu (<strong>Zero-copy</strong>) và ép phẳng JSON lồng nhau thành mảng cột trong bộ nhớ (<strong>Shredding</strong>). Vì định dạng nhị phân của Arrow dùng chung cho cả RAM, mạng (Arrow Flight) và đĩa, hệ điều hành có thể dùng <strong>Virtual Memory (mmap)</strong> ánh xạ thẳng tệp từ đĩa vào không gian địa chỉ với Zero Deserialization Overhead — nền tảng tốc độ của <strong>Dremio, DuckDB, Polars</strong> và <strong>Spark Pandas UDF</strong>.</li>
+        </ul>
+
+        <hr />
+
+        <h2 id="storage-2-4" tabindex="-1">Trạm 2.4: Kỹ thuật nén dữ liệu (Compression) &amp; cạm bẫy tính phân tách (Splittability)</h2>
+
+        <h3 id="storage-2-4-leverage">1. Nguyên lý Nén Không Mất Dữ Liệu &amp; 3 Đòn bẩy Phần cứng</h3>
+        <p>Trong kỹ thuật dữ liệu phân tích, chúng ta bắt buộc dùng <strong>nén không mất dữ liệu (Lossless compression</strong> — mã hóa các chuỗi dư thừa lặp lại đạt tỷ lệ 2:1 đến 10:1 rồi khôi phục chính xác từng bit khi đọc, thay vì nén mất dữ liệu Lossy như JPEG/MP3). Nén dữ liệu tạo ra <strong>3 hiệu ứng đòn bẩy phần cứng (Hardware Leverage)</strong>:</p>
+
+        <x-figure id="storage-2-4b" key="2.4b" title="Hình 2.4a — Ba Đòn bẩy Phần cứng của Nén Dữ liệu Không Mất Mát (Lossless Compression)">Hiệu ứng khuếch đại phần cứng khi nén cột Parquet/ZSTD: giảm dung lượng đĩa 4–10 lần, tăng tốc độ quét đĩa hiệu dụng từ 200 MB/s lên 800 MB/s – 2 GB/s, và nhân băng thông mạng 10 Gbps lên tương đương 100 Gbps.</x-figure>
+
+        <h3 id="storage-2-4-table">2. Bảng đặt lên bàn cân các Thuật toán Nén phổ biến</h3>
+        <p>Mỗi thuật toán nén là một sự đánh đổi giữa <strong>Tỷ lệ nén (Không gian lưu trữ &amp; I/O)</strong> và <strong>Chi phí thời gian/tài nguyên của CPU (Tốc độ nén &amp; giải nén)</strong>:</p>
+        <div class="table-wrap">
+          <table class="clean-table">
+            <thead>
+              <tr>
+                <th>Thuật toán nén</th>
+                <th>Tốc độ CPU (Nén / Giải nén)</th>
+                <th>Tỷ lệ nén (Tiết kiệm dung lượng)</th>
+                <th>Đặc điểm &amp; Trường hợp sử dụng trong Data Pipeline</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Snappy / LZ4 / LZFSE</strong></td>
+                <td><strong>Cực nhanh</strong> (Ưu tiên tốc độ CPU tối đa)</td>
+                <td>Trung bình – Khá (Mức 2.5/5)</td>
+                <td>Thuật toán thế hệ mới ưu tiên tốc độ, cực kỳ phổ biến khi kết hợp với <strong>Apache Parquet</strong> và Spark để không làm nghẽn CPU khi truy vấn nóng.</td>
+              </tr>
+              <tr>
+                <td><strong>Zstandard (ZSTD)</strong></td>
+                <td><strong>Nhanh</strong> (Giải nén tiệm cận LZ4)</td>
+                <td><strong>Rất cao</strong> (Mức 4/5)</td>
+                <td>Chuẩn nén hiện đại cân bằng xuất sắc giữa tốc độ giải nén nhanh và tỷ lệ nén chặt; đang trở thành mặc định mới cho Parquet trên Lakehouse.</td>
+              </tr>
+              <tr>
+                <td><strong>Gzip</strong></td>
+                <td>Chậm (Tốn nhiều chu kỳ CPU)</td>
+                <td>Cao (Mức 4/5)</td>
+                <td>Rất phổ biến để nén tệp văn bản (CSV, JSON, JSONL, XML, Log), nhưng nén luồng nguyên khối nên <strong>không cắt nhỏ được (Non-splittable)</strong>.</td>
+              </tr>
+              <tr>
+                <td><strong>Bzip2</strong></td>
+                <td><strong>Rất chậm</strong> (Ngốn nặng tài nguyên CPU)</td>
+                <td><strong>Rất cao</strong> (Mức 5/5)</td>
+                <td>Nén văn bản cực chặt và hỗ trợ cắt theo block nhưng quá chậm cho các truy vấn phân tích tương tác quy mô lớn.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="storage-2-4-splittable">3. Vấn đề Sống còn: Tính phân tách (Splittability) khi xử lý Phân tán</h3>
+        <p>Khi bạn có một cụm gồm 100 máy chủ tính toán (như Apache Spark hoặc Hadoop) cùng đọc một tệp dữ liệu khổng lồ nặng 100 GB, câu hỏi quyết định sống còn là: <strong>Tệp đã nén đó có thể chia nhỏ (Splittable) cho 100 máy cùng nhảy vào đọc các khúc khác nhau được không?</strong></p>
+
+        <x-figure id="storage-2-4" key="2.4" title="Hình 2.4 — Tính Phân tách (Splittability): Nén Khối đơn Gzip vs. Container Formats (Parquet/Avro)">Nén nguyên tệp bằng Gzip (orders.csv.gz) biến tệp 100 GB thành một khối không thể cắt giữa chừng; trong khi Parquet và Avro chia dữ liệu thành các khối độc lập (Row Groups / Sync Markers) rồi mới nén từng khối.</x-figure>
+
+        <ul>
+          <li><strong>Tại sao Parquet và Avro giải quyết triệt để bài toán Splittability?</strong> Vì chúng là các <strong>Container Formats (Định dạng đóng gói theo thùng chứa)</strong>: thay vì lấy thuật toán nén bọc bên ngoài toàn bộ tệp lớn, chúng chia dữ liệu bên trong thành từng khối độc lập (<strong>Row Groups / Data Pages</strong> trong Parquet kèm mục lục Byte Offset ở Footer, hoặc các khối ngăn cách bởi <strong>Sync Markers 16-byte</strong> trong Avro) rồi mới nén riêng từng khối đó bằng Snappy hoặc ZSTD. Nhờ vậy, hàng trăm máy chủ có thể dùng HTTP Range Requests nhảy thẳng tới bất kỳ khối nào giữa tệp để đọc và giải nén song song cùng lúc!</li>
+        </ul>
+
+        <section class="summary-section" id="storage-2-summary" tabindex="-1">
+          <h2>Tóm tắt bỏ túi Chặng 2 (4 Quyết định thiết kế lưu trữ)</h2>
+          <ol>
+            <li><strong>Chọn Mô hình Kho (Storage Model):</strong> Để lưu trữ lâu dài hàng chục triệu đơn hàng như <strong>Đơn #8888</strong> với chi phí rẻ (~$0.02/GB/tháng) và mở rộng vô hạn, chọn <strong>Cloud Object Storage (S3/ADLS/GCS)</strong> thay cho File Storage và Block Storage — chấp nhận tính bất biến (Immutability) để đổi lấy băng thông đọc/ghi song song không khóa (lock-free) và tách rời Compute khỏi Storage.</li>
+            <li><strong>Chọn Định dạng Luồng / Hàng (Row Serialization):</strong> Để truyền dữ liệu luồng (Streaming / Kafka / CDC) an toàn và chịu lỗi mất điện, đóng gói nhị phân theo hàng bằng <strong>Apache Avro</strong> (nhúng JSON Schema ở Header và chèn Sync Markers 16-byte).</li>
+            <li><strong>Chọn Định dạng Phân tích / Cột (Columnar Serialization &amp; Compression):</strong> Để lưu trữ phân tích trên Object Storage, xoay dọc dữ liệu sang <strong>Apache Parquet</strong> nén bằng <strong>Snappy / ZSTD</strong> — kết hợp cắt tỉa cột (Column Pruning), nhảy cóc qua Row Group nhờ thống kê Footer Min/Max (Data Skipping), ép phẳng JSON lồng nhau bằng Google Dremel, và giữ nguyên tính phân tách (Splittability).</li>
+            <li><strong>Chọn Chuẩn Bộ nhớ Trong RAM (In-Memory Serialization):</strong> Khi bốc dữ liệu lên RAM để tính toán xuyên ngôn ngữ (Spark JVM → Python Pandas/ML/C++), dùng chuẩn bộ nhớ cột <strong>Apache Arrow</strong> để đọc trực tiếp Zero-copy mà không tốn CPU dịch lại.</li>
+          </ol>
+          <p style="margin-top:14px;"><strong>Chặng tiếp theo:</strong> <a href="#topic=D02&stage=3" onclick="selectStorageStage(3);return false;">Chặng 3: Hạ tầng Phân tán (HDFS &amp; Network Topology), Streaming (Kafka/CDC) &amp; Data Warehouse ──►</a></p>
+        </section>
+      </div>

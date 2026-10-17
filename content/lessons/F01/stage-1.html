@@ -1,0 +1,303 @@
+      <div class="prose">
+        <p><strong>Chặng 1: Hạt nhân, Hệ sinh thái GNU/Linux &amp; Luồng chạy cơ học của một lệnh</strong> mở màn cho toàn bộ chương trình <strong>I. Engineering Foundation — F01 · Linux Fundamentals</strong> (bám sát 100% <code>course-slides/01-linux-fundamentals.pdf</code> — 78 trang, kết hợp nền tảng cơ học từ bộ 3 sách kinh điển: <em>The Linux Programming Interface</em> của Michael Kerrisk, <em>Operating Systems: Three Easy Pieces</em> của Remzi &amp; Andrea Arpaci-Dusseau, và <em>Computer Systems: A Programmer's Perspective</em> của Bryant &amp; O'Hallaron).</p>
+
+        <h2 id="linux-0-map" tabindex="-1">Trạm 0.0: Nhân vật chính grep ERROR /var/log/app.log &amp; bản đồ cơ học 4 Chặng</h2>
+        <p><em>(Bước 0 — Thiết lập Nhân vật chính xuyên suốt, Bản đồ Cơ học 4 Chặng &amp; Ma trận Đối chiếu Slide ↔ Sách trước khi đi sâu từng Trạm)</em></p>
+
+        <x-spine id="linux-0-1" badge="TRONG BÀI HỌC NÀY · F01" title="Bản đồ Tư duy Kiến trúc 4 Chặng Linux Fundamentals — Chiến dịch grep ERROR /var/log/app.log" subtitle="Tổng quan 4 Chặng Linux Fundamentals"><strong>Bản đồ Xương sống Học phần F01:</strong> Tổng quan 4 Chặng Linux Fundamentals xoay quanh nhân vật chính <code>grep ERROR /var/log/app.log</code> — từ Kernel / Shell / CLI (Chặng 1), Process &amp; Cây thư mục hợp nhất / (Chặng 2), IPC 3 cổng 0/1/2 &amp; Đường ống Pipe (Chặng 3) đến Dây chuyền tự động hóa 24/7: Bash Script + GCC/Makefile + Cronjob (Chặng 4).</x-spine>
+
+        <h3 id="linux-0-protagonist">1. Nhân vật chính Xuyên suốt Học phần: Chiến dịch grep ERROR /var/log/app.log</h3>
+        <p>Để kết nối toàn bộ kiến trúc trong <strong>Slide bài giảng (<code>01-linux-fundamentals.pdf</code>)</strong> với tư duy cơ học <strong>"Căn bếp Linux"</strong>, chúng ta không học từng câu lệnh rời rạc. Thay vào đó, toàn bộ học phần sẽ theo chân một nhân vật chính duy nhất từ lúc sinh ra cho đến khi vận hành tự động hoàn toàn: <strong>Chiến dịch săn lùng dòng nhật ký lỗi <code>grep ERROR /var/log/app.log</code></strong> (với đối tượng mục tiêu là tệp nhật ký hệ thống <code>app.log</code> đang phình to từng giây trong thư mục <code>/var/log</code>).</p>
+
+        <x-figure id="linux-0-1" key="0.1" title="Hình 0.1 — Hành trình 4 Bước Tiến Hóa của Nhân Vật Chính grep ERROR /var/log/app.log (Xuyên suốt 4 Chặng)">Bốn cột mốc tiến hóa của lệnh grep ERROR /var/log/app.log xuyên suốt 4 Chặng: (1) Từ dòng chữ tĩnh trên Terminal biến thành Process động trên RAM/CPU; (2) Cầm phiếu System Call vượt ranh giới bảo mật của Linux Kernel; (3) Nối ống Pipe qua 3 cổng stdin(0)/stdout(1)/stderr(2); (4) Đóng gói thành dây chuyền tự động hóa 24/7 với Bash Script, GCC/Makefile và Cronjob.</x-figure>
+
+        <ul>
+          <li><strong>(1) Từ tĩnh sang động (Chặng 1):</strong> Khởi đầu chỉ là dòng chữ tĩnh gõ trên Terminal (Quầy giao tiếp), lệnh <code>grep</code> buộc phải nhờ Shell (Người nhận việc) đánh thức Program (Công thức nấu ăn <code>/bin/grep</code> nằm im trên ổ cứng) thông qua cặp lời gọi <code>fork() + execve()</code> để biến thành một Process (Người đầu bếp thực sự xắn tay vào làm việc trên RAM và CPU).</li>
+          <li><strong>(2) Va chạm ranh giới bảo mật (Chặng 2):</strong> Muốn chạm vào tệp <code>/var/log/app.log</code>, Process ở tầng User Space không được tự ý lục kho mà phải cầm tờ phiếu System Call (Lời gọi hệ thống <code>open()</code>, <code>read()</code>) trình lên Linux Kernel (Bếp trưởng/Quản lý kho ở Kernel Space) để xét duyệt hồ sơ căn cước 5 thuộc tính (PID, User/Group UID/GID, Working Directory, Environment $PATH, Open Files) trên cây thư mục hợp nhất <code>/</code>.</li>
+          <li><strong>(3) Phối hợp dây chuyền IPC (Chặng 3):</strong> Khi một mình <code>grep</code> làm không xuể, nó phải nối ống Pipe (|) qua 3 cổng giao tiếp tiêu chuẩn (stdin: 0, stdout: 1, stderr: 2) để chuyền dòng dữ liệu trên bộ đệm RAM của Kernel cho các tiến trình khác lọc tiếp mà không làm lẫn thông báo lỗi vào kết quả (<code>2&gt;&amp;1</code>).</li>
+          <li><strong>(4) Tự động hóa công nghiệp 24/7 (Chặng 4):</strong> Thay vì bắt kỹ sư thức dậy lúc 03:00 sáng gõ tay từng lệnh hay biên dịch lại công cụ phân tích viết bằng C (GCC — trình biên dịch mã nguồn sang mã máy), toàn bộ quy trình được đóng gói vào Bash Script (.sh) (Làm các bước nào), kiểm soát biên dịch thông minh qua <code>Makefile</code> (Xét timestamp xem có cần làm lại không), và đặt lịch kích hoạt tự động mỗi 60 giây nhờ Cronjob (crond) (Khi nào bắt đầu chạy).</li>
+        </ul>
+
+        <h3 id="linux-0-mental-map">2. Bản đồ Tư duy 1 Dòng (Mental Map) — Mạch Nhân Quả Toàn Học Phần</h3>
+        <p>Sơ đồ dưới đây tổng hợp kiến trúc từ <strong>Slide bài giảng (<code>01-linux-fundamentals.pdf</code>)</strong>, mô hình cơ học <strong>"Căn bếp Linux"</strong> và cơ chế hệ điều hành từ sách <em>The Linux Programming Interface (TLPI)</em> &amp; <em>Operating Systems: Three Easy Pieces (OSTEP)</em>:</p>
+
+        <x-figure id="linux-0-2" key="0.2" title="Hình 0.2 — Bản đồ Cơ học Linux: Mô hình &#x27;Căn bếp&#x27; &amp; Dây chuyền Tự động hóa 4 Chặng (Mental Map)">Bản đồ giải phẫu tổng thể 3 tầng (4 Chặng): Từ luồng chạy 1 lệnh (Chặng 1) và hồ sơ căn cước Process trên cây thư mục / (Chặng 2), đi qua ranh giới System Call & Linux Kernel điều phối 4 tài nguyên (File, CPU, RAM, Network), đến phối hợp đa tiến trình qua cổng 0/1/2 & Pipe (Chặng 3) và tự động hóa 24/7 bằng Bash Script, Make & Cronjob (Chặng 4).</x-figure>
+
+        <h3 id="linux-0-roadmap">3. Bảng Đối chiếu Lộ trình 4 Chặng (Khớp nối Slide Bài giảng, Sách Tham khảo &amp; Tư duy Tự học)</h3>
+        <div class="table-wrap">
+          <table class="clean-table">
+            <thead>
+              <tr>
+                <th>Chặng &amp; Trạm</th>
+                <th>Trọng tâm Kiến thức (Slide <code>01-linux-fundamentals.pdf</code> + Sách TLPI / OSTEP / CS:APP)</th>
+                <th>Nỗi đau (Pain Point) Khởi phát</th>
+                <th>Cơ chế Giải quyết nhân – quả</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>CHẶNG 1</strong><br><strong>Hạt nhân, Hệ sinh thái &amp; Luồng chạy 1 lệnh</strong><br><em>(Trạm 1.1 → 1.3)</em></td>
+                <td>• Lịch sử GNU/Linux (GNU Tools + Linux Kernel), Open Source (<code>$0</code> bản quyền), 6 ưu điểm cốt lõi.<br>• 4 Distro tiêu biểu (Ubuntu, RHEL, Kali, Linux Mint).<br>• Kiến trúc 3 tầng &amp; Luồng chạy thực tế: Terminal → Shell → Program → Process → System Call → Kernel → Hardware (<em>TLPI</em> Ch. 1–3, <em>OSTEP</em> Ch. 4–6).</td>
+                <td>Có cục máy Kernel điều khiển phần cứng nhưng con người không thể giao tiếp bằng mã nhị phân 0–1; gõ một lệnh <code>grep</code> vào màn hình đen thì chuyện gì thực sự xảy ra bên dưới?</td>
+                <td>Ghép bộ công cụ GNU (Bash, Coreutils, GCC) bọc ngoài Linux Kernel. Phân vai chặt chẽ: Kernel chỉ mở kho File theo quyền qua System Call, còn logic tìm chữ ERROR do Process (<code>grep</code>) tự làm trên CPU/RAM.</td>
+              </tr>
+              <tr>
+                <td><strong>CHẶNG 2</strong><br><strong>Giải phẫu Process, Triết lý File &amp; Cây thư mục</strong><br><em>(Trạm 2.1 → 2.3)</em></td>
+                <td>• Hồ sơ một Process: PID, User/Group (UID/GID), Working Directory, Environment ($PATH), Open Files (<em>TLPI</em> Ch. 6, 8, 9).<br>• Triết lý "Everything is a file" (File thường, Thư mục, Thiết bị <code>/dev/sda</code>, Tiến trình <code>/proc/1234</code>).<br>• Cây thư mục duy nhất <code>/</code>: <code>/home</code>, <code>/root</code>, <code>/tmp</code>, <code>/var</code>, <code>/bin</code>, <code>/sbin</code>, <code>/etc</code>, <code>/usr</code>, <code>/proc</code> (0 MB ổ cứng) &amp; đối chiếu với Windows (<em>TLPI</em> Ch. 12, 14, 18; <em>OSTEP</em> Ch. 39–40).</td>
+                <td>Hàng trăm Process của 50 người dùng (Multi-user) cùng chạy một lúc: Làm sao Kernel biết ai được chạm vào phần cứng nào, và làm sao dùng chung một bộ lệnh (<code>cat</code>, <code>cp</code>) cho cả văn bản lẫn ổ cứng, CPU?</td>
+                <td>Gắn "chứng minh thư" 5 thuộc tính vào mỗi Process. Biến mọi thực thể vật lý và logic thành File nằm trên một cây thư mục gốc <code>/</code> duy nhất để kiểm soát quyền hạn (rwx) đến từng byte.</td>
+              </tr>
+              <tr>
+                <td><strong>CHẶNG 3</strong><br><strong>Giao tiếp Đa tiến trình (IPC) &amp; Điều hướng I/O</strong><br><em>(Trạm 3.1 → 3.2)</em></td>
+                <td>• Ba cổng tiêu chuẩn của mọi Process: stdin (0), stdout (1), stderr (2) (<em>TLPI</em> Ch. 4–5; <em>CS:APP</em> Ch. 10).<br>• Cơ chế Pipe (|) (Đường ống truyền byte trên bộ đệm RAM 64 KB trong Kernel — <em>TLPI</em> Ch. 44) và điều hướng luồng dữ liệu/luồng lỗi (<code>&gt;</code>, <code>&gt;&gt;</code>, 2&gt;, <code>2&gt;&amp;1</code>).</td>
+                <td>Một Program đơn lẻ chỉ làm tốt 1 việc nhỏ. Nếu xuất kết quả trung gian ra ổ cứng rồi đọc lại sẽ rất chậm, và nếu chương trình báo lỗi thì dòng chữ lỗi sẽ làm hỏng dữ liệu đầu vào của bước kế tiếp.</td>
+                <td>Thiết kế 3 cổng File Descriptor 0, 1, 2 độc lập cho mỗi Process. Shell đấu nối cổng stdout (1) của anh trước vào stdin (0) của anh sau qua đường ống Pipe trên RAM do Kernel giữ, đồng thời tách riêng stderr (2) đi đường khác.</td>
+              </tr>
+              <tr>
+                <td><strong>CHẶNG 4</strong><br><strong>Dây chuyền Tự động hóa: Script, Make &amp; Cron</strong><br><em>(Trạm 4.1 → 4.3)</em></td>
+                <td>• Phân cấp Shell → Bash → Bash Scripting (<code>#!/bin/bash</code>, biến, if/else, for, <code>chmod +x</code> — <em>TLPI</em> Ch. 27).<br>• Quá trình Compilation với GCC (.c → .o → binary — <em>CS:APP</em> Ch. 1, 7) &amp; quản đốc <code>Makefile</code> (Target, Prerequisites, Recipe với phím TAB).<br>• Hệ thống hẹn giờ Cron (<code>crond</code> quét mỗi 60 giây, Crontab, Cronjob * * * * * — <em>TLPI</em> Ch. 37) và 3 cạm bẫy kinh điển.</td>
+                <td>Kỹ sư không thể ngồi gõ lại 20 lệnh mỗi sáng, không thể chờ biên dịch lại toàn bộ 100 file code C khi chỉ sửa 1 dòng, và không thể thức lúc 03:00 sáng để bấm nút chạy kiểm tra log hay backup.</td>
+                <td>Tam giác tự động hóa khép kín:<br>1. Bash Script: Định nghĩa <strong>làm bước nào</strong>.<br>2. Make: Kiểm tra thời gian sửa file (mtime timestamp) xem <strong>có cần làm lại không</strong>.<br>3. Cronjob: Cài đặt <strong>khi nào tự động kích hoạt</strong>.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <hr />
+
+        <h2 id="linux-1-1" tabindex="-1">Trạm 1.1: Bản chất GNU/Linux — Khi &quot;Cục máy&quot; gặp &quot;Bộ khung&quot;</h2>
+        <p><em>(Tương ứng Mục 01/ Introduction to GNU/Linux trong Slide <code>01-linux-fundamentals.pdf</code> + Sách <em>The Linux Programming Interface</em>, Ch. 1: History and Standards, tr. 1–20)</em></p>
+
+        <h3 id="linux-1-1-analogy">1. Bối cảnh &amp; Ẩn dụ đời thực: Chiếc xe máy Honda Wave</h3>
+        <p>Hãy hình dung hệ điều hành như một chiếc xe máy Honda Wave. Nếu chỉ có một cục động cơ (Linux Kernel — Nhân hệ điều hành) nằm trơ trọi trên sàn để điều phối xăng nhớt và piston (CPU, RAM, ổ cứng), bạn không thể ngồi lên lái đi làm được. Ngược lại, nếu chỉ có bộ khung sườn, tay lái, bàn đạp ga, đèn còi (GNU Tools — Bộ công cụ người dùng) mà thiếu cục máy ở giữa, chiếc xe cũng chỉ là khối sắt đứng im.</p>
+
+        <h3 id="linux-1-1-pain">2. Nỗi đau (Pain Point) khởi phát</h3>
+        <p>Nhân vật chính của chúng ta — chiến dịch truy tìm lỗi <code>grep ERROR app.log</code> — cần lục tìm các dòng sự cố trong tệp nhật ký <code>app.log</code>. Tuy nhiên, phần cứng máy tính chỉ hiểu duy nhất ngôn ngữ máy là các chuỗi nhị phân 0 và 1 (Machine Code). Kế thừa di sản của hệ điều hành UNIX (do Ken Thompson và Dennis Ritchie khai sinh năm 1969 tại Bell Labs), vào năm 1983, dự án GNU (<em>"GNU's Not Unix"</em>) của Richard Stallman đã chế tạo xong toàn bộ "khung xe" mã nguồn mở theo giấy phép GPL gồm trình biên dịch GCC, thư viện chuẩn glibc, vỏ dòng lệnh Bash và bộ lệnh cơ bản Coreutils, nhưng lại khuyết mất quả tim là động cơ Kernel. Đến năm 1991 (bản Linux 0.01 ngày 17/09/1991), chàng sinh viên Phần Lan Linus Torvalds viết xong cục máy Linux Kernel kiểm soát phần cứng xuất sắc theo chuẩn POSIX, nhưng một mình hạt nhân này lại không có giao diện hay công cụ để con người gõ lệnh <code>grep</code> vào.</p>
+
+        <h3 id="linux-1-1-visuals">3. Sơ đồ Giải phẫu Cơ chế &amp; Bảng Dữ liệu thật</h3>
+
+        <x-figure id="linux-1-1a" key="1.1a" title="Hình 1.1A — Cú ghép lịch sử tạo nên hệ điều hành hoàn chỉnh GNU/Linux (Dự án GNU 1983 + Hạt nhân Linux 1991)">Sự kết hợp lịch sử giữa Dự án GNU của Richard Stallman (1983 — bộ khung công cụ người dùng Bash, Coreutils, GCC, glibc, Emacs/GDB) và Hạt nhân Linux của Linus Torvalds (1991 — cục máy điều phối CPU Scheduler, Memory Management, VFS/File System, Device Control) tạo nên hệ điều hành hoàn chỉnh GNU/Linux.</x-figure>
+
+        <x-figure id="linux-1-1b" key="1.1b" title="Hình 1.1B — Giải phẫu 6 Trụ cột khiến GNU/Linux thống trị thế giới Server, Cloud &amp; Siêu máy tính">Sáu ưu điểm cốt lõi của GNU/Linux trên hạ tầng máy chủ: (1) Open Source $0 phí bản quyền cho 1.000 máy chủ; (2) Multi-user & Multi-tasking cho 50 kỹ sư SSH đồng thời; (3) Security & Stability khóa quyền user thường vs. root; (4) Granular Control ép sát tới 10% CPU và 1 GB RAM; (5) Portability chạy từ Router Wifi đến siêu máy tính; (6) Community & Ecosystem chuẩn hóa cho Data/AI.</x-figure>
+
+        <div class="table-wrap">
+          <table class="clean-table">
+            <thead>
+              <tr>
+                <th>Tiêu chí kỹ thuật</th>
+                <th>Hệ điều hành đóng (Windows)</th>
+                <th>Hệ điều hành mở (GNU/Linux)</th>
+                <th>Tác động trực tiếp tới bài toán vận hành <code>app.log</code></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Bản chất Mã nguồn (Source Code)</strong></td>
+                <td>Khóa kín như công thức Coca-Cola trong két sắt của Microsoft; cấm xem ruột gan bên trong (Proprietary).</td>
+                <td>Công khai như công thức nấu phở trên mạng; tự do xem, sửa code và chia sẻ lại (Free &amp; Open Source Software — GPLv2).</td>
+                <td>Hàng triệu chuyên gia toàn cầu cùng soi lỗi giúp hệ thống lưu trữ <code>app.log</code> đạt độ an toàn và ổn định cực cao.</td>
+              </tr>
+              <tr>
+                <td><strong>Chi phí Bản quyền (License Cost)</strong></td>
+                <td>Phải mua bản quyền thương mại trên từng máy tính / máy chủ sử dụng.</td>
+                <td><code>$0</code> (Miễn phí hoàn toàn bản quyền hạt nhân và công cụ GNU).</td>
+                <td>Dựng 1.000 máy chủ xử lý log phân tán không tốn 1 đồng tiền bản quyền hệ điều hành.</td>
+              </tr>
+              <tr>
+                <td><strong>Đa người dùng (Multi-user) &amp; Đa nhiệm (Multi-tasking)</strong></td>
+                <td>Ưu tiên trải nghiệm đơn người dùng trên Desktop; dễ bị treo giao diện khi quá tải tác vụ nặng kéo dài.</td>
+                <td>50 lập trình viên kết nối SSH vào chung 1 máy chủ làm việc độc lập; chạy hàng trăm tiến trình quanh năm không cần khởi động lại.</td>
+                <td>Nhiều kỹ sư có thể cùng lúc vào máy chủ chạy <code>grep ERROR app.log</code> mà không giẫm chân lên vùng nhớ của nhau.</td>
+              </tr>
+              <tr>
+                <td><strong>Độ mịn kiểm soát tài nguyên (Granular Control)</strong></td>
+                <td>Khó can thiệp sâu vào mức cấp phát phần cứng hạt mịn của từng tiến trình đơn lẻ.</td>
+                <td>Kiểm soát chi tiết đến từng milimet tài nguyên phần cứng thông qua Kernel (cgroups, namespaces, ulimit).</td>
+                <td>Có thể ra lệnh giới hạn một ứng dụng chỉ được phép dùng tối đa 10% CPU và 1 GB RAM để không làm treo máy chủ.</td>
+              </tr>
+              <tr>
+                <td><strong>Tính khả chuyển (Portability)</strong></td>
+                <td>Phụ thuộc vào cấu trúc phần cứng máy tính cá nhân / máy chủ nhất định và giao diện đồ họa đi kèm.</td>
+                <td>Cực nhẹ khi tách bỏ GUI; chạy từ vi mạch cục phát Wifi, Tivi, điện thoại Android đến 100% trong top 500 siêu máy tính thế giới.</td>
+                <td>Cùng một câu lệnh <code>grep</code> có thể chạy đồng nhất trên cả thiết bị nhúng biên (Edge) lẫn cụm máy chủ đám mây (Cloud).</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="linux-1-1-takeaway">4. Đúc kết Cơ học &amp; Đánh đổi (Trade-off)</h3>
+        <ul>
+          <li><strong>Bản chất cơ học:</strong> Gọi tắt là "Linux" chỉ mới nhắc tới cục động cơ hạt nhân bên trong; tên gọi chuẩn xác về mặt kiến trúc phải là <strong>GNU/Linux</strong> (GNU cung cấp vỏ giao tiếp Bash, thư viện glibc và bộ lệnh Coreutils bên ngoài + Linux cung cấp Kernel điều phối phần cứng bên trong).</li>
+          <li><strong>Sự đánh đổi dẫn sang Trạm 1.2:</strong> Chính vì mã nguồn GNU/Linux hoàn toàn mở và miễn phí (<code>$0</code>), bất kỳ công ty hay cộng đồng nào cũng có thể lấy cục máy và bộ khung này về để "độ chế" thành hàng chục phiên bản khác nhau. Sự tự do tuyệt đối này sinh ra một nỗi đau mới cho người kỹ sư: <em>Giữa một rừng các bản phân phối (Distro), chúng ta phải đặt tệp <code>app.log</code> và chạy lệnh <code>grep</code> trên bản phân phối nào để không chọn nhầm công cụ?</em></li>
+        </ul>
+
+        <hr />
+
+        <h2 id="linux-1-2" tabindex="-1">Trạm 1.2: Bản đồ distro (Bản phân phối) — Chọn &quot;Dòng xe&quot; nào để chạy hệ thống?</h2>
+        <p><em>(Tương ứng Mục 01/ Introduction to GNU/Linux — Linux Distributions trong Slide <code>01-linux-fundamentals.pdf</code>)</em></p>
+
+        <h3 id="linux-1-2-analogy">1. Bối cảnh &amp; Ẩn dụ đời thực: Thương hiệu Trà sữa &amp; Các dòng xe</h3>
+        <p>Nếu GNU/Linux là công thức cốt lõi gồm Trà + Sữa, thì các <strong>Distro</strong> (Bản phân phối — viết tắt của <em>Distribution</em>) chính là các thương hiệu như Gong Cha, Phê La, Tocotoco. Hoặc nhìn theo góc độ cơ khí: Cùng một khối động cơ Linux Kernel, các hãng khác nhau sẽ đóng vỏ, lắp ghế, gắn trình quản lý gói và phụ kiện riêng để tạo thành chiếc xe máy đi phố, chiếc xe bọc thép ngân hàng, hay chiếc xe chuyên dụng của đặc nhiệm.</p>
+
+        <h3 id="linux-1-2-pain">2. Nỗi đau (Pain Point) từ trạm trước</h3>
+        <p>Khi bắt tay vào dựng môi trường để quản lý hệ thống và xử lý <code>app.log</code>, kỹ sư đứng trước hàng loạt cái tên: Ubuntu, Linux Mint, Debian, Red Hat Enterprise Linux (RHEL), Kali Linux, Arch Linux. Nếu lấy nhầm Kali Linux làm máy tính làm việc hằng ngày hoặc máy chủ thông thường, bạn sẽ đối mặt với một hệ thống cấu hình phức tạp vốn chỉ tối ưu cho việc dò quét lỗ hổng mạng. Ngược lại, nếu chọn Arch Linux, bạn sẽ mất hàng giờ tự gõ lệnh lắp ráp từng con ốc vít phần mềm từ con số 0 trước khi kịp chạy dòng lệnh đầu tiên.</p>
+
+        <h3 id="linux-1-2-visuals">3. Sơ đồ Giải phẫu Cơ chế &amp; Bảng Dữ liệu thật</h3>
+
+        <x-figure id="linux-1-2a" key="1.2a" title="Hình 1.2A — Sự phân nhánh các &#x27;Hương vị&#x27; (Distro) từ lõi GNU/Linux (Nhánh Debian vs. Doanh nghiệp RHEL vs. Tự lắp ráp Arch)">Ba nhánh tiến hóa lớn từ lõi GNU + Linux Kernel: (1) Nhánh Debian ('Nồi đồng cối đá' dùng gói .deb/apt) đẻ ra Ubuntu, Linux Mint và Kali Linux; (2) Nhánh Doanh nghiệp (Fedora/RHEL dùng gói .rpm/dnf) có bảo hành 24/7 cho ngân hàng/viễn thông; (3) Nhánh Tự lắp ráp (Arch Linux dùng pacman) cài đặt từ con số 0.</x-figure>
+
+        <x-figure id="linux-1-2b" key="1.2b" title="Hình 1.2B — Giải phẫu Cấu trúc 4 Lớp bên trong một Distro &amp; Ba Đánh đổi khi lựa chọn Môi trường">Bốn lớp cấu thành một bản phân phối Linux (Kernel -> systemd & GNU Tools -> Package Manager apt/dnf -> GUI/CLI) và 3 đánh đổi kỹ thuật giúp chọn Ubuntu LTS làm môi trường chuẩn cho Cloud, Data Engineering và AI/ML.</x-figure>
+
+        <div class="table-wrap">
+          <table class="clean-table">
+            <thead>
+              <tr>
+                <th>Tiêu chí đối chiếu</th>
+                <th>Linux Mint ("Ngôi nhà ấm áp")</th>
+                <th>Ubuntu ("Xe máy quốc dân IT")</th>
+                <th>Kali Linux ("Hộp đồ nghề Hacker")</th>
+                <th>Red Hat — RHEL ("Xe bọc thép")</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Đối tượng mục tiêu</strong></td>
+                <td>Người mới chuyển từ Windows sang, dân văn phòng.</td>
+                <td>Sinh viên, lập trình viên, kỹ sư dữ liệu (Data) / AI.</td>
+                <td>Chuyên gia an ninh mạng, thợ săn lỗ hổng bảo mật.</td>
+                <td>Quản trị viên (SysAdmin) ngân hàng, viễn thông, tập đoàn.</td>
+              </tr>
+              <tr>
+                <td><strong>Mục đích thiết kế</strong></td>
+                <td>Lướt web, gõ văn bản, thay thế Windows hằng ngày.</td>
+                <td>Học lập trình, triển khai Cloud, nghiên cứu công nghệ.</td>
+                <td>Kiểm thử xâm nhập (Penetration Testing), quét mạng.</td>
+                <td>Vận hành máy chủ tối quan trọng (Mission-critical).</td>
+              </tr>
+              <tr>
+                <td><strong>Công cụ / Giao diện &amp; Quản lý gói</strong></td>
+                <td>Giao diện Cinnamon (Taskbar + Start Menu giống Windows 7/10), cài sẵn LibreOffice, VLC, codecs; gói apt (.deb).</td>
+                <td>Giao diện kiểu macOS (Thanh Dock bên hông + Activities); chỉ cài phần cốt lõi tối giản; gói apt / dpkg (.deb).</td>
+                <td>Tích hợp sẵn hàng trăm công cụ bảo mật (Wireshark soi gói tin, Nmap quét mạng...); gói apt (.deb).</td>
+                <td>Đa số quản trị qua màn hình dòng lệnh (CLI) nghiêm ngặt; trình quản lý gói dnf / yum / rpm (.rpm).</td>
+              </tr>
+              <tr>
+                <td><strong>Độ khó vận hành</strong></td>
+                <td>Dễ nhất (Plug-and-play — cắm là chạy).</td>
+                <td>Vừa phải (Dễ làm quen nhưng can thiệp sâu được).</td>
+                <td>Rất khó (Cảnh báo: Không dùng cho người mới hay xài hằng ngày).</td>
+                <td>Khó (Đòi hỏi kiến thức quản trị hệ thống chuyên sâu).</td>
+              </tr>
+              <tr>
+                <td><strong>Chi phí &amp; Chu kỳ phát hành</strong></td>
+                <td>Miễn phí 100%; cập nhật rất thận trọng để ưu tiên ổn định.</td>
+                <td>Miễn phí 100%; cập nhật định kỳ 6 tháng/lần + bản LTS (hỗ trợ 5–12 năm).</td>
+                <td>Miễn phí 100%; phát triển dựa trên nền tảng Debian Testing.</td>
+                <td>Trả phí thuê bao (Subscription) để nhận hỗ trợ chuyên gia 24/7.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="linux-1-2-takeaway">4. Đúc kết Cơ học &amp; Đánh đổi (Trade-off)</h3>
+        <ul>
+          <li><strong>Bản chất cơ học:</strong> Việc chọn Distro thực chất là sự đánh đổi giữa <strong>Sự tiện lợi đóng gói sẵn</strong> (Linux Mint cài sẵn mọi thứ văn phòng, Kali cài sẵn đồ nghề bảo mật), <strong>Cam kết bảo hành thương mại 24/7</strong> (RHEL thu phí thuê bao), và <strong>Tính cân bằng cho phát triển phần mềm</strong> (Ubuntu tối giản phần thừa, có bản LTS ổn định kèm chu kỳ 6 tháng cập nhật công nghệ mới). Đó là lý do Ubuntu được chọn làm môi trường chuẩn để vận hành hệ thống trong học phần này.</li>
+          <li><strong>Sự đánh đổi dẫn sang Trạm 1.3:</strong> Bây giờ máy chủ Ubuntu đã bật lên, tệp <code>app.log</code> đã nằm trên đĩa cứng. Bạn mở màn hình đen lên và gõ lệnh <code>grep ERROR app.log</code>. <em>Nhưng tại sao dòng chữ bạn gõ không chạy thẳng xuống ổ cứng để tìm chữ ERROR, mà phải đi qua tới 6 trạm kiểm soát trung gian trong "Căn bếp Linux"?</em></li>
+        </ul>
+
+        <hr />
+
+        <h2 id="linux-1-3" tabindex="-1">Trạm 1.3: Giải phẫu &quot;Căn bếp Linux&quot; — Hành trình 7 bước của lệnh grep ERROR app.log</h2>
+        <p><em>(Tương ứng Mục 01/ Architecture of Linux OS &amp; 03/ Command Line Basics trong Slide <code>01-linux-fundamentals.pdf</code> + Sách <em>TLPI</em> Ch. 2–3, tr. 21–68 &amp; <em>OSTEP</em> Ch. 4–6: Process API fork/exec/wait &amp; Limited Direct Execution, tr. 25–62)</em></p>
+
+        <h3 id="linux-1-3-analogy">1. Bối cảnh &amp; Ẩn dụ đời thực: Kỷ luật thép trong &quot;Căn bếp Linux&quot;</h3>
+        <p>Hãy bước vào <strong>"Căn bếp Linux"</strong> (hoặc "Tòa cao ốc 3 tầng") từ bản vẽ kiến trúc cơ học:</p>
+        <ul>
+          <li>Bạn là thực khách đứng ở <strong>Quầy giao tiếp</strong> (Terminal), viết phiếu gọi món đưa cho <strong>Người nhận việc</strong> (Shell / Bash).</li>
+          <li>Người nhận việc tra cứu cuốn <strong>Công thức nấu ăn</strong> (Program đang nằm im trên kệ sách đĩa cứng) để cử một <strong>Người đầu bếp thực thụ</strong> (Process) xắn tay vào làm việc.</li>
+          <li>Nhưng trong căn bếp này có một kỷ luật thép (cơ chế <em>Limited Direct Execution</em> chia tách User Space — Ring 3 và Kernel Space — Ring 0 trên phần cứng CPU): Đầu bếp (Process) <strong>tuyệt đối không được tự ý</strong> mở tủ lấy <strong>Sổ ghi chép</strong> (File), bật <strong>Bếp lửa</strong> (CPU), chiếm <strong>Bàn sơ chế</strong> (RAM) hay gọi điện ra ngoài (Network). Mọi yêu cầu đụng vào tài nguyên đều phải điền vào <strong>Phiếu đăng ký</strong> (System Call) để trình lên vị <strong>Bếp trưởng kiêm Quản lý kho tối cao</strong> (Linux Kernel) xét duyệt quyền hạn!</li>
+        </ul>
+
+        <h3 id="linux-1-3-pain">2. Nỗi đau (Pain Point) từ trạm trước</h3>
+        <p>Nhiều người mới học nhìn vào màn hình đen gõ <code>grep ERROR app.log</code> rồi thấy kết quả hiện ra ngay lập tức thì lầm tưởng Terminal, Shell, Program, Process và Kernel là một khối duy nhất. Khi lệnh bị lỗi <em>"Permission denied"</em> (Không đủ quyền đọc tệp) hoặc <em>"Command not found"</em> (Không tìm thấy lệnh), họ không biết lỗi nằm ở khâu nào: Do người nhận việc (Shell) không tìm thấy công thức (Program), do đầu bếp (Process) xử lý sai, hay do quản lý kho (Kernel) chặn cửa không cho mở sổ (File)?</p>
+
+        <h3 id="linux-1-3-visuals">3. Sơ đồ Giải phẫu Cơ chế &amp; Bảng Dữ liệu thật</h3>
+
+        <x-figure id="linux-1-3a" key="1.3a" title="Hình 1.3A — Giải phẫu Luồng chạy Cơ bản (Basic Flow) trong &#x27;Căn bếp Linux&#x27; đối chiếu Kiến trúc 3 Tầng">Đối chiếu Kiến trúc 3 Tầng trên Slide (User Space Ring 3 vs. Kernel Space Ring 0) với luồng cơ học 7 bước trong 'Căn bếp Linux': [1] Terminal -> [2] Shell/Bash -> [3] Program (/bin/grep) -> [4] Process -> [5] System Call -> [6] Linux Kernel -> [7] Hardware Resources (File, CPU, RAM, Network).</x-figure>
+
+        <x-figure id="linux-1-3b" key="1.3b" title="Hình 1.3B — Phân định Ranh giới Trách nhiệm giữa Linux Kernel và Process trong Chiến dịch grep ERROR app.log">Giải phẫu 6 bước thực thi lệnh grep ERROR app.log và ranh giới cốt tử ở Bước 5: Linux Kernel chỉ làm nhiệm vụ thủ kho mở tệp app.log và nạp khối byte lên RAM theo đúng quyền (Kernel không hề biết chữ ERROR là gì), còn việc dùng CPU dò từng dòng tìm chuỗi ERROR là trách nhiệm của Process grep.</x-figure>
+
+        <div class="table-wrap">
+          <table class="clean-table">
+            <thead>
+              <tr>
+                <th>Thực thể kỹ thuật</th>
+                <th>Hình ảnh trong "Căn bếp"</th>
+                <th>Trạng thái vật lý</th>
+                <th>Vai trò chính xác khi chạy <code>grep ERROR app.log</code></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Terminal / CLI</strong></td>
+                <td>Quầy giao tiếp &amp; Cuốn sổ gọi món.</td>
+                <td>Giao diện văn bản hiển thị trên màn hình.</td>
+                <td>Nhận dòng chữ <code>grep ERROR app.log</code> từ bàn phím chuyển cho Shell và in kết quả trả về.</td>
+              </tr>
+              <tr>
+                <td><strong>Shell (Bash / zsh / sh)</strong></td>
+                <td>Người nhận việc / Thông dịch viên.</td>
+                <td>Chương trình thông dịch (Shell là xe hơi nói chung; Bash là chiếc xe cụ thể thuộc dự án GNU).</td>
+                <td>Đọc hiểu câu lệnh, kiểm tra cú pháp, xác định cần gọi chương trình <code>grep</code> với tham số ERROR và <code>app.log</code>.</td>
+              </tr>
+              <tr>
+                <td><strong>Program</strong></td>
+                <td>Công thức nấu ăn trong sách.</td>
+                <td>File nhị phân (0 và 1, chuẩn ELF tại <code>/bin/grep</code>) nằm tĩnh trên ổ cứng, chưa chiếm CPU/RAM.</td>
+                <td>Mô tả thuật toán tìm kiếm chuỗi ký tự của <code>grep</code>, nhưng chưa có người vào nhận việc để làm.</td>
+              </tr>
+              <tr>
+                <td><strong>Process</strong></td>
+                <td>Người đầu bếp đang nấu theo công thức.</td>
+                <td>Thực thể động đang chạy trên RAM và được cấp lượt CPU (sinh ra qua cặp lệnh <code>fork() + execve()</code>).</td>
+                <td>Trực tiếp nhận dữ liệu từ Kernel và thực hiện thuật toán so khớp tìm dòng chứa chữ ERROR.</td>
+              </tr>
+              <tr>
+                <td><strong>System Call</strong></td>
+                <td>Phiếu đăng ký xin dùng tài nguyên.</td>
+                <td>Giao diện yêu cầu đặc quyền (<code>open()</code>, <code>read()</code>, <code>write()</code>) giữa Process và Kernel.</td>
+                <td>Tờ đơn Process (<code>grep</code>) nộp lên để xin phép mở và đọc nội dung tệp <code>app.log</code>.</td>
+              </tr>
+              <tr>
+                <td><strong>Linux Kernel</strong></td>
+                <td>Bếp trưởng tối cao / Quản lý kho.</td>
+                <td>Lõi hạt nhân chạy ở Ring 0 kiểm soát 100% phần cứng (File, CPU, RAM, Network).</td>
+                <td>Kiểm tra đường dẫn <code>app.log</code>, xét duyệt quyền truy cập và đọc dữ liệu từ ổ cứng giao cho Process.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="linux-1-3-takeaway">4. Đúc kết Cơ học &amp; Đánh đổi (Trade-off)</h3>
+        <ul>
+          <li><strong>Bản chất cơ học:</strong> Quy tắc vàng trong thiết kế của Linux là <strong>Sự phân tách quyền lực tuyệt đối</strong>. Kernel không hề biết chữ ERROR là gì — Kernel chỉ làm đúng nhiệm vụ của người thủ kho: kiểm tra quyền và trao dữ liệu tệp <code>app.log</code> cho Process; còn việc tìm chữ ERROR là công việc lao động trí óc của riêng Process (<code>grep</code>).</li>
+          <li><strong>Sự đánh đổi &amp; Câu hỏi dẫn sang Chặng 2:</strong> Thiết kế qua trạm kiểm soát System Call giúp hệ thống đạt độ bảo mật tối đa, không một chương trình nào có thể tự ý phá hỏng máy chủ. Nhưng hãy nhìn kỹ vào khoảnh khắc Process (<code>grep</code>) cầm tờ phiếu System Call đứng trước mặt Kernel:
+            <ol>
+              <li>Một Process phải mang theo <strong>"Bộ hồ sơ căn cước" gồm 5 thông tin gì</strong> trên người để Kernel biết nó là ai, của người dùng nào, đang đứng ở đâu mà xét duyệt?</li>
+              <li>Tại sao trong Linux, từ cuốn sổ <code>app.log</code>, cái ổ cứng <code>/dev/sda</code>, cho đến chính anh đầu bếp Process đang chạy đều bị biến thành <strong>File</strong> ("Everything is a file"), và chúng được sắp xếp như thế nào trên <strong>Cây thư mục <code>/</code> duy nhất</strong>?</li>
+            </ol>
+          </li>
+        </ul>
+
+        <section class="summary-section" id="linux-1-summary" tabindex="-1">
+          <h2>Tóm tắt bỏ túi Chặng 1 (Mạch nhân – quả &amp; Checklist 5 câu hỏi bản chất)</h2>
+          <ol>
+            <li><strong>Tại sao gọi chuẩn phải là GNU/Linux?</strong> Vì Linux (Linus Torvalds, 1991) thực chất chỉ là cục máy hạt nhân (Kernel) điều khiển phần cứng; phải ghép với bộ khung công cụ người dùng của dự án GNU (Richard Stallman, 1983: Bash, Coreutils, GCC, glibc) mới tạo thành hệ điều hành hoàn chỉnh.</li>
+            <li><strong>Tại sao GNU/Linux thống trị tuyệt đối thế giới Server &amp; Cloud?</strong> Nhờ 6 trụ cột: (1) Mã nguồn mở miễn phí <code>$0</code> bản quyền cho cả 1.000 máy chủ; (2) Đa người dùng (50 dev SSH cùng lúc) &amp; Đa nhiệm bền bỉ quanh năm; (3) Bảo mật phân quyền user thường vs. root; (4) Kiểm soát hạt mịn ép sát tới 10% CPU &amp; 1 GB RAM; (5) Nhẹ và khả chuyển mọi phần cứng; (6) Hệ sinh thái gói phần mềm chuẩn hóa.</li>
+            <li><strong>Giữa rừng Distro, tại sao chọn Ubuntu?</strong> Linux Mint tối ưu cho dân văn phòng chuyển từ Windows; Kali Linux là hộp đồ nghề chuyên biệt cho PenTest; RHEL là xe bọc thép thu phí thuê bao 24/7 cho ngân hàng; còn Ubuntu (nhánh Debian, gói apt/.deb) cân bằng hoàn hảo giữa độ ổn định (LTS 5–12 năm) và chu cập nhật công nghệ mới (6 tháng/lần) cho Data/Cloud/AI.</li>
+            <li><strong>Phân biệt Shell vs. Bash và Program vs. Process như thế nào?</strong> Shell là khái niệm trình thông dịch nói chung ("xe hơi"), còn Bash là chương trình Shell cụ thể thuộc dự án GNU ("xe Mec/BMW"). Program là tệp nhị phân tĩnh nằm im trên đĩa cứng (<code>/bin/grep</code> — công thức nấu ăn), còn Process là thực thể sống đang chiếm RAM và CPU để thực thi công thức đó (người đầu bếp).</li>
+            <li><strong>Ai thực sự tìm chữ ERROR trong <code>grep ERROR app.log</code> — Kernel hay Process?</strong> Linux Kernel hoàn toàn không biết chữ ERROR là gì! Khi nhận phiếu System Call (open, read), Kernel chỉ kiểm tra đường dẫn và quyền hạn rồi đọc khối byte của <code>app.log</code> từ đĩa cứng nạp lên RAM; còn việc dùng CPU dò từng dòng để lọc ra chữ ERROR là trách nhiệm của Process (<code>grep</code>).</li>
+          </ol>
+          <p style="margin-top:14px;"><strong>Bước tiếp theo:</strong> Chuyển sang <a href="#topic=F01&stage=2" onclick="selectStorageStage(2);return false;">Chặng 2: Giải phẫu Căn cước Process, Triết lý "Everything is a file" &amp; Cây thư mục / →</a></p>
+        </section>
+      </div>

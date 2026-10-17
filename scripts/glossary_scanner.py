@@ -181,7 +181,7 @@ RAW_GLOSSARY = [
             "disk full 100%"
         ],
         "Inode là 'thẻ căn cước thực sự' của một file trên đĩa (lưu kích thước, UID/GID, quyền `rwx`, mốc thời gian `mtime` và tọa độ các khối dữ liệu vật lý) — chỉ trừ một thứ duy nhất KHÔNG lưu trong Inode là Tên File!",
-        "Thư mục (Directory) thực chất chỉ là một bảng danh bạ ánh xạ `Tên_File ➔ Mã_số_Inode`. Vì vậy đổi tên hay di chuyển file (`mv`) trong cùng phân vùng đĩa diễn ra tức thì (chỉ sửa dòng chữ trong danh bạ thư mục, không chạm vào dữ liệu); còn xóa file (`rm` / `unlink()`) trên CLI không đi qua Thùng rác (Recycle Bin) mà gỡ thẳng tên khỏi danh bạ.",
+        "Thư mục (Directory) thực chất chỉ là một bảng danh bạ ánh xạ `Tên_File → Mã_số_Inode`. Vì vậy đổi tên hay di chuyển file (`mv`) trong cùng phân vùng đĩa diễn ra tức thì (chỉ sửa dòng chữ trong danh bạ thư mục, không chạm vào dữ liệu); còn xóa file (`rm` / `unlink()`) trên CLI không đi qua Thùng rác (Recycle Bin) mà gỡ thẳng tên khỏi danh bạ.",
         "ls -li /var/log/app.log; stat /var/log/app.log",
         "Bẫy kinh điển gây `Disk Full 100%`: nếu bạn dùng `rm` xóa một file log khổng lồ khi tiến trình অ্যাপ vẫn đang mở file đó, dung lượng đĩa KHÔNG được giải phóng cho đến khi tiến trình đó đóng file (hoặc dùng `truncate -s 0 file.log`)."
     ),
@@ -308,7 +308,7 @@ RAW_GLOSSARY = [
     ),
     (
         "linux.gcc-compilation",
-        "Trình biên dịch GCC & Dây chuyền 4 Bước (.c ➔ .o Object File ➔ Executable)",
+        "Trình biên dịch GCC & Dây chuyền 4 Bước (.c → .o Object File → Executable)",
         "AUTOMATION & BUILD",
         ["F01"],
         [
@@ -324,7 +324,7 @@ RAW_GLOSSARY = [
     ),
     (
         "linux.makefile",
-        "Makefile & Công cụ GNU Make (Target : Prerequisites ➔ [TAB] Recipe & .PHONY)",
+        "Makefile & Công cụ GNU Make (Target : Prerequisites → [TAB] Recipe & .PHONY)",
         "AUTOMATION & BUILD",
         ["F01"],
         [
@@ -354,7 +354,7 @@ RAW_GLOSSARY = [
         "Tiến trình nền `crond` thức trực 24/7, cứ mỗi phút lại đối chiếu đồng hồ hệ thống với bảng 5 ngôi sao `crontab` (`Phút · Giờ · Ngày · Tháng · Thứ`) để tự động kích hoạt script đúng lịch trình.",
         "Bên cạnh 3 cạm bẫy môi trường (`Working Directory`, `$PATH` tối giản, mất `stdout/stderr` nếu thiếu `>> log 2>&1`), Cron truyền thống còn có 2 giới hạn kiến trúc lớn: (1) `No Auto-Retry` (script lỗi không tự chạy lại) và (2) `Missed Jobs` (nếu máy tắt nguồn đúng lúc 02:00 sáng, khi bật máy lại lúc 08:00 Cron sẽ bỏ qua luôn việc đã lỡ). Để khắc phục, kỹ sư dùng `Anacron`, `systemd Timers` (`Persistent=true`) hoặc trình điều phối hiện đại như Apache Airflow.",
         "0 2 * * * /opt/scripts/backup.sh >> /var/log/backup.log 2>&1",
-        "Mẹo nhớ nhanh 5 trường thời gian Crontab từ trái sang phải: `Phút (0-59)` ➔ `Giờ (0-23)` ➔ `Ngày_trong_tháng (1-31)` ➔ `Tháng (1-12)` ➔ `Thứ_trong_tuần (0-7)`."
+        "Mẹo nhớ nhanh 5 trường thời gian Crontab từ trái sang phải: `Phút (0-59)` → `Giờ (0-23)` → `Ngày_trong_tháng (1-31)` → `Tháng (1-12)` → `Thứ_trong_tuần (0-7)`."
     ),
 
     # =========================================================================
@@ -362,7 +362,7 @@ RAW_GLOSSARY = [
     # =========================================================================
     (
         "storage.latency-hierarchy",
-        "Tháp Độ trễ Phần cứng (L1/L2/L3 Cache ➔ RAM ➔ NVMe SSD ➔ HDD ➔ Cloud Object)",
+        "Tháp Độ trễ Phần cứng (L1/L2/L3 Cache → RAM → NVMe SSD → HDD → Cloud Object)",
         "HARDWARE & STORAGE PHYSICS",
         ["D02"],
         [
@@ -373,8 +373,8 @@ RAW_GLOSSARY = [
             "hạ tầng mạng (network performance) và cpu", "độ trễ truy xuất"
         ],
         "Quy luật vật lý bất biến: thiết bị lưu trữ càng nằm gần nhân CPU thì tốc độ càng nhanh gấp hàng nghìn lần nhưng giá tiền trên mỗi GB càng đắt đỏ và dung lượng càng nhỏ.",
-        "Các bậc thang độ trễ chuẩn: L1/L2/L3 Cache (~1–10 ns, ~1 TB/s, nằm ngay trên đế chip CPU) ➔ RAM DDR5 (~100 ns, ~100 GB/s, ~$10/GB, khả biến) ➔ NVMe SSD (~100 µs, ~4 GB/s, ~$0.20/GB) ➔ HDD cơ học (~4–10 ms seek, ~100 IOPS, ~$0.03/GB) ➔ Cloud Object Storage S3/GCS (~100 ms độ trễ gói tin đầu, ~$0.02/GB/tháng) ➔ Archival Glacier (~12 giờ chờ, ~$0.004/GB/tháng).",
-        "L1/L2 Cache (1–10 ns) ➔ RAM (100 ns) ➔ NVMe SSD (100 µs) ➔ HDD (4–10 ms) ➔ S3 Object (100 ms)",
+        "Các bậc thang độ trễ chuẩn: L1/L2/L3 Cache (~1–10 ns, ~1 TB/s, nằm ngay trên đế chip CPU) → RAM DDR5 (~100 ns, ~100 GB/s, ~$10/GB, khả biến) → NVMe SSD (~100 µs, ~4 GB/s, ~$0.20/GB) → HDD cơ học (~4–10 ms seek, ~100 IOPS, ~$0.03/GB) → Cloud Object Storage S3/GCS (~100 ms độ trễ gói tin đầu, ~$0.02/GB/tháng) → Archival Glacier (~12 giờ chờ, ~$0.004/GB/tháng).",
+        "L1/L2 Cache (1–10 ns) → RAM (100 ns) → NVMe SSD (100 µs) → HDD (4–10 ms) → S3 Object (100 ms)",
         "Mọi kiến trúc dữ liệu hiện đại (In-Memory Caching, Columnar Pruning, Tiered Storage) đều được thiết kế xoay quanh việc khai thác chênh lệch độ trễ này."
     ),
     (
@@ -427,7 +427,7 @@ RAW_GLOSSARY = [
         ],
         "Dữ liệu giống như thức ăn: món đang nấu ăn ngay để trên bàn bếp (`Hot` — RAM/SSD), nguyên liệu dùng trong tuần cất tủ mát (`Warm` — S3 Standard ~$0.02/GB), còn hóa đơn lưu trữ 5–10 năm đóng thùng cất kho đông lạnh (`Cold/Archival` — Glacier ~$0.004/GB, rẻ bằng 1/17).",
         "Các chính sách `Storage Lifecycle Management` tự động chuyển dữ liệu cũ từ tầng Hot/Warm sang `Standard-IA`, `One Zone-IA` hoặc `Glacier` dựa theo tuổi dữ liệu mà vẫn đảm bảo độ bền `11 Nines` (99.999999999% — tự động sao lưu qua tối thiểu 3 Availability Zones cách biệt). Tuy nhiên cần lưu ý 2 ràng buộc thương mại của tầng lạnh: `Minimum Storage Duration` (phí phạt nếu xóa sớm trước 30/90/180 ngày) và `Retrieval Fee` (phí tính trên mỗi GB đọc phục hồi).",
-        "Hot (RAM/SSD: 100ns–100µs) ➔ Warm (S3/GCS: ~100ms, $0.02/GB) ➔ Cold (Glacier: ~12h, $0.004/GB)",
+        "Hot (RAM/SSD: 100ns–100µs) → Warm (S3/GCS: ~100ms, $0.02/GB) → Cold (Glacier: ~12h, $0.004/GB)",
         "Tuyệt đối không để các job BI hàng ngày quét nhầm vào phân vùng đã chuyển xuống tầng Glacier vì hóa đơn Retrieval Fee sẽ tăng vọt."
     ),
     (
@@ -485,7 +485,7 @@ RAW_GLOSSARY = [
         ],
         "Tuần tự hóa (`Serialization`) là cách 'đóng thùng' cấu trúc dữ liệu trên RAM thành chuỗi byte để ghi xuống đĩa hoặc gửi qua mạng; trong đó định dạng theo dòng (`CSV`, `JSON`, `Avro`) xếp toàn bộ các cột của cùng một đơn hàng `#8888` nằm liền kề nhau.",
         "CSV và JSON là văn bản thuần nên tốn dung lượng và ngốn CPU phân tích cú pháp (`Parse/SerDe overhead`). **Apache Avro** là chuẩn tuần tự hóa theo dòng dạng nhị phân (`Binary`) tự mô tả (`Self-describing`): nhúng thẳng lược đồ JSON ở phần Header, phần thân nén nhị phân không lặp lại tên trường và chèn các mốc đồng bộ `16-byte Sync Marker` giữa các khối, giúp Avro vừa cực nhanh cho luồng ghi Kafka/CDC vừa cắt nhỏ để đọc song song được (`Splittable`).",
-        "[Avro File Header: JSON Schema] ➔ [Data Block 1 + 16-byte Sync Marker] ➔ [Data Block 2]",
+        "[Avro File Header: JSON Schema] → [Data Block 1 + 16-byte Sync Marker] → [Data Block 2]",
         "Khi nào chọn Avro vs. Parquet? Dùng **Avro** khi cần ghi/đọc trọn vẹn từng bản ghi (Kafka message, CDC landing, Hudi MOR log `.log.avro`); dùng **Parquet** khi cần truy vấn phân tích cột trên kho dữ liệu."
     ),
     (
@@ -505,7 +505,7 @@ RAW_GLOSSARY = [
             "3_v2.parquet", "50 mb – 500 mb", "80–95% i/o", "nén chuyên biệt theo cột"
         ],
         "Thay vì xếp từng hàng ngang, Parquet xoay dọc bảng dữ liệu: gom toàn bộ giá trị của cùng một cột trong mỗi phân đoạn (`Row Group` 128MB–1GB) nằm sát cạnh nhau, giúp câu lệnh phân tích chỉ cần bốc đúng cột cần tính và nén nhỏ dung lượng gấp 4–10 lần.",
-        "Giải phẫu tệp Parquet gồm 4 phần: `Header ('PAR1')` ➔ Các `Row Group` (mỗi Row Group chứa từng `Column Chunk`, bên trong chia thành các `Data Page` nén bằng `Dictionary Encoding`, `RLE`, `Delta Encoding`) ➔ `Footer` nằm ở cuối tệp. Khi truy vấn, động cơ đọc **Footer đầu tiên** (qua HTTP Range Request) để: (1) **Column Pruning** (nhảy đến đúng Byte Offset của cột trong `SELECT`, bỏ qua 80–95% I/O các cột thừa), và (2) **Data Skipping / Predicate Pushdown** (đọc thống kê `[Min, Max, Null Count]` của từng Row Group để nhảy qua nguyên khối không chứa Đơn hàng `#8888`).",
+        "Giải phẫu tệp Parquet gồm 4 phần: `Header ('PAR1')` → Các `Row Group` (mỗi Row Group chứa từng `Column Chunk`, bên trong chia thành các `Data Page` nén bằng `Dictionary Encoding`, `RLE`, `Delta Encoding`) → `Footer` nằm ở cuối tệp. Khi truy vấn, động cơ đọc **Footer đầu tiên** (qua HTTP Range Request) để: (1) **Column Pruning** (nhảy đến đúng Byte Offset của cột trong `SELECT`, bỏ qua 80–95% I/O các cột thừa), và (2) **Data Skipping / Predicate Pushdown** (đọc thống kê `[Min, Max, Null Count]` của từng Row Group để nhảy qua nguyên khối không chứa Đơn hàng `#8888`).",
         "Parquet Footer [Schema + RowGroup Min/Max + Byte Offsets] ──[Range GET]──> Chỉ tải đúng Column Chunk cần thiết",
         "Parquet dùng thuật toán **Google Dremel** (`Definition Levels` & `Repetition Levels`) để tháo rời các trường JSON/Struct/Array lồng nhau nhiều cấp thành các cột phẳng mà vẫn ghép lại chính xác 100%."
     ),
@@ -521,7 +521,7 @@ RAW_GLOSSARY = [
         "Nếu Parquet là 'thùng hàng nén chặt tối ưu để cất trên ổ đĩa/S3', thì Apache Arrow là 'khay nguyên liệu bày sẵn theo cột ngay trên thanh RAM' giúp Spark (`JVM`), Python (`Pandas/Polars`) và `C++` đọc chung tức thì mà không tốn CPU dịch qua dịch lại.",
         "Trước khi có Arrow, việc truyền bảng dữ liệu giữa các tiến trình khác ngôn ngữ trên cùng máy chủ tốn 70–80% thời gian CPU chỉ để Serialize và Deserialize. Arrow chuẩn hóa bố cục byte dạng cột thẳng hàng trên RAM (hỗ trợ cả `Shredding` cho dữ liệu bán cấu trúc lồng nhau và ánh xạ trực tiếp qua `mmap`), cho phép các động cơ đọc trực tiếp qua con trỏ bộ nhớ (`Zero-Copy`) và chạy tính toán vector hóa (`SIMD`) trên CPU hiện đại.",
         "Spark JVM ──[Con trỏ RAM Apache Arrow (Zero-Copy, 0% Serialize)]──> Python / Pandas / Polars / DuckDB",
-        "Cặp bài trùng chuẩn công nghiệp: Lưu trên đĩa S3 bằng **Apache Parquet** ➔ Nạp lên RAM xử lý bằng **Apache Arrow**."
+        "Cặp bài trùng chuẩn công nghiệp: Lưu trên đĩa S3 bằng **Apache Parquet** → Nạp lên RAM xử lý bằng **Apache Arrow**."
     ),
     (
         "storage.compression-splittability",
@@ -559,12 +559,12 @@ RAW_GLOSSARY = [
         ],
         "Lấy cảm hứng từ Google File System (GFS), HDFS biến hàng trăm máy chủ phổ thông thành một kho lưu trữ khổng lồ bằng cách chặt tệp lớn thành các khối `128 MB`, giao cho `NameNode` giữ sổ danh bạ trên RAM và rải 3 bản sao (`x3`) xuống các `DataNode` để hỏng máy nào cũng tự chữa lành (`Self-healing`).",
         "Nguyên lý cốt lõi của HDFS là **Colocation of Compute and Storage** (đặt chung tính toán và lưu trữ trên cùng một node vật lý): thay vì kéo 10 TB dữ liệu qua mạng về 1 máy tính toán, HDFS gửi đoạn code nhỏ (`Map tasks`) đến chạy ngay trên các `DataNode` đang giữ khối dữ liệu đó. Khi dữ liệu nguội dần, để giảm chi phí lưu trữ 200% phụ trội của nhân bản `x3`, kỹ sư chuyển sang **Erasure Coding `RS(6,3)`** (6 khối dữ liệu + 3 khối chẵn lẻ toán học, chịu được 3 máy sập cùng lúc nhưng chỉ tốn `1.5x` dung lượng).",
-        "Block #8888 (128MB) ➔ Bản sao 1 (Node A, Rack 1) + Bản sao 2 (Node C, Rack 2) + Bản sao 3 (Node D, Rack 2)",
+        "Block #8888 (128MB) → Bản sao 1 (Node A, Rack 1) + Bản sao 2 (Node C, Rack 2) + Bản sao 3 (Node D, Rack 2)",
         "`NameNode` nhận tín hiệu báo sống (`Heartbeat`) và báo cáo khối (`Blockreport`) từ các `DataNode` mỗi vài giây; hễ thấy khối nào tụt xuống dưới 3 bản sao là lập tức ra lệnh nhân bản bù."
     ),
     (
         "storage.network-topology-cache",
-        "Tô-pô Mạng (Data-Local ➔ Rack-Local ➔ Off-Rack) & Động cơ Cache (Redis, Memcached, RocksDB / LSM-Tree)",
+        "Tô-pô Mạng (Data-Local → Rack-Local → Off-Rack) & Động cơ Cache (Redis, Memcached, RocksDB / LSM-Tree)",
         "DISTRIBUTED STORAGE",
         ["D02"],
         [
@@ -578,7 +578,7 @@ RAW_GLOSSARY = [
             "bản sao 1 trên node cục bộ ở rack 1", "bản sao 2 sang một node ở rack 2",
             "bản sao 3 ở một node khác ngay trong cùng rack 2"
         ],
-        "Vì băng thông mạng liên tủ (`Off-Rack` qua Core Switch) luôn là cổ chai hẹp nhất, hệ thống phân tán luôn ưu tiên đọc tại chỗ (`Data-Local` ➔ `Rack-Local`) và dùng bộ nhớ đệm (`Redis/Memcached` trên RAM, `RocksDB` trên SSD) để tăng tốc truy xuất.",
+        "Vì băng thông mạng liên tủ (`Off-Rack` qua Core Switch) luôn là cổ chai hẹp nhất, hệ thống phân tán luôn ưu tiên đọc tại chỗ (`Data-Local` → `Rack-Local`) và dùng bộ nhớ đệm (`Redis/Memcached` trên RAM, `RocksDB` trên SSD) để tăng tốc truy xuất.",
         "Quy tắc **Rack-aware Replica Placement** đặt Bản sao 1 tại máy cục bộ (Rack 1), Bản sao 2 sang tủ mạng khác (Rack 2 — chống sập nguồn cả tủ Rack 1), và Bản sao 3 ở một máy khác trong cùng Rack 2 (tiết kiệm băng thông liên tủ). Ở tầng Cache & State: **Memcached** là bộ đệm Key-Value đa luồng thuần RAM; **Redis** hỗ trợ cấu trúc dữ liệu phong phú kèm lưu bền vững (`RDB Snapshots` + `AOF`); còn **RocksDB** dùng cấu trúc **LSM-Tree** (`Log-Structured Merge-tree`) ghi nối đuôi vào RAM `MemTable` rồi xả tuần tự xuống các tệp `SSTable` trên SSD.",
         "Khoảng cách mạng: (1) Data-Local (0 hop) < (2) Rack-Local (qua ToR Switch) < (3) Off-Rack (qua Core Switch)",
         "Cơ chế `TTL (Time to Live)` tự động xóa dữ liệu đệm hết hạn để giải phóng RAM đắt đỏ."
@@ -628,7 +628,7 @@ RAW_GLOSSARY = [
     # =========================================================================
     (
         "storage.conceptual-logical-physical",
-        "Ba Cấp độ Thiết kế Mô hình Dữ liệu (Conceptual ➔ Logical ➔ Physical) & Kimball 4-Step",
+        "Ba Cấp độ Thiết kế Mô hình Dữ liệu (Conceptual → Logical → Physical) & Kimball 4-Step",
         "DATA MODELING",
         ["D02"],
         [
@@ -642,7 +642,7 @@ RAW_GLOSSARY = [
         ],
         "Giống như xây nhà: `Conceptual Model` là 'bản phác thảo mặt bằng nói chuyện với chủ nhà' (các thực thể nghiệp vụ chính), `Logical Model` là 'bản vẽ kỹ thuật chi tiết từng phòng' (tên bảng, cột, khóa PK/FK), còn `Physical Model` là 'bản thi công bê tông thực tế' trên CSDL cụ thể (kiểu dữ liệu `DECIMAL`, `PARTITION BY`, `CLUSTER BY`).",
         "Khi thiết kế mô hình chiều (Dimensional Modeling), Ralph Kimball đặt ra **Quy trình 4 Bước Bất biến**: (1) Chọn Quy trình Nghiệp vụ (`Select the Business Process`), (2) Tuyên bố Độ mịn (`Declare the Grain`), (3) Xác định các Chiều ngữ cảnh (`Identify the Dimensions`), và (4) Xác định các Số đo sự kiện (`Identify the Facts`).",
-        "Conceptual [Khách ➔ Đơn ➔ Hàng] ➔ Logical [Fact_Sales PK/FK] ➔ Physical [PARTITION BY nam_thang]",
+        "Conceptual [Khách → Đơn → Hàng] → Logical [Fact_Sales PK/FK] → Physical [PARTITION BY nam_thang]",
         "Không bao giờ được nhảy vào viết câu lệnh `CREATE TABLE` (Physical) khi chưa chốt xong Bước 2: Tuyên bố Độ mịn (`Grain`)."
     ),
     (
@@ -662,7 +662,7 @@ RAW_GLOSSARY = [
         ],
         "Inmon xây 'đại bản doanh chuẩn hóa `3NF` chống trùng lặp cho toàn công ty trước rồi mới tách các `Data Marts` cho từng phòng'; Kimball xây 'từng quầy siêu thị `Star Schema` phi chuẩn hóa (`Denormalized`) phục vụ ngay từng quy trình nghiệp vụ rồi nối lại bằng bộ chiều dùng chung'; còn Data Vault tách `Hub · Link · Satellite` để nạp song song và kiểm toán lịch sử 100%.",
         "Trong **Data Vault** của Dan Linstedt: `Hub` chỉ giữ Khóa nghiệp vụ (`Business Key` + `Hash Key MD5/SHA-256` + `Load Date` + `Record Source`), `Link` biểu diễn mối quan hệ nhiều-nhiều linh hoạt giữa các Hub, còn `Satellite` lưu toàn bộ thuộc tính mô tả và lịch sử thay đổi theo thời gian (`Insert-only`). Trong kiến trúc Medallion hiện đại, kỹ sư thường áp dụng tinh thần **Inmon / 3NF / Data Vault ở tầng Silver** và **Kimball Star Schema ở tầng Gold**.",
-        "Silver Layer (Inmon 3NF / Data Vault: Chuẩn hóa, tích hợp) ➔ Gold Layer (Kimball Star Schema: Tối ưu BI)",
+        "Silver Layer (Inmon 3NF / Data Vault: Chuẩn hóa, tích hợp) → Gold Layer (Kimball Star Schema: Tối ưu BI)",
         "4 tính chất kinh điển của Kho dữ liệu theo Bill Inmon: `Subject-oriented` (Hướng chủ đề), `Integrated` (Tích hợp), `Nonvolatile` (Bất khả biến), và `Time-variant` (Biến thiên theo thời gian)."
     ),
     (
@@ -714,7 +714,7 @@ RAW_GLOSSARY = [
         ],
         "**Surrogate Key** là mã số nguyên tự sinh (`SK = 101, 205`) tách biệt hoàn toàn kho dữ liệu khỏi khóa tự nhiên (`Natural Key` như `'KH_001'`); nhờ đó khi khách hàng đổi địa chỉ từ Hà Nội vào Bình Dương, kỹ thuật **SCD Type 2** tạo thêm dòng phiên bản mới (`SK = 205`) để đơn hàng cũ vẫn thuộc về Hà Nội còn đơn hàng mới (`#8888`) tự động gắn vào Bình Dương!",
         "3 chiến lược **Slowly Changing Dimensions (SCD)**: **Type 1** (Ghi đè trực tiếp — mất lịch sử cũ), **Type 2** (Thêm dòng phiên bản mới với `start_date`, `end_date = '9999-12-31'`, `is_current = true` và cấp `Surrogate Key` mới — chuẩn vàng bảo toàn lịch sử 100%), và **Type 3** (Thêm cột giá trị cũ trên cùng dòng). **Enterprise Bus Matrix** quy hoạch các chiều chuẩn hóa dùng chung (**Conformed Dimensions** như `Dim_Date`, `Dim_Customer`, `Dim_Product`) xuyên suốt các quy trình nghiệp vụ (`Retail Sales`, `Inventory`, `Procurement`), cho phép thực hiện truy vấn liên quy trình (**Drill-across**) mà không bao giờ lệch số.",
-        "Dim_Customer SCD2: [SK: 101 | KH_001 | HaNoi | end=2026-10-14] ➔ [SK: 205 | KH_001 | BinhDuong | end=9999-12-31]",
+        "Dim_Customer SCD2: [SK: 101 | KH_001 | HaNoi | end=2026-10-14] → [SK: 205 | KH_001 | BinhDuong | end=9999-12-31]",
         "Bảng `Fact_Sales` chỉ lưu khóa đại diện `cust_sk = 205` tại đúng thời điểm Đơn hàng `#8888` phát sinh, giúp báo cáo doanh thu lịch sử theo vùng miền luôn chính xác vĩnh viễn."
     ),
 
@@ -734,7 +734,7 @@ RAW_GLOSSARY = [
         ],
         "Khái niệm do James Dixon khởi xướng: thay vì bắt dữ liệu phải cắt gọt khuôn mẫu ngay ở cửa (`Schema-on-Write` / `ETL` của Data Warehouse), **Data Lake** cho phép đổ nguyên bản mọi loại dữ liệu thô vào thẳng Cloud Object Storage giá rẻ (`~$0.02/GB/tháng`) rồi khi nào đọc lên phân tích mới áp lược đồ (`Schema-on-Read` / `ELT`).",
         "Giá trị cốt lõi của Data Lake và tầng nguyên bản là đảm bảo kỹ sư luôn có một nơi an toàn để khôi phục hoặc chạy lại từ đầu (`recover or fall back on / reprocess`) khi code biến đổi có lỗi hoặc khi phát sinh bài toán AI/ML mới cần trích xuất thêm trường từ dữ liệu gốc.",
-        "ETL (Transform trước khi nạp vào DW) vs. ELT (Load nguyên bản vào S3 Data Lake ➔ Transform sau)",
+        "ETL (Transform trước khi nạp vào DW) vs. ELT (Load nguyên bản vào S3 Data Lake → Transform sau)",
         "Tuy nhiên, `Schema-on-Read` không có nghĩa là 'bỏ mặc không quản lý': nếu thiếu Catalog và kiểm định ở cửa nạp, gánh nặng xử lý rác sẽ đổ dồn lên vai mọi người đọc phía sau."
     ),
     (
@@ -757,7 +757,7 @@ RAW_GLOSSARY = [
         ],
         "**Data Swamp** là bi kịch khi Data Lake thoái hóa thành 'bãi rác độc hại' (`Data Superfund Site`): hàng nghìn thư mục vô danh (`Inscrutable`), các tệp ghi dở dang do job Spark đứt mạng (`Zombie Files`) nằm lẫn với tệp đúng làm nhân đôi doanh thu, biến giấc mơ `WORM` (Ghi một lần, Đọc nhiều lần) thành `WORN` (Ghi một lần, Chẳng ai dám đọc).",
         "Nguyên nhân gốc rễ nằm ở **6 khiếm khuyết của chuẩn bảng Apache Hive** (quản lý bảng ở cấp độ thư mục, phụ thuộc lệnh `LIST` thư mục đắt đỏ, đổi phân vùng phải viết lại toàn bảng) và **3 Lỗ hổng Công cụ cốt tử (`The 3 Tooling Gaps`)**: (1) `Lack of ACID & Mutability` (không có giao dịch nguyên tử, không thể sửa/xóa lẻ theo GDPR, không chặn được `Schema Drift`), (2) `Lack of Catalog & Governance` (thiếu danh mục siêu dữ liệu và người chịu trách nhiệm `Ownership/Stewardship`, sinh ra `Dark Data`), và (3) `Lack of Lineage & Observability` (không truy vết được nguồn gốc dữ liệu bẩn).",
-        "Spark Job đứt mạng để lại '3.parquet' (Zombie File) + Retry sinh '3_v2.parquet' ➔ Hive quét cả thư mục = Nhân đôi số liệu!",
+        "Spark Job đứt mạng để lại '3.parquet' (Zombie File) + Retry sinh '3_v2.parquet' → Hive quét cả thư mục = Nhân đôi số liệu!",
         "Hiểu rõ 3 lỗ hổng này chính là bản lề giải thích tại sao thế giới dữ liệu phải khai sinh ra kiến trúc Data Lakehouse ở Chặng 6."
     ),
     (
@@ -779,7 +779,7 @@ RAW_GLOSSARY = [
             "data lineage", "lineage", "lineage tracking", "data catalog", "catalog",
             "metadata management", "quality checks", "gdpr", "right to be forgotten"
         ],
-        "Để ngăn Data Lake hóa đầm lầy, kỹ sư thiết lập 4 hàng rào kỷ luật: chia phân khu rõ ràng (`Zoning`: Raw ➔ Cleansed ➔ Curated), ký **Hợp đồng Dữ liệu (`Data Contract`)** kiểm soát qua `Schema Registry`, bật `Object Versioning` và duy trì duy nhất một Nguồn Sự Thật (**Single Source of Truth — SSoT**).",
+        "Để ngăn Data Lake hóa đầm lầy, kỹ sư thiết lập 4 hàng rào kỷ luật: chia phân khu rõ ràng (`Zoning`: Raw → Cleansed → Curated), ký **Hợp đồng Dữ liệu (`Data Contract`)** kiểm soát qua `Schema Registry`, bật `Object Versioning` và duy trì duy nhất một Nguồn Sự Thật (**Single Source of Truth — SSoT**).",
         "Một **Data Contract** chuẩn công nghiệp (theo James Densmore & Joe Reis) gồm 6 thành phần: (1) `Owner contacts`, (2) `SLAs / SLOs` về độ tươi dữ liệu, (3) Logical Schema & kiểu dữ liệu, (4) `Compatibility Modes` trên Schema Registry (`BACKWARD` — Consumer mới đọc được dữ liệu cũ; `FORWARD` — Consumer cũ đọc được dữ liệu mới; `FULL` — cả hai chiều), (5) `Quality checks` ngữ nghĩa, và (6) Quy tắc bảo mật/quyền được lãng quên (`GDPR Right to be Forgotten`). Đồng thời cần tránh cạm bẫy **Two-Tier Architecture** (nhân bản dữ liệu song song ở cả Data Lake lẫn Data Warehouse gây lệch số `divergent sources of data truth`).",
         "Producer ──[Schema Registry: BACKWARD Compatibility Gate]──> Data Lakehouse (Single Source of Truth)",
         "Chế độ `BACKWARD` là mặc định vàng: cho phép thêm cột tùy chọn mới hoặc xóa cột cũ mà không làm gãy các đường ống đọc hiện hành."
@@ -809,17 +809,17 @@ RAW_GLOSSARY = [
             "manifest list", "manifest file", "metadata file", "atomic cas swap",
             "compare-and-swap — cas", "catalog (cas)", "nessie", "glue", "timeline",
             "timeline (3 trạng thái) + file groups + indexing (rli/bloom/bucket)",
-            "timeline + indexing", "timeline/index", "requested ➔ inflight ➔ completed",
+            "timeline + indexing", "timeline/index", "requested → inflight → completed",
             "completed", "deltacommit", "file group", "file groups", "hybrid file groups",
             "base file", "log files", ".hoodie/", ".hoodie/metadata", "hfile",
             "4 loại index trong bảng metadata nội bộ (.hoodie/metadata dạng hfile):",
             "bloom index", "record-level index", "record-level index (rli)", "bucket index",
-            "simple index", "recordkey ➔ filegroupid", "hash(record_key) % n", "cidr 2021",
+            "simple index", "recordkey → filegroupid", "hash(record_key) % n", "cidr 2021",
             "phân biệt file format vs. table format & bước ngoặt khỏi hive:"
         ],
         "Data Lakehouse đặt một **Tầng Siêu dữ liệu Giao dịch (`Transactional Metadata Layer`)** — chính là **Delta Lake**, **Apache Iceberg** hoặc **Apache Hudi** — ngay bên trên các tệp Parquet trên S3 để định nghĩa lại bảng: 'Bảng không còn là một thư mục chứa tệp mù quáng như Hive, mà là danh sách chuẩn tắc các tệp hợp lệ (`canonical list of files`) được ghi trong Sổ cái giao dịch'!",
-        "Giải phẫu 'bộ não' của 3 Open Table Formats: (1) **Delta Lake** dùng nhật ký tuần tự `_delta_log/000000.json` (chứa các hành động `protocol`, `metaData`, `commitInfo`, `add`, `remove`) và nén thành `.checkpoint.parquet` sau mỗi N commits (trỏ qua `_last_checkpoint`). (2) **Apache Iceberg** dùng cây phân cấp 3 tầng (`Catalog Atomic CAS Swap ➔ Metadata File ➔ Manifest List ➔ Manifest File`) giúp cô lập hoàn toàn cấu trúc vật lý. (3) **Apache Hudi** quản lý theo `Timeline` (`REQUESTED ➔ INFLIGHT ➔ COMPLETED`), chia dữ liệu thành các `File Groups` (`Base File` Parquet + `Log Files` Avro) và tích hợp bảng `.hoodie/metadata` dạng `HFile` chứa 4 loại chỉ mục (`Record-Level Index`, `Bloom Index`, `Bucket Index`, `Simple Index`) để định vị nhanh `RecordKey ➔ FileGroupId` cho luồng Upsert. Với **Delta UniForm / Apache XTable**, cả 3 định dạng có thể tự động sinh metadata tương thích đa chiều (`omnidirectional interoperation`) trên cùng một bộ tệp Parquet duy nhất.",
-        "Catalog (CAS) ➔ Metadata Tree / _delta_log [Chỉ trỏ tới '3_v2.parquet', phớt lờ tệp rác '3.parquet']",
+        "Giải phẫu 'bộ não' của 3 Open Table Formats: (1) **Delta Lake** dùng nhật ký tuần tự `_delta_log/000000.json` (chứa các hành động `protocol`, `metaData`, `commitInfo`, `add`, `remove`) và nén thành `.checkpoint.parquet` sau mỗi N commits (trỏ qua `_last_checkpoint`). (2) **Apache Iceberg** dùng cây phân cấp 3 tầng (`Catalog Atomic CAS Swap → Metadata File → Manifest List → Manifest File`) giúp cô lập hoàn toàn cấu trúc vật lý. (3) **Apache Hudi** quản lý theo `Timeline` (`REQUESTED → INFLIGHT → COMPLETED`), chia dữ liệu thành các `File Groups` (`Base File` Parquet + `Log Files` Avro) và tích hợp bảng `.hoodie/metadata` dạng `HFile` chứa 4 loại chỉ mục (`Record-Level Index`, `Bloom Index`, `Bucket Index`, `Simple Index`) để định vị nhanh `RecordKey → FileGroupId` cho luồng Upsert. Với **Delta UniForm / Apache XTable**, cả 3 định dạng có thể tự động sinh metadata tương thích đa chiều (`omnidirectional interoperation`) trên cùng một bộ tệp Parquet duy nhất.",
+        "Catalog (CAS) → Metadata Tree / _delta_log [Chỉ trỏ tới '3_v2.parquet', phớt lờ tệp rác '3.parquet']",
         "Nhờ Sổ cái Metadata, động cơ truy vấn hoàn toàn miễn nhiễm với tệp rác `Zombie Files` và không bao giờ phải gọi lệnh `LIST` thư mục S3 đắt đỏ."
     ),
     (
@@ -841,7 +841,7 @@ RAW_GLOSSARY = [
             "incremental query", "changelog scan", "schema enforcement", "schema evolution",
             "column id", "field-id", "field-id bất biến", "column mapping mode = 'id'",
             "delta.columnmapping.mode = 'name'", "rename column total_cost to order_amount",
-            "total_cost ➔ order_amount", "mergeschema"
+            "total_cost → order_amount", "mergeschema"
         ],
         "Nhờ cơ chế Đa phiên bản (**MVCC** — mỗi giao dịch tạo một Snapshot mới thay vì sửa đè tệp cũ), hàng nghìn người đọc và luồng ghi có thể chạy đồng thời mà không khóa nhau, cho phép **Time Travel** (truy vấn hoặc `RESTORE` bảng về bất kỳ mốc thời gian/phiên bản nào trong quá khứ)!",
         "Khi có nhiều luồng cùng ghi (`Writer 1` & `Writer 2`), các bảng dùng **OCC (`Optimistic Concurrency Control`)** với kiểm tra xung đột cấp độ tệp (`File-Level Conflict Detection` ở mức cô lập `Serializable` hoặc `WriteSerializable`): nếu 2 luồng chạm vào 2 phân vùng/tệp khác nhau hoặc chỉ nối đuôi (`blind append`), cả hai đều thành công; nếu cùng sửa 1 tệp, một luồng sẽ tự động đọc lại metadata và thử lại (`Retry Loop`) hoặc báo `ConcurrentModificationException` (riêng Hudi hỗ trợ thêm **NBCC** không khóa cho luồng streaming). Về lược đồ: **Schema Enforcement** chặn đứng dữ liệu sai kiểu ngay lúc ghi, còn **Schema Evolution** dựa trên mã số định danh cột bất biến (`field-id` / `Column Mapping Mode = 'id'`) cho phép đổi tên cột (`RENAME COLUMN total_cost TO order_amount`) hoàn toàn bằng Metadata mà không cần viết lại tệp Parquet (`0 byte table rewrite`).",
@@ -863,7 +863,7 @@ RAW_GLOSSARY = [
         ],
         "Vì tệp Parquet trên S3 là bất biến, khi cần sửa 1 đơn hàng (`#8888`) nằm trong tệp Parquet 500 MB, bạn có 2 chiến lược: **COW** ('Chép lại cả tệp Parquet 500 MB mới đã sửa dòng đó' — ghi tốn công `WAF >> 1` nhưng đọc cực nhanh) hoặc **MOR** ('Ghi nhanh dòng sửa vào một tệp phụ nhỏ `WAF ≈ 1`' — ghi tức thì nhưng lúc đọc phải trộn tệp phụ với tệp gốc).",
         "Trong **Merge-on-Read (MOR)**: Apache Iceberg hỗ trợ 2 loại tệp xóa phụ là **Positional Delete** (ghi địa chỉ chính xác `(file_path, pos = 4512)` — lúc đọc rất nhanh) và **Equality Delete** (ghi điều kiện `order_id = 8888` — lúc ghi không cần tìm vị trí nhưng lúc đọc phải so khớp điều kiện). Trên Apache Hudi, bảng MOR ghi các bản cập nhật vào tệp `.log.avro` và cung cấp 2 góc nhìn truy vấn: **Snapshot Query (`RT`)** (trộn Base Parquet + Log Avro để lấy dữ liệu tươi nhất theo thời gian thực) và **Read-Optimized (`RO`)** (chỉ đọc Base Parquet để đạt tốc độ quét Columnar tối đa cho Batch BI).",
-        "COW (WAF >> 1, 0% Read overhead ➔ Tối ưu cho bảng Gold) vs. MOR (WAF ≈ 1, Fast Upsert ➔ Tối ưu cho CDC Silver)",
+        "COW (WAF >> 1, 0% Read overhead → Tối ưu cho bảng Gold) vs. MOR (WAF ≈ 1, Fast Upsert → Tối ưu cho CDC Silver)",
         "Sau khi dùng MOR để hứng luồng CDC tốc độ cao, một dịch vụ nền (`Async Compaction`) sẽ định kỳ gộp các tệp log/delete vào tệp Parquet chính."
     ),
     (
@@ -894,12 +894,12 @@ RAW_GLOSSARY = [
     # =========================================================================
     (
         "storage.medallion-architecture",
-        "Kiến trúc Multi-Hop Medallion (Bronze ➔ Silver ➔ Gold) & Trạm Kiểm dịch (Quality Gating / WAP)",
+        "Kiến trúc Multi-Hop Medallion (Bronze → Silver → Gold) & Trạm Kiểm dịch (Quality Gating / WAP)",
         "MEDALLION & GOVERNANCE",
         ["D02"],
         [
             "medallion", "medallion architecture", "multi-hop", "three-tiered framework",
-            "bronze", "silver", "gold", "bronze / silver", "bronze ➔ silver ➔ gold",
+            "bronze", "silver", "gold", "bronze / silver", "bronze → silver → gold",
             "bronze layer", "silver layer", "gold layer", "infancy", "teenage", "maturity",
             "hành trình trưởng thành của một con người", "quality gating", "quarantine",
             "permissive", "permissive mode", "dropmalformed", "_corrupt", "_debug",
@@ -912,7 +912,7 @@ RAW_GLOSSARY = [
         ],
         "Kiến trúc **Medallion (`Multi-Hop`)** ví như hành trình trưởng thành qua 3 giai đoạn: **Bronze (`Infancy`)** giữ nguyên bản 100% dữ liệu thô vừa sinh ra, **Silver (`Teenage`)** lọc sạch rác, khử trùng lặp (`Dedup`) và chuẩn hóa 3NF/SCD2, còn **Gold (`Maturity`)** tổng hợp thành các bảng `Star Schema / OBT / Aggregated KPIs` chín muồi phục vụ Ban giám đốc và AI.",
         "Cơ chế kỹ thuật sống còn: ở tầng **Bronze**, trình đọc luôn cấu hình chế độ **`PERMISSIVE`** (tuyệt đối không dùng `DROPMALFORMED` làm mất dấu dữ liệu lỗi) để hứng mọi bản ghi sai định dạng vào cột `_corrupt` / `_debug` / `_rescued_data` kèm siêu dữ liệu kiểm toán (`_ingested_at`, `_source_topic`). Khi chuyển sang **Silver**, hệ thống áp dụng **Quality Gating** (`CHECK CONSTRAINTS`, `DLT EXPECT` hoặc mẫu **Write-Audit-Publish — WAP** trên nhánh ẩn của Iceberg) để tự động rẽ nhánh các bản ghi vi phạm (`_corrupt IS NOT NULL` hoặc `so_tien <= 0`) vào bảng cách ly (`Quarantine`) chờ kỹ sư xử lý, đảm bảo 100% dữ liệu bước vào Silver và Gold là dữ liệu sạch.",
-        "Bronze (PERMISSIVE + _rescued_data) ──[Quality Gate / WAP]──> Silver (3NF/SCD2 + Quarantine) ➔ Gold (Star/OBT)",
+        "Bronze (PERMISSIVE + _rescued_data) ──[Quality Gate / WAP]──> Silver (3NF/SCD2 + Quarantine) → Gold (Star/OBT)",
         "Tầng Bronze chỉ thực hiện biến đổi tối thiểu (`minimal transformations` — đóng gói sang Parquet/Delta/Iceberg/Hudi và gắn cột audit) để bảo toàn nguyên trạng bằng chứng gốc."
     ),
     (
@@ -922,7 +922,7 @@ RAW_GLOSSARY = [
         ["D02"],
         [
             "undercurrents", "unity catalog", "catalog.schema.table", "data governance",
-            "openlineage", "dataset ➔ job ➔ run", "column-level lineage", "rbac / abac",
+            "openlineage", "dataset → job → run", "column-level lineage", "rbac / abac",
             "sql dcl (grant / revoke)", "revoked permissions", "row-level security", "rls",
             "row filter", "bộ lọc dòng (row filter)", "column masking", "column mask",
             "mặt nạ cột (column mask)", "row/column security", "dynamic masking",
@@ -931,14 +931,14 @@ RAW_GLOSSARY = [
             "3. điều phối cụm tính toán tạm thời (ephemeral compute)", "idle compute",
             "auto-stop / scale-to-zero", "bottom-up blueprint",
             "bản đồ kiến trúc 6 tầng (bottom-up blueprint)",
-            "creation ➔ storage ➔ usage ➔ sharing ➔ archiving ➔ destruction",
+            "creation → storage → usage → sharing → archiving → destruction",
             "cách làm sai lầm (nhân bản phân vùng ra 40 nơi khác nhau):",
             "duy nhất 1 bảng nền tảng chuẩn xác", "auxiliary data & layout"
         ],
-        "Một kiến trúc dữ liệu chỉ thực sự vững chắc khi có 4 dòng chảy ngầm (**Undercurrents**) chạy xuyên suốt toàn bộ vòng đời dữ liệu (`Creation ➔ Storage ➔ Usage ➔ Sharing ➔ Archiving ➔ Destruction`): Danh mục tập trung (**Unity Catalog**), Phả hệ dữ liệu (**OpenLineage**), Bảo mật hạt mịn (**RLS & Column Masking**) và Tối ưu chi phí (**Cloud FinOps**).",
-        "Thay vì nhân bản bảng gốc ra 40 Bucket khác nhau cho 40 phòng ban để phân quyền (gây bùng nổ chi phí và lệch số), doanh nghiệp giữ **duy nhất 1 bảng chuẩn (`Single Source of Truth`)** trong không gian tên 3 cấp (`catalog.schema.table`) và áp nguyên tắc đặc quyền tối thiểu (**Least Privilege** `RBAC / ABAC`): gắn **Row Filter (`RLS`)** để quản lý vùng nào chỉ nhìn thấy dòng dữ liệu vùng đó, và gắn **Column Mask** để tự động che dấu thông tin cá nhân nhạy cảm (`PII`). Đồng thời, chuẩn mở **OpenLineage** thu thập sự kiện theo mô hình `Dataset ➔ Job ➔ Run` để vẽ phả hệ cấp độ cột; còn **FinOps** kết hợp `Ephemeral Clusters` / `Scale-to-Zero` (tránh trả tiền cho `Idle Compute`), `Auxiliary Data & Layout` (Compaction/Z-Order giảm I/O) và `Lifecycle Tiering` để tối ưu tổng chi phí sở hữu (`TCO`).",
+        "Một kiến trúc dữ liệu chỉ thực sự vững chắc khi có 4 dòng chảy ngầm (**Undercurrents**) chạy xuyên suốt toàn bộ vòng đời dữ liệu (`Creation → Storage → Usage → Sharing → Archiving → Destruction`): Danh mục tập trung (**Unity Catalog**), Phả hệ dữ liệu (**OpenLineage**), Bảo mật hạt mịn (**RLS & Column Masking**) và Tối ưu chi phí (**Cloud FinOps**).",
+        "Thay vì nhân bản bảng gốc ra 40 Bucket khác nhau cho 40 phòng ban để phân quyền (gây bùng nổ chi phí và lệch số), doanh nghiệp giữ **duy nhất 1 bảng chuẩn (`Single Source of Truth`)** trong không gian tên 3 cấp (`catalog.schema.table`) và áp nguyên tắc đặc quyền tối thiểu (**Least Privilege** `RBAC / ABAC`): gắn **Row Filter (`RLS`)** để quản lý vùng nào chỉ nhìn thấy dòng dữ liệu vùng đó, và gắn **Column Mask** để tự động che dấu thông tin cá nhân nhạy cảm (`PII`). Đồng thời, chuẩn mở **OpenLineage** thu thập sự kiện theo mô hình `Dataset → Job → Run` để vẽ phả hệ cấp độ cột; còn **FinOps** kết hợp `Ephemeral Clusters` / `Scale-to-Zero` (tránh trả tiền cho `Idle Compute`), `Auxiliary Data & Layout` (Compaction/Z-Order giảm I/O) và `Lifecycle Tiering` để tối ưu tổng chi phí sở hữu (`TCO`).",
         "GRANT SELECT ON TABLE prod_catalog.gold.fact_sales TO `analyst_group`;\nALTER TABLE prod_catalog.gold.fact_sales SET ROW FILTER region_filter ON (province);",
-        "Bản đồ Kiến trúc 6 Tầng (`Bottom-Up Blueprint`) khép lại toàn bộ học phần D02: Phần cứng Vật lý ➔ Mô hình Lưu trữ & Tệp ➔ Hạ tầng Phân tán & Streaming ➔ Open Table Formats ➔ Medallion Architecture ➔ Governance & FinOps."
+        "Bản đồ Kiến trúc 6 Tầng (`Bottom-Up Blueprint`) khép lại toàn bộ học phần D02: Phần cứng Vật lý → Mô hình Lưu trữ & Tệp → Hạ tầng Phân tán & Streaming → Open Table Formats → Medallion Architecture → Governance & FinOps."
     ),
 
     # =========================================================================
@@ -1335,7 +1335,7 @@ RAW_GLOSSARY = [
             "docker cli", "dockerd", "containerd-shim", "runc", "libcontainer",
             "podman", "cri-o", "daemonless", "rootless"
         ],
-        "Khi bạn gõ `docker run`, `Docker Daemon (dockerd)` không trực tiếp tạo Container mà chuyển việc qua dây chuyền chuẩn công nghiệp **OCI**: `Docker CLI ➔ dockerd ➔ containerd ➔ containerd-shim ➔ runc (libcontainer)`.",
+        "Khi bạn gõ `docker run`, `Docker Daemon (dockerd)` không trực tiếp tạo Container mà chuyển việc qua dây chuyền chuẩn công nghiệp **OCI**: `Docker CLI → dockerd → containerd → containerd-shim → runc (libcontainer)`.",
         "Giải phẫu từng mắt xích: (1) `Docker CLI` gửi REST API tới `dockerd`; (2) `dockerd` ủy quyền quản lý vòng đời cho `containerd`; (3) `containerd` đẻ ra tiến trình giữ chỗ nhẹ `containerd-shim`; (4) `shim` gọi `runc` (`libcontainer`) nói chuyện trực tiếp với Linux Kernel để dựng Namespaces/cgroups cho `order-api`. Ngay khi Container chạy lên, **`runc` lập tức tự thoát**, nhường quyền làm cha cho `containerd-shim` giữ cổng `stdin/stdout` — nhờ vậy dù bạn khởi động lại `dockerd`, Container `order-api` vẫn sống bình thường! Với Database `PostgreSQL`, kỹ sư bắt buộc gắn **Persistent Volume** (`/var/lib/docker/volumes/...` ánh xạ vào `/var/lib/postgresql/data`) để dữ liệu đi xuyên qua `OverlayFS` xuống thẳng đĩa Host. Ngoài Docker, hệ sinh thái còn có **Podman** (`Daemonless & Rootless` — không cần daemon chạy ngầm quyền root) và **CRI-O** (Runtime tối giản chuyên biệt cho Kubernetes).",
         "docker volume create pgdata && docker run -v pgdata:/var/lib/postgresql/data postgres:16",
         "Nhờ kiến trúc tách rời `containerd-shim`, việc nâng cấp hoặc khởi động lại Docker Engine không còn làm chết toàn bộ các Container đang chạy trên máy chủ."
@@ -1360,6 +1360,222 @@ RAW_GLOSSARY = [
 ]
 
 
+def _clean_short_definition(text: str) -> str:
+    s = re.sub(r"\*\*(.*?)\*\*", r"\1", str(text or ""))
+    s = s.replace("`", "")
+    s = re.sub(r"\s+", " ", s).strip()
+    if len(s) <= 180:
+        return s
+    # Take first complete clause/sentence <= 180 chars
+    for sep in (". ", "; ", " — ", ": "):
+        idx = s.find(sep)
+        if 45 <= idx <= 175:
+            return s[: idx + (1 if sep == ". " else 0)].rstrip(" ,;:") + ("." if not s[: idx + 1].endswith(".") else "")
+    cut = s[:176].rsplit(" ", 1)[0].rstrip(" ,;:-—")
+    return cut + "…"
+
+
+def _resolve_station_link(tid: str, scope: list) -> str:
+    exact_map = {
+        "linux.kernel": "#/F01/1/linux-1-1",
+        "linux.gnu": "#/F01/1/linux-1-1",
+        "linux.distro": "#/F01/1/linux-1-2",
+        "linux.terminal-shell": "#/F01/1/linux-1-3",
+        "linux.program-vs-process": "#/F01/1/linux-1-3",
+        "linux.system-call": "#/F01/1/linux-1-3",
+        "linux.process-identity": "#/F01/2/linux-2-1",
+        "linux.env-path": "#/F01/2/linux-2-1",
+        "linux.everything-is-a-file": "#/F01/2/linux-2-2",
+        "linux.inode": "#/F01/2/linux-2-2",
+        "linux.permissions": "#/F01/2/linux-2-1",
+        "linux.fhs-tree": "#/F01/2/linux-2-3",
+        "linux.cli-navigation": "#/F01/2/linux-2-4",
+        "linux.file-descriptors": "#/F01/3/linux-3-1",
+        "linux.pipe": "#/F01/3/linux-3-1",
+        "linux.redirection": "#/F01/3/linux-3-2",
+        "linux.bash-scripting": "#/F01/4/linux-4-1",
+        "linux.gcc-compilation": "#/F01/4/linux-4-2",
+        "linux.makefile": "#/F01/4/linux-4-2",
+        "linux.cronjob": "#/F01/4/linux-4-3",
+        "db.rdbms-architecture": "#/F03/1/db-1-1",
+        "db.keys-constraints": "#/F03/1/db-1-2",
+        "db.normalization": "#/F03/1/db-1-3",
+        "db.postgres-memory-process": "#/F03/2/db-2-1",
+        "db.slotted-page": "#/F03/2/db-2-2",
+        "db.wal-checkpointer": "#/F03/2/db-2-3",
+        "db.mvcc-autovacuum": "#/F03/3/db-3-1",
+        "db.btree-vs-lsm": "#/F03/3/db-3-2",
+        "db.optimizer-explain": "#/F03/3/db-3-3",
+        "db.scaling-sharding": "#/F03/4/db-4-1",
+        "db.ha-replication-pgd": "#/F03/4/db-4-2",
+        "db.nosql-cap-base": "#/F03/4/db-4-3",
+        "container.infra-vm-vs-container": "#/F06/1/container-1-1",
+        "container.linux-namespaces-cgroups": "#/F06/2/container-2-1",
+        "container.overlayfs-seccomp": "#/F06/2/container-2-3",
+        "container.oci-runtime-stack": "#/F06/3/container-3-2",
+        "container.kubernetes-orchestration": "#/F06/4/container-4-2",
+        "storage.memory-hierarchy": "#/D02/1/storage-1-1",
+        "storage.ram-spill-to-disk": "#/D02/1/storage-1-2",
+        "storage.disk-seek-vs-scan": "#/D02/1/storage-1-3",
+        "storage.data-temperature": "#/D02/1/storage-1-4",
+        "storage.oltp-vs-olap": "#/D02/1/storage-1-5",
+        "storage.file-block-object": "#/D02/2/storage-2-1",
+        "storage.row-vs-columnar": "#/D02/2/storage-2-2",
+        "storage.apache-arrow": "#/D02/2/storage-2-3",
+        "storage.compression-splittability": "#/D02/2/storage-2-4",
+        "storage.hdfs-architecture": "#/D02/3/storage-3-1",
+        "storage.network-topology-caching": "#/D02/3/storage-3-2",
+        "storage.streaming-kafka-cdc": "#/D02/3/storage-3-3",
+        "storage.data-warehouse": "#/D02/3/storage-3-4",
+        "storage.conceptual-logical-physical": "#/D02/4/storage-4-1",
+        "storage.inmon-kimball-datavault": "#/D02/4/storage-4-2",
+        "storage.fact-dimension-grain": "#/D02/4/storage-4-3",
+        "storage.star-snowflake-obt": "#/D02/4/storage-4-4",
+        "storage.surrogate-scd-bus": "#/D02/4/storage-4-5",
+        "storage.data-lake-schema-on-read": "#/D02/5/storage-5-1",
+        "storage.data-swamp-hive-gaps": "#/D02/5/storage-5-2",
+        "storage.data-contracts-zoning": "#/D02/5/storage-5-4",
+        "storage.lakehouse-open-table-formats": "#/D02/6/storage-6-1",
+        "storage.lakehouse-acid-concurrency": "#/D02/6/storage-6-2",
+        "storage.cow-vs-mor": "#/D02/6/storage-6-4",
+        "storage.lakehouse-optimizations": "#/D02/6/storage-6-5",
+        "storage.medallion-architecture": "#/D02/7/storage-7-1",
+        "storage.governance-undercurrents": "#/D02/7/storage-7-3",
+    }
+    if tid in exact_map:
+        return exact_map[tid]
+    prefix = tid.split(".")[0] if "." in tid else ""
+    if prefix == "linux":
+        return "#/F01/1"
+    if prefix == "db":
+        return "#/F03/1"
+    if prefix == "container":
+        return "#/F06/1"
+    if prefix == "storage":
+        return "#/D02/1"
+    topic = scope[0] if scope else "F01"
+    return f"#/{topic}/1"
+
+
+AMBIGUOUS_OR_NOISY_ALIASES = {
+    "q", "i", "u", "dd", "ca", "ap", "cp", "mv", "rm", "ls", "cd", "du", "ps", "sh", "id",
+    "ai", "ha", "pk", "fk", "vm", "os", "io", "ip", "db", "fd", "bi", "s3", "c", "c++", "c/c++",
+    "linux", "unix", "multi-user", "multi-tasking", "linux 0.01", "kernel", "windows",
+    "richard stallman", "linus torvalds", "james dixon", "bill inmon", "ralph kimball",
+    "lan", "minh", "nam", "oolong sua", "hong tra tac", "#hd01", "#8888", "đơn hàng #8888", "đơn #8888",
+    "open", "read", "write", "close", "cat", "head", "tail", "find", "make", "tab", "target",
+    "recipe", "prerequisites", "env", "path", "export", "root", "home", "user", "group",
+    "pwd", "grep", "mkdir", "sudo", "chmod", "chown", "chgrp", "vim", "nano", "ssh", "less", "wc",
+    "chmod +x", "chmod 755", "chmod 644", "tail -f", "ls -la", "ls -lh", "cp -r", "rm -rf", "mkdir -p", "du -sh", "df -h", "wc -l",
+    "program", "process", "processes", "tiến trình", "chương trình", "hạt nhân", "bản phân phối",
+    "lời gọi hệ thống", "mọi thứ đều là file", "cây thư mục", "điều hướng", "đường ống pipe",
+    "giao tiếp đa tiến trình", "trình biên dịch", "biến môi trường", "cục máy động cơ",
+    "hồ dữ liệu", "đầm lầy dữ liệu", "database", "databases", "table", "tables", "index",
+    "primary", "secondary", "worker", "driver", "scheduler", "sensor", "operator", "producer", "consumer",
+    "document", "logical", "physical", "conceptual", "bronze", "silver", "gold",
+    "hot", "warm", "cold", "fact", "dimension", "dimensions", "merged", "workdir",
+    "file", "block", "object", "bucket", "binary", "immutable", "immutability", "capacity", "bandwidth", "latency",
+    "hardware", "network", "storage", "cpu", "ram", "hdd", "ssd", "pid", "uid", "gid", "cwd",
+    "stdin", "stdout", "stderr", "not null", "unique", "check", "default", "select", "where", "from", "join", "group by",
+    "rollback", "commit", "vacuum", "explain", "add", "remove", "protocol", "metadata", "commitinfo",
+    "docker", "python", "python3", "order-api", "app.py", "document.txt", "image.png", "backup.sh",
+    "fact_sales", "dim_date", "dim_customer", "dim_product", "dim_store",
+    "start_date", "end_date", "is_current", "total_cost", "order_amount", "so_tien", "thành_tiền",
+    "hudi_sales_transactions_bronze", "hudi_web_clickstreams_bronze", "expire_snapshots",
+    "lò luyện kim", "nối đuôi", "nhân bản x3", "khoảng cách mạng", "độ trễ truy xuất", "đường dẫn tương đối",
+    "field-id bất biến", "bộ hồ sơ căn cước", "hồ sơ căn cước", "ba cổng tiêu chuẩn",
+    "xmin", "xmax", "racks", "satellite", "hub", "link", "cdc", "scd", "elt", "etl", "obt",
+    "8kb", "16kb", "64kb", "64 kb", "1:1", "1:n", "m:n", "/", ">", ">>", "|", "2>", "&1", "2>&1",
+}
+
+CANONICAL_SHORT_TITLES = {
+    "linux.kernel": "Linux Kernel (Ring 0)",
+    "linux.gnu": "GNU Coreutils & Toolchain",
+    "linux.distro": "Linux Distribution (Distro)",
+    "linux.terminal-shell": "Terminal & Shell (Bash / Zsh)",
+    "linux.program-vs-process": "Program vs. Process (fork / execve)",
+    "linux.system-call": "System Call (Syscall)",
+    "linux.process-identity": "Process Identity (task_struct)",
+    "linux.env-path": "Environment Variables ($PATH)",
+    "linux.everything-is-a-file": "Virtual File System (VFS)",
+    "linux.inode": "Inode & Directory Entry",
+    "linux.permissions": "POSIX File Permissions (rwx)",
+    "linux.fhs-tree": "Filesystem Hierarchy Standard (FHS)",
+    "linux.cli-navigation": "POSIX CLI Utilities",
+    "linux.file-descriptors": "File Descriptors (stdin / stdout / stderr)",
+    "linux.pipe": "Kernel Pipe & IPC Stream",
+    "linux.redirection": "I/O Redirection & dup2()",
+    "linux.bash-scripting": "Bash Scripting & Automation",
+    "linux.gcc-compilation": "GCC Compilation Pipeline",
+    "linux.makefile": "GNU Make & Incremental Build",
+    "linux.cronjob": "Cron Daemon (crond) & systemd Timers",
+    "storage.latency-hierarchy": "Memory & Storage Latency Hierarchy",
+    "storage.ram-spill": "Volatile RAM & Spill-to-Disk",
+    "storage.seek-vs-scan": "Random Seek (IOPS) vs. Sequential Scan",
+    "storage.data-temperature": "Data Temperature Tiering (Hot / Warm / Cold)",
+    "storage.oltp-vs-olap": "OLTP vs. OLAP Workloads",
+    "storage.file-block-object": "File vs. Block vs. Object Storage",
+    "storage.serialization-avro-csv": "Data Serialization & Apache Avro",
+    "storage.parquet-columnar": "Apache Parquet & Columnar Layout",
+    "storage.apache-arrow": "Apache Arrow & Zero-Copy Memory",
+    "storage.compression-splittability": "Compression & File Splittability",
+    "storage.hdfs": "Hadoop Distributed File System (HDFS)",
+    "storage.network-topology-cache": "Network Topology & In-Memory Cache",
+    "storage.kafka-cdc": "Apache Kafka & Change Data Capture (CDC)",
+    "storage.data-warehouse": "Cloud Data Warehouse Architecture",
+    "storage.conceptual-logical-physical": "Conceptual, Logical & Physical Modeling",
+    "storage.inmon-kimball-datavault": "Inmon vs. Kimball vs. Data Vault",
+    "storage.fact-dimension-grain": "Fact & Dimension Tables (Grain)",
+    "storage.star-snowflake-obt": "Star Schema, Snowflake Schema & OBT",
+    "storage.surrogate-scd-bus": "Surrogate Keys & Slowly Changing Dimensions (SCD)",
+    "storage.data-lake-schema-on-read": "Data Lake & Schema-on-Read",
+    "storage.data-swamp-hive-gaps": "Data Swamp & Hive Metastore Bottlenecks",
+    "storage.data-contracts-zoning": "Data Contracts & Lake Zoning",
+    "storage.lakehouse-open-table-formats": "Open Table Formats (Delta / Iceberg / Hudi)",
+    "storage.lakehouse-acid-concurrency": "Lakehouse ACID, MVCC & Time Travel",
+    "storage.cow-vs-mor": "Copy-on-Write (COW) vs. Merge-on-Read (MOR)",
+    "storage.lakehouse-optimizations": "Compaction, Z-Ordering & Liquid Clustering",
+    "storage.medallion-architecture": "Medallion Architecture (Bronze / Silver / Gold)",
+    "storage.governance-undercurrents": "Data Governance & Unity Catalog",
+    "db.rdbms-architecture": "RDBMS Engine Architecture",
+    "db.keys-constraints": "Relational Keys (PK / FK) & Integrity Constraints",
+    "db.normalization": "Database Normalization (1NF → 3NF / BCNF)",
+    "db.postgres-memory-process": "PostgreSQL Process & Memory Architecture",
+    "db.slotted-page": "8KB Heap Slotted Page & Tuple Layout",
+    "db.wal-checkpointer": "Write-Ahead Log (WAL) & Checkpointer",
+    "db.mvcc-autovacuum": "MVCC Snapshot Isolation & Autovacuum",
+    "db.btree-vs-lsm": "B+Tree vs. LSM-Tree Indexing",
+    "db.optimizer-explain": "Cost-Based Query Optimizer & EXPLAIN ANALYZE",
+    "db.scaling-sharding": "Horizontal Sharding & Partitioning",
+    "db.ha-replication-pgd": "Streaming Replication & High Availability",
+    "db.nosql-cap-base": "NoSQL Data Models, CAP Theorem & BASE",
+    "container.infra-vm-vs-container": "Hardware Virtualization (VM) vs. OS Containers",
+    "container.linux-namespaces-cgroups": "Linux Namespaces & Control Groups (cgroups v2)",
+    "container.overlayfs-seccomp": "OverlayFS Union Mount & Seccomp / Capabilities",
+    "container.oci-runtime-stack": "OCI Runtime Stack (containerd → shim → runc)",
+    "container.kubernetes-orchestration": "Kubernetes Control Plane & Worker Architecture",
+}
+
+
+def _is_clean_alias(raw_alias: str) -> bool:
+    nk = norm_key(raw_alias).rstrip(":;,.!?")
+    if not nk or len(nk) < 3 or len(nk) > 36 or nk in AMBIGUOUS_OR_NOISY_ALIASES:
+        return False
+    # Reject filesystem paths, hidden dot/underscore identifiers, or file extensions
+    if nk.startswith(("/", ".", "_", "$", "-")):
+        return False
+    if nk.endswith((".py", ".sh", ".c", ".cpp", ".o", ".log", ".txt", ".png", ".conf", ".yaml", ".json", ".parquet", ".avro")):
+        return False
+    # Reject anything with story symbols, quotes, parens, equals, arrows, or colons
+    if any(ch in nk for ch in ("#", "=", "→", "(", ")", "[", "]", "{", "}", '"', "'", "“", "”", ",", ";", ":", "\\", "*")):
+        return False
+    if re.match(r"^\d", nk):
+        return False
+    if nk.count(" ") > 3:
+        return False
+    return True
+
+
 def build_curated_entries() -> dict:
     entries = {}
     for idx, (
@@ -1373,121 +1589,52 @@ def build_curated_entries() -> dict:
         ex_code,
         ex_note,
     ) in enumerate(RAW_GLOSSARY):
-        # Pick 3-4 neighboring entries in the same scope/category for interactive related chips
         neighbor_labels = []
         for j, other in enumerate(RAW_GLOSSARY):
             if j == idx:
                 continue
             o_tid, o_name, o_cat, o_scope, o_aliases = other[0], other[1], other[2], other[3], other[4]
             if o_cat == category or any(s in scope for s in o_scope):
-                short_lbl = o_aliases[0] if o_aliases else o_name.split("(")[0].strip()
+                short_lbl = CANONICAL_SHORT_TITLES.get(o_tid) or o_name.split("(")[0].strip()
                 if short_lbl not in neighbor_labels:
                     neighbor_labels.append(short_lbl)
                 if len(neighbor_labels) >= 4:
                     break
+        clean_aliases = [a for a in aliases if _is_clean_alias(a)]
+        short_def = _clean_short_definition(intuition)
+        short_title = CANONICAL_SHORT_TITLES.get(tid) or (name.split("(")[0].strip() if len(name) > 42 else name)
         entries[tid] = {
             "id": tid,
+            "term": short_title,
             "name": name,
             "category": category,
             "scope": scope,
-            "aliases": aliases,
+            "aliases": clean_aliases,
             "related": neighbor_labels,
-            "intuition": intuition,
-            "mechanism": mechanism,
+            "short": short_def,
+            "intuition": _clean_short_definition(intuition),
+            "mechanism": _clean_short_definition(mechanism),
+            "station_link": _resolve_station_link(tid, scope),
             "example": {
                 "code": ex_code,
-                "note": ex_note,
+                "note": _clean_short_definition(ex_note),
             },
+            "needs_review": False,
             "status": "reviewed",
         }
     return entries
 
 
-PATTERN_RULES = [
-    # Cron expressions
-    (r"^(\*|\d+|\*/\d+)(\s+(\*|\d+|\*/\d+|\d+-\d+|\d+,\d+)){4}$", "linux.cronjob"),
-    (r"^\*/\d+$", "linux.cronjob"),
-    # Redirection & Pipe operators
-    (r"^(2>&1|2>&1\s*>>.*|>>.*|>.*|<.*|<<\s*EOF|\|)$", "linux.redirection"),
-    (r"^&1$", "linux.redirection"),
-    # File permissions & modes
-    (r"^-[rwx-]{9}$", "linux.permissions"),
-    (r"^(chmod|chown|chgrp|sudo)\b", "linux.permissions"),
-    (r"^0?[67][04567]{2}$", "linux.permissions"),
-    # Shebang & Bash
-    (r"^#!.*sh", "linux.bash-scripting"),
-    (r"^\(\(.*\)\)$", "linux.bash-scripting"),
-    (r"^\[\[.*\]\]$", "linux.bash-scripting"),
-    (r"^\$[0-9?@#*$!]$", "linux.bash-scripting"),
-    (r"^\$[A-Z_][A-Z0-9_]*", "linux.env-path"),
-    (r"^-(eq|ne|gt|ge|lt|le|f|d|e|z|n)$", "linux.bash-scripting"),
-    # GCC & Make
-    (r"^(gcc|g\+\+|clang|make)\b", "linux.gcc-compilation"),
-    (r"\.(c|cpp|h|o)$", "linux.gcc-compilation"),
-    (r"^-(Wall|O2|O3|g|c|o)\b", "linux.gcc-compilation"),
-    (r"\.sh$", "linux.bash-scripting"),
-    # Linux paths & FHS
-    (r"^/(bin|sbin|usr|etc|home|root|var|tmp|opt)(/|$)", "linux.fhs-tree"),
-    (r"^/proc(/|$)", "linux.everything-is-a-file"),
-    (r"^/dev(/|$)", "linux.everything-is-a-file"),
-    # Linux CLI commands & flags
-    (r"^(/bin/|/usr/bin/)?(grep|egrep|fgrep|ls|cd|pwd|cp|mv|rm|mkdir|rmdir|cat|less|more|head|tail|find|du|df|wc|sort|uniq|awk|sed|cut|tr|tar|gzip|gunzip|touch|ln|stat|which|whereis|whoami|id|ps|top|htop|kill|strace|lsof)\b", "linux.cli-navigation"),
-    (r"^-(a|l|h|r|R|f|i|v|n|p|s|t|u|x|z|la|lh|lar|rf|sh|czf|xzf)\b", "linux.cli-navigation"),
-    # System calls
-    (r"^(open|openat|read|write|close|fork|exec|execve|wait|waitpid|exit|stat|fstat|lstat|unlink|rename|dup|dup2|pipe|mmap|ioctl|kill|chdir|getpid|getuid)\(\)$", "linux.system-call"),
-    # Parquet / Avro / Lakehouse files & SQL
-    (r"\.checkpoint\.parquet$", "storage.lakehouse-open-table-formats"),
-    (r"\.(parquet|orc)$", "storage.parquet-columnar"),
-    (r"\.(avro|csv|json|jsonl)$", "storage.serialization-avro-csv"),
-    (r"(_delta_log|\.hoodie|0000\d+\.json|manifest)", "storage.lakehouse-open-table-formats"),
-    (r"^s3://|^gs://|^abfss://", "storage.file-block-object"),
-    (r"\b(SELECT|FROM|WHERE|GROUP BY|JOIN|INSERT|UPDATE|DELETE|MERGE INTO|CREATE TABLE|ALTER TABLE|OPTIMIZE|VACUUM|RESTORE TABLE|ZORDER BY|PARTITION BY|CLUSTER BY|TIMESTAMP AS OF|VERSION AS OF|FOR SYSTEM_TIME|FOR SYSTEM_VERSION|table_changes)\b", "storage.lakehouse-acid-concurrency"),
-    # Hardware & latency metrics
-    (r"\b(ns|µs|ms|IOPS|GB/s|MB/s|MiB/s|TB/s|TiB|Petabyte)\b", "storage.latency-hierarchy"),
-    (r"\$\d+(\.\d+)?\s*/\s*(GB|TB)", "storage.data-temperature"),
-    (r"\b(DDR4|DDR5|DRAM|SRAM|NVMe|SSD|HDD|L1|L2|L3)\b", "storage.latency-hierarchy"),
-    # Protagonist & domain artifacts
-    (r"^#(8886|8887|8888|8889|9999)$", "storage.oltp-vs-olap"),
-    (r"^#?HD0\d+$", "db.rdbms-architecture"),
-    (r"postgresql\.conf|postgresql\.auto\.conf|shared_buffers|work_mem|deadlock_timeout", "db.postgres-memory-process"),
-    (r"pg_stat_statements|EXPLAIN\s+ANALYZE|pgAdmin", "db.optimizer-explain"),
-    (r"app\.log|backup\.log|syslog|auth\.log", "linux.fhs-tree"),
-    (r"^(s3 list|table rewrite|commit|stats)$", "storage.lakehouse-open-table-formats"),
-    (r"^(key-value|cache)$", "storage.network-topology-cache"),
-    (r"^(batch|batch data)$", "storage.kafka-cdc"),
-    (r"^(compute|amazon emr|proprietary|mission-critical)$", "storage.data-warehouse"),
-    (r"^(decimal|null|timestamp|kpi|amount)$", "storage.fact-dimension-grain"),
-    (r"^(move|rename|boot)$", "linux.inode"),
-    (r"^(subject-oriented|time-variant)$", "storage.inmon-kimball-datavault"),
-    (r"^(write-only|audit|data design pattern)$", "storage.medallion-architecture"),
-]
-
-COMPILED_PATTERN_RULES = [(re.compile(pat, re.IGNORECASE), pat, tid) for pat, tid in PATTERN_RULES]
-
-NON_TERM_PATTERNS = [
-    re.compile(r"^\d+(\.\d+)?%?$", re.IGNORECASE),
-    re.compile(r"^\d{1,2}:\d{2}(:\d{2})?(\s*(sáng|chiều|tối|đêm))?$", re.IGNORECASE),
-    re.compile(r"^\d{1,2}/\d{1,2}(/\d{2,4})?$", re.IGNORECASE),
-    re.compile(r"^\d{4}-\d{2}-\d{2}$", re.IGNORECASE),
-    re.compile(r"^[\d.,]+\s*(VNĐ|đ|USD|\$|giây|phút|giờ|ngày|tháng|năm|lần|dòng|cột|bảng|tệp|bản sao|máy chủ|nhánh|bước|câu hỏi|quy luật|nguyên tắc|trụ cột|hạn chế|lỗ hổng|tầng|chặng|trạm).*$", re.IGNORECASE),
-    re.compile(r"^(Bước|Chặng|Trạm|Phần|Mục|Câu|Ví dụ|Lưu ý|Kết luận|Tóm tắt|Bài học|Giải pháp|Nguyên nhân|Hệ quả|Bản chất|Sự đánh đổi|Nỗi đau|Ẩn dụ|Kịch bản|Thực tế|Đáp án|Quy tắc|Cảnh báo|Mẹo|Gợi ý|Tình huống)\b", re.IGNORECASE),
-    re.compile(r"^(Hà Nội|Đà Nẵng|Bình Dương|TP\.HCM|Việt Nam|Nguyễn Văn [A-Z]|Nam|Lan|Minh)$", re.IGNORECASE),
-    re.compile(r"^(\(\d+\)|\d+\.|[A-Z]\.)\s", re.IGNORECASE),
-]
-
-
 def build_glossary_resolver(curated: dict):
     alias_to_id = {}
-    alias_list = []
     for tid, entry in curated.items():
-        all_names = [entry["name"]] + entry["aliases"]
+        base_title = entry["name"].split("(")[0].strip()
+        all_names = [entry["term"], base_title, entry["name"]] + entry["aliases"]
         for al in all_names:
-            nk = norm_key(al)
-            if nk and len(nk) >= 2:
-                alias_to_id[nk] = tid
-                rx = re.compile(r"(?<![a-zà-ỹ0-9_])" + re.escape(nk) + r"(?![a-zà-ỹ0-9_])")
-                alias_list.append((nk, tid, rx))
-    alias_list.sort(key=lambda x: len(x[0]), reverse=True)
+            if not _is_clean_alias(al):
+                continue
+            nk = norm_key(al).rstrip(":;,.!?")
+            alias_to_id[nk] = tid
 
     def resolve_candidate(raw_text: str):
         txt = html.unescape(re.sub(r"<[^>]+>", "", str(raw_text or ""))).strip()
@@ -1498,63 +1645,30 @@ def build_glossary_resolver(curated: dict):
         nk = norm_key(txt)
         nk_clean = nk.rstrip(":;,.!?")
 
-        # 1. Exact alias match
+        # Strict exact alias match ONLY (zero greedy substring/regex/heuristic fallback)
         if nk_clean in alias_to_id:
             return ("term", alias_to_id[nk_clean], [], "exact_alias")
         if nk in alias_to_id:
             return ("term", alias_to_id[nk], [], "exact_alias")
 
-        # 2. Explicit pattern rules
-        for rx_pat, pat_str, target_id in COMPILED_PATTERN_RULES:
-            if rx_pat.search(txt):
-                rel = []
-                for al_k, al_id, al_rx in alias_list:
-                    if len(al_k) >= 3 and al_id != target_id and al_id not in rel:
-                        if al_k in nk_clean and al_rx.search(nk_clean):
-                            rel.append(al_id)
-                return ("term", target_id, rel[:4], f"pattern:{pat_str}")
+        return ("non_term", None, [], "non_exact_alias_filtered")
 
-        # 3. Fast substring + word-boundary token match
-        matched_ids = []
-        for al_k, al_id, al_rx in alias_list:
-            if len(al_k) < 3:
-                continue
-            if al_k in nk_clean and al_rx.search(nk_clean):
-                if al_id not in matched_ids:
-                    matched_ids.append(al_id)
-
-        if matched_ids:
-            return ("term", matched_ids[0], matched_ids[1:5], "embedded_technical_term")
-
-        # 4. Check explicit non-term patterns
-        for npat in NON_TERM_PATTERNS:
-            if npat.search(txt):
-                return ("non_term", None, [], "non_term_pattern")
-
-        # 5. Code-like identifiers
-        if re.search(r"[_/\\=\[\](){}<>*$|~`]|^[a-z0-9_.-]+\.[a-z0-9]+$", txt, re.IGNORECASE):
-            if any(k in nk for k in ("order", "cust", "store", "prod", "fact", "dim", "sales", "sk", "pk", "fk", "kh_")):
-                return ("term", "storage.fact-dimension-grain", [], "schema_identifier")
-            if any(k in nk for k in ("delta", "iceberg", "hudi", "snapshot", "commit", "version", "hoodie")):
-                return ("term", "storage.lakehouse-open-table-formats", [], "lakehouse_identifier")
-            if any(k in nk for k in ("log", "err", "warn", "backup", "home", "nam", "tmp", "var", "etc", "bin", "proc", "dev")):
-                return ("term", "linux.fhs-tree", [], "linux_identifier")
-            return ("term", "linux.bash-scripting", [], "code_expression")
-
-        return ("non_term", None, [], "general_vietnamese_prose_emphasis")
-
-    return resolve_candidate
+    return resolve_candidate, alias_to_id
 
 
 def scan_build_hub(hub_path=None):
     curated = build_curated_entries()
-    resolve = build_glossary_resolver(curated)
+    resolve, alias_to_id = build_glossary_resolver(curated)
 
     target_path = Path(hub_path) if hub_path else (ROOT / "scripts/build_hub.py")
     hub_text = target_path.read_text(encoding="utf-8")
     start_idx = hub_text.find("const SYLLABUS_GROUPS =")
     end_idx = hub_text.find("INTERACTIVE GLOSSARY SCANNER")
     lesson_js = hub_text[start_idx:end_idx] if (start_idx != -1 and end_idx != -1) else hub_text
+    lessons_dir = ROOT / "content" / "lessons"
+    if lessons_dir.exists():
+        extra_html = [p.read_text(encoding="utf-8") for p in sorted(lessons_dir.glob("*/*.html"))]
+        lesson_js = lesson_js + "\n" + "\n".join(extra_html)
     no_pre = re.sub(r"<pre\b[^>]*>.*?</pre>", "", lesson_js, flags=re.S)
 
     strongs = [
@@ -1567,7 +1681,7 @@ def scan_build_hub(hub_path=None):
     ]
 
     all_candidates = sorted(set(s for s in (strongs + codes) if s and "${" not in s))
-    lookup_map = {}
+    lookup_map = dict(alias_to_id)
     term_count = 0
     non_term_count = 0
 
@@ -1579,12 +1693,6 @@ def scan_build_hub(hub_path=None):
             lookup_map[nk] = pid
         else:
             non_term_count += 1
-
-    for tid, entry in curated.items():
-        for al in [entry["name"]] + entry["aliases"]:
-            nk = norm_key(al).rstrip(":;,.!?")
-            if nk and nk not in lookup_map:
-                lookup_map[nk] = tid
 
     return {
         "entries": curated,
@@ -1605,5 +1713,9 @@ def scan_build_hub(hub_path=None):
 
 if __name__ == "__main__":
     res = scan_build_hub()
+    out_file = ROOT / "content" / "glossary-data.json"
+    out_file.write_text(json.dumps(res, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(res["stats"], indent=2, ensure_ascii=False))
+
+
 

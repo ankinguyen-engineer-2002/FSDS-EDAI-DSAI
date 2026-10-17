@@ -1,0 +1,177 @@
+      <div class="prose">
+        <p>Ở <strong>Chặng 2</strong>, <strong>Đơn hàng #8888</strong> đã tìm được cách đóng gói tối ưu: dùng <strong>Apache Avro</strong> khi cần truyền theo từng dòng và dùng <strong>Apache Parquet</strong> (nén bằng <strong>Snappy/ZSTD</strong>) khi cần lưu trữ phân tích theo cột trên <strong>Cloud Object Storage</strong>.</p>
+
+        <p>Bước sang <strong>Chặng 3 (Hạ tầng Phân tán, Streaming &amp; Kho dữ liệu Data Warehouse)</strong>, chúng ta sẽ giải quyết bài toán ở cấp độ toàn hệ thống:</p>
+        <ol>
+          <li><strong>Phối hợp hàng trăm máy chủ ra sao?</strong> Làm thế nào để lưu và xử lý các tệp dữ liệu khổng lồ trên cụm máy tính phân tán mà ổ cứng nào hỏng cũng không mất dữ liệu (<strong>Hadoop HDFS, Nhân bản x3, Erasure Coding &amp; Tô-pô mạng</strong>)?</li>
+          <li><strong>Tăng tốc truy xuất &amp; Bắt mạch thời gian thực như thế nào?</strong> Làm sao kết hợp bộ nhớ đệm phân tán (<strong>Redis, Memcached, RocksDB</strong>) và đường ống luồng sự kiện (<strong>Apache Kafka &amp; CDC</strong>) để vận chuyển Đơn hàng #8888 tức thời?</li>
+          <li><strong>Đưa vào "Ngân hàng dữ liệu" (Data Warehouse) ra sao?</strong> Cách thức một Data Warehouse vận hành để phục vụ báo cáo BI chuẩn xác, và tại sao chính những giới hạn của nó lại châm ngòi cho cuộc cách mạng Data Lake / Lakehouse sau này?</li>
+        </ol>
+
+        <hr />
+
+        <h2 id="storage-3-1" tabindex="-1">Trạm 3.1: Hạ tầng lưu trữ phân tán — Hadoop HDFS (NameNode, DataNode &amp; nhân bản x3)</h2>
+
+        <h3 id="storage-3-1-analogy">1. Ẩn dụ đời thực: &quot;Tổng công trình sư&quot; và &quot;Đội thủ kho&quot;</h3>
+        <p>Trước khi Cloud Object Storage thống trị, các công ty công nghệ lưu trữ hàng trăm Terabyte dữ liệu bằng hệ thống tệp phân tán <strong>HDFS (Hadoop Distributed File System)</strong> — được thiết kế dựa trên kiến trúc <strong>Google File System (GFS)</strong> để chứa khối lượng lớn dữ liệu thô đa dạng với chi phí hiệu quả trên phần cứng phổ thông. Hãy hình dung HDFS như một hệ thống kho vận gồm hai vai trò tách biệt:</p>
+        <ul>
+          <li><strong>NameNode ("Tổng công trình sư giữ sổ cái"):</strong> Ngồi ở trung tâm, không trực tiếp bê vác hàng hóa mà chỉ giữ cuốn sổ danh bạ (metadata: cây thư mục, quyền truy cập và bảng ánh xạ khối dữ liệu) ngay trong bộ nhớ RAM kèm nhật ký bền vững (EditLog / FsImage) để biết chính xác tệp đơn hàng nào bị cắt thành mấy mảnh và đang cất ở những nhà kho nào.</li>
+          <li><strong>DataNodes ("Đội thủ kho trực tiếp giữ hàng"):</strong> Hàng chục hoặc hàng trăm máy chủ gắn ổ đĩa vật lý, chuyên nhận các mảnh dữ liệu thực tế để cất giữ, gửi báo cáo nhịp tim (Heartbeat &amp; Blockreport) định kỳ về NameNode và tự động sao chép dữ liệu cho nhau để phòng hờ hỏng ổ cứng.</li>
+        </ul>
+
+        <h3 id="storage-3-1-mechanics">2. Cơ chế hoạt động thực tế với Đơn hàng #8888</h3>
+        <p>Giả sử tệp nhật ký chứa Đơn hàng #8888 cùng hàng triệu đơn khác trong ngày có dung lượng <strong>1 GB</strong> được đẩy vào cụm HDFS có kích thước mỗi khối (block size) là <strong>128 MB</strong>:</p>
+
+        <x-figure id="storage-3-1" key="3.1" title="Hình 3.1 — Kiến trúc Phân tán, Nhân bản (x3) &amp; Tự chữa lành trong Hadoop HDFS">NameNode quản lý sổ danh bạ Metadata trên RAM; các DataNode lưu trữ khối dữ liệu vật lý 128 MB kèm cơ chế nhân bản x3, tự chữa lành (Self-healing) và đặt chung tính toán tại chỗ (In-place Compute).</x-figure>
+
+        <ul>
+          <li><strong>Chia khối (Block Splitting) &amp; Đặt chung Tính toán – Lưu trữ (Colocation of Compute and Storage):</strong> Tệp 1 GB tự động được chia thành <strong>8 khối (blocks) 128 MB</strong> phân tán trên các máy chủ khác nhau. Khác biệt cốt lõi giữa HDFS và Cloud Object Storage là HDFS <strong>kết hợp tài nguyên tính toán và lưu trữ trên cùng một node</strong>: khi khung tính toán (như Apache Spark hoặc MapReduce) cần phân tích tệp này, nó đẩy các tác vụ quét và lọc (Map tasks) xuống chạy <strong>ngay tại chỗ (in-place processing)</strong> trên đúng 8 máy đang giữ 8 khối dữ liệu, giúp giảm mạnh lượng dữ liệu phải truyền qua mạng ở bước gom nhóm (Shuffle / Reduce).</li>
+          <li><strong>Cơ chế nhân bản chống lỗi (Replication Factor x3) &amp; Tự chữa lành (Self-healing):</strong> Để bảo đảm độ bền và tính sẵn sàng cao trên các ổ đĩa từ giá rẻ, mỗi khối dữ liệu mặc định được nhân bản thành <strong>3 bản sao (x3)</strong> trên 3 DataNode khác nhau. Nếu một ổ đĩa hoặc một DataNode bị sập làm hệ số nhân bản của khối #8888 tụt xuống dưới 3, <strong>NameNode</strong> sẽ phát hiện ngay và ra lệnh cho các DataNode còn sống tự động sao chép bù khối đó sang một node khỏe mạnh khác để khôi phục đủ hệ số x3.</li>
+          <li><strong>Góc nhìn Kỹ sư (Từ sách gốc) — Đánh đổi giữa Nhân bản x3 và Mã hóa Xóa (Erasure Coding):</strong> Nhân bản x3 cực kỳ đơn giản và đọc nhanh, nhưng tiêu tốn <strong>200% dung lượng phụ trội</strong> (lưu 1 TB dữ liệu gốc mất 3 TB đĩa vật lý). Với các tập dữ liệu ấm/lạnh ít truy cập, HDFS hiện đại (HDFS 3.x) áp dụng <strong>Erasure Coding (ví dụ chuẩn Reed-Solomon RS(6,3) — 6 khối dữ liệu đi kèm 3 khối chẵn lẻ Parity)</strong>: vẫn chịu được 3 máy chủ hỏng cùng lúc nhưng chỉ tốn thêm <strong>50% dung lượng (1.5x)</strong>, đổi lại CPU phải tính toán phép toán XOR/Reed-Solomon và đọc qua mạng nhiều hơn khi khôi phục khối hỏng.</li>
+          <li><strong>Ứng dụng lai trên đám mây (Hybrid S3 + HDFS trên AWS EMR &amp; Apache Druid):</strong> Dù các công ty nhỏ dần chuyển sang Cloud Object Storage để tránh chi phí vận hành cụm Hadoop vật lý, HDFS vẫn đóng vai trò trọng yếu trong các cụm lớn (hàng nghìn node) và các dịch vụ đám mây như <strong>Amazon EMR</strong>: kỹ sư bật cụm HDFS tạm thời trên ổ cứng <strong>SSD</strong>, kéo dữ liệu từ <strong>S3</strong> về xử lý trung gian trên HDFS cục bộ với tốc độ cực cao, rồi ghi kết quả cuối cùng về lại S3 trước khi xóa cụm EMR. Tương tự, động cơ phân tích thời gian thực <strong>Apache Druid</strong> chỉ giữ <strong>1 bản sao duy nhất</strong> trên ổ SSD cục bộ của cụm (giảm 3 lần chi phí SSD đắt đỏ) và dùng Object Storage làm tầng bảo toàn dữ liệu (durability layer) để khôi phục tự động khi node gặp sự cố.</li>
+        </ul>
+
+        <hr />
+
+        <h2 id="storage-3-2" tabindex="-1">Trạm 3.2: Tô-pô mạng (Network Topology), khoảng cách mạng &amp; động cơ cache phân tán</h2>
+
+        <h3 id="storage-3-2-networking">1. Tại sao Mạng lưới (Networking) và CPU lại là &quot;Nguyên liệu của Lưu trữ&quot;?</h3>
+        <p>Khi mới học về lưu trữ, nhiều người chỉ nghĩ đến ổ cứng. Nhưng trong các hệ thống phân tán hiện đại, <strong>hạ tầng mạng (Networking) và CPU cũng là những nguyên liệu thô cốt lõi của hệ thống lưu trữ</strong>:</p>
+        <ul>
+          <li><strong>Chuyển dịch điểm nghẽn từ Đĩa sang Mạng:</strong> Một ổ đĩa từ đơn lẻ có tốc độ truyền khá thấp (200–300 MB/s), nhưng khi phân tán dữ liệu qua hàng nghìn ổ đĩa trong các cụm lưu trữ đám mây (trải rộng qua nhiều trung tâm dữ liệu và vùng sẵn sàng — Availability Zones), việc đọc dữ liệu diễn ra song song trên vô số ổ đĩa cùng lúc. Lúc này, tốc độ truyền dữ liệu tăng vọt và <strong>bị giới hạn chủ yếu bởi hiệu năng mạng (network performance) và CPU chứ không còn là tốc độ của từng ổ đĩa</strong>.</li>
+        </ul>
+
+        <h3 id="storage-3-2-topology">2. Tô-pô Mạng (Network Topology) &amp; Khoảng cách Mạng trong Trung tâm Dữ liệu</h3>
+        <p>Trong một trung tâm dữ liệu, các máy chủ được xếp vào các tủ mạng (<strong>Racks</strong>), kết nối qua thiết bị chuyển mạch đầu tủ (Top-of-Rack Switch - ToR) rồi nối lên bộ chuyển mạch trung tâm (Core Switch) theo mô hình cây mạng. Khi một tác vụ tính toán cần đọc khối dữ liệu chứa Đơn hàng #8888, tốc độ băng thông phụ thuộc trực tiếp vào <strong>khoảng cách mạng</strong> giữa máy tính toán và nơi đặt khối dữ liệu:</p>
+
+        <x-figure id="storage-3-2" key="3.2" title="Hình 3.2a — Mô hình Cây Mạng (Network Topology) &amp; 3 Cấp độ Khoảng cách Dữ liệu">Ba cấp độ định vị dữ liệu trong cụm phân tán: Data-local (đọc ngay trên máy chủ), Rack-local (qua Switch nội bộ tủ mạng) và Off-rack (băng qua Core Switch liên tủ).</x-figure>
+
+        <p><strong>Quy tắc Đặt bản sao nhận biết Tủ mạng (Rack-aware Replica Placement):</strong> Để vừa ưu tiên đọc Data-local / Rack-local tránh nghẽn Core Switch (Off-rack), vừa chống sập toàn bộ 1 tủ mạng (mất điện hoặc cháy ToR Switch), HDFS đặt <strong>Bản sao 1 trên Node cục bộ ở Rack 1</strong>, đẩy <strong>Bản sao 2 sang một Node ở Rack 2</strong>, và đặt <strong>Bản sao 3 ở một Node khác ngay trong cùng Rack 2</strong>.</p>
+
+        <h3 id="storage-3-2-cache">3. Sơ đồ &amp; Bảng So sánh 3 Động cơ Cache Bộ nhớ trong Đường ống Dữ liệu</h3>
+        <p>Để tránh việc phải đọc đi đọc lại qua mạng hoặc ổ đĩa cho các dữ liệu "Nóng" (Hot data — như kết quả truy vấn lặp lại, phản hồi API hoặc trạng thái luồng streaming của Đơn #8888), các hệ thống sử dụng 3 động cơ bộ nhớ đệm tốc độ dưới 1 mili-giây (Sub-millisecond) sau:</p>
+
+        <x-figure id="storage-3-2b" key="3.2b" title="Hình 3.2b — Giải phẫu 3 Động cơ Cache Dưới 1 Mili-giây: Redis vs. Memcached vs. RocksDB LSM-Tree">Đối chiếu 3 động cơ cache dưới 1 mili-giây: Redis (đa cấu trúc dữ liệu + RDB/AOF + TTL), Memcached (Key-Value thuần túy không bền vững), và RocksDB (Embedded LSM-Tree: WAL + MemTable → SSTables làm State Backend cho Apache Flink / Kafka Streams).</x-figure>
+
+        <div class="table-wrap">
+          <table class="clean-table">
+            <thead>
+              <tr>
+                <th>Tiêu chí kỹ thuật</th>
+                <th>Redis</th>
+                <th>Memcached</th>
+                <th>RocksDB</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Mô hình kiến trúc</strong></td>
+                <td>In-memory Data Structure Store (Client-Server)</td>
+                <td>In-memory Key-Value Cache đơn giản (Client-Server)</td>
+                <td>Embedded Key-Value Store nhúng trực tiếp vào tiến trình (LSM-Tree)</td>
+              </tr>
+              <tr>
+                <td><strong>Độ trễ truy xuất</strong></td>
+                <td>Dưới 1 mili-giây (~100 ns RAM access + mạng)</td>
+                <td>Dưới 1 mili-giây (~10 µs gói tin mạng LAN 1Gbps)</td>
+                <td>Dưới 1 mili-giây (~100 µs đọc từ RAM MemTable / NVMe SSD cục bộ)</td>
+              </tr>
+              <tr>
+                <td><strong>Cấu trúc dữ liệu</strong></td>
+                <td>Đa dạng: Strings, Hashes, Lists, Sets, Sorted Sets, Bitmaps</td>
+                <td>Đơn giản: Chỉ hỗ trợ kiểu chuỗi ký tự (Strings) hoặc số nguyên (Integers)</td>
+                <td>Key-Value dạng chuỗi byte nhị phân tùy biến</td>
+              </tr>
+              <tr>
+                <td><strong>Lưu trữ bền vững (Persistence)</strong></td>
+                <td><strong>Có</strong> (Chụp RDB Snapshots và ghi nhật ký AOF — cấu hình điển hình ghi đĩa mỗi <strong>~2 giây</strong>, chấp nhận mất lượng nhỏ dữ liệu mới nhất khi sập nguồn)</td>
+                <td><strong>Không</strong> (Bộ nhớ thuần túy, mất điện là mất dữ liệu hoàn toàn)</td>
+                <td><strong>Có</strong> (Ghi liên tục vào WAL + MemTable và xả xuống đĩa thành các tệp SSTable bất biến theo cấu trúc Log-Structured Merge-tree)</td>
+              </tr>
+              <tr>
+                <td><strong>Vai trò thực tế trong Data Pipeline</strong></td>
+                <td>Bộ nhớ đệm phân tán dùng chung, tra cứu nhanh (kèm cấu hình TTL - Time to Live để tránh đầy bộ nhớ nóng)</td>
+                <td>Lớp đệm kết quả truy vấn DB và phản hồi API tốc độ cực thấp giúp giảm tải hệ thống backend</td>
+                <td>Động cơ lưu trữ trạng thái cục bộ (<strong>State Backend</strong>) bên trong <strong>Apache Flink, Kafka Streams</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <hr />
+
+        <h2 id="storage-3-3" tabindex="-1">Trạm 3.3: Lưu trữ dạng luồng (Streaming Storage) — Apache Kafka &amp; CDC</h2>
+
+        <h3 id="storage-3-3-story">1. Câu chuyện của Đơn hàng #8888: Làm sao truyền tin tức thời mà không mất dấu?</h3>
+        <p>Khi khách hàng vừa tạo Đơn hàng #8888 hoặc cập nhật địa chỉ giao hàng trên cơ sở dữ liệu giao dịch (OLTP), luồng <strong>CDC (Change Data Capture)</strong> bắt lấy từng sự kiện thay đổi từ nhật ký giao dịch để đẩy liên tục vào <strong>Apache Kafka</strong> — nền tảng lưu trữ luồng phân tán hoạt động theo nguyên lý <strong>ghi nhật ký tuần tự nối đuôi (append-only log)</strong>:</p>
+
+        <x-figure id="storage-3-3" key="3.3" title="Hình 3.3 — Cơ chế Ghi Nhật ký Nối đuôi (Append-only Log), Replay &amp; Stream-to-Batch của Apache Kafka">Sự kiện CDC từ DB giao dịch được ghi nối đuôi tuần tự theo thứ tự Offset vào Kafka Topic, hỗ trợ lưu trữ dài hạn trên Object Storage, tua lại lịch sử (Replay) và đồng thời nuôi cả luồng thời gian thực lẫn kho phân tích.</x-figure>
+
+        <ul>
+          <li><strong>Sequential I/O, Tiered Storage &amp; Replay:</strong> Vì Kafka chỉ ghi nối đuôi tuần tự (append-only log) kết hợp nén tốc độ cao (LZ4 / Snappy / ZSTD), toàn bộ thao tác đĩa đều là Sequential I/O chịu tải hàng triệu sự kiện/giây. Khác với hàng đợi tin nhắn truyền thống (Message Queues) xóa tin ngay sau khi đọc, Kafka (cùng Kinesis, Pulsar, Pub/Sub) đẩy các phân đoạn cũ xuống <strong>Cloud Object Storage (Tiered Storage)</strong> để lưu giữ dài hạn, cho phép kỹ sư tua con trỏ Offset về quá khứ để <strong>phát lại lịch sử (Replay)</strong>.</li>
+          <li><strong>Kiến trúc Stream-to-Batch:</strong> Một Topic Kafka đồng thời nuôi cả luồng xử lý thời gian thực (Apache Flink) lẫn nhánh <strong>Batch Storage Consumer</strong> (như AWS Kinesis Firehose gom lô xuống S3, hoặc Google BigQuery Streaming Buffer tự động chuyển đổi sang định dạng cột).</li>
+        </ul>
+
+        <hr />
+
+        <h2 id="storage-3-4" tabindex="-1">Trạm 3.4: Kho dữ liệu tập trung — Data Warehouse (OLAP, ACID &amp; động cơ lưu trữ)</h2>
+
+        <h3 id="storage-3-4-essence">1. Bản chất của Data Warehouse: &quot;Ngân hàng dữ liệu có cấu trúc&quot;</h3>
+        <p>Khi Đơn hàng #8888 đi qua quy trình <strong>ETL / ELT (Extract - Transform - Load)</strong> để tập hợp cùng dữ liệu từ các hệ thống vận hành (Operational data) và dữ liệu bên ngoài (External data), nó được nạp vào <strong>Data Warehouse (Kho dữ liệu)</strong>. Về mặt lịch sử lưu trữ, Data Warehouse đã tiến hóa qua 4 thế hệ: từ việc chạy chung trên RDBMS giao dịch truyền thống → hệ thống xử lý song song hàng loạt theo hàng (<strong>Row-based MPP</strong> như Teradata, IBM Netezza) → hệ thống <strong>Columnar MPP</strong> (như Vertica, Teradata Columnar) → và nay là <strong>Cloud Data Warehouses</strong> tách rời tính toán với lưu trữ (như Google BigQuery, Snowflake, Amazon Redshift).</p>
+
+        <x-figure id="storage-3-4" key="3.4" title="Hình 3.4 — Kiến trúc Luồng Dữ liệu trong Data Warehouse &amp; 3 Rào cản Lịch sử">Mô hình tiến hóa kho dữ liệu: gom dữ liệu vận hành và đối tác qua ETL (Schema-on-Write) vào Data Warehouse đảm bảo ACID, tối ưu hóa bằng lưu trữ cột, Micro-partitioning và bộ nhớ đệm truy vấn cho BI.</x-figure>
+
+        <h3 id="storage-3-4-features">2. Các đặc tính kỹ thuật cốt lõi của Data Warehouse</h3>
+        <ul>
+          <li><strong>Schema-on-Write, Giao dịch ACID &amp; Query Results Cache:</strong> Mọi dữ liệu có cấu trúc (Structured data) khi ghi vào bảng bắt buộc phải tuân thủ lược đồ nghiêm ngặt (Schema-on-Write) và đảm bảo giao dịch <strong>ACID</strong>. Động cơ lưu trữ dạng cột kết hợp với <strong>bộ nhớ đệm kết quả truy vấn (Query results cache - Hot data)</strong> giúp các báo cáo BI lặp lại phản hồi tức thì mà không cần quét lại kho.</li>
+          <li><strong>Partitioning, Clustering &amp; Snowflake Micro-partitioning:</strong> Thay vì dùng chỉ mục B-Tree như OLTP, các Cloud Data Warehouse chia bảng theo phân vùng ngày tháng và sắp xếp các giá trị tương đồng nằm cạnh nhau (Clustering) — điển hình là <strong>Micro-partitioning của Snowflake</strong> tự động chia bảng thành các phân đoạn cột lai (<em>Hybrid Columnar</em>) từ <strong>50 MB – 500 MB (chưa nén)</strong> kèm thống kê Metadata trung tâm để cắt tỉa (pruning) siêu tốc.</li>
+          <li><strong>Hybrid Object Storage (BigQuery Colossus / S3 Select) &amp; Zero-Copy Cloning:</strong> <strong>Google BigQuery</strong> dùng hệ thống tệp <strong>Colossus</strong> đặt gần các khối dữ liệu (colocate), còn AWS có <strong>S3 Select</strong> lọc dữ liệu ngay tại tầng lưu trữ; đồng thời các Cloud DW cho phép tạo bản sao ảo (Zero-Copy Cloning / Shallow Copy) cho môi trường Test/Dev chỉ bằng cách tạo con trỏ metadata mới trỏ vào tệp gốc mà không tốn dung lượng nhân bản.</li>
+        </ul>
+
+        <hr />
+
+        <h2 id="storage-3-5" tabindex="-1">Trạm 3.5: Ba hạn chế lịch sử của Data Warehouse (Tại sao phải tiến hóa?)</h2>
+
+        <p>Dù Data Warehouse xử lý các bảng số liệu của Đơn hàng #8888 rất tuyệt vời cho báo cáo BI, nhưng khi doanh nghiệp bước vào kỷ nguyên Big Data và AI/Machine Learning, Data Warehouse bộc lộ <strong>3 rào cản lớn</strong>:</p>
+
+        <x-figure id="storage-3-5" key="3.5" title="Hình 3.5 — Ba Rào cản Lịch sử của Data Warehouse Thúc đẩy Tiến hóa lên Data Lake &amp; Lakehouse">Ba giới hạn cốt tử của Data Warehouse truyền thống: (1) Bó tay trước dữ liệu phi cấu trúc (ảnh, âm thanh, video), (2) Chi phí đắt đỏ ở quy mô Petabyte, và (3) Định dạng lưu trữ đóng kín (Vendor Lock-in) ngăn cản các động cơ AI/ML đọc trực tiếp.</x-figure>
+
+        <div class="table-wrap">
+          <table class="clean-table">
+            <thead>
+              <tr>
+                <th>Hạn chế của Data Warehouse</th>
+                <th>Chuyện gì xảy ra với Đơn hàng #8888?</th>
+                <th>Hệ quả đối với Doanh nghiệp</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>1. Bó tay trước Dữ liệu Phi cấu trúc (Unstructured Data)</strong></td>
+                <td>Đơn #8888 phát sinh thêm ảnh chụp kiện hàng Sofa, video camera kho bãi, file âm thanh cuộc gọi tổng đài và văn bản đánh giá tự do.</td>
+                <td>Data Warehouse truyền thống và đám mây có thể xử lý bảng có cấu trúc và văn bản JSON bán cấu trúc, nhưng <strong>không thể lưu trữ trực tiếp dữ liệu phi cấu trúc thực sự (hình ảnh, âm thanh, video)</strong> phục vụ cho các đường ống Computer Vision / Audio / Deep Learning.</td>
+              </tr>
+              <tr>
+                <td><strong>2. Chi phí đắt đỏ ở quy mô lớn (Expensive at Scale)</strong></td>
+                <td>Sau 5 năm, lịch sử hàng chục tỷ đơn hàng và nhật ký hành vi người dùng phình lên hàng Petabyte với tốc độ sinh dữ liệu cực nhanh (Volume, Velocity, Variety).</td>
+                <td>Lưu trữ và mở rộng quy mô lớn trên Data Warehouse chuyên dụng (đặc biệt là các hệ thống MPP độc quyền) có <strong>chi phí lưu trữ và tính toán rất đắt đỏ</strong> so với việc lưu tệp thô trên Object Storage hoặc HDFS.</td>
+              </tr>
+              <tr>
+                <td><strong>3. Khó chia sẻ đa động cơ &amp; Khóa chặt nhà cung cấp (Closed Storage Engine &amp; Vendor Lock-in)</strong></td>
+                <td>Đội ngũ Data Science muốn dùng Python, Spark hoặc Rust đọc trực tiếp các tệp dữ liệu gốc để huấn luyện mô hình AI.</td>
+                <td>Các kho dữ liệu đóng kín định dạng lưu trữ độc quyền bên dưới (không phơi bày tệp mở trực tiếp ra ngoài), buộc kỹ sư phải tốn thời gian và chi phí tuần tự hóa lại (reserializing overhead) hoặc xuất dữ liệu qua nhiều bước ETL phức tạp.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <section class="summary-section" id="storage-3-summary" tabindex="-1">
+          <h2>Tóm tắt bỏ túi Chặng 3 (Mạch nhân – quả hạ tầng phân tán, streaming &amp; Data Warehouse)</h2>
+          <ol>
+            <li><strong>Lưu trữ &amp; Tính toán Phân tán (Hadoop HDFS &amp; Tô-pô mạng):</strong> Khi dữ liệu vượt quá sức chứa của 1 máy, <strong>HDFS</strong> chia tệp thành các khối <strong>128 MB</strong>, dùng <strong>NameNode</strong> quản lý danh mục metadata và <strong>DataNodes</strong> lưu trữ kèm <strong>nhân bản x3</strong> (hoặc <strong>Erasure Coding 1.5x</strong>) trên nhiều tủ mạng, ưu tiên đẩy tác vụ về xử lý <strong>Data-local / Rack-local</strong> để tránh nghẽn băng thông mạng.</li>
+            <li><strong>Đệm Nóng &amp; Lưu trữ Luồng Thời gian thực (Cache &amp; Apache Kafka / CDC):</strong> Để truyền dữ liệu thời gian thực, luồng <strong>CDC</strong> bắt thay đổi từ DB giao dịch đẩy vào nhật ký nối đuôi <strong>Apache Kafka (append-only log)</strong> hỗ trợ lưu trữ dài hạn và phát lại lịch sử (Replay), kết hợp cùng các bộ nhớ đệm dưới 1 mili-giây (<strong>Redis</strong>, <strong>Memcached</strong>, và <strong>RocksDB LSM-Tree</strong> cho trạng thái streaming).</li>
+            <li><strong>Kho Dữ liệu Tập trung &amp; Lực đẩy Tiến hóa (Data Warehouse):</strong> Để phục vụ báo cáo quản trị (BI), dữ liệu có cấu trúc được đưa qua <strong>ETL (Schema-on-Write)</strong> vào <strong>Data Warehouse</strong> (đảm bảo <strong>ACID</strong>, lưu trữ dạng cột, Micro-partitioning, Query results cache, Hybrid Object Storage và Zero-Copy Cloning) — nhưng chính 3 giới hạn về dữ liệu phi cấu trúc, chi phí quy mô lớn và định dạng đóng kín sẽ dẫn tới sự ra đời của Data Lake và Lakehouse.</li>
+          </ol>
+          <p style="margin-top:14px;"><strong>Câu hỏi mở ra Chặng 4 (Data Modeling &amp; Kimball):</strong> Khi Đơn hàng #8888 đã nằm gọn trong <strong>Data Warehouse</strong> rồi, làm thế nào để người kỹ sư thiết kế các bảng dữ liệu bên trong kho đó? Giữa ba trường phái lớn là <strong>Bill Inmon (Top-down 3NF)</strong>, <strong>Ralph Kimball (Bottom-up Star Schema)</strong> và <strong>Dan Linstedt (Data Vault)</strong>, tại sao mô hình <strong>Fact / Dimension, Star Schema, Surrogate Key và SCD (Type 1, 2, 3)</strong> của Kimball lại trở thành chuẩn mực không thể thiếu? <a href="#topic=D02&stage=4" onclick="selectStorageStage(4);return false;">Đọc tiếp Chặng 4: Kỹ thuật Thiết kế Mô hình Dữ liệu (Kimball, Inmon, Data Vault &amp; SCD) ──►</a></p>
+        </section>
+      </div>

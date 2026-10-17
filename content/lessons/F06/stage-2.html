@@ -1,0 +1,162 @@
+      <div class="prose">
+        <p>Ở <strong>Chặng 1</strong>, chúng ta đã biết Container vứt bỏ Guest OS để dùng chung Host OS Kernel nhằm đạt tốc độ khởi động 1 giây và mật độ 50+ Containers/host. Bước vào <strong>Chặng 2 (Trạm 2.1 → 2.3): Giải phẫu Học Tầng Nhân Linux (Linux Kernel Foundations)</strong>, chúng ta phanh phui sự thật kỹ thuật quan trọng nhất: <strong>Trong nhân Linux không hề có thực thể nào tên là "Container"</strong> — một Container thực chất là sự kết hợp của 4 cơ chế hạt nhân: Linux Namespaces (Lăng kính ảo ảnh cô lập góc nhìn), Control Groups - cgroups v2 (Vòng kim cô định mức phần cứng), OverlayFS (Hệ thống tệp xếp tầng Copy-on-Write) và Linux Capabilities / Seccomp (Gia cố an ninh hạt nhân).</p>
+
+        <h4>Sơ đồ 2.0: Kiến trúc Tổng quan Chặng 2 — Giải phẫu Học Tầng Nhân Linux (Namespaces, cgroups v2 &amp; OverlayFS)</h4>
+        <x-figure id="container-2-0" key="2.0" title="Sơ đồ 2.0 — Giải phẫu Tầng Nhân Linux: 6 Linux Namespaces (PID 10423 → PID 1), Control Groups (cgroups v2) và OverlayFS / Seccomp">Bộ tứ nguyên tử tạo nên Container trong nhân Linux: (1) Linux Namespaces tạo lăng kính ảo ảnh để Host PID 10423 tự thấy mình là Virtual PID 1; (2) cgroups v2 đóng vòng kim cô khóa cứng 2 CPU cores, 512MB RAM; (3) OverlayFS xếp chồng các lớp LowerDir chỉ đọc với UpperDir ghi mỏng kèm khiên chắn Capabilities &amp; Seccomp.</x-figure>
+
+        <hr style="border:0;border-top:1px solid var(--border);margin:32px 0;" />
+
+        <h2 id="container-2-1" tabindex="-1">Trạm 2.1: Linux Namespaces — Lăng kính Ảo ảnh Cô lập Góc nhìn (Host PID 10423 → Virtual PID 1)</h2>
+        <ul>
+          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực — Chiếc kính thực tế ảo (VR) đeo trực tiếp vào mắt từng tiến trình]</strong>: Hãy hình dung Linux Namespaces như những chiếc <strong>kính thực tế ảo (VR)</strong> được hạt nhân Linux Kernel đeo trực tiếp vào mắt của từng tiến trình khi chúng vừa chào đời. Dù cả tiến trình giao diện Nginx / order-api (Container A) và cơ sở dữ liệu PostgreSQL (Container B) đang đứng chung trên một sàn nhà vật lý (Shared Host Kernel), chiếc kính VR khiến mỗi anh đều đinh ninh rằng: <em>"Mình là ông chủ duy nhất của chiếc máy chủ này, mình mang số thứ tự ưu tiên số 1 (PID 1), có địa chỉ IP riêng và sở hữu trọn vẹn cây thư mục gốc <code>/</code>!"</em></li>
+          <li><strong>[Nỗi đau (Pain Point) từ trạm trước]</strong>: Ở cuối Chặng 1, khi vứt bỏ Hypervisor, mọi tiến trình Container thực chất chỉ là các tiến trình Linux thông thường chạy ngang hàng nhau trên Host OS. Nếu không có bức tường che chắn tầm nhìn, tiến trình ở Container A có thể dùng lệnh ps aux để nhìn thấy và bắn tín hiệu kill -9 giết chết tiến trình Database ở Container B, đọc trộm tệp cấu hình mật khẩu, hoặc chiếm dụng trùng cổng mạng (Port conflict) trên cùng một địa chỉ IP của máy chủ.</li>
+        </ul>
+
+        <h4>Sơ đồ 2.1: Giải phẫu Học Tầng Nhân (Phần 1) — Lăng kính Ảo ảnh Linux Namespaces trên Shared Host Kernel</h4>
+        <x-figure id="container-2-1" key="2.1" title="Sơ đồ 2.1 — Giải phẫu học Tầng nhân (Phần 1): Lăng kính ảo ảnh Linux Namespaces trên Host Kernel (Host PID 10423/10424 → Virtual PID 1)">Bảng ánh xạ của Shared Host Kernel: Tiến trình Nginx / order-api (Host PID thật: 10423) và PostgreSQL (Host PID thật: 10424) được bọc trong 6 Linux Namespaces riêng biệt để mỗi bên tự thấy mình là Virtual PID = 1, mang IP riêng (172.17.0.2 vs 172.17.0.3) và thư mục gốc riêng (<code>/app</code> vs <code>/pgdata</code>).</x-figure>
+
+        <div class="table-wrap">
+          <table class="clean-table">
+            <thead>
+              <tr>
+                <th>Loại Namespace (Từ khóa Kernel)</th>
+                <th>Tài nguyên Hệ điều hành bị ảo hóa (What)</th>
+                <th>Trạng thái của <code>order-api</code> (Cont A) &amp; PostgreSQL (Cont B) (Example)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>pid</strong> (Process ID)</td>
+                <td>Cây tiến trình độc lập (Its own processes).</td>
+                <td>Dưới Host Kernel chúng là PID 10423 và PID 10424, nhưng bên trong mỗi container đều tự thấy mình là <strong>Virtual PID = 1</strong>, không nhìn thấy tiến trình của nhau hay của Host.</td>
+              </tr>
+              <tr>
+                <td><strong>net</strong> (Network)</td>
+                <td>Giao diện mạng, bảng định tuyến, cổng mạng (Its own network).</td>
+                <td>Mỗi container có cặp dây mạng ảo veth pair và địa chỉ IP riêng biệt: Container A là <strong>172.17.0.2</strong>, Container B là <strong>172.17.0.3</strong>.</td>
+              </tr>
+              <tr>
+                <td><strong>mnt</strong> (Mount)</td>
+                <td>Điểm gắn kết hệ thống tệp (Its own file system).</td>
+                <td>Sau lệnh gọi <code>pivot_root(2)</code>, Container A chỉ thấy thư mục gốc riêng chứa <strong><code>/app</code></strong>, Container B chỉ thấy <strong><code>/pgdata</code></strong>, không thể đọc/ghi chéo file của nhau.</td>
+              </tr>
+              <tr>
+                <td><strong>user</strong> (User ID)</td>
+                <td>Định danh người dùng &amp; nhóm (Its own users).</td>
+                <td>Ánh xạ UID/GID: Tài khoản <strong>Root bên trong container không phải là Root tối cao trên máy chủ Host</strong> (Root inside container != Root on host).</td>
+              </tr>
+              <tr>
+                <td><strong>ipc &amp; uts</strong></td>
+                <td>Bộ nhớ giao tiếp liên tiến trình &amp; Tên máy (Hostname).</td>
+                <td>Mỗi container có tên định danh máy (Hostname) riêng và vùng nhớ đệm Shared Memory tách biệt.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p><strong>[Đúc kết Cơ học &amp; Đánh đổi (Trade-off)]</strong>: Nhờ 6 mảnh ghép Linux Namespaces (pid, net, mnt, user, ipc, uts — và từ Linux 4.6+ có thêm cgroup namespace để ẩn luôn đường dẫn cgroup của Host), một Container thực chất là một tập hợp các không gian tên nhân Linux được gom lại để trông, ngửi và cảm nhận y hệt một hệ điều hành độc lập. Tuy nhiên, sách <em>The Docker Book</em> chỉ rõ: <strong>Namespaces chỉ giải quyết bài toán cô lập góc nhìn (Isolation), hoàn toàn không giải quyết bài toán giới hạn vật lý (Limits)</strong>. Nếu những người khách trong phòng khách sạn Container A (<code>order-api</code>) bất ngờ bị lỗi vòng lặp vô tận hoặc rò rỉ bộ nhớ (Memory Leak), họ sẽ xài cạn sạch nguồn điện và nước (100% CPU và RAM) của toàn bộ tòa nhà, khiến PostgreSQL ở phòng Container B chết ngạt theo! Làm sao để lắp đồng hồ khóa van từng phòng? Chúng ta bước sang Trạm 2.2.</p>
+
+        <hr style="border:0;border-top:1px solid var(--border);margin:32px 0;" />
+
+        <h2 id="container-2-2" tabindex="-1">Trạm 2.2: Control Groups (cgroups v2) — Vòng Kim Cô Định mức Phần cứng (CPU, RAM &amp; Disk I/O)</h2>
+        <ul>
+          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực — Hệ thống cầu dao tự động (CB) và van khóa đồng hồ nước lắp ở cửa mỗi phòng]</strong>: Nếu Namespaces là những bức tường thạch cao ngăn cách các phòng khách sạn để khách phòng A không nhìn trộm sang phòng B, thì <strong>Control Groups (cgroups)</strong> chính là <strong>hệ thống cầu dao tự động (CB) và van khóa đồng hồ nước</strong> lắp ở cửa mỗi phòng. Dù cả khách sạn dùng chung một bể nước ngầm (Shared RAM Pool) và một trạm biến áp (Physical CPU Cores), cầu dao cgroups đảm bảo không một vị khách tham lam nào có thể bật lò sưởi quá công suất làm nổ cầu chì của cả tòa nhà.</li>
+          <li><strong>[Nỗi đau (Pain Point) từ trạm trước]</strong>: Ở Trạm 2.1, tiến trình Nginx / order-api (Host PID: 10423) đã bị bịt mắt bởi Namespaces, nhưng về mặt vật lý, nó vẫn đang chạy trực tiếp trên CPU và RAM thật của máy chủ. Khi gặp cuộc tấn công từ chối dịch vụ (DoS) hoặc lỗi tràn bộ nhớ, tiến trình này sẽ phình to không kiểm soát, kích hoạt cơ chế Out-Of-Memory (OOM) làm sập toàn bộ máy chủ vật lý.</li>
+        </ul>
+
+        <h4>Sơ đồ 2.2: Giải phẫu Học Tầng Nhân (Phần 2) — Vòng Kim Cô cgroups v2 Khóa cứng Tài nguyên Vật lý</h4>
+        <x-figure id="container-2-2" key="2.2" title="Sơ đồ 2.2 — Giải phẫu học Tầng nhân (Phần 2): Vòng kim cô Control Groups (cgroups v2) khóa cứng CPU, RAM &amp; Disk I/O">Cơ chế định mức cgroups v2: Khóa cứng Container A (PID: 10423) ở mức tối đa 2 CPU Cores (cpu.max), 512 MB RAM (memory.max), 100 MB/s Disk I/O (BlkIO) và Container B (PID: 10424) ở mức 1 CPU Core, 1 GB RAM, bảo vệ tuyệt đối Shared Bare Metal Server.</x-figure>
+
+        <div class="table-wrap">
+          <table class="clean-table">
+            <thead>
+              <tr>
+                <th>Phân hệ cgroups (Resource)</th>
+                <th>Tham số Hạt nhân Linux (Excalidraw Note)</th>
+                <th>Định mức áp cho Container A (<code>order-api</code>)</th>
+                <th>Định mức áp cho Container B (PostgreSQL)</th>
+                <th>Cơ chế xử lý của Kernel khi vượt ngưỡng</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>CPU</strong></td>
+                <td><code>cpu.max</code> / <code>cpu.cfs_quota_us</code>.</td>
+                <td>Tối đa <strong>2 CPU cores</strong> (ví dụ 200000 100000).</td>
+                <td>Tối đa <strong>1 CPU core</strong> (ví dụ 100000 100000).</td>
+                <td>Bộ lập lịch CFS (Completely Fair Scheduler) bóp nghẹt (throttle) chu kỳ xung nhịp, bắt chờ đến phiên kế tiếp.</td>
+              </tr>
+              <tr>
+                <td><strong>Bộ nhớ (RAM)</strong></td>
+                <td><code>memory.max</code>.</td>
+                <td>Tối đa <strong>512 MB</strong>.</td>
+                <td>Tối đa <strong>1 GB</strong>.</td>
+                <td>Kích hoạt OOM Killer (tín hiệu SIGKILL / Exit Code 137) tiêu diệt đúng tiến trình vi phạm trong container đó, bảo vệ an toàn tuyệt đối cho máy chủ.</td>
+              </tr>
+              <tr>
+                <td><strong>Đĩa cứng (Disk I/O)</strong></td>
+                <td>BlkIO (Block I/O / <code>io.max</code>).</td>
+                <td>Đọc/ghi tối đa <strong>100 MB/s</strong>.</td>
+                <td>Giới hạn trần IOPS đọc/ghi đĩa vật lý.</td>
+                <td>Đưa các yêu cầu đọc/ghi vượt ngưỡng vào hàng đợi I/O để không làm nghẽn cổ chai ổ cứng dùng chung.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p><strong>[Đúc kết Cơ học &amp; Đánh đổi (Trade-off)]</strong>: Sự kết hợp song kiếm hợp bích giữa <strong>Namespaces (Ảo ảnh cô lập không gian)</strong> và <strong>cgroups (Vòng kim cô định mức phần cứng)</strong> đã giải quyết trọn vẹn bài toán chạy chung nhiều ứng dụng trên cùng một máy chủ. Thế nhưng, hai lỗ hổng cơ học mới lại lộ diện: (1) Nếu chúng ta bật 50 bản sao <code>order-api</code> dùng chung hệ điều hành nền Debian và Python 3.11, chẳng lẽ chúng ta phải nhân bản 50 thư mục hệ điều hành giống hệt nhau trên ổ cứng? (2) Vì dùng chung Host Kernel, nếu một kẻ tấn công chiếm được quyền điều khiển tiến trình bên trong container rồi gọi các lời gọi hệ thống (System Calls) nhạy cảm xuống Kernel thì sao? Trạm 2.3 sẽ giải quyết triệt để hai bài toán này bằng hệ thống tệp xếp tầng OverlayFS và bộ lọc an ninh hạt nhân.</p>
+
+        <hr style="border:0;border-top:1px solid var(--border);margin:32px 0;" />
+
+        <h2 id="container-2-3" tabindex="-1">Trạm 2.3: OverlayFS &amp; Security Hardening (LowerDir/UpperDir, Syscalls, Capabilities &amp; Seccomp)</h2>
+        <ul>
+          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực — Cuốn sách giáo khoa ép nhựa cứng LowerDir + Tờ giấy bóng kính UpperDir + Tịch thu bật lửa Capabilities/Seccomp]</strong>: Để không phải in lại 50 cuốn sách giáo khoa cho 50 học sinh, nhà trường chỉ in <strong>1 bản gốc duy nhất ép nhựa cứng không cho phép tẩy xóa (LowerDir — các lớp Image chỉ đọc)</strong>. Mỗi học sinh khi vào học được phát một <strong>tờ giấy bóng kính trong suốt (UpperDir — lớp ghi mỏng Thin Writable Layer)</strong> đặt đè lên trang sách: muốn ghi chú hay gạch xóa gì thì viết lên tờ giấy bóng kính đó; mắt học sinh nhìn từ trên xuống (Merged View) vẫn thấy một trang sách hoàn chỉnh có đầy đủ chữ gốc lẫn ghi chú riêng! Đồng thời, để ngăn học sinh nghịch lửa trong phòng thí nghiệm, nhà trường tịch thu bật lửa (Capabilities — tước quyền root dư thừa) và khóa chặt danh sách các hóa chất cấm chạm vào (Seccomp — lọc lời gọi hệ thống).</li>
+          <li><strong>[Nỗi đau (Pain Point) từ trạm trước]</strong>: Dù đã có Mount Namespace (mnt) và cgroups, việc sao chép toàn bộ tệp tin hệ thống cho từng container sẽ làm nổ tung dung lượng ổ cứng và khiến tốc độ khởi tạo chậm đi. Hơn nữa, bản thân Namespaces và cgroups không phải là hàng rào bảo mật đủ cứng như Hypervisor: một tiến trình chạy dưới danh nghĩa root bên trong container nếu lợi dụng được lỗ hổng của Shared Kernel sẽ có nguy cơ leo thang đặc quyền chiếm quyền điều khiển toàn bộ máy chủ.</li>
+        </ul>
+
+        <h4>Sơ đồ 2.3: Giải phẫu Học Tầng Nhân (Phần 3 &amp; 4) — Cổng Syscalls, OverlayFS (Đồ thị DAG) &amp; Security Hardening</h4>
+        <x-figure id="container-2-3" key="2.3" title="Sơ đồ 2.3 — Giải phẫu học Tầng nhân (Phần 3 &amp; 4): Cổng Linux Syscalls Gateway, OverlayFS (LowerDir DAG + UpperDir) &amp; Security Hardening (Capabilities + Seccomp)">Cổng Linux Syscalls Gateway (<code>clone(2)</code>, <code>unshare(2)</code>, <code>pivot_root(2)</code>) phối hợp cùng hệ thống tệp hợp nhất OverlayFS (LowerDir chỉ đọc theo đồ thị DAG + UpperDir ghi mỏng → Merged View) và bộ đôi khiên an ninh Linux Capabilities + Seccomp.</x-figure>
+
+        <div class="table-wrap">
+          <table class="clean-table">
+            <thead>
+              <tr>
+                <th>Thành phần Hạt nhân</th>
+                <th>Cơ chế Vật lý / Cơ học bên dưới</th>
+                <th>Tác dụng thực tế đối với <code>order-api</code></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Linux Syscalls</strong></td>
+                <td>Lời gọi hệ thống <code>clone(2)</code> kèm cờ <code>CLONE_NEW*</code> tạo không gian mới, <code>unshare(2)</code> tách rời tài nguyên, <code>pivot_root(2)</code> đổi thư mục gốc <code>/</code>.</td>
+                <td>Là "công tắc cơ học" duy nhất để các công cụ runtime yêu cầu Linux Kernel đẻ ra một container mới.</td>
+              </tr>
+              <tr>
+                <td><strong>LowerDir (OverlayFS)</strong></td>
+                <td>Các tầng ảnh chỉ đọc (Read-Only Image Layers) liên kết theo cấu trúc đồ thị có hướng không chu trình (Directed Acyclic Graph - DAG: ví dụ Debian Base → Ruby v2.1.10 → Rails v4.2.6 / v3.2.x hoặc Golang v1.6).</td>
+                <td>50 containers <code>order-api</code> dùng chung đúng <strong>1 bản LowerDir</strong> (<code>python:3.11-slim</code>) trên đĩa, tiết kiệm hàng chục GB dung lượng và cho phép bật container tức thì.</td>
+              </tr>
+              <tr>
+                <td><strong>UpperDir &amp; Merged View</strong></td>
+                <td>UpperDir là lớp ghi mỏng (Thin Writable Layer) gắn riêng cho từng container theo cơ chế Copy-on-Write (CoW); Merged View hợp nhất LowerDir + UpperDir.</td>
+                <td>Mọi file log hay file tạm do <code>app.py</code> sinh ra đều nằm ở UpperDir mà không làm bẩn Image gốc bên dưới.</td>
+              </tr>
+              <tr>
+                <td><strong>Capabilities &amp; Seccomp</strong></td>
+                <td>Capabilities cắt nhỏ quyền root tối cao để áp dụng nguyên lý quyền tối thiểu (Least Privilege, tước bỏ <code>CAP_SYS_ADMIN</code>); Seccomp lọc chặn 44+ syscalls độc hại kết hợp AppArmor/SELinux.</td>
+                <td>Dù hacker có chiếm được quyền chạy code trong <code>order-api</code>, chúng cũng bị Seccomp chặn đường gọi xuống phá hủy Host Kernel.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <section class="callout callout-tip" id="container-2-summary" tabindex="-1">
+          <div class="callout-title">Tóm tắt bỏ túi Chặng 2 &amp; Nỗi đau Chuyển giao sang Chặng 3</div>
+          <ul>
+            <li><strong>Công thức Bất biến của Container</strong>: $\text{Container} = \text{Linux Namespaces (Cô lập góc nhìn)} + \text{cgroups v2 (Khóa trần CPU/RAM/I/O)} + \text{OverlayFS (CoW Layers)} + \text{Capabilities/Seccomp (Khiên bảo mật)}$.</li>
+            <li><strong>Câu hỏi chuyển giao sang Chặng 3</strong>: Bốn trụ cột của Linux Kernel đã tạo nên một chiếc lồng Container vừa nhẹ vài MB, vừa an toàn, lại vừa tiết kiệm đĩa cứng. Tuy nhiên, cấu hình trực tiếp các lời gọi <code>clone(2)</code>, <code>pivot_root(2)</code>, gắn OverlayFS và viết luật cgroups bằng tay cực kỳ phức tạp đối với lập trình viên; hơn nữa lớp UpperDir sẽ mất sạch khi xóa container! Nhân loại cần một bộ công cụ đóng gói toàn bộ sự phức tạp của hạt nhân Linux đằng sau một nút bấm duy nhất — hãy sang <strong>Chặng 3: Chu trình Build-Ship-Run &amp; Động cơ OCI Runtime</strong>!</li>
+          </ul>
+          <p style="margin-top:14px;"><a href="#topic=F06&stage=3" onclick="selectStorageStage(3);return false;">Sang Chặng 3: Chu trình Build-Ship-Run &amp; Động cơ OCI Runtime →</a></p>
+        </section>
+      </div>

@@ -1,0 +1,138 @@
+      <div class="prose">
+        <p>Ở <strong>Chặng 2</strong>, chúng ta đã mổ xẻ các bánh răng tầng nhân Linux (Namespaces, cgroups v2, OverlayFS, Seccomp). Bước vào <strong>Chặng 3 (Trạm 3.1 → 3.2): Chu trình Build-Ship-Run &amp; Động cơ OCI Runtime</strong>, chúng ta khám phá cách Docker và chuẩn mở OCI (Open Container Initiative) gói gọn hàng chục thao tác Kernel phức tạp thành dây chuyền công nghiệp Build - Ship - Run, giải cứu dữ liệu PostgreSQL khỏi lớp UpperDir tạm bợ bằng Docker Volumes, và phẫu thuật chuỗi tiến trình bên dưới lệnh <code>docker run</code> đối chiếu với nhánh Daemonless / Rootless của Podman.</p>
+
+        <h4>Sơ đồ 3.0: Kiến trúc Tổng quan Chặng 3 — Chu trình Build-Ship-Run, Persistent Volumes &amp; Chuỗi Động cơ OCI Runtime</h4>
+        <x-figure id="container-3-0" key="3.0" title="Sơ đồ 3.0 — Chu trình Build-Ship-Run, Persistent Volumes (/var/lib/docker/volumes) &amp; Giải phẫu Động cơ OCI Runtime (dockerd → containerd → shim → runc)">Giải phẫu 2 nửa của hệ sinh thái Container: (1) Chu trình Build - Ship - Run đóng gói <code>order-api</code> qua Dockerfile (Multi-stage Build) và tách dữ liệu PostgreSQL khỏi lớp UpperDir tạm bợ sang Persistent Volume; (2) Chuỗi lắp ráp Docker CLI → dockerd → containerd → containerd-shim → runc (trong đó <code>runc</code> dựng xong container thì lập tức tự thoát để tạo Daemonless containers).</x-figure>
+
+        <hr style="border:0;border-top:1px solid var(--border);margin:32px 0;" />
+
+        <h2 id="container-3-1" tabindex="-1">Trạm 3.1: Workflow Vĩ mô Build - Ship - Run (Dockerfile, Multi-stage Build, OCI Image, Registry &amp; Persistent Volumes)</h2>
+        <ul>
+          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực — Dây chuyền sản xuất thực phẩm đóng hộp công nghiệp]</strong>: Hãy hình dung việc triển khai <code>order-api</code> giống như dây chuyền sản xuất thực phẩm đóng hộp công nghiệp:
+            <ol>
+              <li><strong>Build (Đóng gói)</strong>: Bạn viết công thức nấu ăn (<code>Dockerfile</code>), đưa vào dây chuyền (<code>docker build</code>) để đóng thành các hộp đồ hộp hút chân không dán nhãn niêm phong bất biến (OCI Image — đóng vai trò như một khuôn mẫu Class trong lập trình hướng đối tượng).</li>
+              <li><strong>Ship (Phân phối)</strong>: Bạn chở các thùng đồ hộp này lên kho trung chuyển toàn cầu (OCI Registry như Docker Hub hoặc Harbor) qua lệnh <code>docker push</code> / <code>docker pull</code>.</li>
+              <li><strong>Run (Thực thi)</strong>: Tại bất kỳ máy chủ nào, bạn chỉ cần khui hộp (<code>docker run</code>) để biến gói tĩnh thành một bữa ăn đang bốc khói (Container — thực thể đang sống Object instance của Image).</li>
+            </ol>
+          </li>
+          <li><strong>[Nỗi đau (Pain Point) từ trạm trước — Hiểm họa Mất sạch Database trong Lớp UpperDir Tạm bợ]</strong>: Ở Trạm 2.3, chúng ta biết mỗi Container được cấp một lớp ghi mỏng UpperDir (Thin Writable Layer) để lưu các thay đổi phát sinh trong lúc chạy. Nhưng nỗi đau chí mạng nằm ở chỗ: <strong>Lớp UpperDir này có tính chất tạm bợ (Ephemeral), gắn chặt với vòng đời của Container</strong>. Khi bạn nâng cấp phiên bản mới cho Database PostgreSQL (xóa container cũ, bật container mới theo triết lý bất biến Immutable), toàn bộ dữ liệu đơn hàng nằm trong UpperDir sẽ bốc hơi vĩnh viễn! Do đó, hệ sinh thái Container cung cấp 3 cơ chế lưu trữ phân biệt rõ rệt: (1) Writable Layer (UpperDir) tạm bợ dùng cho file nháp; (2) Bind Mounts ánh xạ trực tiếp thư mục của Host vào Container; và (3) Docker Volumes tại <code>/var/lib/docker/volumes</code> hoàn toàn độc lập với vòng đời Container — chuẩn mực bắt buộc khi vận hành Database Stateful!</li>
+        </ul>
+
+        <pre><code># Cấu trúc dự án: project/app.py &amp; project/Dockerfile (Chuẩn hóa từ Slide bài giảng)
+# Use official Python image
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Copy files into container
+COPY app.py .
+
+# Run the app (PID 1 bên trong Container)
+CMD ["python", "app.py"]</code></pre>
+
+        <h4>Sơ đồ 3.1: Tầng 1 Workflow Vĩ mô — Chu trình Build - Ship - Run &amp; Cơ chế Lưu trữ Bền vững (Docker Volume)</h4>
+        <x-figure id="container-3-1" key="3.1" title="Sơ đồ 3.1 — Tầng 1 Workflow Vĩ mô: Chu trình Build - Ship - Run (Dockerfile → OCI Image → Registry) &amp; 3 Cơ chế Lưu trữ (Writable Layer vs. Bind Mount vs. Docker Volume)">Luồng Build - Ship - Run từ <code>Dockerfile (FROM python:3.11-slim)</code> thành OCI Image bất biến đẩy lên Registry, kết hợp gắn kết 2 chiều Docker Volume (/var/lib/docker/volumes) tách rời khỏi vòng đời Container để bảo vệ dữ liệu PostgreSQL.</x-figure>
+
+        <div class="table-wrap">
+          <table class="clean-table">
+            <thead>
+              <tr>
+                <th>Giai đoạn / Khái niệm</th>
+                <th>Bản chất Cơ học (Slide &amp; Excalidraw Notes)</th>
+                <th>Hành vi đối với <code>order-api</code> (Stateless) &amp; PostgreSQL (Stateful)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong><code>Dockerfile</code></strong></td>
+                <td>Văn bản chứa toàn bộ công thức lắp ráp môi trường (chỉ thị FROM, WORKDIR, COPY, CMD và kỹ thuật Multi-stage Build tạo ảnh siêu gọn).</td>
+                <td>Chuẩn hóa 100% môi trường chạy <code>app.py</code> trên nền <code>python:3.11-slim</code>, xóa sổ căn bệnh "chạy được trên máy tôi nhưng lỗi trên server".</td>
+              </tr>
+              <tr>
+                <td><strong>OCI Image</strong></td>
+                <td>Gói phần mềm tĩnh, bất biến (Immutable, Read-Only Layers kèm OCI Manifest JSON mô tả cấu hình, mã băm SHA-256 Digest và kiến trúc CPU ARM/AMD).</td>
+                <td>Một Image <code>order-api</code> duy nhất có thể dùng làm khuôn đúc ra hàng chục Containers chạy song song.</td>
+              </tr>
+              <tr>
+                <td><strong>Docker Container</strong></td>
+                <td>Thuật ngữ thể hiện "sự sống của Image": là 1 tiến trình đang chạy (Running process) cộng với 1 lớp ghi mỏng Thin Writable Layer.</td>
+                <td>Container chỉ sống chừng nào tiến trình chính (PID 1: <code>python app.py</code>) còn sống; nếu tiến trình này kết thúc (killed), container lập tức dừng lại.</td>
+              </tr>
+              <tr>
+                <td><strong>Docker Volume vs. Writable Layer</strong></td>
+                <td>Writable Layer bị xóa sổ cùng container; Volume là đối tượng độc lập lưu tại <code>/var/lib/docker/volumes</code> nằm ngoài vòng đời container.</td>
+                <td><code>order-api</code> (phi trạng thái — Stateless) chỉ cần Writable Layer cho file nháp; riêng PostgreSQL (có trạng thái — Stateful) <strong>bắt buộc phải gắn Volume</strong> để khi xóa/nâng cấp container Database không bị mất dữ liệu.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p><strong>[Đúc kết Cơ học &amp; Đánh đổi (Trade-off)]</strong>: Chu trình Build → Ship → Run kết hợp với Docker Volume đã giúp kỹ sư đóng gói và vận hành cả ứng dụng Stateless (<code>order-api</code>) lẫn Stateful (PostgreSQL) một cách trơn tru. Thế nhưng, khi bạn gõ lệnh <code>docker run</code> trên màn hình Terminal, một chuỗi phản ứng dây chuyền nào thực sự nổ ra bên dưới nắp capo để nối từ câu lệnh chữ cái đến các lời gọi <code>clone(2)</code> của Linux Kernel? Hơn nữa, tại sao kiến trúc chạy ngầm của Docker lại bị coi là có lỗ hổng bảo mật lớn trên máy chủ dùng chung, dẫn đến sự ra đời của Podman? Chúng ta bước sang Trạm 3.2.</p>
+
+        <hr style="border:0;border-top:1px solid var(--border);margin:32px 0;" />
+
+        <h2 id="container-3-2" tabindex="-1">Trạm 3.2: Giải phẫu Động cơ OCI Runtime (dockerd → containerd → shim → runc) &amp; Hệ sinh thái Công cụ</h2>
+        <ul>
+          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực — Dây chuyền lắp ráp xe hơi chuyên môn hóa]</strong>: Thời kỳ đầu, Docker Engine là một khối sắt nguyên khối (Monolithic binary) ôm đồm mọi việc và phụ thuộc vào thư viện LXC cũ kỹ. Sau cuộc đại phẫu theo chuẩn mở <strong>OCI (Open Container Initiative)</strong>, Docker Engine được tách thành một dây chuyền lắp ráp xe hơi chuyên môn hóa:
+            <ul>
+              <li><strong><code>dockerd</code> (Docker Daemon — <code>/usr/bin/dockerd</code>)</strong>: Là <em>"Quầy lễ tân kiêm Tổng đài API"</em> nhận phiếu yêu cầu REST qua <code>/var/run/docker.sock</code> từ khách hàng.</li>
+              <li><strong><code>containerd</code> (High-level Runtime — <code>/usr/bin/containerd</code>)</strong>: Là <em>"Quản đốc phân xưởng"</em> quản lý vòng đời từ tải ảnh, giải nén OCI Bundle đến ra lệnh bật/tắt qua gRPC.</li>
+              <li><strong><code>containerd-shim</code> (<code>/usr/bin/containerd-shim-runc-v2</code>)</strong>: Là <em>"Người bảo mẫu"</em> đứng canh ngay cạnh từng chiếc nôi container, giữ mở STDIN/STDOUT và báo cáo Exit Code.</li>
+              <li><strong><code>runc</code> (Low-level Runtime — <code>/usr/bin/runc</code>)</strong>: Là <em>"Anh thợ xây cơ bắp"</em> bọc thư viện libcontainer trực tiếp cầm bản vẽ OCI Bundle xuống nói chuyện với Linux Kernel để dựng tường Namespaces và lắp cầu dao cgroups; dựng xong nhà cho tiến trình ở là anh thợ xây <strong>lập tức rút lui (exit)</strong> trả lại mặt bằng!</li>
+            </ul>
+          </li>
+          <li><strong>[Nỗi đau (Pain Point) từ trạm trước — Điểm lỗi đơn SPOF và Rủi ro Quyền Root của <code>dockerd</code>]</strong>: Nếu giữ nguyên kiến trúc nguyên khối cũ (mọi container đều là tiến trình con trực tiếp của Docker Daemon), chỉ cần kỹ sư nâng cấp hoặc khởi động lại <code>dockerd</code>, toàn bộ hàng chục containers đang phục vụ khách hàng trên máy chủ đó sẽ bị giết chết theo (Single Point of Failure)! Chưa kể, bản thân <code>dockerd</code> luôn phải chạy ngầm 24/7 với <strong>quyền quản trị tối cao (Root / Admin access)</strong> — nếu kẻ tấn công đục thủng được <code>dockerd</code>, chúng sẽ chiếm trọn quyền điều khiển máy chủ. Đó là lý do Red Hat phát triển bộ ba <strong>Podman + Buildah + Skopeo</strong> hoạt động hoàn toàn <strong>không cần Daemon (Daemonless) và không cần quyền Root (Rootless)</strong>!</li>
+        </ul>
+
+        <h4>Sơ đồ 3.2: Tầng 2 OCI Runtime Engine — Chuỗi Tiến trình Điều phối (Docker Daemon) &amp; Nhánh rẽ Daemonless (Podman)</h4>
+        <x-figure id="container-3-2" key="3.2" title="Sơ đồ 3.2 — Tầng 2 OCI Runtime Engine: Chuỗi tiến trình điều phối Docker (CLI → dockerd → containerd → shim) &amp; Nhánh rẽ Daemonless (Podman) hội tụ tại runc">Đối chiếu 2 nhánh thực thi chuẩn OCI: Nhánh 1 (Docker CLI → dockerd → containerd → containerd-shim) và Nhánh 2 (Podman CLI / Buildah / Skopeo bỏ qua Daemon chạy Rootless) cùng hội tụ tại runc (libcontainer) để cấu hình Linux Kernel rồi <code>runc</code> lập tức tự thoát.</x-figure>
+
+        <div class="table-wrap">
+          <table class="clean-table">
+            <thead>
+              <tr>
+                <th>Phân nhóm Hạ tầng (Slide)</th>
+                <th>Công cụ đại diện</th>
+                <th>Trách nhiệm cốt lõi &amp; Cơ chế vận hành (Từ Slide &amp; Sách)</th>
+                <th>Đánh đổi Kỹ thuật (Trade-offs)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>01. Container Tools</strong><br/>(Công cụ cấp người dùng)</td>
+                <td><strong>Docker</strong> vs. <strong>Podman</strong>.</td>
+                <td>Docker dùng kiến trúc Client-Daemon qua <code>/var/run/docker.sock</code>. Podman (dùng thư viện libpod) chạy trực tiếp container <strong>không cần Daemon (Daemonless) và không cần quyền Root (Rootless)</strong>.</td>
+                <td>Docker có hệ sinh thái phong phú nhưng tốn tài nguyên nuôi Daemon ngầm và rủi ro quyền Root; Podman an toàn vượt trội trên máy chủ nhiều người dùng (Multi-user).</td>
+              </tr>
+              <tr>
+                <td><strong>02. Container Runtime</strong><br/>(Động cơ thực thi)</td>
+                <td><strong><code>containerd</code></strong>, <strong>CRI-O</strong> (High-level) &amp; <strong><code>runc</code></strong>, <strong>crun</strong> (Low-level).</td>
+                <td><code>containerd</code> (thuộc CNCF) quản lý tải ảnh và vòng đời, hỗ trợ chuẩn CRI. <code>runc</code> (chuẩn OCI Runtime Spec) dùng libcontainer giao tiếp trực tiếp với OS Kernel để tạo container rồi tự thoát.</td>
+                <td>Tách shim và <code>runc</code> khỏi <code>dockerd</code> giúp đạt được <strong>Daemonless containers</strong> (restart Docker Daemon không làm chết app đang chạy) và cho phép cắm các runtime khác như Wasm (Spin).</td>
+              </tr>
+              <tr>
+                <td><strong>03. Image Building</strong><br/>(Xây dựng Image)</td>
+                <td><strong>BuildKit / Buildx</strong>, <strong>Buildah</strong>, <strong>Kaniko</strong>.</td>
+                <td>Đóng gói mã nguồn và thư viện thành định dạng OCI Image chuẩn hóa (ví dụ lệnh buildah bud đọc Containerfile/<code>Dockerfile</code> và buildah commit lưu thành image).</td>
+                <td>Buildah và Kaniko cho phép đóng gói Image an toàn bên trong đường ống CI/CD mà không cần cấp quyền Root cho Docker Daemon.</td>
+              </tr>
+              <tr>
+                <td><strong>04. Image Management</strong><br/>(Quản lý &amp; Chuyển giao)</td>
+                <td><strong>Skopeo</strong>.</td>
+                <td>Kiểm tra metadata từ xa (skopeo inspect), sao chép và đồng bộ Image giữa các Registries <strong>mà không cần tải toàn bộ về hay chạy container</strong>.</td>
+                <td>Tối ưu hóa tốc độ kiểm duyệt bảo mật và di chuyển Image giữa môi trường Internet và mạng nội bộ (Air-gapped).</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <section class="callout callout-tip" id="container-3-summary" tabindex="-1">
+          <div class="callout-title">Tóm tắt bỏ túi Chặng 3 &amp; Nỗi đau Chuyển giao sang Chặng 4</div>
+          <ul>
+            <li><strong>Đúc kết Cơ học &amp; Đánh đổi (Trade-off)</strong>: Nhờ kiến trúc phân tầng <strong>CLI → dockerd → containerd → shim → runc</strong> (hoặc chuỗi tinh gọn <strong>Podman → runc + Buildah + Skopeo</strong>), nhân vật chính <code>order-api</code> đã có thể đóng gói chuẩn mực và chạy bền bỉ trên một máy chủ đơn lẻ ngay cả khi Daemon phải khởi động lại để bảo trì.</li>
+            <li><strong>Cơn ác mộng vận hành chuyển giao sang Chặng 4</strong>: Khi công ty bước vào đợt cao điểm mua sắm, hệ thống buộc phải mở rộng ra <strong>một cụm (Cluster) gồm hàng trăm máy chủ vật lý</strong>. Nếu 2 giờ sáng, máy chủ số 1 cháy thanh RAM làm chết 2 bản sao <code>order-api</code> trên đó, ai sẽ tự động phát hiện và bật bù chúng sang máy chủ số 2? Làm sao nâng cấp <code>order-api</code> từ phiên bản v1 lên v2 trên cả trăm máy mà không làm rớt bất kỳ đơn hàng nào của khách (Zero-downtime)? Đó là lúc chúng ta tiến vào <strong>Chặng 4 — Thời kỳ 3: Điều phối Phân tán với Kubernetes (K8s)</strong>!</li>
+          </ul>
+          <p style="margin-top:14px;"><a href="#topic=F06&stage=4" onclick="selectStorageStage(4);return false;">Sang Chặng 4: Thời kỳ 3 — Điều phối Phân tán với Kubernetes (Orchestration) →</a></p>
+        </section>
+      </div>

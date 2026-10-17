@@ -1,13 +1,21 @@
-# Local source library is intentionally not published to GitHub.
-# It contains large/copyrighted reference material used during synthesis.
+# Local reference library & official course slides (large / copyrighted)
 library/
 course-slides/
 
-# Local QA / OS artifacts
+# Local quarantine, temporary build & OS artifacts
+.quarantine/
+_site/
 tmp/
 .DS_Store
 *.log
 
-# Local Python caches
+# Python caches & local virtual environment
 __pycache__/
 *.pyc
+.venv/
+
+# Local secrets & AI credentials
+.env
+.env.local
+.env.*
+

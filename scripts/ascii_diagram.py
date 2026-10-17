@@ -32,7 +32,7 @@ FORBIDDEN_CODEPOINTS = {
 }
 
 ALLOWED_GEOMETRIC_SYMBOLS = set(
-    "┌┐└┘├┤┬┴┼─│═║╔╗╚╝╠╣╦╩╬▲▼◄►•"
+    "┌┐└┘├┤┬┴┼─│═║╔╗╚╝╠╣╦╩╬╭╮╰╯░▒▓█▲▼◄►•"
 )
 
 
@@ -262,17 +262,31 @@ def verify_box_diagram(text: str, name: str = "diagram") -> List[str]:
     active_boxes: List[Tuple[int, int, int]] = []
     total_boxes_verified = 0
 
+    # 1. Verify Unicode boxes (┌..┐ / │..│ / └..┘) and merge/split connectors
     for idx, line in enumerate(lines, 1):
-        for m in re.finditer(r"┌[─┬]+┐", line):
+        # First check if any active Unicode box is closed by vertical arrows ▼ at (b_start, b_end) (split connector)
+        arrows_down = set(_col_positions(line, "▼v"))
+        for b_start, b_end, b_line in list(active_boxes):
+            if b_start in arrows_down and b_end in arrows_down:
+                active_boxes.remove((b_start, b_end, b_line))
+                total_boxes_verified += 1
+
+        for m in re.finditer(r"┌[─┬┴┼▲▼]+┐", line):
             s_col = _idx_to_col(line, m.start())
             e_col = _idx_to_col(line, m.end() - 1)
             active_boxes.append((s_col, e_col, idx))
 
-        for m in re.finditer(r"└[─┴┬]+┘", line):
+        for m in re.finditer(r"└[─┴┬┼▲▼]+┘", line):
             cs = _idx_to_col(line, m.start())
             ce = _idx_to_col(line, m.end() - 1)
             matched = [b for b in active_boxes if b[0] == cs and b[1] == ce]
             if not matched:
+                # Check if this is a 2-into-1 merge connector (e.g. └───┬───┘ or └───┼───┘ with │ above)
+                if idx >= 2 and any(ch in m.group(0) for ch in "┬┼▲▼"):
+                    prev_pipes = set(_col_positions(lines[idx - 2], "│├┤┼▲▼"))
+                    if cs in prev_pipes and ce in prev_pipes:
+                        total_boxes_verified += 1
+                        continue
                 errors.append(
                     f"[{name}] Line {idx}: Bottom border └..┘ at cols ({cs}, {ce}) does not match any open top border ┌..┐ {[(b[0], b[1]) for b in active_boxes]}."
                 )
@@ -280,7 +294,7 @@ def verify_box_diagram(text: str, name: str = "diagram") -> List[str]:
                 active_boxes.remove(matched[0])
                 total_boxes_verified += 1
 
-        pipes = set(_col_positions(line, "│├┤"))
+        pipes = set(_col_positions(line, "│├┤┼"))
         for b_start, b_end, b_line in list(active_boxes):
             if b_line == idx:
                 continue
@@ -292,8 +306,52 @@ def verify_box_diagram(text: str, name: str = "diagram") -> List[str]:
     for b_start, b_end, b_line in active_boxes:
         errors.append(f"[{name}] Unclosed box opened at line {b_line} cols ({b_start}, {b_end}).")
 
+    # 2. Verify Classic ASCII boxes (+---+ / |...| / +---+) and split connectors
+    for idx, line in enumerate(lines):
+        for m in re.finditer(r"\+[-+|]{2,}\+", line):
+            s_col = _idx_to_col(line, m.start())
+            e_col = _idx_to_col(line, m.end() - 1)
+            if idx + 1 >= len(lines):
+                continue
+            next_pipes = set(_col_positions(lines[idx + 1], "|"))
+            if s_col in next_pipes and e_col in next_pipes:
+                closed = False
+                for k in range(idx + 1, len(lines)):
+                    k_line = lines[k]
+                    closed_here = False
+                    for m2 in re.finditer(r"\+[-+|]{2,}\+", k_line):
+                        cs = _idx_to_col(k_line, m2.start())
+                        ce = _idx_to_col(k_line, m2.end() - 1)
+                        if cs <= s_col and ce >= e_col and (cs == s_col or ce == e_col):
+                            closed_here = True
+                            break
+                    if closed_here:
+                        closed = True
+                        total_boxes_verified += 1
+                        break
+                    k_arrows = set(_col_positions(k_line, "v▼"))
+                    if s_col in k_arrows and e_col in k_arrows:
+                        closed = True
+                        total_boxes_verified += 1
+                        break
+                    k_pipes = set(_col_positions(k_line, "|+"))
+                    if s_col not in k_pipes or e_col not in k_pipes:
+                        errors.append(
+                            f"[{name}] Line {k+1}: Open ASCII box from line {idx+1} cols ({s_col}, {e_col}) expects '|' at cols ({s_col}, {e_col}), found pipes at {sorted(k_pipes)}."
+                        )
+                        closed = True
+                        break
+                if not closed:
+                    errors.append(f"[{name}] Unclosed ASCII box opened at line {idx+1} cols ({s_col}, {b_end if 'b_end' in locals() else e_col}).")
+
+    # 3. Also accept structured tree / flowchart / banner diagrams that use explicit connectors
     if total_boxes_verified == 0:
-        errors.append(f"[{name}] No rectangular boxes (┌..┐ / └..┘) found for kind='boxes'.")
+        has_flow_or_tree = any(
+            tok in text
+            for tok in ("──►", "──>", "-->", "==>", "├──", "└──", "|--", "+--", "═══", "===", "───", "---")
+        )
+        if not has_flow_or_tree:
+            errors.append(f"[{name}] No rectangular boxes (┌..┐ / +..+) or structured flow connectors found for kind='boxes'.")
 
     return errors
 

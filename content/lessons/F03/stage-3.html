@@ -1,0 +1,326 @@
+      <div class="prose">
+        <p>Ở <strong>Chặng 2</strong>, Đơn hàng Trà sữa #HD01 đã nằm an toàn trong khung trang 8KB Slotted Page và sổ nhật ký WAL Files. Nhưng khi quán trà sữa bùng nổ đơn hàng — 1,000 khách hàng cùng đọc/sửa #HD01 đồng thời và bảng lịch sử phình lên 100 triệu dòng — bước vào <strong>Chặng 3 (Trạm 3.1 → 3.3): Concurrency Control &amp; Query Execution</strong>, chúng ta giải phẫu cơ chế đa phiên bản MVCC, cấu trúc cây chỉ mục B-Tree vs LSM-Tree và bộ tối ưu hóa truy vấn <code>EXPLAIN ANALYZE</code>.</p>
+
+        <h4>Sơ đồ 3.0: Kiến trúc Tổng quan Chặng 3 — Concurrency Control (MVCC) &amp; Query Execution (B-Tree / EXPLAIN ANALYZE)</h4>
+        <x-figure id="db-3-0" key="3.0" title="Sơ đồ 3.0 — Vận hành Đồng thời &amp; Tối ưu Truy vấn: ACID/MVCC &amp; Autovacuum, B-Tree vs LSM-Tree &amp; EXPLAIN ANALYZE">Tổng quan 3 trạm của Chặng 3: [Trạm 3.1] Giao dịch ACID, Lock Manager, MVCC Snapshot không khóa đọc-ghi, Isolation Levels (Dirty Reads/Dirty Writes) & Autovacuum Worker thu hồi Dead Tuples; [Trạm 3.2] Cấu trúc chỉ mục B-Tree (khả biến trên đĩa + Latch Crabbing, tối ưu đọc) đối sánh với LSM-Tree (bất biến append-only, tối ưu ghi); [Trạm 3.3] Query Optimizer, EXPLAIN ANALYZE và bộ công cụ psql, pgAdmin 4, pg_stat_statements.</x-figure>
+
+        <h2 id="db-3-1" tabindex="-1">Trạm 3.1: ACID transactions, Lock Manager, MVCC &amp; Autovacuum worker (Giao dịch &amp; kiểm soát đồng thời đa phiên bản)</h2>
+        <ul>
+          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Nếu dùng cơ chế khóa truyền thống (Locking), mỗi khi nhân viên thu ngân đang sửa giá món trong đơn #HD01, họ sẽ khóa trái cửa phòng hồ sơ — bắt tất cả quản lý muốn vào xem báo cáo phải đứng ngoài hành lang chờ. Ngược lại, cơ chế MVCC (Multiversion Concurrency Control — Kiểm soát đồng thời đa phiên bản) hoạt động như việc <strong>chụp ảnh lấy liền (Snapshot)</strong>: người quản lý vào xem sẽ được phát bức ảnh chụp đơn #HD01 ở trạng thái cũ (DonGia = 25000), trong khi thu ngân cứ việc viết đơn #HD01 phiên bản mới (DonGia = 30000) ra một dòng mới bên cạnh. Khi không còn ai nhìn vào bức ảnh cũ nữa, nhân viên vệ sinh Autovacuum Worker sẽ đi ngang qua và dọn tờ giấy cũ đó đi!</li>
+          <li><strong>[Nỗi đau từ trạm trước]:</strong> Khi nhiều Request cùng đọc/ghi đồng thời vào Shared Buffers, nếu không có ranh giới giao dịch (Transaction Boundary), hệ thống sẽ dính lỗi Dirty Read (đọc phải dữ liệu chưa <code>COMMIT</code> của giao dịch khác rồi giao dịch đó bị Rollback), Dirty Write (ghi đè chéo làm hỏng dữ liệu), hoặc rơi vào Deadlock (hai giao dịch khóa chéo chờ nhau vô tận).</li>
+        </ul>
+
+        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Bảng Dữ liệu thật]</h3>
+        <x-figure id="db-3-1" key="3.1" title="Sơ đồ 3.1 — Giải phẫu Ranh giới Giao dịch (ACID), Cơ chế MVCC Snapshot &amp; Tiến trình Dọn rác Autovacuum (#HD01)">Giải phẫu ranh giới giao dịch ACID và cơ chế đa phiên bản MVCC trên cùng Data Page: khi Giao dịch T1 (TxID=100) UPDATE DonGia = 30000 cho #HD01, PostgreSQL không ghi đè dòng cũ mà sinh ra Tuple Phiên bản 2 (Mới); Giao dịch T2 (TxID=101) đọc bản chụp Snapshot ổn định ở Tuple Phiên bản 1 (25000) nên Readers không bao giờ chặn Writers; sau khi COMMIT, Autovacuum Worker quét dọn Dead Tuple để thu hồi Free Space.</x-figure>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Thuộc tính ACID &amp; Cơ chế</th>
+                <th>Định nghĩa cơ học từ Sách ([HAERDER83])</th>
+                <th>Sự cố xảy ra nếu bị vi phạm (Anomalies)</th>
+                <th>Cơ chế bảo vệ đơn #HD01 trong PostgreSQL</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Atomicity (Tính nguyên tử)</strong></td>
+                <td>Giao dịch là một đơn vị công việc logic không thể chia cắt (Indivisible logical unit of work): tất cả các thao tác trong giao dịch phải cùng thành công hoặc cùng hủy bỏ (Rollback).</td>
+                <td>Trừ tiền khách hàng Lan xong nhưng lệnh lưu chi tiết món #HD01 bị lỗi giữa chừng khiến mất tiền mà không có trà sữa.</td>
+                <td>Quản lý bởi Transaction Manager và Recovery Manager thông qua cơ chế Rollback.</td>
+              </tr>
+              <tr>
+                <td><strong>Consistency (Tính nhất quán)</strong></td>
+                <td>Giao dịch không được phép để cơ sở dữ liệu rơi vào trạng thái mâu thuẫn logic sau khi kết thúc.</td>
+                <td>Tổng tiền hóa đơn #HD01 lệch với tổng thành tiền các dòng trong <code>BANG_CHITIET_HOADON</code>.</td>
+                <td>Bảo vệ bởi hệ thống Constraints (PK, FK, <code>UNIQUE</code>, <code>CHECK</code>) và Transaction Manager.</td>
+              </tr>
+              <tr>
+                <td><strong>Isolation (Tính cô lập) &amp; MVCC</strong></td>
+                <td>Các giao dịch chạy đồng thời không được làm nhiễu loạn trạng thái trung gian của nhau.</td>
+                <td>• Dirty Reads (trang 95): T2 đọc phải giá 30000 khi T1 chưa <code>COMMIT</code>.<br>• Dirty Writes (trang 96): Hai giao dịch ghi đè lộn xộn lên cùng bản ghi.<br>• Deadlocks (trang 101): Kẹt khóa vòng tròn.</td>
+                <td>Kết hợp Lock Manager (khóa đối tượng khi ghi xung đột) và MVCC (duy trì nhiều phiên bản bản ghi để đọc và ghi không chặn nhau).</td>
+              </tr>
+              <tr>
+                <td><strong>Durability (Tính bền vững)</strong></td>
+                <td>Khi giao dịch đã báo <code>COMMIT</code> thành công, dữ liệu không bao giờ bị mất dưới bất kỳ hoàn cảnh nào.</td>
+                <td>Báo "Đặt đơn #HD01 thành công" trên màn hình điện thoại nhưng sập nguồn làm mất đơn.</td>
+                <td>Ép ghi tuần tự qua WAL Buffer → WAL Writer → WAL Files ngay thời điểm <code>COMMIT</code>.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>[Bổ sung Chuyên sâu +30% — Sách <em>Database Internals</em> Ch.5 &amp; <em>PostgreSQL Internals</em>]: Giải phẫu Cặp Nhãn xmin / xmax trong Tuple Header &amp; Ma trận 4 Mức Cô lập (Isolation Levels)</h4>
+        <ul>
+          <li><strong>Cơ chế vật lý của MVCC qua cặp nhãn <code>t_xmin</code> và <code>t_xmax</code>:</strong> Làm sao PostgreSQL biết Tuple Phiên bản 1 (25000) là của T2 đọc còn Tuple Phiên bản 2 (30000) là của T1 vừa sửa? Mỗi dòng dữ liệu (HeapTupleHeaderData rộng 23 bytes) luôn mang 2 con dấu mã giao dịch:
+            <ul>
+              <li><strong><code>xmin</code>:</strong> Lưu mã TxID của giao dịch đã <strong>sinh ra (<code>INSERT</code>)</strong> phiên bản dòng này.</li>
+              <li><strong><code>xmax</code>:</strong> Lưu mã TxID của giao dịch đã <strong>xóa hoặc cập nhật (<code>DELETE / UPDATE</code>)</strong> dòng này (nếu dòng vẫn đang sống hiện hành thì xmax = 0). Khi T1 (TxID = 100) chạy <code>UPDATE DonGia = 30000</code>, nó điền xmax = 100 vào dòng cũ (25000) và chèn dòng mới (30000) có xmin = 100, xmax = 0!</li>
+            </ul>
+          </li>
+          <li><strong>Ma trận 4 Mức cô lập giao dịch chuẩn SQL (Isolation Levels):</strong></li>
+        </ul>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Mức Cô lập (Isolation Level)</th>
+                <th>Dirty Read (Đọc rác chưa Commit)</th>
+                <th>Non-Repeatable Read (Đọc lại cùng 1 dòng thấy giá trị khác)</th>
+                <th>Phantom Read (Đọc lại thấy xuất hiện thêm dòng ma)</th>
+                <th>Cách vận hành thực tế trong PostgreSQL</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>1. READ UNCOMMITTED</strong></td>
+                <td>Chặn hoàn toàn (nhờ MVCC)</td>
+                <td>Có thể xảy ra</td>
+                <td>Có thể xảy ra</td>
+                <td>Trong PostgreSQL, mức này tự động được nâng lên hành xử giống hệt READ COMMITTED (không bao giờ cho phép Dirty Read).</td>
+              </tr>
+              <tr>
+                <td><strong>2. READ COMMITTED (Mặc định)</strong></td>
+                <td>Chặn hoàn toàn</td>
+                <td>Có thể xảy ra</td>
+                <td>Có thể xảy ra</td>
+                <td>Mỗi câu lệnh <code>SELECT</code> bên trong giao dịch sẽ chụp một bức ảnh Snapshot mới tính tới thời điểm câu lệnh đó bắt đầu chạy.</td>
+              </tr>
+              <tr>
+                <td><strong>3. REPEATABLE READ</strong></td>
+                <td>Chặn hoàn toàn</td>
+                <td>Chặn hoàn toàn</td>
+                <td>Chặn hoàn toàn (trong PostgreSQL)</td>
+                <td>Giữ cố định bức ảnh Snapshot chụp tại câu lệnh đầu tiên cho tới hết giao dịch; nếu 2 giao dịch cùng sửa 1 dòng #HD01 sẽ bắn lỗi ERROR: could not serialize access due to concurrent update.</td>
+              </tr>
+              <tr>
+                <td><strong>4. SERIALIZABLE</strong></td>
+                <td>Chặn hoàn toàn</td>
+                <td>Chặn hoàn toàn</td>
+                <td>Chặn hoàn toàn + Chặn Write Skew</td>
+                <td>Sử dụng thuật toán SSI (Serializable Snapshot Isolation) với khóa vị từ SIREAD Locks để đảm bảo kết quả chạy song song giống hệt như xếp hàng chạy tuần tự từng giao dịch một.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <ul>
+          <li><strong>[Đúc kết Cơ học &amp; Đánh đổi]:</strong> MVCC giúp tăng vọt thông lượng xử lý đồng thời của #HD01 vì thao tác đọc (<code>SELECT</code>) và thao tác ghi (<code>UPDATE</code>) không khóa cứng lẫn nhau. Đánh đổi lại, mỗi lần <code>UPDATE</code> hay <code>DELETE</code> (đánh dấu xóa bằng Deletion markers / Tombstones), dung lượng trang đĩa bị phình ra do chứa nhiều phiên bản cũ, bắt buộc phải có tiến trình nền Autovacuum Worker chạy định kỳ để dọn rác và chống phân mảnh (Defragmentation). Tuy nhiên, dù không bị kẹt khóa, khi cửa hàng có hơn 100,000 orders như bộ dữ liệu thương mại điện tử ShopSphere, làm thế nào để tìm ra đúng đơn #HD01 mà không phải đọc toàn bộ các Page từ đầu đến cuối? Chúng ta bước sang <strong>Trạm 3.2: Cấu trúc Lưu trữ (B-Trees vs LSM-Trees) &amp; Chiến lược Đánh chỉ mục (Indexing)</strong>.</li>
+        </ul>
+
+        <hr />
+
+        <h2 id="db-3-2" tabindex="-1">Trạm 3.2: Storage Structures (B-Trees vs LSM-Trees) &amp; indexing strategies (Cấu trúc cây chỉ mục &amp; đánh đổi đọc/ghi)</h2>
+        <ul>
+          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Tìm đơn hàng #HD01 trong một bảng không có Index (Chỉ mục) giống như việc bạn phải lật đọc từ trang 1 đến trang 1,000 của một cuốn từ điển không xếp theo vần (Full Table Scan). B-Tree Index chính là trang Mục lục phân cấp ở đầu sách giúp bạn nhảy đúng 3 bước (Tập → Chương → Trang) là chạm ngay tới #HD01. Trong khi đó, LSM-Tree (Log-Structured Merge-tree — Cây hợp nhất cấu trúc nhật ký) lại giống như việc bạn ghi chép mọi đơn hàng mới vào từng cuốn sổ tay nhỏ trên bàn (Memtable), hễ đầy sổ thì đóng mộc niêm phong cất xuống kệ (Immutable SSTable) rồi định kỳ gộp các cuốn sổ nhỏ thành cuốn sổ lớn ở hậu trường!</li>
+          <li><strong>[Nỗi đau từ trạm trước]:</strong> Sau khi chuẩn hóa lên 3NF, đơn hàng #HD01 bị tách ra 4 bảng (KhachHang, HoaDon, MonAn, ChiTietHoaDon). Mỗi khi chạy lệnh <code>JOIN</code> qua các khóa ngoại (FK) hoặc tìm kiếm theo MaHD, nếu không có cấu trúc chỉ mục trên đĩa (Access Methods), Execution Engine phải nạp hàng chục nghìn Data Pages lên Shared Buffers, làm tràn bộ nhớ đệm và gây độ trễ cao.</li>
+        </ul>
+
+        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Bảng Đối chiếu]</h3>
+        <x-figure id="db-3-2" key="3.2" title="Sơ đồ 3.2 — Giải phẫu 2 Cấu trúc Lưu trữ Trên Đĩa: B-Tree (Mutable) vs LSM-Tree (Immutable Append-Only)">Đối sánh cơ học 2 cấu trúc chỉ mục trên đĩa: (1) B-Tree Index (PostgreSQL, InnoDB) với Root Page -> Internal Node -> Leaf Page (con trỏ ngang Blink-Tree) nhảy thẳng tới (Page #42, Slot Ptr #1), sửa đè tại chỗ (Mutable), tối ưu tốc độ Đọc; (2) LSM-Tree (RocksDB/MyRocks, Cassandra) ghi vào Memtable trên RAM + WAL rồi xả tuần tự thành các file bất biến Immutable SSTables và gộp ngầm qua Compaction, tối ưu tốc độ Ghi.</x-figure>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Cấu trúc Lưu trữ (Access Method)</th>
+                <th>Buffering (Đệm trong bộ nhớ trước khi ghi đĩa)</th>
+                <th>Immutability (Bất biến — File trên đĩa không sửa đè)</th>
+                <th>Ordering (Lưu trữ bản ghi theo thứ tự khóa)</th>
+                <th>Đặc tính Cơ học &amp; Ứng dụng thực tế (Theo <em>Database Internals</em> — Figure I-1)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>B-Trees (PostgreSQL, InnoDB)</strong></td>
+                <td>Không dùng để gom cấu trúc (Dùng Buffer Pool đệm Page).</td>
+                <td><strong>Không (Mutable):</strong> Sửa đè trực tiếp tại chỗ (In-place update) trên các Page 4-16 KB.</td>
+                <td><strong>Có (Ordered):</strong> Các khóa luôn được sắp xếp thứ tự giúp tìm kiếm khoảng (Range Scan) cực tốt.</td>
+                <td>Tối ưu cho tốc độ <strong>Đọc (Read Latency thấp)</strong> vì mỗi khóa chỉ nằm ở một vị trí duy nhất; nhược điểm là phát sinh Random Write I/O khi chèn/sửa và phải tách trang (Page Split).</td>
+              </tr>
+              <tr>
+                <td><strong>Bw-Trees</strong></td>
+                <td>Có (Đệm các thay đổi dưới dạng chuỗi Delta nodes).</td>
+                <td><strong>Có (Immutable):</strong> Không sửa đè trang ngay mà gắn thêm các Delta nodes trên nền Log-structured storage.</td>
+                <td><strong>Có (Ordered):</strong> Chỉ các nút đã hợp nhất (Consolidated nodes) mới giữ các bản ghi có thứ tự.</td>
+                <td>Loại bỏ việc khóa trang (Latch-free) khi ghi đồng thời bằng cách gom các cập nhật thành Delta records trước khi hợp nhất.</td>
+              </tr>
+              <tr>
+                <td><strong>Multicomponent LSM-Trees (RocksDB)</strong></td>
+                <td><strong>Có (Buffered):</strong> Đệm toàn bộ lượt ghi mới vào bộ nhớ trước khi xả xuống đĩa.</td>
+                <td><strong>Có (Immutable):</strong> Mọi file trên đĩa là bất biến; khi xóa #HD01 chỉ ghi thêm một nhãn bia mộ (Delete entry / Tombstone trang 137).</td>
+                <td><strong>Có (Ordered):</strong> Dữ liệu được sắp xếp theo khóa trong từng thành phần để hỗ trợ quét khoảng.</td>
+                <td>Tối ưu cho tốc độ <strong>Ghi (Write Throughput cao)</strong> vì biến mọi thao tác ghi thành ghi tuần tự (Sequential Write); đánh đổi lại khi đọc có thể phải kiểm tra nhiều file và tốn tài nguyên trộn file (Compaction).</td>
+              </tr>
+              <tr>
+                <td><strong>Bitcask</strong></td>
+                <td>Không (Unbuffered).</td>
+                <td><strong>Có (Immutable):</strong> Bảng băm cấu trúc nhật ký (Log-Structured Hash Table) chỉ ghi nối đuôi.</td>
+                <td><strong>Không (Unordered):</strong> Không sắp xếp thứ tự khóa trên đĩa.</td>
+                <td>Truy xuất Key-Value cực nhanh (1 lần đọc đĩa) khi toàn bộ bảng băm khóa vừa vặn trong RAM, nhưng không hỗ trợ quét theo khoảng khóa.</td>
+              </tr>
+              <tr>
+                <td><strong>WiscKey</strong></td>
+                <td>Chỉ dùng Buffering để giữ phần Keys có thứ tự trong cây LSM.</td>
+                <td><strong>Có (Immutable):</strong> Tách rời Keys (lưu trong LSM-Tree) khỏi Values (lưu trong Value Log riêng).</td>
+                <td><strong>Có (Ordered):</strong> Giữ thứ tự trên phần Keys.</td>
+                <td>Thiết kế chuyên biệt cho ổ cứng SSD (SSD-Conscious Storage): khi hợp nhất (Compaction) chỉ phải chép lại các Keys nhỏ gọn thay vì chép cả Values nặng nề.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>[Bổ sung Chuyên sâu +30% — Sách <em>Database Internals</em> Ch.4–7]: Thuật toán Latch Crabbing, Con trỏ B-Link Tree (Lehman &amp; Yao) &amp; Bộ lọc Bloom Filter</h4>
+        <ul>
+          <li><strong>Thuật toán Latch Crabbing (Khóa bò kiểu cua trên cây B-Tree — trang 102):</strong> Khi một luồng cần chèn hoặc sửa khóa 'HD01' trên cây B-Tree trong lúc hàng trăm luồng khác đang duyệt cây, nó bảo vệ tính toàn vẹn của các nút cây bằng quy trình 3 bước: (1) Khóa chốt (Latch) nút cha; (2) Khóa chốt nút con bên dưới; (3) Kiểm tra xem nút con có "an toàn" không (không bị đầy tới mức phải tách trang Page Split khi chèn, hoặc không quá vơi tới mức phải gộp trang Page Merge khi xóa) — nếu nút con an toàn, lập tức <strong>nhả khóa chốt ở tất cả các nút tổ tiên bên trên</strong> để giải phóng đường đi cho các luồng khác!</li>
+          <li><strong>Cấu trúc B-Link Tree (Lehman &amp; Yao) trong PostgreSQL:</strong> Các trang lá và trang nhánh của B-Tree trong PostgreSQL được bổ sung thêm một <strong>con trỏ ngang trỏ sang trang anh em bên phải (Right-Sibling Pointer)</strong> kèm một khóa chặn trên (High Key). Nhờ đó, ngay cả khi một trang đang trong quá trình tách đôi (Page Split) chưa kịp cập nhật lên nút cha, luồng đọc đi tới trang cũ thấy khóa cần tìm lớn hơn High Key chỉ việc rẽ ngang sang trang bên phải mà không bao giờ cần khóa chặn luồng ghi!</li>
+          <li><strong>Cứu cánh Bloom Filter cho LSM-Tree (trang 155):</strong> Vì LSM-Tree có hàng chục file SSTable bất biến xếp chồng từ Level 0 xuống Level N, để tránh việc một câu lệnh tìm đơn #HD01 phải mở đọc từng file SSTable trên đĩa, mỗi file được gắn một mảng bit xác suất Bloom Filter trên RAM: nếu Bloom Filter báo <em>"Khóa #HD01 chắc chắn không có trong file này"</em>, động cơ bỏ qua ngay file đó với chi phí 0 Disk I/O!</li>
+          <li><strong>[Đúc kết Cơ học &amp; Đánh đổi]:</strong> Hiểu rõ ma trận 3 tính chất (Buffering, Immutability, Ordering) giúp kỹ sư chọn đúng công cụ: dùng B-Tree Index trên mọi cột PK và FK (MaHD, MaKH, MaMon) của PostgreSQL/MySQL để tăng tốc độ truy vấn và phép nối <code>JOIN</code>; nhưng tránh đánh Index tràn lan trên các cột ít truy vấn vì mỗi Index cộng thêm sẽ làm chậm thao tác <code>INSERT</code>/<code>UPDATE</code> do phải cập nhật thêm các nhánh cây. Vậy làm sao để kiểm tra xem PostgreSQL có thực sự dùng B-Tree Index cho câu lệnh truy vấn đơn #HD01 hay không, và quản lý quyền truy cập vào bảng đó như thế nào? Chúng ta tiến tới <strong>Trạm 3.3</strong>.</li>
+        </ul>
+
+        <hr />
+
+        <h2 id="db-3-3" tabindex="-1">Trạm 3.3: Query Optimizer, EXPLAIN plan, SQL command groups &amp; access control (PoLP) (Tối ưu truy vấn &amp; bảo mật phân quyền)</h2>
+        <ul>
+          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Khi bạn gõ địa chỉ giao trà sữa lên bản đồ GPS (SQL Query), bạn chỉ nói "Tôi muốn đến nhà bạn Lan", chứ không chỉ dẫn rẽ trái hay rẽ phải ở từng ngã tư. Query Optimizer chính là bộ định tuyến GPS bên trong cơ sở dữ liệu: nó tự động phân tích mật độ giao thông (Index Cardinality, kích thước bảng) để vẽ ra lộ trình nhanh nhất (Execution Plan). Lệnh <code>EXPLAIN</code> (trong PostgreSQL) hay <code>EXPLAIN PLAN</code> (trong MySQL) chính là màn hình hiển thị trước lộ trình đó để kỹ sư kiểm tra xem xe có đi vào đường cao tốc (Index Scan) hay lại đi bộ qua đường làng (Sequential Scan)!</li>
+          <li><strong>[Nỗi đau từ trạm trước]:</strong> Đã tạo bảng 3NF và đánh B-Tree Index đầy đủ, nhưng nếu viết câu lệnh SQL bất cẩn (như lấy thừa cột, nối bảng sai cách) khiến Query Optimizer chọn phương án quét toàn bảng, hoặc cấp quyền quản trị tối cao cho tài khoản nhân viên báo cáo khiến họ vô tình chạy lệnh xóa bay bảng HoaDon, toàn bộ công sức thiết kế trước đó sẽ đổ sông đổ biển.</li>
+        </ul>
+
+        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Khối Lệnh SQL Thực Tế]</h3>
+        <x-figure id="db-3-3" key="3.3" title="Sơ đồ 3.3 — Giải phẫu Bộ Tối ưu hóa Truy vấn (Query Optimizer), EXPLAIN PLAN &amp; Mô hình Phân quyền (Least Privilege - PoLP)">Hành trình tối ưu hóa câu lệnh SQL truy vấn đơn #HD01: Bước 1 (Query Parser kiểm tra cú pháp & phân quyền RBAC/PoLP); Bước 2 (Cost-based Query Optimizer phân tích Index Cardinality, Intersection Size & Data Placement để loại bỏ Full Table Scan và chọn B-Tree Index Scan + Nested Loop Join); Bước 3 (Kiểm tra thực tế qua lệnh EXPLAIN / EXPLAIN ANALYZE và pg_stat_statements).</x-figure>
+
+        <pre><code>-- 1. Kiểm tra Kế hoạch thực thi (Execution Plan) cho truy vấn lấy chi tiết Đơn hàng #HD01 trên PostgreSQL
+EXPLAIN
+SELECT h.MaHD, h.NgayDat, k.TenKH, m.TenMon, ct.SoLuong, m.DonGia
+FROM HoaDon h
+JOIN KhachHang k ON h.MaKH = k.MaKH
+JOIN ChiTietHoaDon ct ON h.MaHD = ct.MaHD
+JOIN MonAn m ON ct.MaMon = m.MaMon
+WHERE h.MaHD = 'HD01';
+
+-- 2. Thiết lập Bảo mật theo Nguyên tắc Đặc quyền Tối thiểu (Principle of Least Privilege - PoLP)
+-- Cách 1: Cấp quyền chỉ đọc (SELECT) trên bảng cụ thể cho tài khoản người dùng
+CREATE USER 'user'@'localhost' IDENTIFIED BY 'secure_password';
+GRANT SELECT ON db.sales TO 'user'@'localhost';
+FLUSH PRIVILEGES;
+
+-- Cách 2: Quản lý qua Vai trò (Role-based) cho nhóm nhân viên báo cáo
+CREATE ROLE 'reporting_role';
+GRANT SELECT, INSERT, UPDATE ON mydatabase.* TO 'reporting_role';
+GRANT 'reporting_role' TO 'user'@'localhost';
+SET DEFAULT ROLE 'reporting_role' TO 'user'@'localhost';
+SET ROLE 'reporting_role';
+SHOW GRANTS;</code></pre>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nhóm lệnh SQL / Công cụ</th>
+                <th>Các câu lệnh &amp; Thành phần đại diện</th>
+                <th>Tác động cơ học lên Hệ thống &amp; Đơn hàng #HD01</th>
+                <th>Nguyên tắc Thực hành Tốt nhất (Best Practices)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>DDL (Data Definition Language)</strong></td>
+                <td><code>CREATE TABLE</code>, <code>ALTER TABLE</code>, <code>DROP TABLE</code>, định nghĩa PK, FK, Check constraint, Default constraint, Not null constraint.</td>
+                <td>Khởi tạo và thay đổi cấu trúc khung lược đồ (Schema) và các đối tượng cơ sở dữ liệu (Database Objects).</td>
+                <td>Chọn đúng kiểu dữ liệu (INTEGER/<code>BIGINT</code> cho khóa, <code>VARCHAR</code> có giới hạn, DATE/TIMESTAMP) ngay từ đầu để tránh phải migrate tốn kém.</td>
+              </tr>
+              <tr>
+                <td><strong>DML &amp; DQL (Data Manipulation / Query Language)</strong></td>
+                <td><code>SELECT</code>, <code>INSERT INTO ... VALUES</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>JOIN</code>, Views, Stored Procedures, Triggers.</td>
+                <td>Truy xuất, chèn mới, cập nhật và xóa các bản ghi của #HD01 thông qua ngôn ngữ chuẩn hóa SQL.</td>
+                <td>Không coi PostgreSQL là kho lưu trữ thụ động (Dumb storage); một câu lệnh SQL chuẩn xác có thể giải quyết trong vài giây công việc mà lập trình viên viết code thủ công mất hàng giờ.</td>
+              </tr>
+              <tr>
+                <td><strong>DCL (Data Control Language) &amp; Bảo mật</strong></td>
+                <td><code>CREATE USER</code>, <code>CREATE ROLE</code>, <code>GRANT</code>, <code>REVOKE</code>, FLUSH PRIVILEGES, SHOW GRANTS.</td>
+                <td>Kiểm soát chặt chẽ ai được phép truy cập bảng/cột nào (Table and column privileges) sau khi Query Parser thông dịch câu lệnh.</td>
+                <td>Áp dụng nghiêm ngặt Principle of Least Privilege (PoLP) (Nguyên tắc đặc quyền tối thiểu), kết hợp mã hóa (Encryption) và kiểm toán (Auditing).</td>
+              </tr>
+              <tr>
+                <td><strong>Công cụ Giám sát &amp; Tối ưu (Optimization)</strong></td>
+                <td><code>EXPLAIN</code> (PostgreSQL), <code>EXPLAIN PLAN</code> (MySQL), các công cụ giám sát hiệu năng định kỳ.</td>
+                <td>Giải phẫu chi phí truy vấn, phát hiện các phép <code>JOIN</code> thiếu chỉ mục hoặc các câu lệnh gây tải cao trên máy chủ.</td>
+                <td>Thường xuyên rà soát lược đồ và câu lệnh bằng <code>EXPLAIN</code>, kết hợp sử dụng Views hoặc bảng tổng hợp trước cho các báo cáo nặng.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>[Bổ sung Chuyên sâu +30% — Kịch bản Thực hành SQL &amp; Benchmark Thực tế: Nhìn tận mắt Seq Scan Chuyển thành Index Scan trên PostgreSQL]</h4>
+        <p>Để kiểm chứng trực tiếp sức mạnh của B-Tree Index và lệnh <code>EXPLAIN (ANALYZE, BUFFERS)</code> trên máy PostgreSQL (qua công cụ dòng lệnh <code>psql</code> hoặc giao diện pgAdmin 4), bạn có thể chạy trọn bộ kịch bản Benchmark dưới đây (bơm 100,000 hóa đơn giả lập cùng đơn hàng #HD01 của Lan):</p>
+        <pre><code>-- BƯỚC 1: Chèn dữ liệu gốc của khách hàng Lan và Đơn hàng Trà sữa #HD01 (2026-09-26)
+INSERT INTO KhachHang (MaKH, TenKH, SoDT) VALUES ('KH01', 'Lan', '0901234567');
+INSERT INTO MonAn (MaMon, TenMon, DonGia) VALUES
+    ('M01', 'Oolong Sua', 30000.00),
+    ('M02', 'Hong Tra Tac', 25000.00);
+INSERT INTO HoaDon (MaHD, NgayDat, MaKH) VALUES ('HD01', '2026-09-26', 'KH01');
+INSERT INTO ChiTietHoaDon (MaHD, MaMon, SoLuong) VALUES
+    ('HD01', 'M01', 2),
+    ('HD01', 'M02', 1);
+
+-- BƯỚC 2: Bơm thêm 100,000 đơn hàng giả lập vào bảng kiểm thử để đo lường Seq Scan vs Index Scan
+CREATE TABLE HoaDon_Benchmark AS
+SELECT
+    'HD' || LPAD(g::text, 6, '0') AS MaHD,
+    DATE '2026-01-01' + (g % 270) AS NgayDat,
+    'KH01' AS MaKH,
+    (random() * 100000)::numeric(10,2) AS TongTien
+FROM generate_series(1, 100000) AS g;
+
+-- Chèn đơn #HD01 vào bảng Benchmark (chưa đánh Index) và cập nhật thống kê cho Query Optimizer
+INSERT INTO HoaDon_Benchmark VALUES ('HD01', '2026-09-26', 'KH01', 85000.00);
+ANALYZE HoaDon_Benchmark;
+
+-- BƯỚC 3: Chạy EXPLAIN (ANALYZE, BUFFERS) KHI CHƯA CÓ INDEX -> Phải quét tuần tự toàn bảng (Seq Scan)
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT * FROM HoaDon_Benchmark WHERE MaHD = 'HD01';
+/* Kết quả thực tế trước khi có Index:
+   Seq Scan on hoadon_benchmark  (cost=0.00..1887.01 rows=1 width=28) (actual time=11.420..11.422 rows=1 loops=1)
+     Filter: (mahd = 'HD01'::text)
+     Rows Removed by Filter: 100000
+     Buffers: shared hit=637   &lt;-- Phải đọc tới 637 trang 8KB (~5.1 MB) trên Shared Buffers!
+   Execution Time: 11.458 ms
+*/
+
+-- BƯỚC 4: Tạo B-Tree Index trên cột MaHD và chạy lại EXPLAIN (ANALYZE, BUFFERS)
+CREATE INDEX idx_hoadon_bench_mahd ON HoaDon_Benchmark USING btree (MaHD);
+
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT * FROM HoaDon_Benchmark WHERE MaHD = 'HD01';
+/* Kết quả thực tế sau khi có B-Tree Index:
+   Index Scan using idx_hoadon_bench_mahd on hoadon_benchmark  (cost=0.29..8.31 rows=1 width=28) (actual time=0.038..0.040 rows=1 loops=1)
+     Index Cond: (mahd = 'HD01'::text)
+     Buffers: shared hit=4     &lt;-- Chỉ chạm đúng 4 trang 8KB (3 nút cây B-Tree + 1 trang Data Page)!
+   Execution Time: 0.062 ms    &lt;-- Nhanh gấp ~185 lần (từ 11.458 ms xuống 0.062 ms)!
+*/</code></pre>
+
+        <ul>
+          <li><strong>[Đúc kết Cơ học &amp; Đánh đổi → Chuyển giao sang Chặng 4]:</strong> Tới đây, trên một máy chủ đơn lẻ (Single-Node DBMS), đơn hàng #HD01 đã đạt độ hoàn hảo: thiết kế 3NF chuẩn mực, lưu trữ an toàn qua Shared Buffers + WAL, xử lý đồng thời mượt mà nhờ MVCC, và truy vấn tối ưu qua B-Tree Index + <code>EXPLAIN</code>. <strong>Nhưng nỗi đau cấp độ kiến trúc sư xuất hiện:</strong> Chuỗi trà sữa của bạn bùng nổ lên quy mô toàn cầu! Một máy chủ đơn lẻ dù nâng cấp tối đa vẫn chạm trần vật lý về CPU/RAM/SSD, và nguy hiểm hơn: nếu trung tâm dữ liệu đặt máy chủ đó bị đứt cáp quang hoặc cháy nổ, toàn bộ hệ thống đặt hàng sẽ tê liệt hoàn toàn! Làm sao để nhân bản và phân mảnh #HD01 ra hàng chục máy chủ ở nhiều châu lục mà dữ liệu vẫn nhất quán? Chúng ta tiến vào chặng cuối cùng — <strong>Chặng 4: Mở rộng Quy mô (Scalability), Tính sẵn sàng Cao (High Availability) &amp; Đánh đổi SQL vs NoSQL</strong>.</li>
+        </ul>
+
+        <section class="summary-section" id="db-3-summary" tabindex="-1">
+          <h2>Tóm tắt bỏ túi Chặng 3 &amp; Checklist tự kiểm tra (MVCC, indexing &amp; EXPLAIN)</h2>
+          <p><strong>Mạch nhân – quả Chặng 3 (Trạm 3.1 → Trạm 3.3):</strong></p>
+          <ul>
+            <li><strong>[Trạm 3.1]</strong> Khi 1,000 người cùng đọc và sửa đơn #HD01, cơ chế MVCC sinh ra Tuple Phiên bản 2 (Mới) gắn nhãn xmin/xmax để giao dịch đọc (Snapshot) và giao dịch ghi không bao giờ khóa chặn nhau; các Dead Tuples cũ được Autovacuum Worker quét dọn ngầm →</li>
+            <li><strong>[Trạm 3.2]</strong> Để không phải quét toàn bảng (Seq Scan), PostgreSQL dùng cây cân bằng B-Tree Index (khả biến trên đĩa, khóa trang bằng Latch Crabbing, tối ưu Đọc), trong khi các hệ thống chuyên ghi như RocksDB / Cassandra dùng LSM-Tree (Memtable + Immutable SSTables + Compaction) →</li>
+            <li><strong>[Trạm 3.3]</strong> Bộ Query Optimizer phân tích thống kê Index Cardinality để lập Execution Plan chi phí thấp nhất (kiểm chứng bằng <code>EXPLAIN ANALYZE</code> giảm từ 637 buffers / 11.45ms xuống 4 buffers / 0.06ms), kết hợp bảo mật đặc quyền tối thiểu PoLP.</li>
+          </ul>
+          <p><strong>Checklist tự kiểm tra Chặng 3 (5 Câu hỏi Bản chất):</strong></p>
+          <ol>
+            <li>Khi thu ngân chạy lệnh <code>UPDATE MonAn SET DonGia = 30000 WHERE MaMon = 'M01'</code>, tại sao quản lý đang chạy lệnh <code>SELECT</code> cùng lúc đó lại không bị chặn và vẫn nhìn thấy giá 25000 ổn định?</li>
+            <li>Tại sao một bảng trong PostgreSQL có tần suất <code>UPDATE / DELETE</code> cực cao lại bị phình dung lượng đĩa (Table Bloat) nếu tiến trình Autovacuum Worker bị tắt?</li>
+            <li>Hãy đối sánh B-Tree và LSM-Tree dựa trên 3 biến số Buffering, Immutability và Ordering. Khi nào bạn chọn B-Tree và khi nào bạn chọn LSM-Tree?</li>
+            <li>Trong kết quả của lệnh <code>EXPLAIN (ANALYZE, BUFFERS)</code>, con số Buffers: shared hit=4 khi có B-Tree Index phản ánh chính xác những bước nhảy vật lý nào trên các trang 8KB?</li>
+            <li>Nguyên tắc Principle of Least Privilege (PoLP) được triển khai bằng nhóm lệnh DCL (<code>CREATE ROLE</code>, <code>GRANT</code>, <code>REVOKE</code>) như thế nào để ngăn chặn thảm họa nhân viên báo cáo xóa nhầm bảng dữ liệu?</li>
+          </ol>
+          <p style="margin-top:14px;"><a href="#topic=F03&stage=4" onclick="selectStorageStage(4);return false;">Sang Chặng 4: Scalability, High Availability &amp; NoSQL Trade-offs (Mở rộng quy mô &amp; Phân tán) →</a></p>
+        </section>
+      </div>
