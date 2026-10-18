@@ -1,0 +1,320 @@
+      <div class="prose">
+        <x-spine id="consumption-2-spine" badge="TRONG BÀI HỌC NÀY · D05" title="Chặng 2: Dimensional Modeling (Kimball), Bảng Fact/Dimension, Star vs. Snowflake Schema" subtitle="Trạm 2.1 → 2.4">Giải phẫu phương pháp luận <strong>Dimensional Modeling</strong> của Ralph Kimball cho sự kiện <strong>Đơn hàng #8888</strong> (<code>order_id=1001</code>, khách hàng <code>C01 Anna / Peter Pan 123456</code>, sản phẩm <code>P01 Keyboard $50</code>, <code>P02 Mouse $20</code>): từ quy trình 4 bước tuyên bố độ mịn (<code>Grain</code>), phân tách chỉ số <code>Additive</code> vs. <code>Semi-Additive</code> trên bảng <code>factSales</code>, thiết kế chiều thời gian <code>dimDate</code> đến cuộc đối đầu giữa <strong>Star Schema</strong>, <strong>Snowflake Schema</strong> và <strong>One Big Table (OBT)</strong>.</x-spine>
+
+        <section class="lesson-section" id="consumption-2-1">
+          <h2 id="consumption-2-1-h2" tabindex="-1">Trạm 2.1: Bản chất Dimensional Modeling, Vai trò trong Consumption Layer &amp; Quy trình 4 Bước Kimball</h2>
+
+          <p><strong>Dimensional Modeling (Mô hình hóa Đa chiều)</strong> là kỹ thuật thiết kế dữ liệu tại <strong>Consumption Layer</strong> nhằm cấu trúc hóa dữ liệu doanh nghiệp thành hai nhóm thực thể tách biệt: <strong>Facts (Bảng Sự kiện chứa các con số đo lường định lượng)</strong> và <strong>Dimensions (Bảng Chiều chứa ngữ cảnh mô tả ai, cái gì, ở đâu, khi nào)</strong> (<em>Slide 16</em> &amp; <em>The Data Warehouse Toolkit, 3rd Ed.</em>, Ch. 1). Khi sự kiện giao dịch <strong>Đơn hàng #8888</strong> (<code>order_id=1001</code>, khách hàng <code>C01 Anna / Peter Pan 123456</code> mua <code>P01 Keyboard $50</code> và <code>P02 Mouse $20</code>) đi từ hệ thống nguồn qua chuỗi <code>Raw data → Transformation layer → Dimensional Models → BI Tools</code> (<em>Slide 17</em>), mục tiêu tối thượng không còn là chống dư thừa ghi như lược đồ <code>3NF</code> của OLTP, mà là <strong>tối ưu hóa tốc độ đọc phân tích (<code>I/O Scan &amp; Join Performance</code>)</strong> đồng thời cung cấp một <strong>Lớp Ngữ nghĩa Trực quan (<code>Semantic Data Model</code>)</strong> để chuyên viên phân tích kéo thả trên Power BI, Tableau hay Looker mà không viết sai logic kết nối.</p>
+
+          <p>Tại điểm cuối của đường ống chuyển đổi, kiến trúc Dimensional Modeling xuất bản <strong>4 sản phẩm dữ liệu chuẩn hóa</strong> phục vụ trực tiếp cho công cụ BI: <strong><code>Fact tables</code></strong> (lưu trữ sự kiện giao dịch ở độ mịn nguyên tử như <code>factSales</code>), <strong><code>Dimension tables</code></strong> (lưu trữ thuộc tính lọc và gom nhóm như <code>dimCustomer</code>, <code>dimProduct</code>, <code>dimDate</code>), <strong><code>Aggregation tables</code></strong> (bảng tổng hợp đóng gói sẵn theo ngày/tháng để tăng tốc Dashboard), và <strong><code>Analytical views</code></strong> (lớp khung nhìn logic che giấu độ phức tạp kỹ thuật bên dưới). Để ngăn chặn thảm họa thiết kế bảng sự kiện hỗn độn — nơi kỹ sư trộn lẫn dòng chi tiết sản phẩm (<code>$50</code>, <code>$20</code>) với tổng hóa đơn (<code>$70</code>) làm phép <code>SUM()</code> nhân đôi doanh thu — Ralph Kimball thiết lập <strong>Quy trình Thiết kế 4 Bước Bất biến (Kimball 4-Step Dimensional Design Process)</strong> (<em>Slide 18</em>):</p>
+
+          <x-figure id="consumption-2-1-fig" key="2.1" title="Sơ đồ 2.1 — Vị trí của Dimensional Modeling trong Consumption Layer &amp; Quy trình 4 Bước Thiết kế của Ralph Kimball">Luồng chuyển hóa từ dữ liệu thô sang 4 sản phẩm đầu ra tại Consumption Layer (Fact tables, Dimension tables, Aggregation tables, Analytical views) và 4 quyết định kiến trúc tuần tự khi mô hình hóa Đơn hàng #8888 vào bảng factSales.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Bước Thiết kế (Kimball 4-Step Process)</th>
+                  <th>Câu hỏi Kiến trúc Cốt lõi</th>
+                  <th>Áp dụng Thực tế trên Đơn hàng #8888 (<code>order_id=1001</code>)</th>
+                  <th>Hệ lụy Vật lý nếu Vi phạm ở Production</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Bước 1: Chọn Quy trình Nghiệp vụ (<code>Select the Business Process</code>)</strong></td>
+                  <td>Hoạt động vận hành thực tế nào đang sinh ra sự kiện dữ liệu cần đo lường?</td>
+                  <td>Chọn quy trình <strong>Bán hàng &amp; Xử lý Đơn hàng (<code>Orders / Retail Sales Process</code>)</strong> — nơi khách hàng <code>C01 Anna / Peter Pan 123456</code> thực hiện giao dịch mua sắm phát sinh hóa đơn.</td>
+                  <td>Thiết kế bảng theo phòng ban (ví dụ "Bảng của phòng Kế toán") thay vì theo quy trình nghiệp vụ khiến dữ liệu bị phân mảnh thành các ốc đảo (Data Silos) mâu thuẫn số liệu.</td>
+                </tr>
+                <tr>
+                  <td><strong>Bước 2: Tuyên bố Độ mịn (<code>Declare the Grain</code>)</strong></td>
+                  <td>Chính xác <code>1 dòng (1 row)</code> trong bảng Fact đại diện cho sự kiện vật lý nào ở thế giới thực?</td>
+                  <td>Tuyên bố khế ước bất biến: <strong><code>Grain = 1 row per order line item</code></strong> (Mỗi dòng chi tiết sản phẩm trên hóa đơn là 1 bản ghi trong <code>factSales</code>: <code>1 dòng</code> cho <code>P01 Keyboard $50</code> và <code>1 dòng</code> cho <code>P02 Mouse $20</code>).</td>
+                  <td><strong>Thảm họa Mixed Grain:</strong> Nếu trộn lẫn dòng cấp đơn hàng (<code>order_id=1001</code>) và dòng cấp sản phẩm (<code>P01</code>, <code>P02</code>) trong cùng 1 bảng Fact, mọi phép <code>SUM(SalesAmount)</code> và <code>JOIN</code> chiều sản phẩm sẽ cho kết quả sai lệch hoàn toàn.</td>
+                </tr>
+                <tr>
+                  <td><strong>Bước 3: Xác định các Chiều Ngữ cảnh (<code>Identify the Dimensions</code>)</strong></td>
+                  <td>Những thực thể ngữ cảnh nào trả lời cho câu hỏi <em>Ai, Cái gì, Ở đâu, Khi nào, Như thế nào</em> xoay quanh đúng <code>Grain</code> đã chọn?</td>
+                  <td>Định danh bộ chiều vây quanh dòng hàng (<em>Slide 18</em>): <code>Order Date</code>, <code>Due Date</code>, <code>Bill To Customer</code>, <code>Ship To Customer</code>, <code>Sold To Customer</code> (<code>C01 Anna / Peter Pan 123456</code>), <code>Product</code> (<code>P01</code>, <code>P02</code>), <code>Promotion</code>, <code>Channel</code>, và <code>Sales Person</code>.</td>
+                  <td>Thiếu chiều ngữ cảnh làm mất khả năng cắt lát (Slice-and-Dice); ngược lại, gán một chiều không khớp với <code>Grain</code> (ví dụ gán nhiều nhân viên bán hàng cho 1 dòng đơn lẻ mà không có bảng cầu nối) sẽ gây nhân bản dòng (Fan Trap).</td>
+                </tr>
+                <tr>
+                  <td><strong>Bước 4: Xác định các Chỉ số Đo lường (<code>Identify the Facts</code>)</strong></td>
+                  <td>Những đại lượng số học nào phát sinh tại đúng mức độ mịn <code>1 row per order line</code>?</td>
+                  <td>Trích xuất các con số định lượng gắn chặt với từng dòng sản phẩm trong <code>factSales</code>: số lượng bán <code>UnitsSold</code> (<code>1</code> chiếc), đơn giá <code>UnitPrice</code> (<code>$50.00</code>, <code>$20.00</code>), và thành tiền <code>SalesAmount</code> (<code>$50.00</code>, <code>$20.00</code>).</td>
+                  <td>Đưa một chỉ số cấp tổng đơn hàng (như phí vận chuyển toàn đơn <code>OrderShippingFee = $10</code>) nguyên vẹn vào từng dòng sản phẩm mà không phân bổ (Allocate) sẽ làm phép <code>SUM(OrderShippingFee)</code> trên 2 sản phẩm bị cộng đúp thành <code>$20 [x]</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="callout">
+            <div class="callout-title">Quy luật Đánh đổi Kỹ thuật tại Trạm 2.1 — Tại sao Bước 2 (Declare the Grain) phải đứng trước Bước 3 &amp; Bước 4?</div>
+            <p>Trong phương pháp luận Kimball, <strong>Độ mịn (<code>Grain</code>) là hợp đồng hình học tối cao</strong> quyết định toàn bộ bảng Fact: chỉ khi chốt cứng <code>Grain = 1 row per order line</code> của <strong>Đơn hàng #8888</strong>, kỹ sư mới biết chính xác chiều nào được phép gắn trực tiếp qua khóa ngoại (như <code>ProductKey</code> của <code>P01 Keyboard</code>) và con số nào được phép nằm trên dòng đó (<code>SalesAmount = $50</code>). Luôn ưu tiên thiết kế bảng Fact ở <strong>độ mịn nguyên tử thấp nhất (<code>Atomic Grain</code>)</strong> vì dữ liệu chi tiết luôn có thể <code>SUM()</code> cuộn lên cấp tổng, nhưng dữ liệu đã gộp sớm thì vĩnh viễn không thể tách ngược lại. Khi độ mịn đã khóa, cấu trúc vật lý bên trong bảng <code>factSales</code> được tổ chức ra sao và tại sao có những con số trong bảng Fact tuyệt đối cấm dùng hàm <code>SUM()</code>? Chúng ta tiến vào <strong>Trạm 2.2</strong>.</p>
+          </div>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="consumption-2-2">
+          <h2 id="consumption-2-2-h2" tabindex="-1">Trạm 2.2: Giải phẫu Bảng Sự kiện (Fact Tables): Fact Keys, Độ mịn (Grain) &amp; Chỉ số Additive vs. Semi-Additive</h2>
+
+          <p><strong>Bảng Sự kiện (<code>Fact Table</code>)</strong> là bảng trung tâm của mô hình đa chiều, lưu trữ các phép đo định lượng (<code>Measures / Facts</code>) của sự kiện nghiệp vụ kèm theo tập hợp các khóa ngoại (<code>Foreign Keys</code>) trỏ tới các bảng chiều xung quanh (<em>Slide 19–20</em>). Về mặt vật lý, bảng <code>factSales</code> mang đặc tính <strong>hẹp về số cột nhưng cực sâu về số dòng (Narrow and Deep)</strong> — chứa hàng tỷ bản ghi sự kiện nhưng mỗi dòng chỉ gồm các số nguyên khóa thay thế (<code>Surrogate Keys</code> <code>4-byte INT</code>) và các cột số thực/thập phân (<code>NUMERIC</code>). Quan sát lược đồ <code>factSales</code> trên <em>Slide 20</em>, một dòng chi tiết của <strong>Đơn hàng #8888</strong> (<code>order_id=1001</code>) kết nối tới <code>dimCustomer</code> (<code>CustomerKey</code>), <code>dimProduct</code> (<code>ProductKey</code>), <code>dimTerritory</code> (<code>TerritoryKey</code>) và đặc biệt sử dụng 3 cột khóa ngày khác nhau — <code>OrderDateKey</code>, <code>ShipDateKey</code>, <code>PaymentDateKey</code> — cùng trỏ về <strong>duy nhất 1 bảng vật lý <code>dimDate</code></strong>. Đây là kỹ thuật <strong>Role-Playing Dimension (Chiều Đa Vai trò)</strong>: thay vì nhân bản 3 bảng thời gian vật lý gây lãng phí bộ nhớ, công cụ BI hoặc câu lệnh SQL chỉ cần tạo 3 bí danh (Alias) đọc từ cùng một bảng <code>dimDate</code> để phân tích đồng thời ngày đặt hàng, ngày xuất kho và ngày thanh toán.</p>
+
+          <p>Sai lầm nguy hiểm nhất khi truy vấn bảng Fact là giả định mọi cột số học đều có thể áp dụng hàm <code>SUM()</code> trên mọi chiều phân tích. Dựa vào hành vi toán học khi cuộn dữ liệu (Roll-up) qua các chiều, Ralph Kimball phân loại các chỉ số đo lường thành <strong>3 nhóm cơ học nghiêm ngặt</strong>: <strong><code>Additive</code> (Cộng được hoàn toàn)</strong>, <strong><code>Semi-Additive</code> (Bán cộng — CẤM cộng theo chiều thời gian)</strong>, và <strong><code>Non-Additive</code> (Không cộng được)</strong> (<em>Slide 19–21</em> &amp; <em>Kimball Toolkit</em> Ch. 1):</p>
+
+          <x-figure id="consumption-2-2-fig" key="2.2" title="Sơ đồ 2.2 — Giải phẫu Bảng factSales, Role-Playing Date Keys &amp; Bẫy Cộng Nhầm Chỉ số Semi-Additive (InventoryLevel)">Cấu trúc khóa ngoại (bao gồm 3 Role-Playing Date Keys cùng trỏ về dimDate) của bảng factSales và phép chứng minh số học tại sao chỉ số tồn kho InventoryLevel (May 1 = 100, May 2 = 80, May 3 = 120) bị phóng đại sai lệch thành 300 [x] nếu dùng hàm SUM theo chiều thời gian.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Phân loại Chỉ số (Measure Type)</th>
+                  <th>Quy tắc Toán học trên các Chiều (Dimensions)</th>
+                  <th>Minh họa Định lượng từ Slide 20–21 &amp; Đơn hàng #8888</th>
+                  <th>Cơ chế Xử lý SQL Chuẩn trong Consumption Layer</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. <code>Additive</code> (Cộng được hoàn toàn)</strong></td>
+                  <td>Hợp lệ khi dùng hàm <code>SUM()</code> xuyên qua <strong>mọi chiều ngữ cảnh</strong> (Thời gian, Khách hàng, Sản phẩm, Lãnh thổ).</td>
+                  <td>Doanh thu <code>SalesAmount</code> và số lượng bán <code>UnitsSold</code> trong <code>factSales</code>: Ngày <code>May 1 = 500</code>, Ngày <code>May 2 = 700</code> → Tổng doanh thu 2 ngày <code>SUM = 1,200 [+]</code>. Mỗi sự kiện bán hàng là một lượng phát sinh độc lập tích lũy theo thời gian.</td>
+                  <td>Áp dụng trực tiếp <code>SUM(SalesAmount)</code> và <code>SUM(UnitsSold)</code> ở mọi cấp độ <code>GROUP BY</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. <code>Semi-Additive</code> (Bán cộng)</strong></td>
+                  <td>Cộng được bằng <code>SUM()</code> theo các chiều không gian (Sản phẩm, Kho hàng, Chi nhánh), nhưng <strong>TUYỆT ĐỐI CẤM dùng <code>SUM()</code> dọc theo chiều Thời gian (<code>dimDate</code>)</strong>.</td>
+                  <td>Mức tồn kho <code>InventoryLevel</code> của sản phẩm <code>P01 Keyboard</code> (<em>Slide 21</em>) hoặc số dư tài khoản ngân hàng: <code>May 1 = 100</code> chiếc, <code>May 2 = 80</code> chiếc, <code>May 3 = 120</code> chiếc. Nếu chạy <code>SUM(InventoryLevel)</code> trong 3 ngày sẽ ra <code>100 + 80 + 120 = 300 [x]</code> — hoàn toàn vô nghĩa vì cùng những chiếc bàn phím đó nằm trong kho được đếm lặp lại qua từng ngày!</td>
+                  <td>Cộng <code>SUM(InventoryLevel)</code> giữa Kho Hà Nội + Kho TP.HCM trong <strong>cùng 1 ngày</strong> thì đúng <code>[+]</code>; nhưng khi gộp theo tuần/tháng/quý, bắt buộc dùng số dư cuối kỳ <code>LAST_VALUE(InventoryLevel)</code> (<code>= 120 [+]</code>) hoặc tồn kho trung bình kỳ <code>AVG(InventoryLevel)</code> (<code>= 100 [+]</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>3. <code>Non-Additive</code> (Không cộng được)</strong></td>
+                  <td><strong>Không thể dùng <code>SUM()</code> trên bất kỳ chiều nào</strong> vì phép cộng làm biến dạng hoàn toàn ý nghĩa vật lý hoặc toán học của con số.</td>
+                  <td>Đơn giá <code>UnitPrice</code> (<code>P01 Keyboard = $50</code>, <code>P02 Mouse = $20</code> → cộng 2 đơn giá ra <code>$70 [x]</code> không mang ý nghĩa đơn giá chung), tỷ lệ biên lợi nhuận <code>GrossMarginPct</code> (<code>%</code>), hoặc nhiệt độ cảm biến.</td>
+                  <td>Lưu trữ <strong>tử số và mẫu số độc lập</strong> ở dạng <code>Additive</code> (ví dụ lưu <code>SalesAmount</code> và <code>UnitsSold</code> hoặc <code>GrossProfit</code>), sau đó tính tỷ số <strong>sau khi đã <code>SUM</code></strong>: <code>SUM(SalesAmount) / NULLIF(SUM(UnitsSold), 0)</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Mẫu Truy vấn SQL Thực chiến: Role-Playing Dimension &amp; Bảo vệ Chỉ số Semi-Additive / Non-Additive</h3>
+          <p>Đoạn mã SQL dưới đây minh họa cách kết nối bảng <code>factSales</code> với 3 vai trò của <code>dimDate</code> cho <strong>Đơn hàng #8888</strong> (<code>order_id=1001</code>) đồng thời tách biệt cách tính tổng doanh thu <code>Additive</code>, đơn giá bình quân gia quyền <code>Non-Additive</code> và tồn kho cuối kỳ <code>Semi-Additive</code>:</p>
+
+          <pre><code>-- 1. Truy vấn factSales với Role-Playing Dimension (3 khóa ngày cùng JOIN vào 1 bảng vật lý dimDate)
+--    Đồng thời xử lý đúng bản chất Additive (SalesAmount) và Non-Additive (UnitPrice)
+SELECT
+    d_order.Year                              AS order_year,
+    d_order.MonthName                         AS order_month,
+    c.CustomerName                            AS customer_name,
+    SUM(f.UnitsSold)                          AS total_units_sold,      -- [+] Additive: cộng trực tiếp
+    SUM(f.SalesAmount)                        AS total_sales_amount,    -- [+] Additive: May 1 (500) + May 2 (700) = 1200
+    -- [!] Non-Additive: CẤM dùng SUM(f.UnitPrice) hay AVG(f.UnitPrice) ngây thơ;
+    --     Bắt buộc tính tổng doanh thu chia cho tổng sản lượng (Weighted Average Unit Price):
+    ROUND(SUM(f.SalesAmount) / NULLIF(SUM(f.UnitsSold), 0), 2) AS weighted_avg_unit_price,
+    AVG(d_ship.FullDate - d_order.FullDate)   AS avg_shipping_days
+FROM factSales AS f
+INNER JOIN dimCustomer AS c       ON f.CustomerKey    = c.CustomerKey
+INNER JOIN dimProduct  AS p       ON f.ProductKey     = p.ProductKey
+INNER JOIN dimDate     AS d_order ON f.OrderDateKey   = d_order.DateKey   -- Vai trò 1: Ngày đặt hàng
+INNER JOIN dimDate     AS d_ship  ON f.ShipDateKey    = d_ship.DateKey    -- Vai trò 2: Ngày giao hàng
+INNER JOIN dimDate     AS d_pay   ON f.PaymentDateKey = d_pay.DateKey     -- Vai trò 3: Ngày thanh toán
+WHERE d_order.Year = 2026
+  AND d_order.Quarter = 'Q2'
+GROUP BY d_order.Year, d_order.MonthName, c.CustomerName;
+
+-- 2. Xử lý chỉ số Semi-Additive (InventoryLevel):
+--    Cộng SUM() qua các kho (WarehouseKey) trong cùng ngày, nhưng lấy LAST_VALUE / AVG theo thời gian
+WITH daily_total_inventory AS (
+    SELECT
+        d.FullDate,
+        d.Year,
+        d.Month,
+        p.ProductCode,
+        -- [+] Hợp lệ: Cộng tồn kho của P01 Keyboard qua tất cả các kho trong CÙNG 1 NGÀY
+        SUM(inv.InventoryLevel) AS eod_inventory_across_warehouses
+    FROM factInventorySnapshot AS inv
+    INNER JOIN dimDate    AS d ON inv.DateKey    = d.DateKey
+    INNER JOIN dimProduct AS p ON inv.ProductKey = p.ProductKey
+    WHERE p.ProductCode = 'P01'
+    GROUP BY d.FullDate, d.Year, d.Month, p.ProductCode
+)
+SELECT
+    Year,
+    Month,
+    ProductCode,
+    -- [+] Hợp lệ theo chiều thời gian: Trung bình tồn kho trong tháng (May 1=100, May 2=80, May 3=120 -&gt; AVG=100)
+    ROUND(AVG(eod_inventory_across_warehouses), 2) AS avg_monthly_inventory,
+    -- [+] Hợp lệ theo chiều thời gian: Tồn kho chốt cuối kỳ (Closing Balance = 120)
+    ARRAY_AGG(eod_inventory_across_warehouses ORDER BY FullDate DESC)[1] AS closing_inventory_level
+FROM daily_total_inventory
+GROUP BY Year, Month, ProductCode;</code></pre>
+
+          <p>Bảng <code>factSales</code> đã giữ trọn vẹn các con số định lượng và khóa ngoại siêu gọn của <strong>Đơn hàng #8888</strong>. Tuy nhiên, những con số khô khan như <code>OrderDateKey = 20260501</code> hay <code>CustomerKey = 42</code> hoàn toàn vô nghĩa với giám đốc kinh doanh nếu thiếu các bảng chiều cung cấp bộ lọc chữ nghĩa. Tại sao chúng ta phải xây hẳn một bảng <code>dimDate</code> thay vì dùng hàm <code>EXTRACT(MONTH FROM order_date)</code> có sẵn của SQL, và các bảng chiều kết nối với bảng Fact theo hình thái nào để đạt tốc độ quét nhanh nhất? Chúng ta bước sang <strong>Trạm 2.3</strong>.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="consumption-2-3">
+          <h2 id="consumption-2-3-h2" tabindex="-1">Trạm 2.3: Giải phẫu Bảng Chiều (Dimension Tables: dimDate, dimCustomer) &amp; Kiến trúc Star Schema</h2>
+
+          <p>Nếu bảng Fact là nơi chứa các con số đo lường cực sâu, thì <strong>Bảng Chiều (<code>Dimension Table</code>)</strong> là kho lưu trữ toàn bộ ngữ cảnh văn bản mô tả (<code>Descriptive Attributes</code>), đóng vai trò là <strong>điểm đầu vào của mọi điều kiện lọc (<code>WHERE</code>), gom nhóm (<code>GROUP BY</code>) và gắn nhãn báo cáo (<code>Report Labels</code>)</strong> (<em>Slide 21–22</em>). Ngược với bảng Fact, bảng Dimension có cấu trúc <strong>rộng về số cột nhưng ít về số dòng (Wide and Shallow)</strong>: bảng <code>dimCustomer</code> có thể chứa từ <code>30–100 cột</code> mô tả chi tiết khách hàng <code>C01 Anna / Peter Pan 123456</code> (họ tên, phân khúc VIP, thành phố, tiểu bang, quốc gia, kênh đăng ký) nhưng chỉ có vài trăm nghìn đến vài triệu dòng. Đặc biệt, trong mọi kho dữ liệu chuẩn Kimball, bảng chiều quan trọng nhất bắt buộc phải khởi tạo đầu tiên là <strong>Chiều Thời gian (<code>dimDate</code>)</strong>.</p>
+
+          <p>Tại sao kỹ sư dữ liệu không dùng trực tiếp các hàm xử lý thời gian lúc chạy như <code>EXTRACT(YEAR FROM order_date)</code>, <code>TO_CHAR(order_date, 'Day')</code> trên bảng <code>factSales</code> mà phải dựng bảng <code>dimDate</code> với khóa nguyên thông minh <code>DateKey = 20260501</code> (kiểu <code>4-byte INT</code> định dạng <code>YYYYMMDD</code>)? Có hai lý do vật lý và nghiệp vụ quyết định: thứ nhất, việc gọi hàm <code>EXTRACT()</code> trên <code>1 tỷ dòng</code> của bảng Fact buộc CPU phải tính toán lặp lại 1 tỷ lần ở mỗi truy vấn và làm vô hiệu hóa khả năng cắt tỉa phân vùng tĩnh; thứ hai, không một hàm <code>SQL DATE</code> nội tại nào biết được <strong>lịch nghỉ lễ quốc gia, kỳ lương, mùa chiến dịch Flash Sale hay Năm Tài chính doanh nghiệp (<code>Fiscal Year / Fiscal Quarter</code>)</strong>. Bảng <code>dimDate</code> tính toán sẵn toàn bộ các thuộc tính này một lần duy nhất cho <code>10 năm</code> (chỉ khoảng <code>3,652 dòng</code>, nằm gọn trong vài chục KB bộ nhớ đệm CPU L2/L3 Cache) (<em>Slide 21</em>):</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th><code>DateKey</code> (PK · <code>INT</code>)</th>
+                  <th><code>FullDate</code> (<code>DATE</code>)</th>
+                  <th><code>Day</code></th>
+                  <th><code>Month</code></th>
+                  <th><code>MonthName</code></th>
+                  <th><code>Quarter</code></th>
+                  <th><code>Year</code></th>
+                  <th><code>Weekday</code></th>
+                  <th><code>IsWeekend</code></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>20260501</code></td>
+                  <td><code>2026-05-01</code></td>
+                  <td><code>1</code></td>
+                  <td><code>5</code></td>
+                  <td><code>May</code></td>
+                  <td><code>Q2</code></td>
+                  <td><code>2026</code></td>
+                  <td><code>Friday</code></td>
+                  <td><code>No</code></td>
+                </tr>
+                <tr>
+                  <td><code>20260502</code></td>
+                  <td><code>2026-05-02</code></td>
+                  <td><code>2</code></td>
+                  <td><code>5</code></td>
+                  <td><code>May</code></td>
+                  <td><code>Q2</code></td>
+                  <td><code>2026</code></td>
+                  <td><code>Saturday</code></td>
+                  <td><code>Yes</code></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Khi đặt bảng sự kiện trung tâm (như <code>factSales</code> hoặc bảng sự kiện IoT <code>Fact Table: Sensor Metrics</code> trên <em>Slide 22</em>) ở chính giữa và kết nối trực tiếp <strong>1 bước nhảy (<code>1-Hop Join</code>)</strong> tới các bảng chiều phẳng xung quanh (<code>dimCustomer / Machine</code>, <code>dimProduct / Sensor</code>, <code>dimTerritory / Location</code>, <code>dimDate / Time Dimension</code>) mà không tách nhỏ bảng chiều thêm nữa, cấu trúc hình học tạo thành một ngôi sao — gọi là <strong>Star Schema (Lược đồ Hình Sao)</strong>:</p>
+
+          <x-figure id="consumption-2-3-fig" key="2.3" title="Sơ đồ 2.3 — Kiến trúc Star Schema 1-Hop &amp; Giải phẫu Bảng Chiều Thời gian dimDate (DateKey 20260501)">Mô hình Star Schema đặt bảng Fact ở tâm nối trực tiếp 1-hop tới các bảng Dimension phẳng xung quanh (dimCustomer, dimProduct, dimTerritory, dimDate / Machine, Sensor, Location, Time) giúp bộ tối ưu hóa thực thi Star Join trong RAM với số phép kết nối tối thiểu.</x-figure>
+
+          <h3>Giải phẫu Luồng Thực thi Truy vấn 3 Bước (Star Join Execution) trên Star Schema</h3>
+          <p>Sức mạnh hiệu năng của <strong>Star Schema</strong> đến từ sự phối hợp hoàn hảo giữa hình học <code>1-Hop Join</code> và cơ chế <strong>Broadcast Hash Join / Bitmap Star Join</strong> của các động cơ OLAP hiện đại (<em>Slide 22</em>):</p>
+
+          <ol>
+            <li><strong>Bước 1 — Lọc siêu tốc trên các bảng Dimension nhỏ trong RAM (Dimension Filtering):</strong> Khi người dùng lọc doanh thu tháng 5/2026 vào ngày làm việc (<code>WHERE d.Year = 2026 AND d.MonthName = 'May' AND d.IsWeekend = 'No'</code>) của nhóm khách hàng tại một khu vực cụ thể, động cơ truy vấn quét các bảng <code>dimDate</code> (<code>3,652 dòng</code>) và <code>dimCustomer</code> để thu về một tập khóa <code>DateKey</code> và <code>CustomerKey</code> siêu nhỏ nằm gọn trong bộ nhớ RAM (Hash Table / Roaring Bitmap).</li>
+            <li><strong>Bước 2 — Quét bảng Fact ở trung tâm qua Khóa ngoại nguyên (Fact Table Probe &amp; Partition Pruning):</strong> Động cơ đẩy danh sách khóa số nguyên <code>DateKey</code> (ví dụ <code>20260501</code>) xuống thẳng bảng <code>factSales</code> để cắt tỉa phân vùng (Partition Pruning) và chỉ đối chiếu các cột số nguyên <code>4-byte INT</code> tốc độ cao mà không cần đọc bất kỳ chuỗi ký tự dài nào trên bảng Fact.</li>
+            <li><strong>Bước 3 — Gom nhóm <code>SUM/AVG</code> với tối thiểu phép Join (Single-Pass Aggregation):</strong> Vì mỗi chiều ngữ cảnh chỉ cách bảng Fact đúng <code>1 phép JOIN</code> (không có chuỗi Join bắc cầu qua nhiều tầng trung gian), CPU thực hiện gom nhóm <code>SUM(SalesAmount)</code> ngay trong một lượt quét duy nhất và gắn nhãn báo cáo trả về cho Dashboard trong vài chục mili-giây.</li>
+          </ol>
+
+          <p>Tuy nhiên, để giữ cho bảng chiều <code>dimCustomer</code> phẳng hoàn toàn (chứa cả <code>city</code>, <code>state</code>, <code>country</code> trên cùng một dòng của khách hàng <code>C01 Anna / Peter Pan 123456</code>), Star Schema chấp nhận <strong>phi chuẩn hóa (Denormalization)</strong>: chuỗi chữ <code>"California"</code> và <code>"United States"</code> sẽ lặp lại hàng triệu lần nếu có hàng triệu khách hàng cùng sống tại tiểu bang đó. Nếu một kiến trúc sư muốn loại bỏ sự lặp lại này bằng cách chuẩn hóa các bảng chiều về lại dạng <code>3NF</code>, mô hình dữ liệu sẽ biến hình ra sao và cái giá phải trả về tốc độ truy vấn là gì? Chúng ta bước sang <strong>Trạm 2.4</strong>.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="consumption-2-4">
+          <h2 id="consumption-2-4-h2" tabindex="-1">Trạm 2.4: Phân nhánh Snowflake Schema (DIM_CITY → DIM_STATE → DIM_COUNTRY) &amp; Ma trận Đối chiếu Star vs. Snowflake</h2>
+
+          <p><strong>Snowflake Schema (Lược đồ Bông Tuyết)</strong> là biến thể mở rộng của Star Schema, trong đó các bảng chiều (<code>Dimension Tables</code>) không còn được giữ phẳng ở dạng phi chuẩn hóa mà bị <strong>chuẩn hóa tiếp tục (Normalized theo nguyên lý <code>3NF</code>) thành nhiều bảng con phân cấp nối đuôi nhau</strong>, tạo nên hình dáng phân nhánh như bông tuyết xoay quanh bảng Fact trung tâm (<em>Slide 23</em>). Hãy quan sát sự biến đổi trực tiếp trên bảng chiều khách hàng của <strong>Đơn hàng #8888</strong> (khách hàng <code>C01 Anna / Peter Pan 123456</code>): trong <strong>Star Schema</strong>, toàn bộ địa chỉ phân cấp nằm phẳng trong một bảng duy nhất <code>DIM_CUSTOMER(customer_id, name, city, state, country)</code>; còn trong <strong>Snowflake Schema</strong>, các thuộc tính địa lý bị tách rời thành một chuỗi <strong>4 bảng nối tiếp nhau qua 3 bước nhảy khóa ngoại</strong>: <code>DIM_CUSTOMER(customer_id, name, city_id)</code> → <code>DIM_CITY(city_id, city_name, state_id)</code> → <code>DIM_STATE(state_id, state_name, country_id)</code> → <code>DIM_COUNTRY(country_id, country_name)</code> (<em>Slide 23</em>).</p>
+
+          <x-figure id="consumption-2-4-fig" key="2.4" title="Sơ đồ 2.4 — Đối chiếu Cấu trúc Vật lý Star Schema (1-Hop Flat Dimension) vs. Snowflake Schema (Chuỗi Phân cấp Địa lý 4 Tầng)">So sánh trực diện nhánh địa lý của khách hàng C01 Anna / Peter Pan 123456: Star Schema gộp phẳng city, state, country ngay trong DIM_CUSTOMER (chỉ tốn 1 phép JOIN từ factSales), trong khi Snowflake Schema tách thành chuỗi 4 bảng DIM_CUSTOMER → DIM_CITY → DIM_STATE → DIM_COUNTRY (buộc truy vấn phải bắc cầu qua 4 phép JOIN liên tiếp).</x-figure>
+
+          <p>Để thấy rõ tác động cơ học của việc tách nhánh bông tuyết lên bộ xử lý truy vấn, hãy đối chiếu câu lệnh SQL tính tổng doanh thu <code>SalesAmount</code> theo từng quốc gia (<code>country_name</code>) trên cả hai lược đồ:</p>
+
+          <pre><code>-- [+] STAR SCHEMA: Chỉ cần đúng 1 phép JOIN trực tiếp từ factSales sang DIM_CUSTOMER
+SELECT
+    c.country            AS country_name,
+    SUM(f.SalesAmount)   AS total_revenue
+FROM factSales AS f
+INNER JOIN DIM_CUSTOMER AS c ON f.CustomerKey = c.customer_id
+GROUP BY c.country;
+
+-- [!] SNOWFLAKE SCHEMA: Bắt buộc bắc cầu qua 4 phép JOIN nối tiếp để lấy được tên Quốc gia
+SELECT
+    co.country_name      AS country_name,
+    SUM(f.SalesAmount)   AS total_revenue
+FROM factSales AS f
+INNER JOIN DIM_CUSTOMER AS c  ON f.CustomerKey = c.customer_id
+INNER JOIN DIM_CITY     AS ci ON c.city_id     = ci.city_id
+INNER JOIN DIM_STATE    AS st ON ci.state_id   = st.state_id
+INNER JOIN DIM_COUNTRY  AS co ON st.country_id = co.country_id
+GROUP BY co.country_name;</code></pre>
+
+          <h3>Ma trận Đối chiếu Toàn diện 6 Tiêu chí: Star Schema vs. Snowflake Schema (Slide 24)</h3>
+          <p>Bảng ma trận dưới đây tổng hợp 6 tiêu chí quyết định kiến trúc giữa <strong>Star Schema</strong> và <strong>Snowflake Schema</strong> theo đúng chuẩn <em>Slide 24</em> và thực tiễn vận hành của Ralph Kimball:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Kỹ thuật (Feature)</th>
+                  <th>Star Schema (Lược đồ Hình Sao — Chuẩn Kimball)</th>
+                  <th>Snowflake Schema (Lược đồ Bông Tuyết — Chuẩn hóa Chiều)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Cấu trúc bảng chiều (<code>Structure</code>)</strong></td>
+                  <td><strong>Bảng chiều phẳng, phi chuẩn hóa (<code>Flat, denormalized dimensions</code>):</strong> Toàn bộ phân cấp (<code>city</code>, <code>state</code>, <code>country</code>) nằm chung trong một bảng <code>DIM_CUSTOMER</code>.</td>
+                  <td><strong>Bảng chiều chuẩn hóa đa tầng (<code>Normalized dimensions</code>):</strong> Tách phân cấp thành chuỗi bảng liên kết <code>DIM_CUSTOMER → DIM_CITY → DIM_STATE → DIM_COUNTRY</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Số lượng phép nối (<code>Number of joins</code>)</strong></td>
+                  <td><strong>Ít hơn (<code>Fewer</code>):</strong> Mọi bảng chiều đều kết nối trực tiếp <code>1-Hop</code> với bảng <code>factSales</code>.</td>
+                  <td><strong>Nhiều hơn (<code>More</code>):</strong> Phải nối bắc cầu qua nhiều tầng bảng chiều phụ (Outriggers / Sub-dimensions) mới chạm tới thuộc tính gốc.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Tốc độ truy vấn đọc (<code>Query speed</code>)</strong></td>
+                  <td><strong>Nhanh hơn (<code>Faster</code>):</strong> Tối thiểu hóa chi phí xây dựng Hash Table nhiều tầng và tận dụng tối đa cơ chế <code>Star Join</code> trong RAM.</td>
+                  <td><strong>Chậm hơn (<code>Slower</code>):</strong> Tốn thêm chu kỳ CPU và bộ nhớ trung gian để thực hiện chuỗi <code>Chained Joins</code> qua 3–4 bảng phân cấp ở mỗi câu truy vấn.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Dung lượng lưu trữ (<code>Storage</code>)</strong></td>
+                  <td><strong>Tốn nhiều dung lượng hơn một chút ở bảng chiều (<code>Uses more space</code>):</strong> Do lặp lại chuỗi văn bản <code>city</code>, <code>state</code>, <code>country</code> trên các dòng của <code>DIM_CUSTOMER</code>.</td>
+                  <td><strong>Tiết kiệm dung lượng bảng chiều hơn (<code>Uses less space</code>):</strong> Loại bỏ sự trùng lặp chuỗi tên thành phố/quốc gia nhờ lưu qua khóa ngoại <code>city_id</code>, <code>state_id</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Độ phức tạp thiết kế &amp; sử dụng (<code>Complexity</code>)</strong></td>
+                  <td><strong>Đơn giản, trực quan (<code>Simple</code>):</strong> Người dùng BI và AI Text-to-SQL dễ dàng hiểu mô hình và tự kéo thả báo cáo không sợ sót đường <code>JOIN</code>.</td>
+                  <td><strong>Phức tạp hơn (<code>More complex</code>):</strong> Đường dẫn <code>JOIN</code> rắc rối, làm phình cây lược đồ trên giao diện Power BI/Tableau và khó viết ETL nạp khóa ngoại nhiều tầng.</td>
+                </tr>
+                <tr>
+                  <td><strong>6. Trường hợp sử dụng tối ưu (<code>Best for</code>)</strong></td>
+                  <td><strong>Hầu hết các hệ thống BI, Dashboard và Analytics Marts (<code>Most BI and analytics</code>):</strong> Khi tốc độ truy vấn và tính dễ hiểu cho người dùng cuối là ưu tiên số một.</td>
+                  <td><strong>Hệ thống có phân cấp cực lớn, phức tạp và chia sẻ chung (<code>Large, structured hierarchies</code>):</strong> Khi một nhánh phân cấp cần được quản trị tập trung và tái sử dụng bởi nhiều bảng chiều khác nhau.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="callout">
+            <div class="callout-title">Góc nhìn Hiện đại: Tại sao Star Schema và One Big Table (OBT) thống trị các Động cơ Cột (Parquet / ClickHouse / DuckDB)?</div>
+            <p>Lý lẽ lớn nhất của <strong>Snowflake Schema</strong> trong thập niên 1990 là <em>"tiết kiệm dung lượng đĩa cứng bằng cách không lặp lại tên Thành phố/Quốc gia trong bảng Dimension"</em>. Tuy nhiên, trong kho dữ liệu hiện đại, bảng Fact (<code>factSales</code>) chiếm tới <strong><code>95%–99%</code> tổng dung lượng đĩa</strong>, còn toàn bộ các bảng Dimension cộng lại chỉ chiếm <strong><code>1%–5%</code></strong> — việc chuẩn hóa <code>DIM_CUSTOMER</code> thành 4 bảng Snowflake chỉ tiết kiệm được vài chục Megabyte đĩa nhưng lại làm chậm mọi câu truy vấn hàng tỷ dòng trên bảng Fact! Hơn thế nữa, trên các định dạng lưu trữ theo cột hiện đại như <strong>Apache Parquet</strong>, <strong>ClickHouse</strong> hay <strong>DuckDB</strong>, cơ chế <strong>Mã hóa Từ điển (<code>Dictionary Encoding</code>)</strong> và <strong>Run-Length Encoding (<code>RLE</code>)</strong> tự động gom các chuỗi lặp lại như <code>"United States"</code> thành một từ điển số nguyên siêu nhỏ ngay ở tầng vật lý. Nhờ đó, nhiều hệ thống OLAP tốc độ cao thậm chí tiến thêm một bước từ <strong>Star Schema</strong> sang <strong>OBT (<code>One Big Table</code> — Bảng Siêu Phẳng)</strong>: kết hợp (Pre-join) sẵn các thuộc tính chiều hay lọc nhất vào thẳng bảng sự kiện để đạt <strong><code>0 JOIN</code> lúc truy vấn</strong>, đổi lại chi phí phải ghi lại bảng lớn khi thuộc tính chiều thay đổi. Vậy làm thế nào để quản lý lịch sử khi khách hàng <code>C01 Anna / Peter Pan 123456</code> chuyển chỗ ở sang thành phố mới mà không làm sai lệch báo cáo doanh thu quá khứ? Đó chính là bài toán <strong>Slowly Changing Dimensions (SCD)</strong> và các động cơ OLAP sẽ được giải phẫu ở chặng kế tiếp.</p>
+          </div>
+        </section>
+
+        <section class="lesson-section summary-section" id="consumption-2-summary">
+          <h2 id="consumption-2-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 2 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <ol>
+            <li><strong>Tại sao Bước 2 (<code>Declare the Grain</code>) là chốt chặn sống còn nhất trong Quy trình 4 Bước Kimball?</strong> Vì tuyên bố độ mịn (ví dụ <code>Grain = 1 row per order line item</code> cho <strong>Đơn hàng #8888</strong>) khóa chặt ý nghĩa vật lý của mỗi dòng trong <code>factSales</code>. Nếu không chốt <code>Grain</code> trước hoặc trộn lẫn nhiều độ mịn (cấp tổng hóa đơn và cấp từng món hàng <code>P01 Keyboard $50</code>, <code>P02 Mouse $20</code>) vào chung một bảng Fact, mọi phép tính <code>SUM(SalesAmount)</code> và <code>JOIN</code> với bảng chiều sẽ sinh ra số liệu nhân bản sai lệch.</li>
+            <li><strong>Kỹ thuật <code>Role-Playing Dimension</code> giải quyết bài toán gì khi một sự kiện có nhiều mốc thời gian?</strong> Thay vì tạo 3 bảng ngày vật lý trùng lặp cho ngày đặt hàng, ngày giao hàng và ngày thanh toán, bảng <code>factSales</code> lưu 3 cột khóa ngoại (<code>OrderDateKey</code>, <code>ShipDateKey</code>, <code>PaymentDateKey</code>) cùng tham chiếu tới duy nhất 1 bảng vật lý <code>dimDate</code> qua các bí danh (<code>Table Aliases</code>) trong câu lệnh SQL hoặc lớp Semantic Model của BI.</li>
+            <li><strong>Tại sao chỉ số tồn kho <code>InventoryLevel</code> được xếp vào nhóm <code>Semi-Additive</code> và tuyệt đối cấm dùng hàm <code>SUM()</code> theo thời gian?</strong> Vì tồn kho là ảnh chụp trạng thái tích lũy tại một thời điểm (Snapshot Level): nếu kho có <code>May 1 = 100</code>, <code>May 2 = 80</code>, <code>May 3 = 120</code> chiếc bàn phím <code>P01</code>, phép cộng <code>SUM = 300 [x]</code> đã đếm lặp cùng một lượng hàng qua 3 ngày. Chỉ được phép <code>SUM(InventoryLevel)</code> ngang qua các kho/cửa hàng trong cùng một ngày, còn dọc theo chiều <code>dimDate</code> bắt buộc phải dùng tồn kho cuối kỳ (<code>LAST_VALUE = 120 [+]</code>) hoặc trung bình kỳ (<code>AVG = 100 [+]</code>).</li>
+            <li><strong>Tại sao mọi kho dữ liệu đều xây dựng bảng chiều <code>dimDate</code> với khóa nguyên <code>DateKey = 20260501</code> thay vì dùng hàm <code>EXTRACT()</code> trực tiếp trên cột <code>TIMESTAMP</code> của bảng Fact?</strong> Vì các hàm tính ngày giờ trong SQL không thể biết lịch nghỉ lễ đặc thù của từng quốc gia, lịch khuyến mãi hay Năm Tài chính (<code>Fiscal Calendar</code>) của công ty; đồng thời việc tính sẵn mọi thuộc tính (<code>Quarter = Q2</code>, <code>Weekday = Friday</code>, <code>IsWeekend = No</code>) vào bảng <code>dimDate</code> nhỏ gọn giúp loại bỏ chi phí tính hàm trên hàng tỷ dòng Fact và tăng tốc độ lọc qua khóa nguyên <code>4-byte INT</code>.</li>
+            <li><strong>Tại sao <code>Star Schema</code> được ưu tiên vượt trội hơn <code>Snowflake Schema</code> trong hầu hết các hệ thống BI và OLAP hiện đại?</strong> Vì việc tách bảng <code>DIM_CUSTOMER</code> thành chuỗi 4 bảng <code>DIM_CUSTOMER → DIM_CITY → DIM_STATE → DIM_COUNTRY</code> trong Snowflake Schema chỉ tiết kiệm được một lượng dung lượng không đáng kể trên bảng chiều (vốn đã được nén cực tốt bằng <code>Dictionary Encoding</code> trên Parquet/Columnar DB), nhưng lại buộc mọi truy vấn phân tích phải thực hiện chuỗi <code>JOIN</code> bắc cầu phức tạp làm giảm tốc độ đọc và gây khó khăn cho người dùng BI.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/D05/3" onclick="selectStorageStage(3);return false;">Sang Chặng 3: Quản trị Biến đổi Lịch sử Chiều (Slowly Changing Dimensions — SCD Type 0 → Type 6) →</a></p>
+        </section>
+      </div>

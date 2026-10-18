@@ -1,0 +1,461 @@
+      <div class="prose">
+        <x-spine id="api-5-spine" badge="TRONG BÀI HỌC NÀY · F04" title="Chặng 5: Kiến Trúc FastAPI Thực Chiến — Động Cơ ASGI (uvloop), Pydantic v2, Middleware &amp; Kiểm Thử Tải Locust" subtitle="Trạm 5.1 → 5.3">Khép kín hành trình của <strong>Order #8888</strong> trên dịch vụ <code>order-api</code>: giải phẫu động cơ <strong>ASGI 4 lớp (Uvicorn uvloop + Starlette + FastAPI + Pydantic v2)</strong> vượt qua bức tường nghẽn luồng đồng bộ của WSGI/Flask, cưỡng chế hợp đồng kiểu dữ liệu bằng lõi Rust <code>pydantic-core</code>, lắp ráp đường ống <strong>Middleware &amp; Dependency Injection (Depends)</strong>, triển khai đa mẫu kiến trúc (REST + SSE + Webhook + Health Probes) và kiểm thử chịu tải bằng <strong>Locust (gevent)</strong>.</x-spine>
+
+        <p>Xuyên suốt <strong>Chặng 1</strong> đến <strong>Chặng 4</strong>, chúng ta đã thiết lập bản thiết kế kiến trúc toàn diện cho dịch vụ <code>order-api</code> xử lý <strong>Order #8888</strong>: từ giao thức mạng <code>TCP/TLS/HTTP</code> và 6 phong cách kiến trúc (<strong>Chặng 1</strong>), chuẩn mực thiết kế hợp đồng RESTful có tính bất biến <code>Idempotency-Key</code> (<strong>Chặng 2</strong>), lớp phòng thủ <code>AuthN/AuthZ/Accounting</code> với <code>JWT</code> và <code>OAuth 2.0</code> (<strong>Chặng 3</strong>), đến chốt chặn <code>Liveness/Readiness Probes</code> và quản trị phân vị độ trễ <code>p95/p99</code> (<strong>Chặng 4</strong>). Tuy nhiên, mọi bản thiết kế trên giấy sẽ sụp đổ nếu động cơ thực thi bên dưới bị nghẽn cổ chai ngay khi chờ I/O mạng hoặc cho phép dữ liệu bẩn lọt sâu vào lõi nghiệp vụ. <strong>Chặng 5</strong> hiện thực hóa toàn bộ các nguyên lý đó bằng bộ khung công nghiệp tiêu chuẩn của kỹ sư Data &amp; AI hiện đại: <strong>FastAPI</strong> kết hợp <strong>Pydantic v2</strong>, máy chủ bất đồng bộ <strong>Uvicorn (uvloop)</strong> và công cụ bắn tải <strong>Locust</strong>.</p>
+
+        <section class="lesson-section" id="api-5-1">
+          <h2 id="api-5-1-h2" tabindex="-1">Trạm 5.1: Bước ngoặt Kiến trúc Python Web — Từ WSGI Đồng bộ (Flask) sang ASGI Bất đồng bộ (Uvicorn + Starlette + FastAPI)</h2>
+
+          <p>Trong hơn một thập kỷ, các ứng dụng web Python truyền thống (như <strong>Flask</strong> và <strong>Django</strong>) được xây dựng trên giao thức <strong>WSGI (Web Server Gateway Interface — PEP 3333)</strong>. Mô hình WSGI tuân theo nguyên lý thực thi <strong>đồng bộ chặn luồng (Synchronous Thread-Blocking: 1 Request = 1 OS Thread)</strong>. Khi dịch vụ <code>order-api</code> xử lý yêu cầu đặt <strong>Order #8888</strong>, luồng xử lý thực tế hiếm khi tiêu tốn CPU tính toán thuần túy mà dành tới <code>95%</code> thời gian để <strong>đứng chờ I/O mạng (I/O-Bound Wait)</strong>: chờ <code>50ms</code> để cơ sở dữ liệu PostgreSQL thực thi giao dịch ghi đĩa, và chờ thêm <code>120ms</code> để cổng thanh toán hoặc dịch vụ chấm điểm gian lận ML (Fraud Detection Service) phản hồi qua mạng nội bộ.</p>
+
+          <p>Dưới kiến trúc WSGI của Flask (chạy trên máy chủ Gunicorn với cấu hình phổ biến <code>4 worker processes × 8 threads = 32 OS threads</code>), ngay khoảnh khắc 32 khách hàng đồng thời bấm nút thanh toán, cả 32 luồng hệ điều hành đều bị khóa cứng (blocked) suốt <code>170ms</code> chỉ để đứng đợi phản hồi từ socket mạng. Theo định luật Little (<code>Throughput = Concurrency / Latency = 32 / 0.17s</code>), trần thông lượng tối đa của toàn máy chủ bị đóng đinh ở mức <strong><code>~188 RPS</code> (Requests Per Second)</strong>. Khi yêu cầu thứ 33 đến vào dịp Flash Sale, nó bị đẩy vào hàng đợi TCP backlog mặc dù <strong>CPU của máy chủ đang rảnh rỗi ở mức <code>8%</code></strong>! Tăng số luồng OS lên hàng nghìn để cứu vãn là bất khả thi vì mỗi OS Thread ngốn hàng Megabyte bộ nhớ Stack và làm nổ chi phí chuyển ngữ cảnh nhân hệ điều hành (Kernel Context-Switching Thrashing).</p>
+
+          <x-figure id="api-5-1-fig" key="5.1" title="Sơ đồ 5.1 — Đối chiếu Kiến trúc WSGI Đồng bộ (Flask Thread-Blocking) vs. ASGI Bất đồng bộ (Uvicorn uvloop + Starlette + FastAPI) &amp; Bẫy Chặn Event Loop">Cơ chế giải phóng luồng khi chờ I/O qua từ khóa async/await trên vòng lặp sự kiện uvloop và tai nạn đóng băng toàn bộ máy chủ khi gọi hàm chặn đồng bộ bên trong async def.</x-figure>
+
+          <h3 id="api-5-1-asgi-stack">Giải phẫu Ngăn xếp 4 Lớp của Kiến trúc ASGI Hiện đại (The 4-Layer Python ASGI Stack)</h3>
+          <p>Để phá vỡ bức tường I/O của WSGI và hỗ trợ các giao thức giữ kết nối dài hạn (như <code>WebSockets</code>, <code>SSE</code> và <code>HTTP/2</code> đã học ở Chặng 1), hệ sinh thái Python chuyển dịch sang chuẩn <strong>ASGI (Asynchronous Server Gateway Interface)</strong>. Khi bạn chạy một dịch vụ <strong>FastAPI</strong> trong môi trường Production, thực chất 4 lớp công nghệ chuyên biệt đang phối hợp nhịp nhàng bên dưới:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Lớp Kiến trúc (Từ Thấp lên Cao)</th>
+                  <th>Cơ chế Thực thi Cốt lõi bên dưới</th>
+                  <th>Vai trò trực tiếp khi xử lý Order #8888 trên <code>order-api</code></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Uvicorn (<code>uvloop</code> + <code>httptools</code>) — Máy chủ ASGI (ASGI Server)</strong></td>
+                  <td>Thay thế vòng lặp sự kiện Python thuần bằng <code>uvloop</code> (bản bọc Cython trên thư viện <code>libuv</code> viết bằng C — cùng nhân với Node.js, sử dụng cơ chế thông báo sự kiện nhân hệ điều hành <code>epoll</code> trên Linux và <code>kqueue</code> trên macOS) kết hợp bộ phân tích cú pháp HTTP viết bằng C (<code>httptools</code>).</td>
+                  <td>Quản lý hàng chục nghìn kết nối TCP bất đồng bộ (non-blocking sockets) chỉ trên <strong>một luồng hệ điều hành duy nhất (Single Event Loop Thread)</strong> cho mỗi tiến trình Worker, đạt tốc độ nhận/trả gói tin HTTP ngang ngửa Go và Node.js.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Starlette — Khung xương sống ASGI (ASGI Microframework)</strong></td>
+                  <td>Nền tảng web ASGI siêu nhẹ cung cấp bộ định tuyến URL (Routing), quản lý vòng đời ứng dụng (<code>Lifespan</code>), chuỗi <code>Middleware</code>, <code>StreamingResponse</code> (SSE), <code>WebSockets</code> và bể luồng phụ trợ <code>AnyIO</code>.</td>
+                  <td>Chuyển đổi sự kiện mạng ASGI thô (<code>scope</code>, <code>receive</code>, <code>send</code>) thành đối tượng <code>Request</code> / <code>Response</code>, điều phối luồng sự kiện SSE cho đơn hàng và quản lý khởi tạo/đóng kết nối an toàn.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. FastAPI — Tầng Khai báo API &amp; Điều phối (Declarative API Layer)</strong></td>
+                  <td>Kế thừa trực tiếp từ lớp <code>Starlette</code>, bổ sung hệ thống tiêm phụ thuộc (<strong>Dependency Injection — <code>Depends</code></strong>), tự động suy diễn kiểu dữ liệu Python (Type Hints) thành đặc tả <strong>OpenAPI 3.1 (Swagger UI <code>/docs</code> &amp; ReDoc <code>/redoc</code>)</strong> và tích hợp sẵn các nguyên hàm bảo mật OAuth2/JWT.</td>
+                  <td>Cho phép kỹ sư định nghĩa hợp đồng API của <strong>Order #8888</strong> chỉ bằng một lần khai báo kiểu Python duy nhất: vừa dùng để kiểm tra lỗi đầu vào, vừa lọc dữ liệu đầu ra, vừa tự động sinh tài liệu tương tác chuẩn xác 100% với mã nguồn thực thi.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Pydantic v2 (<code>pydantic-core</code> bằng Rust) — Động cơ Kiểm duyệt &amp; Ép kiểu</strong></td>
+                  <td>Toàn bộ logic phân tích JSON, ép kiểu (type coercion) và kiểm tra ràng buộc dữ liệu được biên dịch sẵn thành mã máy nhị phân bằng ngôn ngữ <strong>Rust (<code>pydantic-core</code>)</strong>, nhanh hơn gấp <code>5x – 20x</code> so với Pydantic v1 viết bằng Python thuần.</td>
+                  <td>Kiểm dịch gói tin JSON của <strong>Order #8888</strong> ngay tại cửa ngõ với chi phí CPU tính bằng micro-giây, tự động trả về lỗi chuẩn <code>HTTP 422 Unprocessable Entity</code> nếu dữ liệu vi phạm hợp đồng trước khi chạm tới hàm xử lý nghiệp vụ.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 id="api-5-1-footgun">Cạm bẫy Số 1 trong Vận hành FastAPI: Sự khác biệt sinh tử giữa <code>async def</code> và <code>def</code></h3>
+          <p>Một ngộ nhận cực kỳ nguy hiểm của các kỹ sư mới chuyển từ Flask sang FastAPI là: <em>&ldquo;Cứ thêm từ khóa <code>async def</code> vào trước mọi hàm endpoint là API sẽ tự động chạy bất đồng bộ và nhanh gấp 10 lần!&rdquo;</em> Thực tế cơ học bên dưới Uvicorn và Starlette hoạt động theo quy tắc hoàn toàn khác — nếu dùng sai, một hàm <code>async def</code> duy nhất có thể làm <strong>đóng băng toàn bộ máy chủ (Event Loop Freeze)</strong>:</p>
+          <ul>
+            <li><strong>Khi khai báo <code>async def create_order(...)</code> (Chạy trực tiếp trên Luồng Event Loop Chính):</strong> FastAPI tin tưởng tuyệt đối rằng bên trong hàm này bạn chỉ sử dụng các thư viện I/O bất đồng bộ hỗ trợ từ khóa <code>await</code> (như <code>httpx.AsyncClient</code> để gọi API ngoài, <code>asyncpg</code> hoặc <code>SQLAlchemy AsyncSession</code> để truy vấn PostgreSQL). Khi gặp lệnh <code>await db.execute(...)</code>, coroutine lập tức <strong>nhường quyền điều khiển (yield control)</strong> lại cho vòng lặp <code>uvloop</code> để luồng chính quay sang phục vụ 999 khách hàng khác trong lúc chờ PostgreSQL phản hồi. <strong>Thảm họa xảy ra khi nào?</strong> Nếu bên trong hàm <code>async def</code>, lập trình viên vô tình gọi một hàm đồng bộ gây chặn (như <code>time.sleep(1)</code>, <code>requests.get()</code> của thư viện <code>requests</code> truyền thống, driver <code>psycopg2</code> đồng bộ, hoặc chạy suy luận mô hình Machine Learning nặng trên CPU mất <code>500ms</code>) mà không có cơ chế <code>await</code> nhường luồng, <strong>duy nhất 1 luồng Event Loop chính của tiến trình Uvicorn sẽ bị khóa cứng 100% trong suốt 500ms đó</strong>. Mọi yêu cầu khác — kể cả endpoint kiểm tra sức khỏe <code>GET /liveness</code> nhẹ nhất — đều bị treo đứng, đẩy phân vị độ trễ <code>p99</code> vọt lên hàng chục giây và khiến Kubernetes tưởng nhầm Pod đã chết!</li>
+            <li><strong>Khi khai báo <code>def create_order(...)</code> thông thường (Tự động đẩy sang Bể luồng Phụ trợ AnyIO Threadpool):</strong> Khi thấy một hàm endpoint được khai báo bằng từ khóa <code>def</code> tiêu chuẩn (không có <code>async</code>), Starlette/FastAPI hiểu rằng hàm này có thể chứa các lệnh gọi I/O đồng bộ chặn luồng. Thay vì chạy trực tiếp trên luồng Event Loop chính, FastAPI tự động đóng gói hàm đó và đẩy sang một <strong>Bể luồng công nhân bên ngoài (External Worker Threadpool do thư viện <code>AnyIO</code> quản lý, mặc định tối đa <code>40 threads</code>)</strong> thông qua cơ chế <code>await anyio.to_thread.run_sync(...)</code>. Nhờ đó, luồng Event Loop chính vẫn rảnh rỗi để tiếp nhận kết nối mới và trả lời <code>GET /liveness</code> tức thì!</li>
+          </ul>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Đối chiếu</th>
+                  <th>Flask / Django Truyền thống (WSGI)</th>
+                  <th>FastAPI khai báo <code>def</code> (ASGI + Worker Threadpool)</th>
+                  <th>FastAPI khai báo <code>async def</code> (Native ASGI Event Loop)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Nơi thực thi mã nguồn của Endpoint</strong></td>
+                  <td>Chạy trực tiếp trên 1 luồng hệ điều hành (OS Thread) của Gunicorn/uWSGI.</td>
+                  <td>Được vòng lặp sự kiện <code>uvloop</code> ủy thác sang bể luồng phụ trợ <code>AnyIO</code> (mặc định <code>40 OS threads</code>).</td>
+                  <td>Chạy <strong>trực tiếp trên luồng đơn duy nhất (Single Main Thread)</strong> của vòng lặp sự kiện <code>uvloop</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Thư viện Database / HTTP tương thích</strong></td>
+                  <td>Thư viện đồng bộ truyền thống (<code>psycopg2</code>, <code>PyMySQL</code>, <code>requests</code>, <code>boto3</code>).</td>
+                  <td>Thư viện đồng bộ truyền thống (<code>psycopg2</code>, <code>requests</code>, <code>scikit-learn</code> nhẹ).</td>
+                  <td><strong>Bắt buộc 100% thư viện bất đồng bộ non-blocking</strong> (<code>asyncpg</code>, <code>httpx.AsyncClient</code>, <code>aioboto3</code>, <code>redis.asyncio</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>Khả năng chịu tải đồng thời (I/O-Bound)</strong></td>
+                  <td>Thấp (bị chặn cứng bởi số lượng luồng vật lý, thường <code>16 – 64</code> yêu cầu đồng thời/process).</td>
+                  <td>Trung bình (tối đa <code>40</code> yêu cầu đồng bộ đồng thời/process, nhưng không làm đơ các route <code>async def</code> khác).</td>
+                  <td><strong>Cực đại (<code>5.000 – 10.000+</code> kết nối đồng thời/process)</strong> với mức tiêu thụ RAM tối thiểu.</td>
+                </tr>
+                <tr>
+                  <td><strong>Quy tắc Vàng trong Production</strong></td>
+                  <td>Chỉ dùng cho hệ thống kế thừa (legacy); không hỗ trợ tự nhiên WebSockets / SSE quy mô lớn.</td>
+                  <td>Dùng khi <strong>bắt buộc phải gọi thư viện đồng bộ cũ</strong> chưa có bản <code>async</code> (như <code>requests</code> hoặc SDK nội bộ cũ).</td>
+                  <td><strong>Mặc định ưu tiên số 1 cho I/O mạng</strong>, nhưng tuyệt đối <strong>CẤM</strong> gọi hàm blocking hoặc tính toán CPU nặng bên trong!</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="lesson-section" id="api-5-2">
+          <h2 id="api-5-2-h2" tabindex="-1">Trạm 5.2: Cưỡng chế Hợp đồng Kiểu Dữ liệu với Pydantic v2, Dependency Injection (Depends) &amp; Chuỗi Middleware</h2>
+
+          <p>Một dịch vụ API tốc độ cao nhưng thiếu chốt chặn kiểm duyệt kiểu dữ liệu và phân tách mối quan tâm (Separation of Concerns) sẽ nhanh chóng biến thành bãi rác dữ liệu (<strong>GIGO — Garbage In, Garbage Out</strong>) hoặc làm rò rỉ thông tin nhạy cảm (<strong>Data Exposure</strong> như đã cảnh báo tại Chặng 3). Trong các khung làm việc truyền thống, lập trình viên thường viết hàng chục câu lệnh <code>if not isinstance(data.get("amount"), int) or data["amount"] &lt;= 0: return 400</code> trộn lẫn ngay trong hàm nghiệp vụ, dẫn đến mã nguồn rối rắm, dễ bỏ sót trường hợp biên và không đồng bộ với tài liệu API. <strong>FastAPI</strong> giải quyết triệt để bài toán này thông qua 3 trụ cột kiến trúc: <strong>Pydantic v2 Schema Enforcement</strong>, <strong>Chuỗi Middleware (Onion Pipeline)</strong> và <strong>Đồ thị Dependency Injection (<code>Depends</code>)</strong>.</p>
+
+          <x-figure id="api-5-2-fig" key="5.2" title="Sơ đồ 5.2 — Đường ống Middleware Đa Lớp (Onion Pipeline), Cổng Kiểm dịch Pydantic v2 (HTTP 422) &amp; Đồ thị Dependency Injection (Depends)">Hành trình của một HTTP Request đi xuyên qua các lớp vỏ Middleware, hệ thống xác thực JWT Depends, kiểm duyệt kiểu dữ liệu bằng lõi Rust của Pydantic v2 ở cả chiều vào lẫn chiều ra.</x-figure>
+
+          <h3 id="api-5-2-pydantic">1. Cưỡng chế Hợp đồng Dữ liệu Hai chiều bằng Pydantic v2 (Ingress Validation &amp; Egress Filtering)</h3>
+          <p>Thay vì đọc trực tiếp từ điển JSON thô (<code>await request.json()</code>), mọi dữ liệu đi vào và đi ra khỏi <code>order-api</code> đều phải đi qua khuôn đúc <code>BaseModel</code> của <strong>Pydantic v2</strong>:</p>
+          <ul>
+            <li><strong>Chốt chặn Chiều vào (Ingress Type Enforcement &amp; Validation):</strong> Khi khai báo tham số hàm <code>payload: OrderCreateRequest</code>, lõi Rust <code>pydantic-core</code> tự động phân tích luồng byte JSON, kiểm tra kiểu dữ liệu nghiêm ngặt, áp dụng các ràng buộc miền giá trị như <code>Field(gt=0, le=500_000_000)</code> (số tiền đơn hàng phải lớn hơn <code>0</code> và không vượt quá 500 triệu VNĐ), kiểm tra biểu thức chính quy <code>pattern=r"^ORD-\d{4,8}$"</code>, và chạy các hàm kiểm tra nghiệp vụ tùy chỉnh <code>@field_validator</code>. Nếu khách hàng hoặc kẻ tấn công gửi một gói tin sai lệch (ví dụ <code>"amount_vnd": -15000000</code> hoặc thiếu trường <code>customer_id</code>), yêu cầu bị <strong>chặn đứng ngay tại cửa ngõ</strong> và nhận về phản hồi chuẩn <strong><code>HTTP 422 Unprocessable Entity</code></strong> liệt kê chính xác vị trí trường bị lỗi (<code>loc</code>, <code>msg</code>, <code>type</code>) mà không tốn một chu kỳ kết nối nào tới cơ sở dữ liệu PostgreSQL.</li>
+            <li><strong>Chốt chặn Chiều ra (Egress Serialization &amp; Chống lộ lọt dữ liệu qua <code>response_model</code>):</strong> Ở Chặng 3 (Slide 63 — <em>Vulnerability: Data Exposure</em>), chúng ta đã thấy thảm họa khi lập trình viên trả thẳng đối tượng ORM từ cơ sở dữ liệu (chứa cả <code>internal_margin_rate</code>, <code>supplier_cost</code>, <code>customer_ssn_hash</code>) về cho trình duyệt. Bằng cách khai báo <code>response_model=OrderPublicResponse</code> trên decorator của route, FastAPI buộc mọi dữ liệu trả về phải đi qua bộ lọc của Pydantic v2: bất kỳ trường nhạy cảm nào nằm trong đối tượng Database nhưng không có mặt trong lớp <code>OrderPublicResponse</code> đều bị <strong>cắt bỏ tự động 100%</strong> trước khi đóng gói thành chuỗi JSON gửi ra mạng!</li>
+          </ul>
+
+          <h3 id="api-5-2-middleware-depends">2. Sự phân vai chuẩn mực giữa Middleware (Onion Model) và Dependency Injection (<code>Depends</code>)</h3>
+          <p>Trong thiết kế FastAPI thực chiến, kỹ sư cần phân biệt rạch ròi khi nào dùng <strong>Middleware</strong> và khi nào dùng <strong>Dependency Injection (<code>Depends</code>)</strong>:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Cơ chế Kiến trúc</th>
+                  <th>Phạm vi Tác động &amp; Thời điểm Thực thi</th>
+                  <th>Ứng dụng Thực chiến Chuẩn mực trong <code>order-api</code></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Middleware (Mô hình Củ hành — Onion Pipeline)</strong></td>
+                  <td>Bao bọc <strong>toàn bộ ứng dụng (Global Cross-Cutting Concerns)</strong>. Chạy cho mọi HTTP Request trước khi đi vào bộ định tuyến (Router) và chạy ngược lại cho mọi HTTP Response trước khi rời máy chủ ra mạng.</td>
+                  <td>• Kiểm soát <strong>CORS</strong> (<code>CORSMiddleware</code>).<br>• <strong>Accounting &amp; Telemetry</strong>: Gắn mã vết <code>X-Correlation-ID</code>, bấm giờ độ trễ thực thi thực tế để gắn vào Header <code>X-Process-Time-Ms</code> và đẩy chỉ số phân vị <code>p95/p99</code> sang Prometheus.<br>• Nén gói tin lớn (<code>GZipMiddleware</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Dependency Injection (<code>Depends(...)</code>)</strong></td>
+                  <td>Hệ thống đồ thị phụ thuộc phân cấp (Hierarchical Execution Graph), có thể gắn linh hoạt ở cấp toàn cục, cấp nhóm Router (<code>APIRouter</code>), hoặc <strong>chỉ gắn cho từng Endpoint cụ thể</strong>. Tự động chia sẻ kết quả trong cùng 1 Request (Caching) và hỗ trợ dọn dẹp tài nguyên qua từ khóa <code>yield</code>.</td>
+                  <td>• <strong>AuthN &amp; AuthZ</strong>: Trích xuất và xác minh chữ ký <code>Bearer JWT</code> (<code>Depends(get_current_user)</code>), kiểm tra quyền RBAC (<code>Depends(require_role("ORDER_WRITE"))</code>) — nhờ đó các cổng <code>/liveness</code> và <code>/docs</code> không bị chặn bởi Auth.<br>• <strong>Quản lý Giao dịch DB</strong>: Mở <code>AsyncSession</code> đầu hàm và tự động <code>commit()</code> / <code>rollback()</code> + trả kết nối về Pool sau từ khóa <code>yield</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Lifespan Context Manager (<code>@asynccontextmanager</code>)</strong></td>
+                  <td>Chạy <strong>đúng 1 lần duy nhất</strong> khi tiến trình máy chủ Uvicorn khởi động (trước khi nhận bất kỳ Request nào) và khi máy chủ nhận tín hiệu tắt <code>SIGTERM</code>.</td>
+                  <td>• Nạp trước trọng số mô hình ML (<code>fraud_model.onnx</code>) vào RAM và khởi tạo <code>AsyncEngine</code> kết nối PostgreSQL/Redis <strong>trước khi</strong> bật cờ <code>app.state.is_ready = True</code> cho cổng <code>/readiness</code> (Chặng 4).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 id="api-5-2-code">Bản thiết kế Mã nguồn Chuẩn Production: Lifespan, Pydantic v2, Accounting Middleware &amp; JWT Depends</h3>
+          <p>Đoạn mã dưới đây minh họa cách kết hợp trọn vẹn <strong>Lifespan</strong>, <strong>Pydantic v2</strong>, <strong>Middleware đo độ trễ (Accounting)</strong> và <strong>Dependency Injection xác thực JWT</strong> cho dịch vụ <code>order-api</code>:</p>
+
+          <pre><code>import time
+import uuid
+from contextlib import asynccontextmanager
+from typing import Annotated, Literal
+from fastapi import FastAPI, Depends, Header, HTTPException, Request, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel, Field, ConfigDict, field_validator
+import jwt
+
+# 1. LIFESPAN: Nạp mô hình ML &amp; DB Pool TRƯỚC KHI bật cờ sẵn sàng cho /readiness
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.is_ready = False
+    # Khởi tạo kết nối bất đồng bộ &amp; nạp mô hình chấm điểm gian lận vào RAM
+    app.state.fraud_model_version = "xgb-fraud-v2.4"
+    app.state.orders_db = {}  # Giả lập kho lưu trữ Idempotent trong bộ nhớ
+    app.state.is_ready = True
+    yield
+    # Dọn dẹp tài nguyên (Graceful Shutdown) khi nhận tín hiệu SIGTERM từ Kubernetes
+    app.state.is_ready = False
+    app.state.orders_db.clear()
+
+app = FastAPI(
+    title="FSDS Order Service API",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+
+# 2. MIDDLEWARE (ONION MODEL): Accounting, Correlation-ID &amp; Đo độ trễ p95/p99
+@app.middleware("http")
+async def accounting_telemetry_middleware(request: Request, call_next):
+    correlation_id = request.headers.get("X-Correlation-ID", str(uuid.uuid4()))
+    start_ns = time.perf_counter_ns()
+    response = await call_next(request)
+    elapsed_ms = (time.perf_counter_ns() - start_ns) / 1_000_000
+    response.headers["X-Correlation-ID"] = correlation_id
+    response.headers["X-Process-Time-Ms"] = f"{elapsed_ms:.2f}"
+    return response
+
+# 3. PYDANTIC V2 CONTRACTS: Cưỡng chế kiểu dữ liệu chiều vào &amp; lọc dữ liệu chiều ra
+class OrderCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    order_id: str = Field(..., pattern=r"^ORD-\d{4,8}$", examples=["ORD-8888"])
+    customer_id: int = Field(..., gt=0, examples=[402])
+    province: str = Field(..., min_length=2, max_length=64, examples=["BinhDuong"])
+    amount_vnd: int = Field(..., gt=0, le=500_000_000, examples=[15000000])
+
+    @field_validator("province")
+    @classmethod
+    def reject_blacklisted_region(cls, v: str) -&gt; str:
+        if v.upper() == "UNKNOWN":
+            raise ValueError("Province cannot be UNKNOWN")
+        return v
+
+class OrderPublicResponse(BaseModel):
+    order_id: str
+    customer_id: int
+    province: str
+    amount_vnd: int
+    status: Literal["PENDING", "PAID", "REJECTED"]
+    fraud_score: float
+    # Lưu ý: Trường nhạy cảm internal_profit_margin_vnd KHÔNG có mặt ở đây
+    # nên sẽ bị Pydantic v2 tự động cắt bỏ (chống lỗi Data Exposure)!
+
+# 4. DEPENDENCY INJECTION (Depends): Xác thực Stateless JWT &amp; Phân quyền RBAC
+security_scheme = HTTPBearer()
+JWT_SECRET = "fsds-edai-production-hs256-secret-key"
+
+async def get_current_principal(
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security_scheme)]
+) -&gt; dict:
+    try:
+        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=["HS256"])
+        if "ORDER_WRITE" not in payload.get("scopes", []):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient scope: ORDER_WRITE required",
+            )
+        return payload
+    except jwt.PyJWTError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired Bearer JWT token",
+        ) from exc</code></pre>
+        </section>
+
+        <section class="lesson-section" id="api-5-3">
+          <h2 id="api-5-3-h2" tabindex="-1">Trạm 5.3: Phòng Thí nghiệm Thực chiến — Triển khai Dịch vụ Đa Kiến trúc &amp; Bắn Tải Chịu đựng bằng Locust</h2>
+
+          <p>Như đã phân tích ở <strong>Chặng 1 (Trạm 1.3)</strong>, một hệ thống thương mại điện tử hay nền tảng AI hiện đại không bao giờ chỉ sử dụng độc nhất một kiểu kiến trúc API. Trong phòng thí nghiệm thực chiến cuối cùng của Học phần F04, chúng ta hợp nhất <strong>4 mẫu kiến trúc và vận hành cốt lõi</strong> ngay trên cùng một dịch vụ FastAPI <code>order-api</code> để phục vụ trọn vẹn vòng đời của <strong>Order #8888</strong>, sau đó dùng công cụ bắn tải <strong>Locust</strong> để kiểm chứng giới hạn chịu đựng thực tế của hệ thống.</p>
+
+          <x-figure id="api-5-3-fig" key="5.3" title="Sơ đồ 5.3 — Kiến trúc Phòng Thí nghiệm Khép kín: Cụm Bắn tải Locust (gevent) Đo kiểm Dịch vụ FastAPI Đa Kiến trúc &amp; Chẩn đoán Điểm nghẽn">Mô hình giả lập hàng trăm người dùng đồng thời bằng Locust (gevent greenlets) bắn tải vào các cổng REST, SSE, Webhook và Health Probes của FastAPI kèm bảng đọc chỉ số p50 / p95 / p99 / RPS.</x-figure>
+
+          <h3 id="api-5-3-multi-arch">Phần A: Hợp nhất Đa Kiến trúc (REST + SSE + Webhook + Health Probes) trong FastAPI</h3>
+          <p>Tiếp nối phần khởi tạo ở Trạm 5.2, đoạn mã dưới đây triển khai 4 nhóm cổng giao tiếp đại diện cho 4 bài toán kiến trúc khác nhau của <strong>Order #8888</strong>:</p>
+          <ol>
+            <li><strong>Cổng RESTful Chuẩn mực (<code>POST /api/order-service/v1/orders</code> &amp; <code>GET .../orders/{order_id}</code>):</strong> Thực thi tạo đơn hàng bất biến dựa trên khóa <code>Idempotency-Key</code> (Chặng 2), bảo vệ bằng <code>Depends(get_current_principal)</code> (Chặng 3) và lọc bỏ trường nhạy cảm <code>internal_profit_margin_vnd</code> qua <code>response_model=OrderPublicResponse</code>.</li>
+            <li><strong>Cổng Luồng Sự kiện một chiều SSE (<code>GET /api/order-service/v1/orders/{order_id}/stream</code>):</strong> Sử dụng <code>StreamingResponse</code> với kiểu <code>media_type="text/event-stream"</code> để đẩy liên tục tiến độ kiểm duyệt gian lận và đóng gói kho vận của <strong>Order #8888</strong> về giao diện người dùng theo thời gian thực mà không cần trình duyệt phải hỏi thăm (Polling) lặp đi lặp lại.</li>
+            <li><strong>Cổng Đón Sự kiện Webhook (<code>POST /webhooks/payment-callback</code>):</strong> Nhận thông báo thanh toán bất đồng bộ từ cổng Stripe/VNPay, kiểm tra chữ ký mật mã <code>X-Signature-HMAC-SHA256</code> để chống giả mạo trước khi chuyển trạng thái <strong>Order #8888</strong> sang <code>PAID</code>.</li>
+            <li><strong>Cặp Chốt chặn Sức khỏe Tách biệt (<code>GET /liveness</code> &amp; <code>GET /readiness</code>):</strong> Phục vụ Kubernetes Probes (Chặng 4) để phân biệt rạch ròi giữa trạng thái sống của vòng lặp sự kiện <code>uvloop</code> và trạng thái sẵn sàng của mô hình ML / Database.</li>
+          </ol>
+
+          <pre><code>import asyncio
+import hmac
+import hashlib
+from fastapi import Response
+from fastapi.responses import StreamingResponse
+
+# 1. REST ARCHITECTURE: Tạo &amp; Truy vấn Order #8888 có Idempotency-Key + Egress Filtering
+@app.post(
+    "/api/order-service/v1/orders",
+    response_model=OrderPublicResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_order(
+    payload: OrderCreateRequest,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
+    principal: Annotated[dict, Depends(get_current_principal)],
+    response: Response,
+):
+    db = app.state.orders_db
+    # Đảm bảo tính Idempotent: Gọi lại cùng Idempotency-Key trả về ngay kết quả cũ (HTTP 200)
+    if idempotency_key in db:
+        response.status_code = status.HTTP_200_OK
+        return db[idempotency_key]
+
+    record = {
+        "order_id": payload.order_id,
+        "customer_id": payload.customer_id,
+        "province": payload.province,
+        "amount_vnd": payload.amount_vnd,
+        "status": "PENDING",
+        "fraud_score": 0.04,
+        "internal_profit_margin_vnd": 3200000,  # Sẽ bị response_model cắt bỏ khi trả về!
+    }
+    db[idempotency_key] = record
+    db[payload.order_id] = record
+    return record
+
+@app.get("/api/order-service/v1/orders/{order_id}", response_model=OrderPublicResponse)
+async def get_order(order_id: str):
+    record = app.state.orders_db.get(order_id)
+    if not record:
+        raise HTTPException(status_code=404, detail=f"Order {order_id} not found")
+    return record
+
+# 2. SSE ARCHITECTURE: Đẩy luồng trạng thái thời gian thực (text/event-stream)
+@app.get("/api/order-service/v1/orders/{order_id}/stream")
+async def stream_order_events(order_id: str):
+    async def event_generator():
+        stages = ["FRAUD_CHECK_PASSED", "PAYMENT_AUTHORIZED", "WAREHOUSE_PACKING"]
+        for idx, stage in enumerate(stages, start=1):
+            await asyncio.sleep(0.5)  # Nhường luồng uvloop hoàn toàn non-blocking!
+            yield f"id: evt-{order_id}-{idx}\nevent: order_update\ndata: {{\"order_id\": \"{order_id}\", \"stage\": \"{stage}\"}}\n\n"
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+# 3. WEBHOOK ARCHITECTURE: Đón sự kiện từ Cổng thanh toán kèm xác thực HMAC-SHA256
+WEBHOOK_SECRET = b"stripe-vnpay-webhook-shared-secret"
+
+@app.post("/webhooks/payment-callback", status_code=status.HTTP_200_OK)
+async def payment_webhook(
+    request: Request,
+    x_signature_hmac_sha256: Annotated[str, Header()],
+):
+    raw_body = await request.body()
+    expected_sig = hmac.new(WEBHOOK_SECRET, raw_body, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected_sig, x_signature_hmac_sha256):
+        raise HTTPException(status_code=401, detail="Invalid Webhook HMAC signature")
+    data = await request.json()
+    order_id = data.get("order_id", "ORD-8888")
+    if order_id in app.state.orders_db:
+        app.state.orders_db[order_id]["status"] = "PAID"
+    return {"acknowledged": True, "order_id": order_id}
+
+# 4. HEALTHCHECK PROBES: Tách biệt Liveness (Event Loop sống) và Readiness (ML/DB sẵn sàng)
+@app.get("/liveness", status_code=status.HTTP_200_OK)
+async def liveness_probe():
+    return {"status": "ALIVE"}
+
+@app.get("/readiness")
+async def readiness_probe(response: Response):
+    if not getattr(app.state, "is_ready", False):
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {"status": "NOT_READY", "reason": "Warming up ML model and DB pool"}
+    return {"status": "READY", "model": app.state.fraud_model_version}</code></pre>
+
+          <h3 id="api-5-3-locust">Phần B: Kiểm thử Chịu tải Tự động với Locust (Load &amp; Stress Testing bằng Python <code>gevent</code>)</h3>
+          <p>Viết xong mã nguồn FastAPI mới chỉ là một nửa chặng đường; theo phương pháp luận ở <strong>Chặng 4 (Slide 78–85)</strong>, kỹ sư bắt buộc phải chứng minh dịch vụ đạt chuẩn phân vị độ trễ <code>p95 &lt; 50ms</code>, <code>p99 &lt; 150ms</code> dưới tải thực tế trước khi đưa lên Production. Thay vì dùng các công cụ cấu hình bằng tệp XML/GUI nặng nề (như Apache JMeter vốn cấp phát 1 OS Thread cho mỗi người dùng ảo), hệ sinh thái Python sử dụng <strong>Locust</strong> — một khung bắn tải mã nguồn mở định nghĩa kịch bản hành vi người dùng hoàn toàn bằng code Python (<code>locustfile.py</code>).</p>
+          <p><strong>Cơ chế nội tại giúp Locust tạo hàng nghìn kết nối từ 1 máy trạm:</strong> Tương tự như cách Uvicorn dùng <code>uvloop</code> ở phía máy chủ, Locust sử dụng thư viện <strong><code>gevent</code> (Coroutine-based Greenlets)</strong> ở phía máy bắn tải. Mỗi người dùng ảo (<code>HttpUser</code>) chỉ là một vi luồng nhẹ (greenlet) tiêu tốn vài Kilobyte RAM; nhờ đó, một nhân CPU trên máy tính cá nhân của bạn có thể dễ dàng giả lập đồng thời hàng trăm đến hàng nghìn khách hàng liên tục gửi yêu cầu đặt và tra cứu <strong>Order #8888</strong> theo đúng tỷ lệ trọng số thực tế (ví dụ: 75% lưu lượng đọc tra cứu đơn hàng <code>@task(3)</code> và 25% lưu lượng tạo đơn hàng mới <code>@task(1)</code>):</p>
+
+          <pre><code># Tệp: locustfile.py — Kịch bản bắn tải thực chiến cho dịch vụ order-api
+import random
+import uuid
+import jwt
+from locust import HttpUser, task, between
+
+JWT_SECRET = "fsds-edai-production-hs256-secret-key"
+
+class OrderApiUser(HttpUser):
+    # Mỗi người dùng ảo nghỉ ngẫu nhiên từ 1 đến 2 giây giữa các lần thao tác
+    wait_time = between(1.0, 2.0)
+
+    def on_start(self):
+        """Chạy 1 lần khi người dùng ảo khởi tạo: Sinh sẵn JWT Token và tạo trước ORD-8888."""
+        token = jwt.encode(
+            {"sub": "user_402", "scopes": ["ORDER_READ", "ORDER_WRITE"]},
+            JWT_SECRET,
+            algorithm="HS256",
+        )
+        self.auth_headers = {"Authorization": f"Bearer {token}"}
+        # Đảm bảo ORD-8888 đã tồn tại để các tác vụ đọc không bị lỗi 404
+        self.client.post(
+            "/api/order-service/v1/orders",
+            json={
+                "order_id": "ORD-8888",
+                "customer_id": 402,
+                "province": "BinhDuong",
+                "amount_vnd": 15000000,
+            },
+            headers={**self.auth_headers, "Idempotency-Key": "init-seed-8888"},
+            name="POST /v1/orders (Seed)",
+        )
+
+    @task(3)
+    def get_order_details(self):
+        """Trọng số = 3 (75% lưu lượng): Khách hàng tra cứu trạng thái Order #8888."""
+        with self.client.get(
+            "/api/order-service/v1/orders/ORD-8888",
+            name="GET /v1/orders/{order_id}",
+            catch_response=True,
+        ) as resp:
+            if resp.status_code != 200:
+                resp.failure(f"Unexpected status {resp.status_code}")
+
+    @task(1)
+    def create_new_order(self):
+        """Trọng số = 1 (25% lưu lượng): Khách hàng đặt đơn hàng mới kèm Idempotency-Key."""
+        order_num = random.randint(1000, 999999)
+        idem_key = str(uuid.uuid4())
+        self.client.post(
+            "/api/order-service/v1/orders",
+            json={
+                "order_id": f"ORD-{order_num}",
+                "customer_id": 402,
+                "province": "BinhDuong",
+                "amount_vnd": 15000000,
+            },
+            headers={**self.auth_headers, "Idempotency-Key": idem_key},
+            name="POST /v1/orders",
+        )</code></pre>
+
+          <p>Để thực thi bài kiểm thử tự động trong đường ống CI/CD (không cần mở giao diện trình duyệt trên cổng <code>8089</code>), kỹ sư khởi chạy máy chủ <strong>Uvicorn</strong> ở cửa sổ thứ nhất và chạy lệnh <strong>Locust Headless Mode</strong> ở cửa sổ thứ hai với <code>100</code> người dùng đồng thời (<code>-u 100</code>), tốc độ tăng tải <code>10 users/giây</code> (<code>-r 10</code>) trong vòng <code>5 phút</code>:</p>
+
+          <pre><code># Terminal 1: Khởi chạy máy chủ ASGI Uvicorn với vòng lặp uvloop
+uvicorn app:app --host 0.0.0.0 --port 8000 --workers 4 --loop uvloop
+
+# Terminal 2: Chạy bắn tải tự động bằng Locust (100 concurrent users, ramp-up 10/s, chạy 5 phút)
+locust -f locustfile.py --headless -u 100 -r 10 --run-time 5m --host http://localhost:8000 --csv=loadtest_report</code></pre>
+
+          <h3 id="api-5-3-diagnostics">Ma trận Đọc Báo cáo Locust &amp; Chẩn đoán Điểm nghẽn Thực chiến</h3>
+          <p>Khi bài kiểm thử Locust kết thúc, kỹ sư đối chiếu bảng số liệu <code>RPS</code>, <code>p50 (Median)</code>, <code>p95</code>, <code>p99</code> và <code>Failures/s</code> với bảng triệu chứng dưới đây để bắt mạch chính xác nguyên nhân vật lý bên dưới:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Hiện tượng trên Báo cáo Locust (<code>p50</code>, <code>p95</code>, <code>p99</code>, <code>RPS</code>, <code>Failures</code>)</th>
+                  <th>Cơ chế Vật lý Gốc gây Nghẽn (Root Cause)</th>
+                  <th>Phác đồ Xử lý Triệt để trong Kiến trúc FastAPI</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. <code>p50 = 12ms</code> rất đẹp, nhưng <code>p99 = 3.400ms</code> vọt cao gấp 280 lần; <code>GET /liveness</code> thỉnh thoảng bị Timeout</strong></td>
+                  <td><strong>Đóng băng Event Loop (Event Loop Blocking):</strong> Có một hàm được khai báo là <code>async def</code> nhưng bên trong lại gọi thư viện đồng bộ chặn luồng (<code>requests.get</code>, <code>time.sleep</code>) hoặc chạy vòng lặp CPU nặng làm kẹt toàn bộ vòng lặp <code>uvloop</code>.</td>
+                  <td>• Thay thế 100% thư viện I/O chặn bằng thư viện <code>async</code> nguyên bản (<code>httpx.AsyncClient</code>, <code>asyncpg</code>).<br>• Nếu bắt buộc gọi thư viện đồng bộ, đổi khai báo hàm sang <code>def</code> tiêu chuẩn hoặc đẩy tác vụ nặng sang <code>ProcessPoolExecutor</code> / hàng đợi Celery.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Khi tăng từ <code>50 users</code> lên <code>200 users</code>, <code>RPS</code> đi ngang ở mức cố định trong khi <code>p95</code> tăng tuyến tính và xuất hiện lỗi <code>HTTP 500 TimeoutError</code></strong></td>
+                  <td><strong>Cạn kiệt Bể Kết nối Cơ sở dữ liệu (Database Connection Pool Starvation):</strong> Các coroutine trên Event Loop phải xếp hàng chờ mượn kết nối từ <code>SQLAlchemy AsyncEngine</code> (mặc định <code>pool_size=5</code>) hoặc có truy vấn SQL thiếu Index giữ kết nối quá lâu.</td>
+                  <td>• Tinh chỉnh <code>pool_size=20</code>, <code>max_overflow=10</code> phù hợp với số lượng Worker Uvicorn và giới hạn <code>max_connections</code> của PostgreSQL (hoặc đặt <strong>PgBouncer</strong> ở giữa).<br>• Bắt buộc đánh Index cho cột tra cứu (<code>order_id</code>) và giải phóng kết nối ngay trước khi gọi API bên thứ ba.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Tỷ lệ lỗi <code>Failures/s</code> báo hàng loạt <code>HTTP 422 Unprocessable Entity</code> ngay từ giây đầu tiên với độ trễ cực thấp (<code>&lt; 2ms</code>)</strong></td>
+                  <td><strong>Lệch Hợp đồng Dữ liệu (Schema Contract Mismatch):</strong> Payload JSON do kịch bản Locust (hoặc ứng dụng Client) gửi lên vi phạm ràng buộc kiểu dữ liệu của <strong>Pydantic v2</strong> (ví dụ thiếu trường bắt buộc, sai định dạng <code>ORD-xxxx</code>, hoặc gửi trường lạ khi đã bật <code>extra="forbid"</code>).</td>
+                  <td>• Kiểm tra nội dung JSON trả về của mã <code>422</code> (trường <code>detail[].loc</code> và <code>detail[].msg</code>) để đồng bộ lại payload của Client theo đúng đặc tả OpenAPI tại <code>/docs</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. CPU của 1 nhân máy chủ chạm <code>100%</code> trong khi 7 nhân CPU còn lại ngồi chơi ở mức <code>2%</code>; thông lượng đạt trần ở <code>~2.500 RPS</code></strong></td>
+                  <td><strong>Chạy đơn tiến trình (Single-Worker Process Bottleneck):</strong> Mỗi tiến trình Python/Uvicorn chỉ chạy 1 vòng lặp sự kiện <code>uvloop</code> gắn trên 1 nhân CPU vật lý do giới hạn của tiến trình đơn.</td>
+                  <td>• Bật đa tiến trình Worker (<code>uvicorn app:app --workers 4</code> hoặc quản lý qua <strong>Kubernetes Horizontal Pod Autoscaler — HPA</strong>) để phân tải đều trên toàn bộ các nhân CPU của cụm máy chủ.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="lesson-section summary-section" id="api-5-summary">
+          <h2 id="api-5-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 5 &amp; Khép kín Toàn bộ Học phần F04 · Web API</h2>
+
+          <p><strong>Khép kín hành trình 5 Chặng của dịch vụ <code>order-api</code> và Order #8888 tại Học phần F04 · Web API:</strong> Xuất phát từ một gói tin mạng thô đi qua chuỗi bắt tay <code>DNS → TCP → TLS → HTTP</code> và sự phân hóa của 6 phong cách kiến trúc API ở <strong>Chặng 1</strong>, chúng ta đã định hình hợp đồng giao tiếp RESTful chuẩn mực với khóa chống trùng lặp <code>Idempotency-Key</code> ở <strong>Chặng 2</strong>, dựng hàng rào bảo mật 3 trụ cột <code>AuthN / AuthZ / Accounting</code> bằng thẻ căn cước tự thân <code>JWT</code> và <code>OAuth 2.0</code> ở <strong>Chặng 3</strong>, đồng thời trang bị cặp cảm biến sinh tồn <code>/liveness</code> – <code>/readiness</code> cùng tư duy quản trị đuôi độ trễ <code>p95/p99</code> ở <strong>Chặng 4</strong>. Tại <strong>Chặng 5</strong> này, toàn bộ bản thiết kế đã được đúc kết thành mã nguồn thực thi hiệu năng cao trên ngăn xếp <strong>ASGI 4 lớp (Uvicorn <code>uvloop</code> + Starlette + FastAPI + Pydantic v2)</strong> và vượt qua bài kiểm thử chịu tải khắc nghiệt của <strong>Locust</strong>. Dịch vụ <code>order-api</code> của chúng ta giờ đây đã sẵn sàng bước tiếp sang <strong>Học phần F05 (Validation &amp; Verification — Thiết kế bộ kiểm thử tự động <code>pytest</code>, Mocking và TDD)</strong> trước khi được đóng gói thành ảnh bất biến và vận hành tự động trên cụm máy chủ ở <strong>Học phần F06 (Containerization &amp; Orchestration với Docker)</strong>.</p>
+
+          <ol>
+            <li><strong>Tại sao kiến trúc ASGI (Uvicorn + Starlette + FastAPI) lại đạt thông lượng cao gấp hàng chục lần so với WSGI truyền thống (Flask/Django) đối với các tác vụ nặng về I/O mạng?</strong> → Vì WSGI giữ chặt <code>1 OS Thread</code> cho mỗi yêu cầu trong suốt thời gian chờ Database hoặc API ngoài phản hồi (làm cạn kiệt bể luồng dù CPU vẫn rảnh rỗi), trong khi ASGI sử dụng vòng lặp sự kiện bất đồng bộ <code>uvloop</code> (dựa trên <code>epoll</code>/<code>kqueue</code>): ngay khi gặp từ khóa <code>await</code> chờ I/O mạng, coroutine lập tức nhường luồng đơn cho hàng nghìn yêu cầu khác tiếp tục xử lý mà không tốn chi phí chuyển ngữ cảnh luồng hệ điều hành.</li>
+            <li><strong>Tại sao việc gọi một hàm đồng bộ chặn luồng (như <code>time.sleep()</code> hoặc <code>requests.get()</code>) bên trong hàm khai báo <code>async def</code> của FastAPI lại là lỗi chí mạng trong Production, và quy tắc chọn giữa <code>async def</code> và <code>def</code> là gì?</strong> → Vì FastAPI chạy các hàm <code>async def</code> trực tiếp trên luồng Event Loop chính duy nhất của tiến trình Uvicorn; một lệnh gọi chặn đồng bộ không có <code>await</code> sẽ khóa cứng toàn bộ vòng lặp sự kiện, làm treo mọi yêu cầu đang xử lý đồng thời (kể cả <code>GET /liveness</code>). Quy tắc vàng: chỉ dùng <code>async def</code> khi toàn bộ thư viện I/O bên trong là non-blocking async (<code>httpx.AsyncClient</code>, <code>asyncpg</code>); nếu bắt buộc gọi thư viện đồng bộ cũ, phải khai báo bằng <code>def</code> tiêu chuẩn để FastAPI tự động đẩy sang bể luồng phụ trợ <code>AnyIO</code> bên ngoài.</li>
+            <li><strong>Pydantic v2 bảo vệ dịch vụ <code>order-api</code> ở cả hai chiều vào (Ingress) và chiều ra (Egress) theo cơ chế nào?</strong> → Ở chiều vào, lõi <code>pydantic-core</code> viết bằng Rust tự động phân tích cú pháp JSON, ép kiểu và kiểm tra ràng buộc miền giá trị (như <code>Field(gt=0)</code>), chặn đứng dữ liệu bẩn ngay tại cửa ngõ bằng mã lỗi chuẩn <code>HTTP 422 Unprocessable Entity</code> trước khi chạm tới Database. Ở chiều ra, tham số <code>response_model</code> đóng vai trò bộ lọc trắng (allowlist), tự động cắt bỏ mọi trường dữ liệu nhạy cảm nội bộ (như biên lợi nhuận hay mật khẩu băm) để ngăn chặn triệt để lỗ hổng lộ lọt dữ liệu (Data Exposure).</li>
+            <li><strong>Trong kiến trúc FastAPI, khi nào kỹ sư nên viết Middleware và khi nào nên sử dụng Dependency Injection (<code>Depends</code>)?</strong> → Dùng <strong>Middleware (Onion Pipeline)</strong> cho các tác vụ cắt ngang toàn cục áp dụng đồng nhất lên mọi Request/Response (như kiểm soát CORS, gắn <code>X-Correlation-ID</code>, đo thời gian xử lý <code>X-Process-Time-Ms</code> cho trụ cột Accounting). Dùng <strong>Dependency Injection (<code>Depends</code>)</strong> cho các logic cần áp dụng chọn lọc theo từng nhóm Route hoặc cần chia sẻ/dọn dẹp tài nguyên theo ngữ cảnh của từng Endpoint (như xác thực chữ ký <code>Bearer JWT</code>, kiểm tra quyền RBAC, và quản lý đóng/mở phiên giao dịch Database qua từ khóa <code>yield</code>).</li>
+            <li><strong>Công cụ kiểm thử tải Locust sử dụng cơ chế kỹ thuật nào để giả lập hàng trăm người dùng đồng thời trên một máy tính đơn lẻ, và triệu chứng <code>p50</code> thấp nhưng <code>p99</code> vọt cao trên báo cáo Locust báo hiệu điều gì?</strong> → Locust sử dụng các vi luồng sự kiện <strong><code>gevent</code> greenlets</strong> cực nhẹ thay vì cấp phát luồng hệ điều hành nặng nề cho mỗi người dùng ảo (<code>HttpUser</code>). Khi báo cáo Locust cho thấy trung vị <code>p50</code> rất thấp nhưng đuôi phân vị <code>p99</code> vọt lên hàng giây, đó là dấu hiệu điển hình của hiện tượng <strong>chặn vòng lặp sự kiện (Event Loop Blocking)</strong>, cạn kiệt bể kết nối Database (Connection Pool Starvation) hoặc kẹt khóa dòng trên các bản ghi nóng.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/F05/1" onclick="selectTopic('F05', 1);return false;">Tiếp nối sang Học phần F05: Software Engineering — Validation &amp; Verification (Kiểm thử Tự động &amp; TDD) →</a></p>
+        </section>
+      </div>

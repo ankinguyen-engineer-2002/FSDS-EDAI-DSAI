@@ -1,0 +1,171 @@
+      <div class="prose">
+        <x-spine id="python-2-spine" badge="TRONG BÀI HỌC NÀY · F02" title="Chặng 2: Mô Hình Tham Chiếu Đối Tượng, Độ Phức Tạp Cấu Trúc Dữ Liệu &amp; Hợp Đồng Giao Diện Hàm" subtitle="Trạm 2.1 → 2.3">Giải phẫu cơ chế vận hành cốt lõi trên vùng nhớ Heap của CPython và cách các framework hiện đại (FastAPI, Pydantic, SQLAlchemy) khai thác chúng: từ mô hình con trỏ tham chiếu (<code>Name Binding</code>), ranh giới <code>Mutable</code> / <code>Immutable</code>, độ phức tạp bảng băm $O(1)$ của <code>dict</code> / <code>set</code> đối đầu mảng động $O(n)$ của <code>list</code>, đến chốt chặn nạp module <code>__name__ == "__main__"</code>, cơ chế chuyển tiếp <code>*args</code> / <code>**kwargs</code> và siêu dữ liệu <code>Type Hints</code>.</x-spine>
+
+        <section class="lesson-section" id="python-2-1">
+          <h2 id="python-2-1-h2" tabindex="-1">Trạm 2.1: Mô hình Biến Tham chiếu (Name Binding), Toán tử Định danh (is vs. ==) &amp; Ranh giới Mutable / Immutable</h2>
+
+          <p>Khác hoàn toàn với ngôn ngữ <code>C</code> — nơi một biến là một chiếc hộp vật lý cố định địa chỉ và kiểu dữ liệu trên ngăn xếp bộ nhớ — biến trong Python thực chất chỉ là <strong>nhãn tên tham chiếu (<code>Name / Reference</code>)</strong> lưu con trỏ trỏ tới đối tượng cấu trúc <code>PyObject</code> nằm trên vùng nhớ <strong>Heap</strong> (<em>Slide 28–33</em> &amp; <em>Think Python</em> Ch. 10). Cơ chế <strong>Dynamic Typing</strong> của Python có nghĩa là kiểu dữ liệu (<code>int</code>, <code>str</code>, <code>list</code>, <code>dict</code>) và bộ đếm tham chiếu (<code>ob_refcnt</code>) gắn chặt vào bản thân khối đối tượng <code>PyObject</code> trên Heap chứ không gắn vào tên biến. Khi gán <code>b = a</code>, CPython không hề sao chép dữ liệu mà chỉ dán thêm nhãn <code>b</code> trỏ vào cùng địa chỉ bộ nhớ <code>id(a)</code>. Từ bản chất con trỏ này, Python tách bạch tuyệt đối hai phép kiểm tra: toán tử <strong><code>==</code> (Value Equality)</strong> gọi phương thức <code>__eq__()</code> để duyệt và so sánh giá trị nội dung bên trong hai đối tượng (có thể tốn $O(n)$ nếu danh sách dài), trong khi toán tử <strong><code>is</code> (Object Identity)</strong> so sánh trực tiếp hai địa chỉ con trỏ bộ nhớ <code>id(a) == id(b)</code> trong đúng $O(1)$ chu kỳ lệnh CPU. Đó là lý do các chuẩn mực công nghiệp (PEP 8, SQLAlchemy, FastAPI) bắt buộc kiểm tra đối tượng rỗng đơn bản (Singleton) bằng <code>if payload is None:</code> thay vì <code>== None</code> để tránh bị đánh lừa hoặc làm chậm bởi các lớp tùy biến nạp chồng <code>__eq__()</code>.</p>
+
+          <p>Mô hình chia sẻ con trỏ (<strong>Aliasing</strong>) dẫn thẳng đến ranh giới thiết kế quan trọng nhất trong quản lý trạng thái của <code>crawler.py</code> và các ORM như <strong>SQLAlchemy</strong>: sự phân chia giữa đối tượng <strong>Bất biến (<code>Immutable</code>: <code>int</code>, <code>float</code>, <code>bool</code>, <code>str</code>, <code>tuple</code>)</strong> và đối tượng <strong>Khả biến (<code>Mutable</code>: <code>list</code>, <code>dict</code>, <code>set</code>)</strong> (<em>Slide 34–40</em> &amp; <em>Think Python</em> Ch. 10, 11). Với kiểu <code>Immutable</code>, vùng nhớ chứa giá trị bị khóa cứng sau khi khởi tạo; mọi thao tác biến đổi chuỗi hay số đều buộc CPython cấp phát một <code>PyObject</code> mới ở địa chỉ <code>id()</code> khác, đảm bảo tính an toàn tuyệt đối khi chia sẻ qua nhiều hàm và cho phép tính giá trị băm cố định qua <code>hash()</code> (<code>__hash__</code>) để làm khóa tra cứu. Ngược lại, kiểu <code>Mutable</code> cho phép sửa đổi trực tiếp tại chỗ (<em>in-place mutation</em>) ngay trên cùng một địa chỉ Heap. Nếu hai nhãn tên hoặc hai hàm cùng trỏ vào một <code>list</code> hay <code>dict</code>, việc một hàm gọi <code>append()</code> sẽ làm biến đổi ngầm dữ liệu của hàm kia (<strong>Aliasing Side-Effect</strong>) — điển hình là lỗi kinh điển dùng <code>default=[]</code> trong chữ ký hàm khiến dữ liệu từ phiên thu thập trước bị rò rỉ sang phiên sau.</p>
+
+          <x-figure id="python-2-1-fig" key="2.1" title="Sơ đồ 2.1 — Cơ học Con trỏ Tham chiếu (Name Binding), Toán tử Định danh (is vs. ==) và Hiệu ứng Phụ Aliasing giữa Mutable vs. Immutable">Đối chiếu cơ chế ánh xạ nhãn tên trong Namespace tới cấu trúc PyObject trên Heap, sự khác biệt giữa so sánh địa chỉ bộ nhớ (is) với so sánh giá trị (==), và cạm bẫy sửa tại chỗ (In-place Mutation) trên đối tượng khả biến.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Khía cạnh Cơ học</th>
+                  <th>Bản chất dưới CPython Runtime (<code>PyObject</code> &amp; RAM)</th>
+                  <th>Hành vi với <code>Immutable</code> (<code>int</code>, <code>str</code>, <code>tuple</code>) vs. <code>Mutable</code> (<code>list</code>, <code>dict</code>, <code>set</code>)</th>
+                  <th>Cạm bẫy Thực chiến trong <code>crawler.py</code> &amp; Framework</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Toán tử <code>is</code> vs. <code>==</code></strong></td>
+                  <td>• <code>is</code>: So sánh địa chỉ con trỏ <code>id(a) == id(b)</code> ($O(1)$).<br>• <code>==</code>: Gọi <code>a.__eq__(b)</code> so sánh từng phần tử nội dung ($O(n)$).</td>
+                  <td>Hai biến <code>list</code> độc lập <code>a = [1, 2]</code> và <code>b = [1, 2]</code> có <code>a == b</code> là <code>True</code> nhưng <code>a is b</code> là <code>False</code> vì nằm ở hai khối Heap riêng biệt.</td>
+                  <td>Dùng <code>x == None</code> thay vì <code>x is None</code> khiến đối tượng ORM / DataFrame tùy biến <code>__eq__()</code> trả về mảng <code>bool</code> hoặc ném ngoại lệ thay vì kiểm tra con trỏ <code>None</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Đột biến tại chỗ (Mutation)</strong></td>
+                  <td>• <code>Immutable</code>: Cấm sửa vùng nhớ hiện tại; phải tạo <code>PyObject</code> mới.<br>• <code>Mutable</code>: Sửa trực tiếp vùng nhớ con trỏ nội bộ mà giữ nguyên <code>id()</code>.</td>
+                  <td>• <code>url = url + "/v1"</code> cấp phát chuỗi <code>str</code> mới.<br>• <code>batch.append(url)</code> sửa thẳng vào đối tượng <code>list</code> hiện hữu trên Heap.</td>
+                  <td><strong>Aliasing Side-Effect:</strong> Truyền <code>config_dict</code> vào hàm worker và gọi <code>config_dict.pop("token")</code> làm mất sạch khóa xác thực của toàn bộ các worker chạy sau.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Tính khả băm (<code>__hash__</code>)</strong></td>
+                  <td>Hàm <code>hash(obj)</code> đòi hỏi giá trị băm của đối tượng phải bất biến suốt vòng đời để định vị đúng ô nhớ trong bảng băm.</td>
+                  <td>• <code>Immutable</code> (<code>str</code>, <code>int</code>, <code>tuple</code> thuần bất biến): <strong>Hashable</strong>.<br>• <code>Mutable</code> (<code>list</code>, <code>dict</code>, <code>set</code>): <strong>Unhashable</strong> (<code>__hash__ = None</code>).</td>
+                  <td>Cố dùng <code>list</code> <code>[domain, path]</code> làm khóa cho <code>dict</code> hoặc nhét vào <code>set</code> trong <code>crawler.py</code> sẽ nổ lỗi <code>TypeError: unhashable type: 'list'</code>; bắt buộc dùng <code>tuple</code> <code>(domain, path)</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Tham số mặc định khả biến</strong></td>
+                  <td>CPython chỉ khởi tạo giá trị mặc định của hàm <strong>đúng 1 lần duy nhất</strong> tại thời điểm nạp định nghĩa hàm (<code>def</code>), lưu trong <code>__defaults__</code>.</td>
+                  <td>Nếu đặt <code>def parse_batch(urls, seen=[]):</code>, danh sách <code>seen</code> đó sống xuyên suốt vòng đời tiến trình và tích tụ rác qua mọi lần gọi hàm.</td>
+                  <td>Trong FastAPI / <code>crawler.py</code>, luôn đặt mặc định là bất biến <code>seen: list | None = None</code> rồi khởi tạo <code>if seen is None: seen = []</code> bên trong thân hàm.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Hiểu rõ biến chỉ là con trỏ tham chiếu và lý do chỉ các đối tượng bất biến (<code>Immutable</code>) mới tính được mã băm <code>hash()</code> chính là chìa khóa cơ học để bước sang quyết định kiến trúc tiếp theo: khi <code>crawler.py</code> phải lưu trữ và kiểm tra trùng lặp hàng trăm nghìn URL trên RAM, cấu trúc dữ liệu nào giúp tra cứu trong thời gian hằng số $O(1)$ thay vì làm treo cứng CPU?</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="python-2-2">
+          <h2 id="python-2-2-h2" tabindex="-1">Trạm 2.2: Giải phẫu Bộ tứ Collection (list, tuple, set, dict) — Bảng Băm O(1) Đối đầu Mảng Động O(n)</h2>
+
+          <p>Trong kịch bản thực tế của <code>crawler.py</code>, giả sử tiến trình cần thu thập <code>100,000</code> trang web và trước mỗi lần tải phải kiểm tra xem đường dẫn đó đã từng xuất hiện hay chưa bằng biểu thức <code>if url not in visited:</code> (<em>Slide 40–44</em> &amp; <em>Think Python</em> Phụ lục B). Nếu kỹ sư lưu <code>visited</code> dưới dạng một danh sách <strong><code>list</code></strong>, tiến trình sẽ rơi vào thảm họa hiệu năng khi số lượng URL tăng dần. Bên dưới CPython, <code>list</code> được cài đặt bằng một <strong>mảng động chứa các con trỏ (<code>Dynamic Array of Pointers</code> — <code>PyObject **ob_item</code>)</strong> nằm liền kề nhau trên RAM. CPython cấp phát dư dung lượng (<em>over-allocation</em>) để thao tác thêm vào cuối <code>append()</code> đạt độ phức tạp khấu hao $O(1)$ và truy cập theo chỉ số <code>items[i]</code> đạt $O(1)$. Tuy nhiên, vì các phần tử trong <code>list</code> không có chỉ mục băm, toán tử kiểm tra sự tồn tại <code>url in visited</code> hoặc xóa phần tử <code>remove(url)</code> buộc CPU phải <strong>quét tuần tự từng ô nhớ từ đầu đến cuối (Linear Scan — $O(n)$)</strong>. Với <code>100,000</code> URL nhân với <code>100,000</code> lượt kiểm tra, tổng số phép so sánh chuỗi vọt lên ngưỡng $O(n^2) \approx 5 \times 10^9$ thao tác, làm đóng băng luồng thu thập suốt hàng chục giây.</p>
+
+          <p>Để triệt tiêu chi phí quét tuần tự $O(n)$, CPython cung cấp <strong><code>dict</code></strong> và <strong><code>set</code></strong> được xây dựng trên nền tảng <strong>Bảng băm thu gọn (<code>Compact Hash Table</code>)</strong>. Khi thực thi <code>url in visited_set</code> hoặc tra cứu <code>cache_dict[url]</code>, Python gọi hàm băm <code>hash(url)</code> để biến chuỗi URL thành một số nguyên 64-bit, lấy phần dư để nhảy thẳng tới chỉ mục ô nhớ (Bucket) tương ứng và đối chiếu khóa trong <strong>thời gian hằng số $O(1)$ trung bình</strong> — bất kể tập dữ liệu có <code>100</code> hay <code>10,000,000</code> phần tử. Trong khi đó, <strong><code>tuple</code></strong> được thiết kế như một mảng con trỏ cố định kích thước ngay từ lúc cấp phát: do không cần vùng đệm mở rộng (<em>over-allocation</em>) và bất biến hoàn toàn, <code>tuple</code> tiêu tốn ít RAM hơn <code>list</code>, khởi tạo nhanh hơn và đóng vai trò bản ghi cố định (như dòng dữ liệu trả về từ <code>SQLAlchemy</code> / <code>psycopg</code>) hoặc làm khóa phức hợp <code>(domain, port)</code> cho <code>dict</code>.</p>
+
+          <x-figure id="python-2-2-fig" key="2.2" title="Sơ đồ 2.2 — Giải phẫu Bố cục Bộ nhớ và Độ phức tạp Thuật toán: Mảng Con trỏ Động (list O(n)) vs. Bảng Băm Thu gọn (dict / set O(1)) vs. Tuple Bất biến">Đối sánh kiến trúc vật lý trên RAM giữa mảng con trỏ liên tiếp của list/tuple và bảng băm định vị trực tiếp bằng hash(key) của dict/set khi tra cứu 100,000 URL trong crawler.py.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Cấu trúc Collection</th>
+                  <th>Cấu trúc Vật lý dưới CPython (RAM Layout)</th>
+                  <th>Độ phức tạp Thuật toán (Tra cứu <code>in</code> / Thêm / Xóa)</th>
+                  <th>Đặc tính Khả biến &amp; Ràng buộc Băm</th>
+                  <th>Vai trò Kiến trúc trong <code>crawler.py</code> &amp; Framework</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. <code>list</code></strong><br><code>[a, b, c]</code></td>
+                  <td><strong>Mảng động chứa con trỏ</strong> (<code>Dynamic Array</code>) có cấp phát dư (over-allocation) để đón đầu lệnh <code>append()</code>.</td>
+                  <td>• Chỉ số <code>lst[i]</code> / <code>append()</code>: <strong>$O(1)$</strong><br>• Tra cứu <code>x in lst</code>: <strong>$O(n)$ (Chậm)</strong><br>• Chèn/xóa đầu <code>pop(0)</code>: <strong>$O(n)$</strong></td>
+                  <td><code>Mutable</code> (Khả biến), giữ đúng thứ tự chèn, cho phép trùng lặp, <strong>Unhashable</strong>.</td>
+                  <td>Lưu danh sách kết quả thu thập tuần tự theo lô (<code>batch_results</code>) để tuần tự hóa ra JSON hoặc ghi Bulk Insert vào DB.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. <code>tuple</code></strong><br><code>(a, b, c)</code></td>
+                  <td><strong>Mảng con trỏ tĩnh cố định kích thước</strong> (<code>Fixed-size Array</code>), gộp chung header và mảng con trỏ giúp tiết kiệm bộ nhớ.</td>
+                  <td>• Chỉ số <code>tup[i]</code>: <strong>$O(1)$</strong><br>• Tra cứu <code>x in tup</code>: <strong>$O(n)$</strong><br>• Thêm / Xóa: Không hỗ trợ (Bất biến)</td>
+                  <td><code>Immutable</code> (Bất biến), giữ thứ tự, <strong>Hashable</strong> (nếu mọi phần tử bên trong đều bất biến).</td>
+                  <td>Đóng gói bản ghi bất biến (<code>(status_code, html_bytes)</code>), làm khóa phức hợp <code>(host, path)</code> cho <code>dict</code>, và nhận gói tham số <code>*args</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. <code>set</code></strong><br><code>{a, b, c}</code></td>
+                  <td><strong>Bảng băm chỉ lưu khóa</strong> (<code>Hash Table of Keys</code>) với các ô nhớ (buckets) lưu kèm mã <code>hash</code> 64-bit; tốn RAM hơn <code>list</code> để đổi lấy tốc độ.</td>
+                  <td>• Tra cứu <code>x in s</code>: <strong>$O(1)$ (Siêu tốc)</strong><br>• Thêm <code>add(x)</code> / Xóa <code>remove(x)</code>: <strong>$O(1)$</strong><br>• Phép tập hợp <code>&amp;</code>, <code>|</code>, <code>-</code>: $O(\text{len})$</td>
+                  <td>Bản thân <code>set</code> là <code>Mutable</code> (nhưng mọi phần tử bên trong bắt buộc phải <strong>Hashable / Immutable</strong>), tự động khử trùng.</td>
+                  <td>Bộ lọc khử trùng URL tốc độ cao (<code>visited_urls = set()</code>) giúp kiểm tra <code>url in visited_urls</code> trên hàng triệu link trong vài mili-giây.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. <code>dict</code></strong><br><code>{k: v}</code></td>
+                  <td><strong>Bảng băm thu gọn</strong> (<code>Compact Hash Table</code> từ Python 3.6+): tách mảng chỉ mục băm (<code>indices</code>) và mảng cặp <code>(hash, key, value)</code> dày đặc.</td>
+                  <td>• Tra cứu <code>k in d</code> / <code>d[k]</code>: <strong>$O(1)$</strong><br>• Ghi <code>d[k] = v</code> / Xóa <code>del d[k]</code>: <strong>$O(1)$</strong></td>
+                  <td><code>Mutable</code>, bảo toàn thứ tự chèn khóa, yêu cầu mọi khóa <code>key</code> bắt buộc phải <strong>Hashable (Immutable)</strong>.</td>
+                  <td>Xương sống của toàn bộ Python: lưu Namespace của mọi Object/Module (<code>__dict__</code>), cấu trúc JSON payload trong <strong>FastAPI / Pydantic</strong> và gói tham số <code>**kwargs</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Sự đánh đổi giữa mảng động (<code>list</code> / <code>tuple</code>) và bảng băm (<code>set</code> / <code>dict</code>) là bài toán kinh điển giữa <strong>Không gian bộ nhớ (Space)</strong> và <strong>Thời gian thực thi (Time)</strong>: <code>dict</code> và <code>set</code> chấp nhận cấp phát bảng băm thưa (luôn giữ trống ít nhất $1/3$ số bucket để tránh đụng độ băm — <em>Hash Collision</em>) nhằm đổi lấy tốc độ tra cứu $O(1)$. Thú vị hơn, chính <code>tuple</code> và <code>dict</code> cũng là hai cấu trúc dữ liệu nền tảng mà trình thông dịch CPython sử dụng bên dưới hậu trường để truyền tham số động và gắn siêu dữ liệu kiểu cho các hàm trong kiến trúc Framework ở <strong>Trạm 2.3</strong>.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="python-2-3">
+          <h2 id="python-2-3-h2" tabindex="-1">Trạm 2.3: Điểm nhập Thực thi (__name__ == &quot;__main__&quot;), Gói Tham số (*args, **kwargs) &amp; Hợp đồng Type Hints trong Framework</h2>
+
+          <p>Để nâng cấp <code>crawler.py</code> từ một kịch bản chạy tay đơn lẻ thành một module chuẩn công nghiệp có thể tái sử dụng trong hệ thống lớn, kỹ sư phải nắm vững ba cơ chế giao diện cấp độ ngôn ngữ (<em>Slide 25, 47–50</em>): <strong>(1) Chốt chặn nạp module <code>if __name__ == "__main__":</code></strong> — Do Python không có hàm <code>main()</code> bắt buộc như <code>C</code> hay <code>Java</code>, trình thông dịch CPython thực thi mọi câu lệnh ở cấp độ thụt lề ngoài cùng (top-level) ngay khi đọc tệp. Khi chạy trực tiếp lệnh <code>python crawler.py</code>, CPython gán biến đặc biệt <code>__name__ = "__main__"</code>; ngược lại, khi một tệp khác (như <code>api_server.py</code> hoặc <code>pytest</code>) gọi <code>import crawler</code>, biến <code>__name__</code> của tệp được gán bằng đúng tên module <code>"crawler"</code>. Đặt luồng khởi chạy bên dưới <code>if __name__ == "__main__":</code> giúp bảo vệ hệ thống khỏi thảm họa tự động cào dữ liệu hoặc mở kết nối DB ngoài ý muốn chỉ vì một lệnh <code>import</code>. <strong>(2) Cơ chế gom và chuyển tiếp tham số <code>*args</code> và <code>**kwargs</code></strong> — Toán tử một sao <code>*args</code> gom toàn bộ các đối số vị trí dư thừa vào một <code>tuple</code> bất biến, còn toán tử hai sao <code>**kwargs</code> gom toàn bộ các đối số từ khóa (<code>key=value</code>) vào một <code>dict</code>. Đây chính là cơ chế cơ học giúp các <strong>Decorator</strong> (như bộ bọc <code>@retry</code>, <code>@app.get</code> trong FastAPI) hoặc hàm khởi tạo lớp con <code>super().__init__(*args, **kwargs)</code> trong <strong>SQLAlchemy / Airflow</strong> đánh chặn, ghi log, kiểm tra quyền rồi chuyển tiếp nguyên vẹn mọi tham số xuống hàm gốc bên dưới mà không cần biết trước hàm đó có bao nhiêu tham số.</p>
+
+          <p>Mảnh ghép thứ ba định hình toàn bộ hệ sinh thái Python hiện đại là <strong>Hợp đồng chú thích kiểu (<code>Type Hints</code>)</strong> (ví dụ: <code>def fetch_page(url: str, timeout: int = 5) -&gt; dict[str, Any]:</code>). Ở chế độ mặc định, CPython vẫn là ngôn ngữ <strong>Dynamic Typing</strong>: trình thông dịch không hề kiểm tra hay cưỡng chế kiểu lúc chạy để tránh làm giảm tốc độ thực thi, mà chỉ lưu toàn bộ biểu thức kiểu vào từ điển siêu dữ liệu nội tại <strong><code>__annotations__</code></strong> của hàm hoặc lớp. Tuy nhiên, kho siêu dữ liệu <code>__annotations__</code> này mang lại sức mạnh kép trên hai mặt trận: (1) <strong>Kiểm tra tĩnh trước khi chạy (Static Type Checking)</strong> thông qua các công cụ như <code>mypy</code>, <code>pyright</code> hoặc IDE để phát hiện sớm lỗi truyền nhầm <code>None</code> hay sai kiểu dữ liệu ngay lúc viết code; và (2) <strong>Kiểm định dữ liệu lúc chạy trong Framework (Runtime Introspection)</strong> — các thư viện như <strong>Pydantic</strong>, <strong>FastAPI</strong> và <strong>SQLAlchemy 2.0</strong> chủ động đọc từ điển <code>__annotations__</code> lúc khởi tạo để tự động phân tích cú pháp JSON, ép kiểu dữ liệu đầu vào, chặn dữ liệu bẩn với mã lỗi <code>422 Unprocessable Entity</code> và tự động sinh tài liệu chuẩn OpenAPI.</p>
+
+          <x-figure id="python-2-3-fig" key="2.3" title="Sơ đồ 2.3 — Cơ chế Nạp Module (__name__), Chuyển tiếp Đa tầng (*args, **kwargs) và Khai thác Type Hints (__annotations__) trong Framework Hiện đại">Luồng vận hành của CPython khi phân nhánh thực thi theo biến nội tại __name__, đóng gói tham số qua tuple (*args) / dict (**kwargs) trong Decorator/Middleware, và trích xuất từ điển __annotations__ phục vụ kiểm định kiểu tĩnh (mypy) lẫn ép kiểu động (FastAPI / Pydantic).</x-figure>
+
+          <pre><code>def trace_call(func):
+    def wrapper(*args, **kwargs):  # Gom mọi đối số vị trí vào tuple args, từ khóa vào dict kwargs
+        print(f"[TRACE] Calling {func.__name__} with annotations={func.__annotations__}")
+        return func(*args, **kwargs)  # Giải nén (Unpack) chuyển tiếp nguyên vẹn xuống hàm gốc
+    return wrapper
+
+@trace_call
+def fetch_url(url: str, timeout: int = 5, visited: set[str] | None = None) -&gt; dict[str, int | str]:
+    """Tải trang web với hợp đồng Type Hints rõ ràng và tránh bẫy Mutable Default Argument."""
+    visited = set() if visited is None else visited
+    visited.add(url)
+    return {"url": url, "timeout": timeout, "total_visited": len(visited)}
+
+if __name__ == "__main__":  # Chỉ chạy khi gọi trực tiếp `python crawler.py`, bỏ qua khi được `import`
+    print(fetch_url("https://fsds.edu.vn/python", timeout=10))</code></pre>
+
+          <p>Ba cơ chế ở Chặng 2 đã hoàn thiện bức tranh về cách Python quản lý dữ liệu trên RAM (<code>PyObject</code>, <code>list</code> vs. <code>dict</code>/<code>set</code>) và cách thiết kế giao diện hàm chuẩn Framework (<code>*args</code>, <code>**kwargs</code>, <code>Type Hints</code>). Tuy nhiên, khi <code>crawler.py</code> mở kết nối mạng thực tế, đọc/ghi các tệp dữ liệu hàng chục Gigabyte vượt quá dung lượng RAM hoặc cần đóng gói thành thư viện có kiểm thử tự động, chúng ta phải trang bị các mẫu thiết kế chịu lỗi và quản lý tài nguyên ở <strong>Chặng 3: Luồng Điều khiển Chịu lỗi, Quản lý Tài nguyên (Context Manager) &amp; Xử lý Luồng Lười biếng (Generators)</strong>.</p>
+        </section>
+
+        <section class="summary-section" id="python-2-summary">
+          <h2 id="python-2-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 2 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <ol>
+            <li>
+              <strong>Tại sao nói biến trong Python là nhãn tham chiếu (<code>Name Binding</code>) chứ không phải hộp chứa giá trị, và khi nào bắt buộc dùng <code>is</code> thay vì <code>==</code>?</strong>
+              Biến chỉ lưu con trỏ trỏ tới <code>PyObject</code> trên Heap. Toán tử <code>==</code> gọi <code>__eq__()</code> để so sánh nội dung giá trị (tốn $O(n)$), trong khi <code>is</code> so sánh trực tiếp địa chỉ bộ nhớ <code>id(a) == id(b)</code> trong $O(1)$ — bắt buộc dùng <code>is None</code> để kiểm tra đối tượng Singleton <code>None</code> nhanh và an toàn tuyệt đối.
+            </li>
+            <li>
+              <strong>Tại sao truyền <code>def parse(urls, seen=[])</code> lại gây lỗi rò rỉ dữ liệu nghiêm trọng giữa các lần gọi hàm?</strong>
+              Vì <code>list</code> là đối tượng khả biến (<code>Mutable</code>) và CPython chỉ khởi tạo danh sách mặc định <code>[]</code> đúng 1 lần duy nhất khi nạp lệnh <code>def</code>; mọi lần gọi hàm sau đó đều sửa trực tiếp (in-place) trên cùng một danh sách đó. Chuẩn bắt buộc là dùng <code>seen: list | None = None</code> và khởi tạo mới trong thân hàm.
+            </li>
+            <li>
+              <strong>Tại sao chỉ các kiểu bất biến (<code>Immutable</code> như <code>str</code>, <code>int</code>, <code>tuple</code>) mới làm được khóa của <code>dict</code> hoặc phần tử của <code>set</code>?</strong>
+              Vì <code>dict</code> và <code>set</code> định vị ô nhớ dựa trên mã băm <code>hash(key)</code>. Nếu khóa là đối tượng khả biến (<code>list</code>) và bị sửa nội dung sau khi chèn, mã băm sẽ thay đổi khiến bảng băm mất dấu vĩnh viễn phần tử đó.
+            </li>
+            <li>
+              <strong>Cơ chế vật lý nào giúp phép tra cứu <code>url in visited</code> trên <code>set</code> / <code>dict</code> nhanh gấp hàng chục nghìn lần so với <code>list</code> khi có <code>100,000</code> URL?</strong>
+              <code>list</code> là mảng con trỏ động nên kiểm tra <code>in</code> phải quét tuần tự từng phần tử từ đầu đến cuối tốn $O(n)$ ($100,000$ lượt = $10^{10}$ phép so sánh). Ngược lại, <code>set</code> và <code>dict</code> dùng bảng băm (<code>Hash Table</code>) tính <code>hash(url)</code> để nhảy thẳng tới ô nhớ đích trong thời gian hằng số $O(1)$.
+            </li>
+            <li>
+              <strong>Các framework hiện đại như FastAPI, Pydantic và SQLAlchemy khai thác <code>*args</code>, <code>**kwargs</code> và <code>Type Hints</code> như thế nào?</strong>
+              Chúng dùng <code>*args</code> (<code>tuple</code>) và <code>**kwargs</code> (<code>dict</code>) trong các Decorator/Middleware để bọc và chuyển tiếp tham số xuyên qua nhiều tầng hàm mà không bị phụ thuộc cứng vào chữ ký hàm, đồng thời đọc từ điển siêu dữ liệu <code>__annotations__</code> từ <code>Type Hints</code> để tự động kiểm định kiểu dữ liệu lúc chạy (Data Validation) và sinh tài liệu API.
+            </li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/F02/3" onclick="selectStorageStage(3);return false;">Sang Chặng 3: Luồng Điều Khiển Chịu Lỗi, Quản Lý Tài Nguyên &amp; Generator Lười Biếng →</a></p>
+        </section>
+      </div>

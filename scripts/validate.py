@@ -141,6 +141,20 @@ def main():
         "4.3b": "boxes",
     }
 
+    python_expected_kinds = {
+        "0.1": "boxes",
+        "1.1": "boxes",
+        "1.2": "boxes",
+        "2.1": "boxes",
+        "2.2": "boxes",
+        "2.3": "boxes",
+        "3.1": "boxes",
+        "3.2": "boxes",
+        "3.3": "boxes",
+        "4.1": "boxes",
+        "4.2": "boxes",
+    }
+
     db_expected_kinds = {
         "0.1": "boxes",
         "0.2": "boxes",
@@ -160,6 +174,18 @@ def main():
         "4.1": "boxes",
         "4.2": "boxes",
         "4.3": "boxes",
+    }
+
+    validation_expected_kinds = {
+        "0.1": "boxes",
+        "1.1": "boxes",
+        "1.2": "boxes",
+        "2.1": "boxes",
+        "2.2": "boxes",
+        "3.1": "boxes",
+        "3.2": "boxes",
+        "4.1": "boxes",
+        "4.2": "boxes",
     }
 
     container_expected_kinds = {
@@ -204,12 +230,141 @@ def main():
         "5.3": "boxes",
     }
 
+    orchestration_expected_kinds = {
+        "0.1": "boxes",
+        "1.1": "boxes",
+        "1.2": "boxes",
+        "1.3": "boxes",
+        "2.1": "boxes",
+        "2.2": "boxes",
+        "2.3": "boxes",
+        "2.4": "boxes",
+        "3.1": "boxes",
+        "3.2": "boxes",
+        "3.3": "boxes",
+        "3.4": "boxes",
+        "4.1": "boxes",
+        "4.2": "boxes",
+        "4.3": "boxes",
+        "4.4": "boxes",
+        "5.1": "boxes",
+        "5.2": "boxes",
+        "5.3": "boxes",
+        "5.4": "boxes",
+    }
+
+    consumption_expected_kinds = {
+        "0.1": "boxes",
+        "1.1": "boxes",
+        "1.2": "boxes",
+        "1.3": "boxes",
+        "2.1": "boxes",
+        "2.2": "boxes",
+        "2.3": "boxes",
+        "2.4": "boxes",
+        "3.1": "boxes",
+        "3.2": "boxes",
+        "3.3": "boxes",
+        "3.4": "boxes",
+        "4.1": "boxes",
+        "4.2": "boxes",
+        "4.3": "boxes",
+        "4.4": "boxes",
+        "5.1": "boxes",
+        "5.2": "boxes",
+        "5.3": "boxes",
+        "5.4": "boxes",
+    }
+
+    flink_expected_kinds = {
+        "0.1": "boxes",
+        "1.1": "boxes",
+        "1.2": "boxes",
+        "1.3": "boxes",
+        "1.4": "boxes",
+        "2.1": "boxes",
+        "2.2": "boxes",
+        "2.3": "boxes",
+        "3.1": "boxes",
+        "3.2": "boxes",
+        "3.3": "boxes",
+        "3.4": "boxes",
+        "4.1": "boxes",
+        "4.2": "boxes",
+        "4.3": "boxes",
+        "5.1": "boxes",
+        "5.2": "boxes",
+        "5.3": "boxes",
+        "6.1": "boxes",
+        "6.2": "boxes",
+        "6.3": "boxes",
+    }
+
+    api_expected_kinds = {
+        "0.1": "boxes",
+        "1.1": "boxes",
+        "1.2": "boxes",
+        "1.3": "boxes",
+        "1.4": "boxes",
+        "1.5": "boxes",
+        "1.6": "boxes",
+        "2.1": "boxes",
+        "2.2": "boxes",
+        "2.3": "boxes",
+        "2.4": "boxes",
+        "2.5": "boxes",
+        "2.6": "boxes",
+        "3.1": "boxes",
+        "3.2": "boxes",
+        "3.3": "boxes",
+        "3.4": "boxes",
+        "4.1": "boxes",
+        "4.2": "boxes",
+        "4.3": "boxes",
+        "4.4": "boxes",
+        "5.1": "boxes",
+        "5.2": "boxes",
+        "5.3": "boxes",
+    }
+
+    spark_expected_kinds = {
+        "0.1": "boxes",
+        "1.1": "boxes",
+        "1.2": "boxes",
+        "1.3": "boxes",
+        "2.1": "boxes",
+        "2.2": "boxes",
+        "2.3": "boxes",
+        "2.4": "boxes",
+        "3.1": "boxes",
+        "3.2": "boxes",
+        "3.3": "boxes",
+        "3.4": "boxes",
+        "4.1": "boxes",
+        "4.2": "boxes",
+        "4.3": "boxes",
+        "4.4": "boxes",
+        "5.1": "boxes",
+        "5.2": "boxes",
+        "5.3": "boxes",
+        "6.1": "boxes",
+        "6.2": "boxes",
+        "6.3": "boxes",
+    }
+
     suite_specs = [
         ("storage_diagrams", "Storage", expected_kinds),
         ("linux_diagrams", "Linux", linux_expected_kinds),
+        ("python_diagrams", "Python", python_expected_kinds),
         ("db_diagrams", "DB", db_expected_kinds),
+        ("api_diagrams", "API", api_expected_kinds),
+        ("validation_diagrams", "Validation", validation_expected_kinds),
         ("container_diagrams", "Container", container_expected_kinds),
         ("ingestion_diagrams", "Ingestion", ingestion_expected_kinds),
+        ("spark_diagrams", "Spark", spark_expected_kinds),
+        ("flink_diagrams", "Flink", flink_expected_kinds),
+        ("orchestration_diagrams", "Orchestration", orchestration_expected_kinds),
+        ("consumption_diagrams", "Consumption", consumption_expected_kinds),
     ]
 
     for dict_key, label_prefix, kind_map in suite_specs:
@@ -242,14 +397,23 @@ def main():
             if json.dumps(item["ascii"], ensure_ascii=False) not in html:
                 raise SystemExit(f"HTML/JSON parity failure: {label_prefix}-{k} ASCII not identically embedded in HTML")
 
-    # 3. Verify all 12 official slide PDFs in course-slides/ are listed in the HTML Table of Contents
-    slides = sorted(p.name for p in (ROOT / "course-slides").glob("*.pdf"))
+    # 3. Verify all official slide PDFs in course-slides/01-edai/edai-1/ are listed in the HTML Table of Contents
+    slides = sorted(
+        p.name
+        for p in (ROOT / "course-slides" / "01-edai" / "edai-1").glob("*.pdf")
+        if re.match(r"^\d{2}-", p.name)
+    )
     for s in slides:
         if s not in html:
             raise SystemExit(f"Official slide missing from HTML Table of Contents: {s}")
 
     # 4. Verify all externalized lesson stage files have their section IDs, h2 headings, and Claude Editorial Standard compliance
-    lesson_files = sorted((ROOT / "content" / "lessons").glob("*/*.html"))
+    from build_hub import _LESSON_FUNC_SPECS
+    compiled_topics = {t for _, t, _, _ in _LESSON_FUNC_SPECS}
+    lesson_files = [
+        p for p in sorted((ROOT / "content" / "lessons").glob("*/*.html"))
+        if p.parent.name in compiled_topics
+    ]
     if len(lesson_files) < 24:
         raise SystemExit(f"Expected >= 24 lesson HTML files in content/lessons/, found {len(lesson_files)}")
     forbidden_stage_patterns = [
@@ -406,12 +570,37 @@ def main():
         "bindGlossaryTerms",
         "openGlossaryPopover",
         "initGlossarySystem",
+        "buildLinux2DSimulatorHtml",
+        "renderLinux2DSlide",
+        "buildDatabase2DSimulatorHtml",
+        "renderDatabase2DSlide",
+        "buildStorage2DSimulatorHtml",
+        "renderStorage2DSlide",
+        "buildSpark2DSimulatorHtml",
+        "renderSpark2DSlide",
+        "buildPython2DSimulatorHtml",
+        "renderPython2DInteractiveStage",
+        "renderPython2DSlide",
+        "buildApi2DSimulatorHtml",
+        "renderApi2DInteractiveStage",
+        "renderApi2DSlide",
+        "buildValidation2DSimulatorHtml",
+        "renderValidation2DSlide",
         "buildInfra2DSimulatorHtml",
         "renderInfra2DSlide",
         "goToInfra2DSlide",
         "buildIngestion2DSimulatorHtml",
         "renderIngestion2DInteractiveStage",
         "renderIngestion2DSlide",
+        "buildFlink2DSimulatorHtml",
+        "renderFlink2DInteractiveStage",
+        "renderFlink2DSlide",
+        "buildOrchestration2DSimulatorHtml",
+        "renderOrchestration2DInteractiveStage",
+        "renderOrchestration2DSlide",
+        "buildConsumption2DSimulatorHtml",
+        "renderConsumption2DInteractiveStage",
+        "renderConsumption2DSlide",
     ):
         if fn not in html:
             raise SystemExit(f"Missing Academy / Colored ASCII / Glossary / 2D Simulator symbol in HTML: {fn}")
@@ -460,8 +649,8 @@ def main():
     if len(set(slide_refs)) != 12:
         raise SystemExit(f"Expected 12 slide references in prompt.md, found {len(set(slide_refs))}")
     for slide_ref in slide_refs:
-        if not (ROOT / "course-slides" / slide_ref).exists():
-            raise SystemExit(f"Broken slide path in prompt.md: course-slides/{slide_ref}")
+        if not (ROOT / "course-slides" / "01-edai" / "edai-1" / slide_ref).exists():
+            raise SystemExit(f"Broken slide path in prompt.md: course-slides/01-edai/edai-1/{slide_ref}")
 
     # 8. Mandatory Headless Browser Runtime QA Gate (scripts/qa_runtime.py)
     venv_py = ROOT / ".venv" / "bin" / "python"
@@ -480,15 +669,22 @@ def main():
     total_expected = (
         len(expected_kinds)
         + len(linux_expected_kinds)
+        + len(python_expected_kinds)
         + len(db_expected_kinds)
+        + len(api_expected_kinds)
+        + len(validation_expected_kinds)
         + len(container_expected_kinds)
         + len(ingestion_expected_kinds)
+        + len(spark_expected_kinds)
+        + len(flink_expected_kinds)
+        + len(orchestration_expected_kinds)
+        + len(consumption_expected_kinds)
     )
     print(
-        f"PASS: Negative self-tests: 6/6 | JS syntax: valid | Runtime DOM QA: 24/24 pages + #/catalog + #/glossary (3 viewports) | "
+        f"PASS: Negative self-tests: 6/6 | JS syntax: valid | Runtime DOM QA: {len(lesson_files)}/{len(lesson_files)} pages + #/catalog + #/glossary (3 viewports) | "
         f"Anthropic Academy CDS Typography: verified | Glossary Scanner: {len(g_entries)} entries / {len(g_lookup)} lookup keys (0 unclassified) | "
         f"Colored ASCII checks: {char_checked}/{total_expected} char + {geom_checked}/{total_expected} geometry | "
-        f"Externalized Lessons: {len(lesson_files)}/24 stage files ({section_count} stations) | "
+        f"Externalized Lessons: {len(lesson_files)}/{len(lesson_files)} stage files ({section_count} stations) | "
         f"Quarantine verified: 0 live Picture/Mermaid bloat | Official slide TOCs: {len(slides)}/12 | Anti-slop audit: clean."
     )
 

@@ -1,0 +1,150 @@
+<div class="prose">
+  <x-spine id="validation-2-spine" badge="TRONG BÀI HỌC NÀY · F05 · CHẶNG 2" title="Chặng 2: Phạm Vi Kiểm Thử — Functional (Unit → UAT) &amp; Non-Functional (Load, Stress, Smoke, Regression)" subtitle="Trạm 2.1 → 2.2">Phân định hai mặt trận kiểm thử trên dịch vụ <code>order-api</code>: <strong>Functional Testing</strong> trả lời câu hỏi <em>&quot;Hệ thống làm được gì?&quot;</em> qua 4 cấp độ từ <code>Unit → Integration → System → Acceptance (Alpha, Beta, UAT)</code>, và <strong>Non-Functional Testing</strong> trả lời câu hỏi <em>&quot;Hệ thống vận hành tốt đến mức nào?&quot;</em> dưới áp lực tải <code>500 → 5000 CCU</code>.</x-spine>
+
+  <section class="lesson-section" id="validation-2-1">
+    <h2 id="validation-2-1-h2" tabindex="-1">Trạm 2.1: Kiểm thử Chức năng (Functional Testing) — Bốn Cấp độ từ Unit, Integration, System đến Acceptance (Alpha, Beta, UAT)</h2>
+
+    <p><strong>Functional Testing (Kiểm thử chức năng)</strong> trả lời trực diện câu hỏi <em>&quot;Hệ thống làm được gì? (What the system does)&quot;</em> dựa trên bản đặc tả yêu cầu chức năng (<strong>Functional Specifications</strong>, Slide 23–24). Cơ chế vận hành cốt lõi của mọi bài kiểm thử chức năng là truyền dữ liệu đầu vào (<code>Input Data</code>) vào hàm hoặc giao diện ứng dụng, thu nhận kết quả thực tế (<code>Actual Output</code>) và đối chiếu nghiêm ngặt với hành vi kỳ vọng (<code>Expected Behavior</code>) xem tính năng có thực thi đúng quy tắc nghiệp vụ hay không.</p>
+
+    <p>Áp dụng trực tiếp lên luồng thanh toán <code>checkout_order(&quot;ORD-8888&quot;, amount=450000)</code> của dịch vụ <code>order-api</code>, kiểm thử chức năng không dồn hết vào phút chót mà leo thang qua <strong>4 cấp độ mở rộng dần phạm vi (Slide 25–30)</strong>: (1) <strong>Unit Testing</strong> (cấp độ mã nguồn — <code>code level</code>) kiểm tra từng hàm hoặc class đơn lẻ trong trạng thái cô lập hoàn toàn như <code>calculate_tax(450000)</code> hay <code>add(2, 3) == 5</code> trong vài mili-giây; (2) <strong>Integration Testing</strong> (cấp độ kết nối module — <code>module integration</code>) kiểm tra các thành phần riêng lẻ khi ghép lại có truyền dữ liệu đúng hợp đồng không, chẳng hạn hàm <code>Login</code> hoặc <code>checkout_order</code> đọc/ghi đúng vào bảng <code>users</code>/<code>orders</code> của PostgreSQL; (3) <strong>System Testing</strong> (cấp độ toàn trình — <code>end-to-end</code> trên môi trường <code>non-production</code>) ghép toàn bộ hệ thống hoàn chỉnh để xác nhận chuỗi nghiệp vụ xuyên suốt từ Đăng nhập → Tìm sản phẩm → Đặt đơn <code>#8888</code> → Thanh toán → Hiển thị trang xác nhận; và (4) <strong>Acceptance Testing</strong> (cấp độ nghiệm thu người dùng — <code>User validation</code>) gồm 3 pha liên tiếp: <strong>Phase 1: Alpha Testing</strong> (kiểm thử nội bộ bởi nhân viên trong công ty trước khi phát hành) → <strong>Phase 2: Beta Testing</strong> (mở cho một nhóm khách hàng thật bên ngoài dùng thử trên môi trường thực tế để thu thập phản hồi) → <strong>Phase 3: User Acceptance Testing (UAT)</strong> (khách hàng/đối tác nghiệm thu cuối cùng đối chiếu với yêu cầu gốc trước khi ký duyệt Golive).</p>
+
+    <x-figure id="validation-2-1-fig" key="2.1" title="Sơ đồ 2.1 — Dây chuyền 4 Cấp độ Functional Testing (Unit → Integration → System → Alpha/Beta/UAT)">Lộ trình mở rộng phạm vi kiểm thử chức năng từ một hàm đơn lẻ (Unit) đến kết nối liên module (Integration), toàn hệ thống (System) và 3 pha nghiệm thu người dùng (Alpha → Beta → UAT).</x-figure>
+
+    <div class="table-wrap">
+      <table class="clean-table">
+        <thead>
+          <tr>
+            <th>Cấp độ Functional Testing</th>
+            <th>Phạm vi &amp; Môi trường</th>
+            <th>Mục tiêu Cốt lõi</th>
+            <th>Ví dụ trên <code>order-api</code> (<code>#8888</code>)</th>
+            <th>Chi phí &amp; Tốc độ thực thi</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>1. Unit Testing</strong></td>
+            <td>Cấp độ mã nguồn (<code>code level</code>), cô lập hoàn toàn trên máy Dev/CI.</td>
+            <td>Xác minh logic tính toán bên trong từng hàm/method đơn lẻ không sai sót.</td>
+            <td>Gọi <code>calculate_tax(450000)</code> trả về đúng <code>45000</code>; kiểm tra <code>add(2, 3) == 5</code>.</td>
+            <td>Rẻ nhất, chạy cực nhanh (vài mili-giây/test), tự động hóa 100%.</td>
+          </tr>
+          <tr>
+            <td><strong>2. Integration Testing</strong></td>
+            <td>Cấp độ liên module (<code>module integration</code>), có kết nối DB/API phụ trợ.</td>
+            <td>Bắt lỗi lệch schema, sai kiểu dữ liệu hoặc gãy giao tiếp giữa các module ghép nối.</td>
+            <td>Hàm <code>Login</code> xác thực đúng với bảng <code>users</code>; <code>checkout_order</code> ghi thành công dòng đơn <code>#8888</code> vào bảng <code>orders</code>.</td>
+            <td>Chi phí trung bình, tốc độ vài chục đến vài trăm mili-giây do có I/O mạng và đĩa.</td>
+          </tr>
+          <tr>
+            <td><strong>3. System Testing</strong></td>
+            <td>Toàn bộ hệ thống ghép hoàn chỉnh (<code>end-to-end</code>) trên môi trường <code>non-production</code> (Staging/QA).</td>
+            <td>Đảm bảo luồng nghiệp vụ đầu-cuối vận hành trơn tru như một chỉnh thể thống nhất.</td>
+            <td>Luồng hoàn chỉnh: Đăng nhập → Tìm món → Đặt đơn <code>#8888</code> (<code>450,000đ</code>) → Trừ tiền ví → Hiện trang xác nhận.</td>
+            <td>Chi phí cao, chạy chậm (vài giây đến vài phút/kịch bản), cần môi trường giống Production.</td>
+          </tr>
+          <tr>
+            <td><strong>4. Acceptance Testing (Alpha / Beta / UAT)</strong></td>
+            <td>Nghiệm thu người dùng (<code>User validation</code>) từ nội bộ (Alpha) ra môi trường thực tế (Beta, UAT).</td>
+            <td>Xác nhận sản phẩm giải quyết đúng bài toán kinh doanh và sẵn sàng thương mại hóa.</td>
+            <td><strong>Alpha</strong>: Nhân viên nội bộ đặt thử đơn <code>#8888</code> → <strong>Beta</strong>: Nhóm khách hàng thật dùng thử → <strong>UAT</strong>: Đối tác nghiệm thu ký duyệt Golive.</td>
+            <td>Đắt nhất và chậm nhất vì phụ thuộc thao tác con người và phản hồi thực địa.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Tuy nhiên, một dịch vụ <code>order-api</code> vượt qua 100% bài kiểm thử chức năng từ <code>Unit</code> đến <code>UAT</code> khi chỉ có 1 người dùng thao tác vẫn có thể sập nguồn ngay phút mở bán Flash Sale khi <code>5,000</code> khách hàng cùng bấm thanh toán một lúc — dẫn chúng ta sang mặt trận thứ hai tại <strong>Trạm 2.2: Non-Functional Testing</strong>.</p>
+  </section>
+
+  <section class="lesson-section" id="validation-2-2">
+    <h2 id="validation-2-2-h2" tabindex="-1">Trạm 2.2: Kiểm thử Phi chức năng (Non-Functional) — Load (500 CCU) vs. Stress (5000 CCU), Security &amp; Bộ tứ Regression / Smoke / Recovery / Monkey</h2>
+
+    <p><strong>Non-Functional Testing (Kiểm thử phi chức năng)</strong> không hỏi <em>&quot;Người dùng có đăng nhập hay thanh toán được không?&quot;</em> mà hỏi <em>&quot;Đăng nhập mất bao nhiêu mili-giây và hệ thống có chịu nổi 1,000 người đăng nhập cùng lúc không?&quot;</em> (Slide 31–32). Mặt trận này đo lường các <strong>phẩm chất vận hành (Quality Attributes: Speed, Stability, Scalability, Security)</strong> quyết định sự sống còn của hệ thống khi bước ra môi trường Production thực tế.</p>
+
+    <p>Trong nhóm <strong>Performance Testing</strong> (Slide 33), kỹ sư bắt buộc phải phân biệt sắc lẹm hai chế độ thử tải trên <code>Our ML App</code> / <code>order-api</code>: <strong>Load Testing</strong> đặt hệ thống dưới mức tải định mức hoặc đỉnh dự kiến (ví dụ <code>500 concurrent users</code>) để xác nhận độ trễ phản hồi không bị suy thoái; ngược lại, <strong>Stress Testing</strong> cố tình ép tải vượt xa giới hạn thiết kế (ví dụ đẩy vọt lên <code>5,000 concurrent users</code>) để tìm <strong>điểm gãy (Breaking Point)</strong> và kiểm tra xem hệ thống có hạ cánh an toàn (<strong>Graceful Degradation</strong>) hay sập nguồn làm hỏng dữ liệu. Bên cạnh hiệu năng, hệ thống còn phải vượt qua 3 trụ cột phi chức năng (Slide 34–36) gồm <strong>Security Testing</strong> (băm mật khẩu, chống truy cập chéo dữ liệu giữa các user, chống brute-force login), <strong>Usability Testing</strong> (độ trực quan, dễ thao tác của giao diện), <strong>Compatibility Testing</strong> (chạy ổn định trên Android/iPhone, Chrome/Firefox/Safari, Windows/macOS) cùng <strong>bộ tứ kiểm thử thực chiến hàng ngày (Slide 37)</strong>: <strong>Smoke Testing</strong> (kiểm tra nhanh các chức năng sống còn xem bản build mới có &quot;bốc khói&quot; không trước khi test sâu), <strong>Regression Testing</strong> (kiểm thử hồi quy đảm bảo bản vá hay tính năng mới không làm hỏng chức năng cũ đang chạy tốt), <strong>Recovery Testing</strong> (khả năng tự phục hồi sau khi sập nguồn hoặc đứt mạng), và <strong>Ad-hoc / Monkey Testing</strong> (thao tác ngẫu nhiên không theo kịch bản để bộc lộ lỗi bất ngờ).</p>
+
+    <x-figure id="validation-2-2-fig" key="2.2" title="Sơ đồ 2.2 — Đường cong Chịu tải Load (500 CCU) vs. Stress Testing (5000 CCU) &amp; Phễu Chặn Lỗi Smoke / Regression">Đối chiếu vùng tải định mức (Load Testing 500 Users) với vùng quá tải tìm điểm gãy (Stress Testing 5000 Users) cùng lưới lọc Smoke, Regression, Security và Recovery Testing.</x-figure>
+
+    <div class="table-wrap">
+      <table class="clean-table">
+        <thead>
+          <tr>
+            <th>Loại Kiểm thử</th>
+            <th>Nhóm Bản chất</th>
+            <th>Mục tiêu Cốt lõi &amp; Cách thực thi trên <code>order-api</code></th>
+            <th>Dấu hiệu Đạt chuẩn (Pass Criteria)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>1. Load Testing</strong></td>
+            <td>Performance (Tải kỳ vọng)</td>
+            <td>Giả lập mức tải mục tiêu (<code>500 concurrent users</code> cùng gọi <code>order-api</code>) để đo thời gian phản hồi và thông lượng.</td>
+            <td>Độ trễ <code>p95 &lt; 200ms</code>, tỷ lệ lỗi <code>0%</code>, CPU/RAM duy trì trong ngưỡng an toàn.</td>
+          </tr>
+          <tr>
+            <td><strong>2. Stress Testing</strong></td>
+            <td>Performance (Tải cực hạn)</td>
+            <td>Đẩy tải vượt ngưỡng thiết kế (<code>5,000 concurrent users</code>) để tìm giới hạn chịu đựng tối đa (Breaking Point).</td>
+            <td>Hệ thống từ chối bớt kết nối êm ái (HTTP <code>429</code>/<code>503</code> — Graceful Degradation), không treo cứng hay mất đơn hàng.</td>
+          </tr>
+          <tr>
+            <td><strong>3. Security Testing</strong></td>
+            <td>Non-Functional (Bảo mật)</td>
+            <td>Rà quét lỗ hổng xác thực, phân quyền và mã hóa trên luồng đăng nhập và thanh toán đơn <code>#8888</code>.</td>
+            <td>Mật khẩu được băm an toàn, User A không đọc được đơn của User B, chặn đứng tấn công brute-force login.</td>
+          </tr>
+          <tr>
+            <td><strong>4. Usability &amp; Compatibility</strong></td>
+            <td>Non-Functional (Trải nghiệm &amp; Tương thích)</td>
+            <td>Đánh giá độ dễ dùng của luồng đặt hàng và kiểm tra hiển thị trên nhiều thiết bị, trình duyệt, hệ điều hành.</td>
+            <td>Khách hàng mới hoàn tất thanh toán không cần hướng dẫn; giao diện chuẩn trên cả iPhone/Android, Chrome/Safari/Firefox, Windows/macOS.</td>
+          </tr>
+          <tr>
+            <td><strong>5. Smoke Testing</strong></td>
+            <td>Thực chiến Vận hành (Build Verification)</td>
+            <td>Chạy bộ test mỏng và nhanh nhất ngay khi có bản build mới để kiểm tra các chức năng sống còn.</td>
+            <td>Dịch vụ khởi động lên được, API <code>/health</code> trả về <code>200 OK</code>, tạo đơn cơ bản thành công để cho phép chạy tiếp các vòng test sâu.</td>
+          </tr>
+          <tr>
+            <td><strong>6. Regression Testing</strong></td>
+            <td>Thực chiến Vận hành (Kiểm thử Hồi quy)</td>
+            <td>Chạy lại toàn bộ bộ test hiện có sau mỗi lần sửa bug hoặc thêm tính năng khuyến mãi mới.</td>
+            <td>Bản cập nhật mới không làm gãy bất kỳ logic tính thuế hay thanh toán cũ nào đang chạy đúng trước đó.</td>
+          </tr>
+          <tr>
+            <td><strong>7. Recovery Testing</strong></td>
+            <td>Thực chiến Vận hành (Khôi phục Sự cố)</td>
+            <td>Cố tình ngắt kết nối Database hoặc khởi động lại container <code>order-api</code> giữa chừng để thử khả năng tự hồi phục.</td>
+            <td>Hệ thống tự kết nối lại DB khi mạng thông, rollback giao dịch dở dang và không phát sinh đơn hàng rác.</td>
+          </tr>
+          <tr>
+            <td><strong>8. Ad-hoc / Monkey Testing</strong></td>
+            <td>Thực chiến Vận hành (Khám phá Ngẫu nhiên)</td>
+            <td>Bấm liên hoàn, nhập dữ liệu kỳ dị hoặc thao tác ngẫu nhiên không theo kịch bản cố định.</td>
+            <td>Ứng dụng bắt lỗi ngoại lệ gọn gàng, không bị văng crash (Unhandled Exception) trước các thao tác bất thường.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <strong>Từ lý thuyết kiểm thử đến tự động hóa bằng mã nguồn:</strong> Nếu mỗi lần sửa 1 dòng code trong <code>order-api</code> mà kỹ sư phải chạy tay hàng trăm kịch bản <code>Unit</code>, <code>Integration</code>, <code>Smoke</code> và <code>Regression Test</code> thì quy trình phát triển sẽ tê liệt. Làm thế nào để gói gọn toàn bộ quy tắc kiểm thử này thành các hàm Python chạy tự động chỉ bằng một câu lệnh duy nhất? Đó chính là nhiệm vụ của framework <code>pytest</code> tại <strong>Chặng 3</strong>.
+    </div>
+  </section>
+
+  <section class="lesson-section summary-section" id="validation-2-summary">
+    <h2 id="validation-2-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 2 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+    <ol>
+      <li><strong>Functional Testing khác Non-Functional Testing ở điểm cốt lõi nào?</strong> Functional Testing kiểm tra <em>hệ thống làm được gì</em> (đối chiếu <code>Actual Output</code> với <code>Expected Behavior</code> theo đặc tả chức năng), còn Non-Functional Testing kiểm tra <em>hệ thống vận hành tốt đến mức nào</em> về tốc độ, độ ổn định, khả năng chịu tải và bảo mật.</li>
+      <li><strong>Tại sao phải chia Functional Testing thành 4 cấp độ từ Unit → Integration → System → Acceptance?</strong> Để bắt lỗi sớm từ phạm vi nhỏ và rẻ nhất (từng hàm cô lập ở <code>Unit Test</code>), rồi mới kiểm tra khớp nối liên module (<code>Integration</code>), luồng nghiệp vụ toàn trình (<code>System</code>) và cuối cùng là sự chấp thuận của người dùng thật (<code>Alpha → Beta → UAT</code>).</li>
+      <li><strong>Ba giai đoạn Alpha, Beta và UAT trong Acceptance Testing khác nhau ra sao?</strong> <code>Alpha Testing</code> do nhân viên nội bộ kiểm thử trong môi trường kiểm soát; <code>Beta Testing</code> mở cho một nhóm khách hàng thật dùng thử ngoài thực tế để lấy phản hồi; còn <code>UAT</code> là bước khách hàng/đối tác nghiệm thu cuối cùng trước khi ký duyệt đưa lên Production.</li>
+      <li><strong>Phân biệt Load Testing (500 CCU) và Stress Testing (5,000 CCU)?</strong> <code>Load Testing</code> kiểm tra độ ổn định và độ trễ của hệ thống dưới mức tải bình thường/đỉnh dự kiến (<code>500 concurrent users</code>), trong khi <code>Stress Testing</code> ép tải vượt xa giới hạn thiết kế (<code>5,000 concurrent users</code>) để tìm điểm gãy (Breaking Point) và đánh giá khả năng hạ cánh an toàn.</li>
+      <li><strong>Khi nào dùng Smoke Testing và khi nào dùng Regression Testing?</strong> <code>Smoke Testing</code> chạy ngay khi vừa có bản build mới để xác nhận các chức năng sống còn không bị hỏng nặng trước khi test sâu; còn <code>Regression Testing</code> chạy sau mỗi lần sửa code hoặc thêm tính năng để đảm bảo thay đổi mới không làm hỏng các chức năng cũ.</li>
+    </ol>
+
+    <p>Nắm vững bản đồ phân loại <strong>Functional (Unit → UAT)</strong> và <strong>Non-Functional (Load, Stress, Smoke, Regression)</strong> là nền tảng để chúng ta bắt tay vào viết các bộ test tự động bằng <code>pytest</code>, thiết lập <code>Fixtures</code>, kiểm thử ngoại lệ và cô lập phụ thuộc bằng <code>Mocking</code> ở <strong>Chặng 3</strong>.</p>
+  </section>
+</div>

@@ -1,0 +1,257 @@
+      <div class="prose">
+        <x-spine id="orchestration-1-spine" badge="TRONG BÀI HỌC NÀY · D06" title="Chặng 1: Bài Toán Điều Phối Đường Ống (Pipeline Orchestration) &amp; 5 Trụ Cột Cốt Lõi" subtitle="Trạm 0.0 → 1.3">Hành trình của đường ống <strong>daily_sales_pipeline</strong> xử lý lô giao dịch chứa <strong>Order #8888</strong> (<code>order_id=&quot;ORD-8888&quot;</code>, <code>amount=450000</code>, kỳ dữ liệu <code>2026-05-15</code>): từ thảm họa lệch pha của lập lịch theo giờ ngây thơ (Naive Cron Scheduling lúc <code>03:20 AM</code>) đến 5 trụ cột điều phối của <strong>Pipeline Orchestration</strong>.</x-spine>
+
+        <section class="lesson-section" id="orchestration-0-map">
+          <h2 id="orchestration-0-map-h2" tabindex="-1">Trạm 0.0: Nhân vật chính daily_sales_pipeline (Order #8888) &amp; Bản đồ Kiến trúc 5 Chặng Orchestration Layer</h2>
+
+          <p>Sau khi giao dịch <strong>Order #8888</strong> (<code>order_id="ORD-8888"</code>, <code>user_id="USR-104"</code>, <code>amount=450000</code>) đã được thu thập qua tầng <strong>D01 · Ingestion</strong>, lưu trữ trên Lakehouse ở <strong>D02 · Storage</strong>, biến đổi qua Spark/dbt ở <strong>D03/D04 · Transformation</strong> và sẵn sàng phục vụ báo cáo tại <strong>D05 · Consumption</strong>, toàn bộ học phần <strong>D06 · Orchestration &amp; Governance</strong> theo chân một nhân vật điều phối trung tâm: đường ống <strong><code>daily_sales_pipeline</code></strong> (phiên chạy <code>DAG Run: manual__2026-05-15</code> điều phối chuỗi tác vụ <code>extract_orders &gt;&gt; clean_orders &gt;&gt; validate_orders &gt;&gt; load_warehouse &gt;&gt; refresh_dashboard</code>, gắn định danh hợp đồng dữ liệu <code>urn:li:dataset:(urn:li:dataPlatform:postgres,prod.orders,PROD)</code> trên <strong>DataHub</strong>). Trong thực tế sản xuất, các tác vụ tính toán đơn lẻ hoàn toàn mù quáng về trạng thái của nhau: chỉ cần một tác vụ thượng nguồn bị trễ mạng hoặc xuất dữ liệu rỗng mà hạ nguồn vẫn chạy theo giờ cố định, báo cáo doanh thu của CEO sẽ lập tức bị nhiễm bẩn âm thầm (<strong>Silent Data Corruption</strong>). Tầng <strong>Orchestration &amp; Data Governance</strong> (kết hợp <strong>Apache Airflow</strong>, cầu dao kiểm định chất lượng <strong>Great Expectations / AWS Deequ</strong>, và đồ thị phả hệ <strong>DataHub</strong>) chính là hệ thần kinh trung ương biến một tập hợp các script rời rạc thành một dây chuyền công nghiệp tự động, lũy đẳng (<strong>Idempotent</strong>), có khả năng tự phục hồi và kiểm toán toàn diện.</p>
+
+          <x-figure id="orchestration-0-1" key="0.1" title="Sơ đồ 0.1 — Bản đồ Tư duy 5 Chặng: Hành trình Đường ống daily_sales_pipeline &amp; Order #8888 qua Tầng Orchestration &amp; Governance">Toàn cảnh lộ trình nhân quả 5 Chặng (18 Trạm) từ lập lịch Cron ngây thơ, thiết kế lũy đẳng (Idempotency/Backfill), kiến trúc Apache Airflow &amp; Executors/Pools đến Circuit Breaker, Data Contracts và quản trị phả hệ DataHub.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chặng &amp; Trạm</th>
+                  <th>Trọng tâm Slide 12 &amp; Giáo trình Sách</th>
+                  <th>Điểm nghẽn Khởi phát</th>
+                  <th>Cơ chế Giải quyết Vật lý</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Chặng 1</strong><br/><em>Trạm 0.0 → 1.3</em><br/>Bài toán Điều phối &amp; 5 Trụ cột</td>
+                  <td>• Giải phẫu đường ống hàng ngày &amp; 3 giả định mong manh của <strong>Naive Cron Scheduling</strong> (<em>Slide 03–07</em>; <em>Airflow 2nd Ed</em> Ch. 1).<br/>• 5 trụ cột của <strong>Pipeline Orchestration</strong>: Dependency Management, Triggers, State Tracking, Failure Handling, và Resource Coordination Pools (<em>Slide 08–14</em>).</td>
+                  <td>Tác vụ <code>Extract</code> bị trễ đến <code>03:20 AM</code> nhưng Cron vẫn kích hoạt <code>Transform</code> đúng <code>03:00 AM</code> làm khuyết <code>Order #8888</code>; 100 tác vụ chạy song song đánh sập Connection Pool của PostgreSQL.</td>
+                  <td>Khóa chặt thứ tự thực thi qua đồ thị phụ thuộc, theo dõi 6 trạng thái tại <strong>Metadata DB</strong>, tự động dừng hạ nguồn khi lỗi và tiết lưu kết nối bằng <strong>Concurrency Pool (Max 5 Slots)</strong>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 2</strong><br/><em>Trạm 2.1 → 2.3</em><br/>Giới hạn Cron, Lũy đẳng &amp; DAG</td>
+                  <td>• Tại sao script <code>cron</code> thất bại ở quy mô lớn: mù phụ thuộc, thiếu Retry thông minh, không có Backfill (<em>Slide 15–16</em>).<br/>• Thiết kế tác vụ <strong>Idempotent (Lũy đẳng)</strong>, cơ chế <strong>Backfill</strong> phân vùng lịch sử và mô hình <strong>DAG (Directed Acyclic Graph)</strong> (<em>Slide 17–21</em>; <em>Airflow 2nd Ed</em> Ch. 2, 3).</td>
+                  <td>Chạy lại (Retry/Rerun) tác vụ bị lỗi giữa chừng bằng lệnh <code>INSERT INTO</code> ngây thơ khiến giao dịch <code>Order #8888</code> (<code>amount=450000</code>) bị nhân đôi thành <code>900,000 VND</code>.</td>
+                  <td>Tham số hóa khung thời gian <code>data_interval_start/end</code> kết hợp mẫu <strong>Write-Audit-Publish (WAP)</strong> / ghi đè phân vùng <code>INSERT OVERWRITE PARTITION (dt='2026-05-15')</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 3</strong><br/><em>Trạm 3.1 → 3.4</em><br/>Kiến trúc Apache Airflow</td>
+                  <td>• Giải phẫu 5 thành phần cốt lõi của <strong>Apache Airflow</strong>: Scheduler, Worker, Metadata DB, Webserver, DAG Files (<em>Slide 22–28</em>).<br/>• Vòng đời 7 bước của một DAG Run, so sánh <strong>Executors</strong> (Local, Celery, Kubernetes), <strong>XComs</strong>, <strong>Sensors</strong> (<code>poke</code> vs. <code>reschedule</code>) &amp; <strong>Deferrable Operators</strong> (<em>Airflow 2nd Ed</em> Ch. 2, 4, 12).</td>
+                  <td>Đẩy bảng dữ liệu <code>10GB</code> qua <code>XCom</code> làm nổ bộ nhớ Metadata DB; hàng trăm Sensor chạy chế độ <code>poke</code> chiếm dụng chết toàn bộ Worker Slots gây <strong>Sensor Deadlock</strong>.</td>
+                  <td>Chỉ truyền siêu dữ liệu đường dẫn URI (<code>s3://.../orders_20260515.parquet</code>) qua XCom; chuyển Sensor sang chế độ <code>reschedule</code> hoặc <strong>Async Triggerer</strong> để giải phóng Worker.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 4</strong><br/><em>Trạm 4.1 → 4.4</em><br/>Data Quality &amp; Circuit Breaker</td>
+                  <td>• Hệ thống hóa <strong>Data Governance</strong> &amp; 6 chiều đo lường <strong>Data Quality</strong>: Completeness, Uniqueness, Validity, Timeliness, Accuracy, Consistency (<em>Slide 29–36</em>).<br/>• Mẫu kiến trúc <strong>Circuit Breaker (Cầu dao ngắt mạch)</strong> với <strong>Great Expectations / AWS Deequ / Soda</strong> và <strong>Data Contracts</strong> (<em>Slide 37–39</em>; <em>FoDE</em> Ch. 3, 10).</td>
+                  <td>Lập trình viên thượng nguồn đổi đơn vị tiền tệ hoặc đẩy bản ghi <code>amount = -450000</code> / <code>user_id = NULL</code>; đường ống vẫn báo xanh (Green) nhưng bảng Gold bị nhiễm độc.</td>
+                  <td>Cài trạm kiểm dịch <code>validate_orders</code> ngay trước <code>load_warehouse</code>: tự động ngắt mạch (Fail-fast) khi vi phạm ngưỡng kỳ vọng và cô lập bản ghi hỏng vào bảng <strong>Quarantine</strong>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 5</strong><br/><em>Trạm 5.1 → 5.4</em><br/>Data Lineage, DataHub &amp; Bảo mật</td>
+                  <td>• Quản trị siêu dữ liệu hiện đại với <strong>DataHub</strong>: Data Catalog, <strong>Table-level &amp; Column-level Data Lineage</strong>, Impact Analysis (<em>Slide 40–47</em>).<br/>• Chuẩn mở <strong>OpenLineage</strong>, phân quyền <strong>RBAC / ABAC</strong>, <strong>PII Masking</strong>, <strong>Data Retention / GDPR Right to be Forgotten</strong> &amp; đối chiếu công cụ (Airflow vs. Dagster vs. Prefect).</td>
+                  <td>Khi đội Backend định xóa cột <code>discount_code</code> trên PostgreSQL, không ai biết chính xác những bảng dbt hay Dashboard nào của khối Tài chính sẽ bị sập dây chuyền.</td>
+                  <td>Thu thập phả hệ tự động qua <strong>OpenLineage + DataHub</strong> để phân tích tác động (Impact Analysis) tới từng cột và thực thi chính sách ẩn danh PII cho <code>USR-104</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="lesson-section" id="orchestration-1-0-sim">
+          <h2 id="orchestration-1-0-sim-h2" tabindex="-1">Trạm 1.0 (Mô phỏng 2D): Phòng Thí Nghiệm Điều Phối DAG, Lũy Đẳng Backfill, Concurrency Pools, Cầu Dao Circuit Breaker &amp; DataHub Lineage</h2>
+
+          <p>Trước khi đi vào phân tích lý thuyết từng trạm, hãy trực tiếp điều khiển đường ống <strong><code>daily_sales_pipeline</code></strong> (xử lý lô giao dịch chứa <code>Order #8888</code> kỳ <code>2026-05-15</code>) qua <strong>6 kịch bản vận hành tương tác</strong> trong Phòng Thí Nghiệm 2D dưới đây: từ đối chiếu thảm họa lệch giờ <code>03:20 AM</code> giữa <code>Naive Cron vs. DAG Orchestrator</code>, kiểm chứng tính lũy đẳng <code>Non-Idempotent Append vs. Idempotent Partition Overwrite</code> khi chạy lại, quan sát luồng điều phối nội bộ của <code>Airflow Scheduler + Executor + Metadata DB</code>, điều tiết van tiết lưu <code>Concurrency Pool (Max 5 Slots)</code> bảo vệ CSDL nguồn, kích hoạt cầu dao <code>Data Quality Circuit Breaker</code> chặn dữ liệu bẩn, cho đến truy vết đồ thị phả hệ <code>DataHub Column-Level Lineage &amp; Impact Analysis</code>.</p>
+
+          <x-orchestration2d></x-orchestration2d>
+        </section>
+
+        <section class="lesson-section" id="orchestration-1-1">
+          <h2 id="orchestration-1-1-h2" tabindex="-1">Trạm 1.1: Đường Ống Dữ Liệu Hàng Ngày, Cạm Bẫy Lập Lịch Theo Giờ Ngây Thơ (Naive Scheduling) &amp; Sự Cố Trễ Thượng Nguồn 03:20 AM</h2>
+
+          <p>Trong thực tế doanh nghiệp, một đường ống dữ liệu hàng ngày (<strong>Daily Data Pipeline</strong>) như <code>daily_sales_pipeline</code> thường được cấu thành từ ít nhất 3 bước xử lý nối tiếp nhau: (1) <strong>Extract</strong> — rút trích dữ liệu đơn hàng mới (bao gồm <code>Order #8888</code>) từ cơ sở dữ liệu giao dịch nguồn (<strong>Source Database</strong>), (2) <strong>Transform / Data Cleaning</strong> — làm sạch, chuẩn hóa kiểu dữ liệu và tính toán chỉ số, và (3) <strong>Load</strong> — nạp kết quả vào <strong>Data Warehouse</strong> để cập nhật <strong>Dashboard</strong> báo cáo doanh thu hoặc cấp liệu cho mô hình <strong>Machine Learning</strong> (<em>Slide 03</em>). Khi mới xây dựng hệ thống, cách tiếp cận trực giác và phổ biến nhất của nhiều đội kỹ thuật là <strong>Lập lịch theo giờ ngây thơ (Naive Time-Based Scheduling)</strong>: ước lượng thời gian chạy của từng bước rồi cài đặt các lệnh hẹn giờ độc lập trên máy chủ (ví dụ: <code>02:00 AM =&gt; Extract data</code>, <code>03:00 AM =&gt; Transform data</code>, <code>04:00 AM =&gt; Load data to warehouse</code>) (<em>Slide 04</em>).</p>
+
+          <p>Cách tiếp cận hẹn giờ cố định này trông có vẻ đơn giản nhưng lại đặt cược toàn bộ sự an toàn của dữ liệu vào <strong>3 giả định vô cùng mong manh (Fragile Assumptions)</strong> (<em>Slide 05</em>): giả định rằng mọi bước luôn hoàn thành đúng giờ dự kiến, mọi bước luôn chạy thành công 100%, và các hệ thống nguồn luôn sẵn sàng phản hồi tức thì. Hãy quan sát kịch bản thảm họa thực tế khi <strong>Tác vụ thượng nguồn bị trễ (Failure Scenario: Delayed Upstream Task)</strong> (<em>Slide 06</em>; <em>Data Pipelines with Apache Airflow, 2nd Ed</em>, Ch. 1.1): đúng <code>02:00 AM</code>, tiến trình <code>Extract</code> bắt đầu kéo dữ liệu nhưng gặp hiện tượng tranh chấp khóa trên PostgreSQL hoặc nghẽn mạng nên bị kéo dài và mãi tới <strong><code>03:20 AM</code></strong> mới kết thúc. Thế nhưng, bộ hẹn giờ của bước <code>Transform</code> hoàn toàn không biết gì về sự chậm trễ đó — đúng <strong><code>03:00 AM</code></strong>, nó vẫn lạnh lùng kích hoạt! Hậu quả nhân quả xảy ra ngay lập tức: <code>Transform</code> đọc phải tệp dữ liệu đang ghi dở dang (thiếu mất giao dịch <code>Order #8888</code> trị giá <code>450,000 VND</code>), bước <code>Load</code> lúc <code>04:00 AM</code> nạp con số doanh thu bị cắt cụt vào Data Warehouse, và sáng hôm sau Dashboard của Ban Giám đốc hiển thị số liệu tài chính sai lệch hoàn toàn dù không hề có bất kỳ thông báo lỗi kỹ thuật nào phát ra.</p>
+
+          <p>Bài học xương máu rút ra từ sự cố <code>03:20 AM</code> là: <strong>Lịch trình giờ giấc tuy đúng, nhưng quá trình thực thi hoàn toàn mất an toàn (The schedule was correct. The execution was unsafe)</strong> — một tác vụ không được phép chạy chỉ vì đồng hồ điểm đúng giờ, mà chỉ được phép chạy khi <strong>toàn bộ các tác vụ phụ thuộc (Dependencies) của nó đã hoàn tất thành công</strong> (<em>Slide 06</em>). Bản chất cốt lõi của vận hành đường ống dữ liệu không nằm ở bản thân phép tính (Computation), mà nằm ở bài toán <strong>Phối hợp điều phối (The Core Problem: Coordination)</strong> (<em>Slide 07</em>): hệ thống phải trả lời chính xác tác vụ nào chạy trước, tác vụ nào phải đứng đợi, những tác vụ nào được phép chạy song song, chuyện gì xảy ra khi một mắt xích gãy, và ai sẽ nhận được cảnh báo. Đó chính là lý do <strong>Pipeline Orchestration (Điều phối đường ống dữ liệu)</strong> ra đời để đảm nhiệm 4 trách nhiệm trụ cột: <strong>Dependency Resolution</strong> (giải quyết phụ thuộc), <strong>Scheduling</strong> (lập lịch thông minh), <strong>State Management</strong> (quản lý trạng thái), và <strong>Fault Tolerance</strong> (chịu lỗi tự động) (<em>Slide 08</em>).</p>
+
+          <x-figure id="orchestration-1-1-fig" key="1.1" title="Sơ đồ 1.1 — Sự Sụp Đổ của Lập Lịch Theo Giờ Ngây Thơ (03:20 AM Race Condition) vs. Điều Phối Trung Tâm">Đối chiếu kịch bản Transform chạy sớm lúc 03:00 AM khi Extract bị trễ đến 03:20 AM với cơ chế khóa phụ thuộc của Orchestrator.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Trách nhiệm Cốt lõi (Slide 08)</th>
+                  <th>Lập lịch Theo giờ Ngây thơ (Naive Time-Based Scheduling)</th>
+                  <th>Hệ quả Vật lý trên Đường ống <code>daily_sales_pipeline</code></th>
+                  <th>Điều phối Nhận thức Phụ thuộc (Pipeline Orchestration)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Dependency Resolution</strong><br/>(Giải quyết phụ thuộc)</td>
+                  <td>Không có khái niệm liên kết giữa các tác vụ; dùng khoảng đệm thời gian ước lượng (ví dụ: cách nhau <code>60 phút</code>) làm ranh giới giả định.</td>
+                  <td>Khi <code>extract_orders</code> (khởi chạy <code>02:00 AM</code>) trễ tới <code>03:20 AM</code>, <code>clean_orders</code> vẫn chạy lúc <code>03:00 AM</code> trên tập dữ liệu khuyết thiếu <code>Order #8888</code> (<strong>Race Condition</strong>).</td>
+                  <td>Định nghĩa liên kết nhân quả cứng (<code>extract_orders &gt;&gt; clean_orders</code>); hạ nguồn bị khóa chặt cho tới khi thượng nguồn xác nhận hoàn tất 100%.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Scheduling</strong><br/>(Lập lịch &amp; Kích hoạt)</td>
+                  <td>Chỉ kích hoạt cứng nhắc theo đồng hồ hệ thống (Wall-clock time) cho từng script rời rạc; nếu <code>Extract</code> xong sớm lúc <code>02:05 AM</code> thì máy chủ vẫn ngồi chờ không tới <code>03:00 AM</code>.</td>
+                  <td>Vừa lãng phí <code>55 phút</code> tài nguyên nhàn rỗi vào những ngày dữ liệu ít, vừa gây đụng độ dữ liệu vào những ngày lưu lượng giao dịch tăng đột biến.</td>
+                  <td>Chỉ đặt lịch cho điểm khởi đầu của toàn bộ đường ống; các bước tiếp theo được kích hoạt tức thì ngay giây phút bước trước vừa chuyển sang trạng thái <code>success</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. State Management</strong><br/>(Quản lý trạng thái)</td>
+                  <td>Phi trạng thái (Stateless): không có cơ sở dữ liệu trung tâm lưu vết lịch sử chạy của từng bước hay tiến độ của toàn bộ dây chuyền.</td>
+                  <td>Kỹ sư vận hành phải SSH vào từng máy chủ đọc tệp log rời rạc để đoán xem <code>Order #8888</code> đang nằm ở bước nào hay đã bị rơi rớt.</td>
+                  <td>Lưu trữ trạng thái thời gian thực của mọi tác vụ (<code>queued</code>, <code>running</code>, <code>success</code>, <code>failed</code>...) trong <strong>Metadata Database</strong> tập trung kèm giao diện trực quan.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Fault Tolerance</strong><br/>(Chịu lỗi &amp; Phục hồi)</td>
+                  <td>Không có cơ chế thử lại có điều kiện hay ngắt mạch dây chuyền; bước 2 sập vì đứt mạng thoáng qua nhưng bước 3 vẫn chạy tiếp lúc <code>04:00 AM</code>.</td>
+                  <td>Ghi đè dữ liệu rỗng hoặc dữ liệu ngày hôm qua lên bảng báo cáo hôm nay (<strong>Silent Data Corruption</strong>), làm mất niềm tin vào hệ thống BI.</td>
+                  <td>Tự động thử lại (<strong>Auto-Retry</strong>) tác vụ lỗi theo chu kỳ lùi lũy thừa, đóng băng toàn bộ nhánh hạ nguồn và cho phép chạy bù (<strong>Rerun/Backfill</strong>) đúng từ điểm gãy.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Thay thế các mốc hẹn giờ rời rạc bằng một bộ điều phối trung tâm giúp loại bỏ hoàn toàn thảm họa chạy chồng chéo lúc <code>03:20 AM</code>. Nhưng cụ thể bộ điều phối sử dụng cấu trúc đồ thị nào để vừa khóa chặt các bước tuần tự, vừa vắt kiệt tốc độ song song, đồng thời theo dõi vòng đời của từng tác vụ ra sao? Chúng ta đi vào giải phẫu 3 trụ cột lợi ích đầu tiên tại <strong>Trạm 1.2</strong>.</p>
+        </section>
+
+        <section class="lesson-section" id="orchestration-1-2">
+          <h2 id="orchestration-1-2-h2" tabindex="-1">Trạm 1.2: Quản Lý Phụ Thuộc (Tuần Tự &amp; Song Song), 4 Cơ Chế Kích Hoạt (Triggers) &amp; Máy Trạng Thái Tác Vụ (State Tracking)</h2>
+
+          <p>Trụ cột lợi ích đầu tiên của Pipeline Orchestration là <strong>Quản lý phụ thuộc hai chiều: Chặn tuần tự và Tăng tốc song song (Benefit 1: Dependency Management — Sequential &amp; Parallel)</strong> (<em>Slide 09–10</em>). Ở chiều tuần tự, đối với chuỗi <code>Extract Orders → Clean Orders → Load Warehouse → Refresh Dashboard</code>, nếu tác vụ <code>Clean Orders</code> gặp lỗi khi xử lý bản ghi <code>Order #8888</code>, bộ điều phối lập tức dựng rào chắn khóa cứng hai bước <code>Load Warehouse</code> và <code>Refresh Dashboard</code> phía sau — đảm bảo báo cáo của người dùng cuối thà hiển thị dữ liệu cũ có cảnh báo còn hơn hiển thị con số sai (<em>Slide 09</em>). Ở chiều song song (<strong>Fan-out / Fan-in</strong>), không phải mọi tác vụ trong <code>daily_sales_pipeline</code> đều phụ thuộc lẫn nhau: việc rút trích bảng khách hàng (<code>Extract Customers</code>) và rút trích bảng đơn hàng (<code>Extract Orders</code>) từ hai nguồn khác nhau là hoàn toàn độc lập. Thay vì bắt chúng xếp hàng chạy nối đuôi mất tổng cộng 40 phút, bộ điều phối tự động phát hiện hai nhánh độc lập để <strong>kích hoạt chạy song song cùng lúc</strong>, sau đó đợi cả hai hoàn tất (đồng bộ hóa tại điểm hội tụ) rồi mới đẩy vào bước <code>Transform Data → Load Warehouse</code>, giúp cắt giảm một nửa tổng thời gian chạy (Runtime) và tối ưu hóa công suất cụm máy chủ (<em>Slide 10</em>).</p>
+
+          <p>Trụ cột thứ hai là <strong>Lập lịch và Kích hoạt tự động đa phương thức (Benefit 2: Automated Scheduling &amp; Triggering)</strong> (<em>Slide 11</em>; <em>Airflow 2nd Ed</em>, Ch. 3). Một hệ thống điều phối hiện đại tách biệt rạch ròi giữa hai khái niệm: <strong>Lập lịch (Scheduling) chỉ làm nhiệm vụ khởi động luồng công việc, còn Điều phối (Orchestration) kiểm soát cách thức luồng công việc đó vận hành sau khi đã khởi động</strong>. Tùy theo đặc thù nghiệp vụ của <code>daily_sales_pipeline</code>, bộ điều phối cung cấp <strong>4 cơ chế kích hoạt (Trigger Types)</strong> linh hoạt: (1) <strong>Time-based Trigger</strong> (chạy theo lịch cố định, ví dụ <code>02:00 AM</code> mỗi ngày), (2) <strong>Manual Trigger</strong> (kỹ sư dữ liệu chủ động bấm chạy lại đường ống ngày hôm qua sau khi đã vá xong lỗi code), (3) <strong>Data Availability Trigger</strong> (chỉ khởi động đường ống ngay khi phát hiện tệp đối soát <code>orders_20260515.parquet</code> vừa đáp xuống thùng chứa Amazon S3), và (4) <strong>Event-based Trigger</strong> (kích hoạt tức thì khi nhận được thông điệp sự kiện từ Kafka/Webhook báo hiệu hệ thống đối tác vừa đẩy xong lô hàng).</p>
+
+          <p>Để kiểm soát chính xác khi nào được rẽ nhánh song song hay dừng luồng tuần tự, trụ cột thứ ba — <strong>Theo dõi trạng thái tác vụ (Benefit 3: State Tracking)</strong> — biến toàn bộ đường ống thành một <strong>Máy trạng thái hữu hạn (Finite State Machine)</strong> được ghi nhận liên tục vào <strong>Metadata Database</strong> (<em>Slide 12</em>). Mỗi tác vụ trong phiên chạy <code>2026-05-15</code> đều phải đi qua <strong>6 trạng thái chuẩn hóa</strong>: <code>queued</code> (đã xếp vào hàng đợi chờ tài nguyên), <code>running</code> (đang thực thi trên Worker), <code>success</code> (hoàn tất thành công), <code>failed</code> (thất bại sau khi đã hết số lần thử lại), <code>skipped</code> (bị bỏ qua có chủ đích theo nhánh logic điều kiện), và <code>retrying</code> (đang tạm nghỉ chờ thử lại sau lỗi). Nhờ bảng trạng thái thời gian thực (ví dụ: <code>Extract = Success</code>, <code>Clean = Failed</code>, <code>Load = Not started</code>), kỹ sư dữ liệu đạt được <strong>khả năng quan sát toàn diện (Observability)</strong> và <strong>khả năng phục hồi phẫu thuật (Surgical Recoverability)</strong> — biết chính xác mắt xích nào gãy mà không cần đoán mò.</p>
+
+          <x-figure id="orchestration-1-2-fig" key="1.2" title="Sơ đồ 1.2 — Đồ Thị Phụ Thuộc (Chặn Tuần Tự &amp; Rẽ Nhánh Song Song), 4 Cơ Chế Trigger &amp; Máy Trạng Thái Task">Cơ chế vừa bảo đảm an toàn thứ tự vừa tăng tốc song song (Fan-out/Fan-in) cùng bảng theo dõi trạng thái thực thi tại Metadata DB.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Nhóm Cơ chế (Slide 11–12)</th>
+                  <th>Định danh Kỹ thuật</th>
+                  <th>Nguyên lý Chuyển đổi &amp; Điều kiện Kích hoạt</th>
+                  <th>Hành vi Cụ thể trên Đường ống <code>daily_sales_pipeline</code> (<code>Order #8888</code>)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td rowspan="4"><strong>4 Cơ chế Kích hoạt</strong><br/>(Workflow Triggers)</td>
+                  <td><strong>1. Time-based Trigger</strong></td>
+                  <td>Kích hoạt theo biểu thức Cron hoặc chu kỳ thời gian cố định (<code>@daily</code>, <code>0 2 * * *</code>) dựa trên đồng hồ của Scheduler.</td>
+                  <td>Đúng <code>02:00 AM</code> ngày <code>2026-05-16</code>, tự động khởi tạo phiên chạy xử lý toàn bộ giao dịch phát sinh trong ngày <code>2026-05-15</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Manual Trigger</strong></td>
+                  <td>Kích hoạt theo yêu cầu của con người qua giao diện Web UI, CLI (<code>airflow dags trigger</code>) hoặc lệnh gọi REST API.</td>
+                  <td>Kỹ sư dữ liệu bấm nút <code>Clear / Trigger</code> để chạy lại riêng bước <code>clean_orders</code> sau khi sửa lỗi định dạng tiền tệ cho <code>Order #8888</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Data Availability Trigger</strong></td>
+                  <td>Kích hoạt dựa trên sự xuất hiện vật lý của tệp tin hoặc phân vùng bảng thông qua <strong>Sensors</strong> hoặc <strong>Dataset-aware Scheduling</strong>.</td>
+                  <td>Đường ống tự động chạy ngay khoảnh khắc tệp <code>s3://raw-landing/orders/2026-05-15/_SUCCESS</code> được ghi xong, không cần chờ tới 3 giờ sáng.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Event-based Trigger</strong></td>
+                  <td>Kích hoạt bởi tín hiệu ngoại vi bất đồng bộ (Webhook, thông điệp Kafka/SQS, sự kiện CloudWatch/EventBridge).</td>
+                  <td>Hệ thống cổng thanh toán bắn sự kiện <code>BatchUploadCompleted</code> qua API, lập tức đánh thức <code>daily_sales_pipeline</code> vào cuộc.</td>
+                </tr>
+                <tr>
+                  <td rowspan="6"><strong>6 Trạng thái Tác vụ</strong><br/>(Task Lifecycle States)</td>
+                  <td><code>queued</code></td>
+                  <td>Tác vụ đã thỏa mãn mọi điều kiện phụ thuộc thượng nguồn và được Scheduler đẩy vào hàng đợi của Executor chờ cấp phát máy chủ Worker.</td>
+                  <td>Sau khi <code>extract_orders</code> báo xanh, <code>clean_orders</code> chuyển sang <code>queued</code> trong vài giây để đợi Worker rảnh.</td>
+                </tr>
+                <tr>
+                  <td><code>running</code></td>
+                  <td>Một tiến trình Worker đã nhận tác vụ và đang thực thi đoạn mã trích xuất/biến đổi thực tế; gửi tín hiệu nhịp tim (Heartbeat) định kỳ về DB.</td>
+                  <td>Worker đang chạy câu lệnh lọc và chuẩn hóa lô dữ liệu chứa bản ghi <code>ORD-8888</code> (<code>amount=450000</code>).</td>
+                </tr>
+                <tr>
+                  <td><code>retrying</code></td>
+                  <td>Tác vụ gặp lỗi (ví dụ: đứt kết nối mạng thoáng qua) nhưng vẫn còn lượt thử lại (<code>retries &gt; 0</code>); đang đếm ngược thời gian chờ (<code>retry_delay</code>).</td>
+                  <td>Kết nối tới Data Warehouse bị chập chờn, tác vụ chuyển sang <code>retrying</code> chờ <code>5 phút</code> trước khi tự động chạy lại lần 2.</td>
+                </tr>
+                <tr>
+                  <td><code>failed</code></td>
+                  <td>Tác vụ vẫn thất bại sau khi đã dùng hết toàn bộ số lần thử lại được cấu hình; lập tức khóa chặt các tác vụ phụ thuộc hạ nguồn.</td>
+                  <td>Bước <code>clean_orders</code> chuyển sang <code>failed</code> (màu đỏ); các bước <code>load_warehouse</code> và <code>refresh_dashboard</code> bị chặn đứng để bảo vệ báo cáo.</td>
+                </tr>
+                <tr>
+                  <td><code>success</code></td>
+                  <td>Tác vụ hoàn tất với mã thoát <code>Exit Code = 0</code> và vượt qua mọi kiểm tra; mở khóa cho các tác vụ hạ nguồn liền kề bắt đầu xếp hàng.</td>
+                  <td>Bản ghi <code>Order #8888</code> đã được nạp an toàn vào bảng đích; kích hoạt bước làm mới Dashboard BI.</td>
+                </tr>
+                <tr>
+                  <td><code>skipped</code></td>
+                  <td>Tác vụ được đánh dấu bỏ qua hợp lệ (do nhánh rẽ <code>BranchPythonOperator</code> hoặc điều kiện nghiệp vụ không cần chạy trong ngày hôm đó).</td>
+                  <td>Nhánh gửi báo cáo thuế cuối tháng bị đánh dấu <code>skipped</code> trong phiên chạy ngày thường <code>2026-05-15</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Ba trụ cột đầu tiên đã giúp đường ống biết chạy đúng thứ tự, kích hoạt linh hoạt và tự ghi nhận trạng thái. Nhưng trong môi trường phân tán, có hai kịch bản cực đoan luôn rình rập: <strong>Chuyện gì xảy ra khi một tác vụ rơi vào trạng thái <code>failed</code> lúc 3 giờ sáng khi cả đội đang ngủ?</strong> Và ngược lại, <strong>chuyện gì xảy ra khi có tới 100 tác vụ cùng chuyển sang trạng thái <code>running</code> một lúc và đồng loạt tấn công vào cùng một cơ sở dữ liệu nguồn?</strong> Chúng ta bước sang 2 trụ cột cuối cùng tại <strong>Trạm 1.3</strong>.</p>
+        </section>
+
+        <section class="lesson-section" id="orchestration-1-3">
+          <h2 id="orchestration-1-3-h2" tabindex="-1">Trạm 1.3: Xử Lý Sự Cố Có Kiểm Soát (Failure Handling) &amp; Điều Phối Tài Nguyên Dùng Chung (Resource Coordination Pools)</h2>
+
+          <p>Trong kỹ thuật dữ liệu hiện đại, nguyên lý vàng của <strong>Trụ cột 4: Xử lý sự cố có kiểm soát (Benefit 4: Failure Handling)</strong> là: <strong>Một bộ điều phối tốt không xóa bỏ hoàn toàn sự cố, mà biến các sự cố trở nên có thể kiểm soát được (Good orchestration does not eliminate failures. It makes failures manageable)</strong> (<em>Slide 13</em>). Khi tác vụ <code>clean_orders</code> bị gãy giữa đêm do lỗi dữ liệu hoặc nghẽn mạng tạm thời, thay vì để mặc kệ cho lỗi lan truyền hoặc bắt kỹ sư phải thức dậy xử lý thủ công từ đầu, Orchestrator tự động kích hoạt <strong>quy trình phản ứng sự cố 5 bước khép kín</strong>: (1) <strong>Stop downstream tasks</strong> — lập tức phanh gấp và khóa các tác vụ hạ nguồn (<code>load_warehouse</code>, <code>refresh_dashboard</code>) để ngăn chặn dữ liệu hỏng chảy vào kho; (2) <strong>Retry failed tasks</strong> — tự động thử chạy lại tác vụ lỗi theo số lần quy định kèm khoảng nghỉ tăng dần (<strong>Exponential Backoff</strong>, ví dụ chờ 2 phút, 4 phút, 8 phút) để vượt qua các sự cố mạng thoáng qua; (3) <strong>Send alerts (Slack / Email / PagerDuty)</strong> — nếu hết số lần Retry mà vẫn thất bại, bắn cảnh báo tức thì kèm ngữ cảnh lỗi cho kỹ sư trực ca; (4) <strong>Record logs</strong> — gom toàn bộ nhật ký thực thi (<code>stdout/stderr</code>) của từng lần thử về giao diện tập trung; và (5) <strong>Allow manual reruns</strong> — sau khi kỹ sư sửa xong lỗi, cho phép bấm chạy lại đúng từ nút <code>clean_orders</code> trở đi mà <strong>không cần phải chạy lại bước <code>extract_orders</code></strong>, tiết kiệm hàng giờ đồng hồ và bảo vệ cơ sở dữ liệu nguồn.</p>
+
+          <p>Tuy nhiên, ngay cả khi không có tác vụ nào bị lỗi, việc mở rộng quy mô (Scalability) thiếu kiểm soát cũng có thể tự gây ra một thảm họa khác — dẫn tới sự ra đời của <strong>Trụ cột 5: Điều phối tài nguyên dùng chung (Benefit 5: Resource Coordination)</strong> (<em>Slide 14</em>; <em>Airflow 2nd Ed</em>, Ch. 12.4). Hãy hình dung vào khung giờ cao điểm <code>02:00 AM</code>, doanh nghiệp có hàng chục đường ống khác nhau cùng khởi chạy, tạo ra <strong><code>100 tasks</code> đồng loạt mở kết nối truy vấn vào cùng một cơ sở dữ liệu PostgreSQL</strong> chứa đơn hàng <code>Order #8888</code>. Dù cụm máy chủ Airflow Worker có dư thừa CPU để chạy 100 tác vụ song song, cơ sở dữ liệu PostgreSQL dùng chung lại bị vắt kiệt toàn bộ <code>max_connections</code>, CPU vọt lên <code>100%</code>, bộ nhớ RAM tràn ngập và dẫn tới hiệu ứng domino: mọi đường ống đều bò chậm rì hoặc sập hàng loạt vì lỗi <code>FATAL: remaining connection slots are reserved</code>. Để giải quyết bài toán này, bộ điều phối cung cấp cơ chế <strong>Resource Pools (Hồ chứa giới hạn đồng thời — ví dụ: <code>Pool: Max 5 Slots</code>)</strong>. Toàn bộ 100 tác vụ truy vấn DB được gắn chung vào một Pool chỉ có <code>5 khe (slots)</code>: tại bất kỳ thời điểm nào, chỉ có đúng <strong>5 tác vụ (ví dụ: <code>Task 7, 12, 3, 25, 42</code>)</strong> được cấp thẻ đi qua để truy vấn Database, còn 95 tác vụ còn lại trật tự xếp hàng ở trạng thái <code>queued</code>. Ngay khi một tác vụ hoàn thành và trả lại khe trống, tác vụ kế tiếp trong hàng đợi mới được bước vào — minh chứng cho chân lý kiến trúc: <strong>Khả năng mở rộng không chỉ là chạy được nhiều tác vụ hơn, mà còn là kiểm soát chặt chẽ áp lực tải đè lên các hệ thống dùng chung (Scalability is not only about running more tasks. It is also about controlling pressure on shared systems)</strong> (<em>Slide 14</em>).</p>
+
+          <x-figure id="orchestration-1-3-fig" key="1.3" title="Sơ đồ 1.3 — Chu Trình Xử Lý Lỗi 5 Bước &amp; Cơ Chế Hồ Chứa (Pool Max 5 Slots) Bảo Vệ Database Dùng Chung">Quy trình cô lập lỗi tự động (Retry → Alert → Stop Downstream) và van tiết lưu Concurrency Pool chặn đứng bão 100 kết nối đồng thời.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Kịch bản Vận hành Thực tế</th>
+                  <th>Thực thi Tự phát Không Điều phối (Uncontrolled Execution)</th>
+                  <th>Điều phối Chuẩn Công nghiệp (Failure Recovery &amp; Pool Throttling)</th>
+                  <th>Chỉ số Định lượng &amp; Lợi ích Kiến trúc</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Đứt kết nối mạng thoáng qua (Transient Network Blip) kéo dài 30 giây lúc <code>03:05 AM</code></strong></td>
+                  <td>Script <code>clean_orders</code> văng ngoại lệ <code>ConnectionResetError</code> rồi chết hẳn; cả đường ống đứt gãy chờ con người thức dậy lúc <code>08:00 AM</code>.</td>
+                  <td>Chuyển trạng thái sang <code>retrying</code>, nghỉ <code>120s</code> (Exponential Backoff) rồi tự động chạy lại lần 2 thành công mà không cần đánh thức kỹ sư.</td>
+                  <td>Giảm <strong>80–90% cảnh báo giả (False Alarms)</strong> ban đêm; thời gian tự phục hồi (MTTR) rút từ <code>5 giờ</code> xuống còn <code>2 phút</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Lỗi logic/dữ liệu cứng tại bước giữa (<code>clean_orders</code> gãy hoàn toàn)</strong></td>
+                  <td>Bước <code>load_warehouse</code> và <code>refresh_dashboard</code> vẫn chạy tiếp theo giờ hẹn; khi sửa xong phải chạy lại từ bước 1 (<code>extract_orders</code>).</td>
+                  <td>Khóa cứng hạ nguồn (<code>upstream_failed</code>), bắn cảnh báo Slack kèm link Log, và cho phép <strong>Rerun from Failed Task</strong> (bỏ qua bước <code>Extract</code> đã thành công).</td>
+                  <td>Bảo vệ <strong>100% độ tin cậy số liệu CEO Dashboard</strong>; tiết kiệm <code>50–70%</code> chi phí I/O và thời gian chạy lại do tận dụng kết quả trung gian tại Staging.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Bão 100 tác vụ (<code>Task 1 → Task 100</code>) cùng đọc PostgreSQL lúc <code>02:00 AM</code></strong></td>
+                  <td>Cả 100 tác vụ đồng loạt mở kết nối JDBC làm tràn <code>max_connections</code>, đẩy CPU PostgreSQL lên <code>100%</code> gây treo cả ứng dụng đặt hàng <code>Order #8888</code>.</td>
+                  <td>Gắn tham số <code>pool="postgres_read_pool"</code> (giới hạn <strong>Max 5 Slots</strong>): chỉ 5 tác vụ (<code>Task 7, 12, 3, 25, 42</code>) được chạy cùng lúc, 95 tác vụ xếp hàng tuần tự.</td>
+                  <td>Giới hạn cứng tải kết nối ở mức <strong><code>&le; 5 connections</code></strong>, giữ CPU Database nguồn ổn định ở mức an toàn <code>&lt; 30%</code> mà toàn bộ 100 tác vụ vẫn về đích trật tự.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Khép lại Chặng 1, chúng ta đã thấy rõ tại sao việc hẹn giờ ngây thơ (Naive Scheduling) dẫn tới thảm họa dữ liệu lệch pha lúc <code>03:20 AM</code>, và cách <strong>Pipeline Orchestration</strong> giải quyết bài toán phối hợp qua 5 trụ cột: Quản lý phụ thuộc (Tuần tự &amp; Song song), Kích hoạt đa phương thức, Theo dõi máy trạng thái, Xử lý lỗi 5 bước và Điều phối tài nguyên bằng Concurrency Pools. Tuy nhiên, khi bộ điều phối tự động thực hiện lệnh <strong>Retry (thử lại)</strong> hoặc khi kỹ sư bấm nút <strong>Rerun / Backfill</strong> cho ngày <code>2026-05-15</code>, một cái bẫy chết người mới lại xuất hiện: <strong>Làm thế nào để việc chạy lại tác vụ 5 lần liên tiếp không làm nhân bản giao dịch <code>Order #8888</code> (<code>amount=450000</code>) thành 5 dòng trùng lặp trong Data Warehouse, và cấu trúc toán học nào giúp biểu diễn hàng trăm phụ thuộc mà không bao giờ rơi vào vòng lặp vô tận?</strong> Chúng ta bước sang <strong>Chặng 2: Vượt Qua Giới Hạn Cron Job — Tính Lũy Đẳng (Idempotency), Backfill &amp; Mô Hình DAG</strong>.</p>
+        </section>
+
+        <section class="summary-section" id="orchestration-1-summary">
+          <h2 id="orchestration-1-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 1 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <ol>
+            <li><strong>Ba giả định mong manh nào khiến phương pháp Lập lịch theo giờ ngây thơ (Naive Time-Based Scheduling) sụp đổ trong sự cố <code>03:20 AM</code>?</strong><br/>Đặt lịch cứng kiểu <code>02:00 AM Extract</code>, <code>03:00 AM Transform</code>, <code>04:00 AM Load</code> ngầm giả định rằng: (1) mỗi bước luôn chạy xong đúng giờ, (2) mỗi bước luôn thành công 100%, và (3) hệ thống nguồn luôn sẵn sàng. Khi <code>Extract</code> bị trễ tới <code>03:20 AM</code> nhưng <code>Transform</code> vẫn khởi chạy đúng <code>03:00 AM</code>, hạ nguồn sẽ đọc dữ liệu thiếu hụt (mất <code>Order #8888</code>) và nạp số liệu sai lệch lên Dashboard — bởi một tác vụ chỉ nên chạy khi các phụ thuộc của nó đã sẵn sàng chứ không phải vì đồng hồ điểm giờ.</li>
+            <li><strong>Tại sao nói bài toán cốt lõi của đường ống dữ liệu là sự Phối hợp (Coordination), và bộ điều phối quản lý hai chiều phụ thuộc Tuần tự – Song song như thế nào?</strong><br/>Bản thân từng script tính toán không biết khi nào nên chạy hay dừng; Orchestrator giải quyết bài toán phối hợp bằng cách vừa <strong>chặn tuần tự</strong> (nếu <code>Clean Orders</code> lỗi thì khóa cứng <code>Load Warehouse</code> và <code>Refresh Dashboard</code> để chặn dữ liệu bẩn), vừa <strong>mở rộng song song</strong> (cho phép hai nhánh độc lập <code>Extract Customers</code> và <code>Extract Orders</code> chạy cùng lúc để giảm một nửa thời gian thực thi trước khi hội tụ về bước <code>Transform</code>).</li>
+            <li><strong>Phân biệt vai trò của Lập lịch (Scheduling) và Điều phối (Orchestration) thông qua 4 cơ chế kích hoạt (Trigger Types)?</strong><br/><strong>Scheduling</strong> chỉ chịu trách nhiệm khởi động luồng công việc ở vạch xuất phát qua 4 cơ chế: <strong>Time-based</strong> (theo giờ cố định), <strong>Manual</strong> (con người chủ động bấm chạy lại), <strong>Data Availability</strong> (khi tệp dữ liệu vừa xuất hiện trên S3), hoặc <strong>Event-based</strong> (khi nhận thông điệp Webhook/Kafka). Sau khi luồng đã khởi động, <strong>Orchestration</strong> tiếp quản toàn bộ quyền kiểm soát thứ tự, trạng thái và xử lý lỗi của từng bước bên trong.</li>
+            <li><strong>Máy trạng thái 6 pha (State Tracking) và quy trình xử lý lỗi 5 bước (Failure Handling) giúp đường ống phục hồi như thế nào khi gặp sự cố lúc nửa đêm?</strong><br/>Mọi tác vụ đều được ghi vết trạng thái thời gian thực (<code>queued</code>, <code>running</code>, <code>retrying</code>, <code>failed</code>, <code>success</code>, <code>skipped</code>) vào Metadata DB. Khi một bước bị lỗi, bộ điều phối tự động: (1) dừng các bước hạ nguồn, (2) thử lại (Retry) theo chu kỳ lùi lũy thừa để vượt lỗi mạng tạm thời, (3) gửi cảnh báo Slack/Email nếu vẫn gãy, (4) lưu log tập trung, và (5) cho phép kỹ sư chạy bù (Rerun) ngay từ bước bị lỗi mà không phải trích xuất lại từ đầu.</li>
+            <li><strong>Tại sao chạy thành công quá nhiều tác vụ cùng lúc cũng có thể đánh sập hệ thống, và cơ chế Concurrency Pool (<code>Max 5 Slots</code>) giải quyết vấn đề này ra sao?</strong><br/>Nếu <code>100 tasks</code> từ nhiều đường ống đồng loạt mở kết nối truy vấn vào cùng một CSDL PostgreSQL, hệ thống nguồn sẽ bị cạn kiệt Connection Pool và quá tải CPU 100% khiến toàn bộ đường ống tê liệt. Cơ chế <strong>Resource Pool (Max 5 Slots)</strong> đóng vai trò van tiết lưu: chỉ cấp phép cho tối đa 5 tác vụ truy vấn DB tại một thời điểm, các tác vụ còn lại xếp hàng chờ cho tới khi có khe trống được trả lại — bảo vệ an toàn tuyệt đối cho các hệ thống dùng chung.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/D06/2" onclick="selectStorageStage(2);return false;">Sang Chặng 2: Vượt Qua Giới Hạn Cron Job — Tính Lũy Đẳng (Idempotency), Backfill &amp; Dynamic Pipelines →</a></p>
+        </section>
+      </div>

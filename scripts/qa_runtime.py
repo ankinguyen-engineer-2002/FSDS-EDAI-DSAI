@@ -16,10 +16,17 @@ ROOT = Path(__file__).resolve().parent.parent
 
 TOPIC_STAGES: list[tuple[str, int]] = (
     [("F01", s) for s in range(1, 5)]
+    + [("F02", s) for s in range(1, 5)]
     + [("F03", s) for s in range(1, 5)]
+    + [("F04", s) for s in range(1, 6)]
+    + [("F05", s) for s in range(1, 5)]
     + [("F06", s) for s in range(1, 5)]
     + [("D01", s) for s in range(1, 6)]
     + [("D02", s) for s in range(1, 8)]
+    + [("D03", s) for s in range(1, 7)]
+    + [("D04", s) for s in range(1, 7)]
+    + [("D05", s) for s in range(1, 6)]
+    + [("D06", s) for s in range(1, 6)]
 )
 
 VIEWPORTS = [
@@ -420,7 +427,7 @@ def main() -> None:
         Path(args.json_out).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
     if report["passed"]:
-        print("QA_RUNTIME PASS: 24/24 pages + #/catalog + #/glossary verified across 3 viewports (0 failures).")
+        print(f"QA_RUNTIME PASS: {len(TOPIC_STAGES)}/{len(TOPIC_STAGES)} pages + #/catalog + #/glossary verified across 3 viewports (0 failures).")
         sys.exit(0)
     else:
         print(f"QA_RUNTIME FAIL: {report['failureCount']} failure(s) detected:", file=sys.stderr)

@@ -1,0 +1,381 @@
+      <div class="prose">
+        <x-spine id="consumption-4-spine" badge="TRONG BÀI HỌC NÀY · D05" title="Chặng 4: Động Cơ OLAP Hiệu Năng Cao — Vectorized Execution, ClickHouse &amp; Apache Pinot" subtitle="Trạm 4.1 → 4.4">Giải phẫu cơ học bên trong các động cơ OLAP hiện đại khi tổng hợp giao dịch <strong>Order #8888</strong> (<code>txn_9f3a21c8</code>, <code>user_48291</code>, <code>amount = $1,250.00</code>) cùng hàng tỷ bản ghi lịch sử: từ lưu trữ cột (<code>Columnar Storage</code>) và thực thi vector hóa bằng tập lệnh <code>SIMD</code> (1 chu kỳ lệnh CPU xử lý 4–8 phép tính song song), kiến trúc 4 thành phần kèm chỉ mục thưa <code>MergeTree</code> (<code>8,192</code> dòng/granule) của <strong>ClickHouse</strong>, cho đến mô hình <code>Hybrid Table</code> hợp nhất luồng <code>Kafka</code> với <code>Offline Segments</code> qua ranh giới <code>Time Boundary</code> của <strong>Apache Pinot</strong>.</x-spine>
+
+        <p>Ở <strong>Chặng 3</strong>, việc tổ chức lại kho dữ liệu theo mô hình <strong>Star Schema</strong> và tách bạch ngữ nghĩa qua <strong>Semantic Layer</strong> cùng <strong>Materialized Views</strong> đã giúp định chuẩn công thức tính doanh thu của giao dịch <strong>Order #8888</strong> (<code>txn_9f3a21c8</code>, <code>user_48291</code>, <code>amount = $1,250.00</code>). Tuy nhiên, khi bảng sự kiện <code>fact_transactions</code> phình to lên tới <code>10 tỷ</code> dòng và ban giám đốc hoặc ứng dụng khách hàng ném ra hai câu hỏi phân tích đặc trưng: <em>"Total revenue by region last quarter?"</em> (Tổng doanh thu theo vùng trong quý trước là bao nhiêu?) và <em>"Which users made 5+ transactions in the last 7 days?"</em> (Những khách hàng nào đã thực hiện từ 5 giao dịch trở lên trong 7 ngày qua?), một cơ sở dữ liệu giao dịch theo dòng truyền thống (<code>PostgreSQL</code>, <code>MySQL</code>) sẽ bị tê liệt hoàn toàn vì phải đọc tuần tự hàng chục Terabyte dữ liệu từ đĩa cứng. Bước vào <strong>Chặng 4 (Trạm 4.1 → 4.4)</strong>, chúng ta mổ xẻ cơ chế vật lý giúp các động cơ <strong>OLAP (Online Analytical Processing)</strong> chuyên dụng như <strong>ClickHouse</strong> và <strong>Apache Pinot</strong> nghiền nát hàng tỷ bản ghi chỉ trong vài trăm mili-giây.</p>
+
+        <section class="lesson-section" id="consumption-4-1">
+          <h2 id="consumption-4-1-h2" tabindex="-1">Trạm 4.1: Cơ học Động cơ OLAP vs. OLTP — Lưu trữ Cột (Columnar), Thực thi Vector hóa (SIMD) &amp; Truy vấn Phân tán MPP</h2>
+
+          <p><strong>Động cơ OLAP (Online Analytical Processing Engine)</strong> là hệ quản trị cơ sở dữ liệu được thiết kế chuyên biệt để thực thi các truy vấn tổng hợp đa chiều (<code>SUM</code>, <code>COUNT</code>, <code>AVG</code>, <code>GROUP BY</code>) quét qua hàng triệu đến hàng tỷ dòng lịch sử với tốc độ vượt trội gấp <code>100x–1,000x</code> so với cơ sở dữ liệu giao dịch <strong>OLTP (Online Transaction Processing)</strong> (<em>Slide 42–44</em>; <em>Up and Running with ClickHouse</em>, Ch. 1; <em>DuckDB in Action</em>, Ch. 1). Nếu OLTP giống như một nhân viên thu ngân siêu thị dùng máy quét mã vạch tra cứu và ghi nhận chính xác từng giỏ hàng đơn lẻ của <code>Order #8888</code> trong <code>1–5ms</code>, thì OLAP là một dây chuyền kiểm toán công nghiệp gom toàn bộ biên lai của cả quý lại, tách riêng cột số tiền <code>amount</code> và cột vùng <code>region</code> để cộng dồn hàng triệu con số trong một nhịp đập phần cứng.</p>
+
+          <p>Sự chênh lệch tốc độ hàng trăm lần khi trả lời câu hỏi <em>"Total revenue by region last quarter?"</em> hay <em>"Which users made 5+ transactions in the last 7 days?"</em> không đến từ phép màu phần mềm, mà bắt nguồn từ <strong>3 trụ cột cơ học phần cứng</strong> bên trong các động cơ OLAP hiện đại (<code>ClickHouse</code>, <code>Apache Pinot</code>, <code>Apache Druid</code>, <code>Apache Doris</code>, <code>DuckDB</code>):</p>
+
+          <ol>
+            <li><strong>Lưu trữ theo Cột (Columnar Storage &amp; Type-Specific Compression):</strong> Trong cơ sở dữ liệu OLTP lưu theo dòng (<code>Row-oriented</code>), mọi trường của giao dịch <code>Order #8888</code> (từ <code>txn_id</code>, <code>user_id</code>, <code>shipping_address</code>, <code>device_user_agent</code> cho tới <code>region</code> và <code>amount</code>, tổng cộng <code>50 cột</code> rộng <code>1KB/dòng</code>) được xếp liền kề nhau trên cùng một trang đĩa <code>8KB</code>. Để cộng cột <code>amount</code> (<code>8 bytes</code>) theo <code>region</code> (<code>4 bytes</code>), ổ đĩa NVMe vẫn buộc phải đọc toàn bộ <code>100%</code> dung lượng bảng vào RAM rồi vứt bỏ <code>98%</code> số byte vô ích. Ngược lại, động cơ OLAP tách mỗi cột thành một tệp vật lý độc lập (<code>region.bin</code>, <code>amount.bin</code>): truy vấn chỉ đọc đúng 2 tệp cột xuất hiện trong mệnh đề <code>SELECT / WHERE</code>, <strong>loại bỏ ngay lập tức <code>90%–98%</code> lưu lượng I/O đĩa</strong>. Hơn nữa, vì các giá trị trong cùng một cột có cùng kiểu dữ liệu và độ lặp lại cao (ví dụ cột <code>region</code> chỉ xoay quanh vài mã <code>"VN-HN"</code>, <code>"VN-SGN"</code>), việc áp dụng các thuật toán mã hóa chuyên biệt như <strong><code>Dictionary Encoding</code></strong>, <strong><code>Run-Length Encoding (RLE)</code></strong>, <strong><code>Delta Encoding</code></strong> kết hợp nén khối <strong><code>LZ4 / ZSTD</code></strong> giúp giảm dung lượng lưu trữ từ <strong><code>5x–15x</code></strong>.</li>
+            <li><strong>Thực thi Vector hóa bằng Tập lệnh SIMD (Vectorized Execution via CPU SIMD Instructions):</strong> Ngay cả khi dữ liệu đã nằm trong RAM, các hệ quản trị truyền thống xử lý theo mô hình <em>Volcano Tuple-at-a-Time</em> — gọi hàm ảo <code>next()</code> lặp qua từng dòng một. Giả sử cần cộng hai mảng 4 con số <code>(1, 2, 3, 4)</code> và <code>(5, 6, 7, 8)</code> (<em>Slide 43</em>): cách xử lý truyền thống (<strong>Traditional: one at a time</strong>) phải phát ra <strong><code>4</code> lệnh CPU riêng lẻ</strong> nối tiếp nhau (<code>1 + 5 = 6</code>, rồi <code>2 + 6 = 8</code>, rồi <code>3 + 7 = 10</code>, rồi <code>4 + 8 = 12</code>), làm tắc nghẽn đường ống lệnh CPU bởi hàng tỷ lần kiểm tra điều kiện vòng lặp và lỗi dự đoán rẽ nhánh (<code>Branch Misprediction</code>). Ngược lại, động cơ OLAP tận dụng kiến trúc <strong><code>SIMD</code> (Single Instruction, Multiple Data)</strong> của vi xử lý hiện đại (tập lệnh <code>AVX2 256-bit</code>, <code>AVX-512 512-bit</code> trên x86 hoặc <code>NEON</code> trên ARM): hệ thống nạp liền một mạch cả lô giá trị cột (Vector Batch <code>1,024–8,192</code> phần tử liên tiếp trên đường cache CPU <code>L1/L2</code>) vào thanh ghi vector rộng và thực thi phép cộng <strong><code>(1, 2, 3, 4) + (5, 6, 7, 8) = (6, 8, 10, 12)</code> chỉ trong đúng <code>1</code> chu kỳ lệnh CPU duy nhất (1 instruction)</strong>!</li>
+            <li><strong>Thực thi Truy vấn Phân tán (Distributed Query Execution — MPP Scatter-Gather):</strong> Khi dữ liệu vượt quá sức chứa của một máy chủ vật lý, động cơ OLAP phân mảnh (<code>Sharding</code>) bảng sự kiện ra hàng chục nút tính toán. Nút điều phối (<code>Coordinator / Broker</code>) băm nhỏ cây kế hoạch truy vấn, phát tán (<code>Scatter</code>) xuống tất cả các Shard để mỗi nút dùng <code>SIMD</code> quét và cộng cục bộ (<code>Local Pre-aggregation</code>) trên phân vùng dữ liệu của riêng nó, sau đó chỉ gửi bảng kết quả trung gian nhỏ gọn về nút điều phối để hợp nhất lần cuối (<code>Gather &amp; Merge</code>).</li>
+          </ol>
+
+          <x-figure id="consumption-4-1-fig" key="4.1" title="Sơ đồ 4.1 — Cơ học Lưu trữ Cột (Columnar), Thực thi Vector hóa SIMD (1 Instruction = 4 Phép tính) &amp; Phân tán Truy vấn OLAP">Giải phẫu ba trụ cột giúp động cơ OLAP tăng tốc 100x: cắt giảm I/O nhờ đọc chọn lọc theo cột, cộng đồng thời mảng 4 phần tử (1, 2, 3, 4) + (5, 6, 7, 8) = (6, 8, 10, 12) trong 1 lệnh CPU SIMD duy nhất, và thực thi song song Scatter-Gather.</x-figure>
+
+          <h3>Bảng đối chiếu toàn diện 9 tiêu chí: OLTP vs. OLAP (Slide 44)</h3>
+          <p>Để tránh sai lầm kinh điển khi ép một cơ sở dữ liệu giao dịch gánh báo cáo phân tích hoặc ngược lại, bảng dưới đây định lượng ranh giới kiến trúc giữa hai thế giới <strong>OLTP</strong> và <strong>OLAP</strong> theo đúng 9 trục tiêu chuẩn của <em>Slide 44</em>:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Đối chiếu (Slide 44)</th>
+                  <th>Hệ thống Giao dịch <code>OLTP</code></th>
+                  <th>Hệ thống Phân tích <code>OLAP</code></th>
+                  <th>Hệ quả Cơ học đối với Giao dịch <code>Order #8888</code></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Tên đầy đủ (<code>Full name</code>)</strong></td>
+                  <td><code>Online Transaction Processing</code></td>
+                  <td><code>Online Analytical Processing</code></td>
+                  <td>OLTP bảo vệ tính toàn vẹn ACID khi ghi đơn; OLAP tối ưu thông lượng quét khi tổng hợp doanh thu.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Mục đích cốt lõi (<code>Purpose</code>)</strong></td>
+                  <td>Vận hành nghiệp vụ hàng ngày của ứng dụng (<code>Run the business</code> — đặt hàng, thanh toán, trừ kho).</td>
+                  <td>Phân tích, đo lường và tối ưu hiệu quả kinh doanh (<code>Analyze the business</code> — xu hướng, hành vi, báo cáo).</td>
+                  <td>Tách biệt hai cụm độc lập để truy vấn báo cáo quý không bao giờ làm treo luồng thanh toán của khách.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Đối tượng sử dụng (<code>Who uses it</code>)</strong></td>
+                  <td>Ứng dụng phần mềm, dịch vụ Microservices, khách hàng cuối (<code>Apps, customers</code>).</td>
+                  <td>Chuyên viên phân tích, bảng điều khiển BI, hệ thống báo cáo tự động (<code>Analysts, dashboards</code>).</td>
+                  <td>OLTP chịu hàng chục nghìn kết nối ghi nhỏ lẻ; OLAP phục vụ các truy vấn tổng hợp nặng hoặc dashboard.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Thao tác điển hình (<code>Typical operations</code>)</strong></td>
+                  <td><code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code> từng bản ghi đơn lẻ qua khóa chính (Point Lookups &amp; Mutations).</td>
+                  <td><code>SELECT</code> quy mô lớn kèm <code>GROUP BY</code>, <code>SUM</code>, <code>COUNT</code>, <code>AVG</code>, <code>JOIN</code> và hàm cửa sổ (Window Functions).</td>
+                  <td>OLTP cần khóa dòng (Row Locking / MVCC); OLAP ưu tiên ghi nối đuôi theo lô lớn (Append-only Batch).</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Lượng dữ liệu mỗi truy vấn (<code>Data volume per query</code>)</strong></td>
+                  <td>Chỉ một hoặc một vài dòng (<code>A few rows</code> — ví dụ tra cứu đúng 1 dòng <code>txn_9f3a21c8</code>).</td>
+                  <td>Quét từ hàng triệu đến hàng tỷ dòng (<code>Millions to billions of rows</code>) trong một lần chạy.</td>
+                  <td>Chỉ mục <code>B+Tree</code> của OLTP tối ưu khi chọn <code>&lt; 1%</code> dòng, nhưng trở thành thảm họa Random I/O khi đọc <code>50%</code> bảng.</td>
+                </tr>
+                <tr>
+                  <td><strong>6. Độ tươi dữ liệu (<code>How fresh is the data</code>)</strong></td>
+                  <td>Thời gian thực tuyệt đối (<code>Real-time</code> — vừa bấm thanh toán là phải thấy ngay).</td>
+                  <td>Từ gần thời gian thực đến cập nhật theo lô định kỳ (<code>Near real-time to batch</code> — độ trễ từ vài giây đến vài giờ).</td>
+                  <td>Dữ liệu từ OLTP được đẩy qua đường ống CDC / Kafka hoặc ETL sang OLAP để phục vụ phân tích.</td>
+                </tr>
+                <tr>
+                  <td><strong>7. Cấu trúc lưu trữ (<code>Data structure</code>)</strong></td>
+                  <td>Lưu trữ theo dòng, chuẩn hóa cao <code>3NF</code> (<code>Row-based, normalized</code>) để chống dư thừa khi cập nhật.</td>
+                  <td>Lưu trữ theo cột, phi chuẩn hóa hoặc Star Schema (<code>Column-based, denormalized</code>) để giảm phép kết.</td>
+                  <td>Lưu trữ cột kết hợp nén <code>Dictionary / RLE / ZSTD</code> giúp OLAP đọc ít byte hơn gấp chục lần.</td>
+                </tr>
+                <tr>
+                  <td><strong>8. Thời gian phản hồi (<code>Response time</code>)</strong></td>
+                  <td>Độ trễ cực thấp tính bằng mili-giây (<code>Milliseconds</code>, thường <code>1–10 ms</code>).</td>
+                  <td>Từ mili-giây đến vài giây hoặc vài phút (<code>Milliseconds to minutes</code>) tùy khối lượng quét.</td>
+                  <td>OLAP dùng thực thi vector hóa <code>SIMD</code> và phân tán <code>MPP</code> để kéo thời gian quét tỷ dòng xuống dưới <code>1 giây</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>9. Hệ quản trị tiêu biểu (<code>Examples</code>)</strong></td>
+                  <td><code>PostgreSQL</code>, <code>MySQL</code>, <code>Oracle</code>, <code>SQL Server</code>.</td>
+                  <td><code>ClickHouse</code>, <code>Apache Pinot</code>, <code>Apache Druid</code>, <code>Apache Doris</code>, <code>DuckDB</code>, <code>Snowflake</code>, <code>BigQuery</code>.</td>
+                  <td>Mỗi động cơ OLAP lại chuyên môn hóa sâu hơn cho bài toán phân tích nội bộ hoặc hướng người dùng cuối.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="callout">
+            <div class="callout-title">Đúc kết Cơ học Trạm 4.1 &amp; Cầu nối sang Trạm 4.2</div>
+            <p>Sự kết hợp giữa <strong>lưu trữ cột (Columnar Storage)</strong> và <strong>thực thi vector hóa (SIMD Vectorized Execution)</strong> giúp động cơ OLAP biến một truy vấn quét hàng tỷ dòng thành bài toán đọc tuần tự băng thông cao và xử lý theo lô ngay trong bộ nhớ đệm CPU <code>L1/L2</code>. Tuy nhiên, nếu dữ liệu cột đã bị nén chặt thành các khối bất biến để tối ưu cho lệnh <code>SIMD</code>, thì làm thế nào một hệ quản trị OLAP đầu bảng như <strong>ClickHouse</strong> tổ chức tệp trên đĩa, tìm kiếm nhanh mà không cần chỉ mục <code>B+Tree</code> cồng kềnh, và tại sao nó lại cực kỳ dị ứng với các lệnh <code>UPDATE / DELETE</code> từng dòng? Chúng ta sẽ giải phẫu kiến trúc nội tại của ClickHouse tại <strong>Trạm 4.2</strong>.</p>
+          </div>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="consumption-4-2">
+          <h2 id="consumption-4-2-h2" tabindex="-1">Trạm 4.2: Giải phẫu Kiến trúc ClickHouse: 4 Thành phần Cốt lõi, Chỉ mục Thưa MergeTree (8,192 Granule) &amp; ZooKeeper/Keeper</h2>
+
+          <p><strong>ClickHouse</strong> là hệ quản trị cơ sở dữ liệu OLAP hướng cột mã nguồn mở được thiết kế để đạt tốc độ quét và tổng hợp dữ liệu cực đại (hàng tỷ dòng mỗi giây trên mỗi máy chủ) cho các bảng điều khiển BI, phân tích nhật ký sự kiện (<code>Log / Event Analytics</code>) và báo cáo thời gian thực (<em>Slide 45–50</em>; <em>Up and Running with ClickHouse</em>, Ch. 2 &amp; Ch. 4). Nguyên lý thiết kế cốt lõi giúp ClickHouse đạt được tốc độ này là một sự đánh đổi dứt khoát: dữ liệu chỉ được nạp thêm vào theo từng lô lớn (<code>Batch Append-only</code>) và sắp xếp vật lý cứng trên đĩa theo khóa <code>ORDER BY</code>; đổi lại, ClickHouse <strong>KHÔNG được thiết kế cho việc cập nhật hoặc xóa từng dòng thường xuyên (NOT designed for frequent point updates/deletes)</strong>.</p>
+
+          <p>Để hiểu tại sao ClickHouse có thể tính tổng doanh thu của <code>Order #8888</code> cùng <code>10 tỷ</code> giao dịch trong chớp mắt nhưng lại coi thao tác sửa lẻ một dòng là một "đột biến" (<code>Mutation</code>) đắt đỏ, chúng ta cần giải phẫu <strong>4 thành phần kiến trúc cốt lõi của ClickHouse</strong> (<em>Slide 46–50</em>):</p>
+
+          <ol>
+            <li><strong>ClickHouse Nodes (Các nút máy chủ thực thi truy vấn &amp; Bộ nhớ đệm):</strong> Đây là các máy chủ cơ sở dữ liệu trung tâm tiếp nhận truy vấn SQL từ người dùng và thực thi tính toán thông qua <strong>động cơ truy vấn song song, vector hóa (<code>Vectorized, parallel query engine</code>)</strong> tận dụng tối đa mọi nhân CPU và tập lệnh <code>SIMD</code> (<em>Slide 47</em>). Bên trong mỗi Node được tích hợp tầng <strong>bộ nhớ đệm thông minh (<code>Caching</code>)</strong> gồm <code>Mark Cache</code> (lưu vị trí con trỏ nhảy trên đĩa), <code>Uncompressed Page Cache</code> (lưu các khối dữ liệu đã giải nén cho các truy vấn nóng lặp lại) và <code>OS Page Cache</code> để triệt tiêu độ trễ đọc đĩa cho các báo cáo được mở liên tục.</li>
+            <li><strong>Columnar Storage trên Block Storage &amp; Họ động cơ bảng <code>MergeTree</code> (<code>8,192</code> Granule):</strong> Dữ liệu của mỗi bảng được lưu theo từng cột riêng biệt trên ổ đĩa khối tốc độ cao (<code>Local NVMe SSD / EBS Block Storage</code>) để chỉ đọc đúng các cột cần thiết và đạt tỷ lệ nén tối đa (<em>Slide 48</em>). Trái tim lưu trữ của ClickHouse là động cơ <strong><code>MergeTree</code></strong>:
+              <ul>
+                <li><em>Bất biến theo Data Part &amp; Gộp nền (Background Merge):</em> Mỗi lần nạp một lô dữ liệu (khuyến nghị từ <code>10,000–100,000</code> dòng/lần <code>INSERT</code>), ClickHouse tạo ra một thư mục <strong><code>Data Part</code> hoàn toàn bất biến (Immutable)</strong> trên đĩa, trong đó các dòng đã được sắp xếp vật lý theo khóa <code>ORDER BY (region, event_date, user_id)</code>. Các luồng nền của ClickHouse sẽ liên tục gộp (<code>Merge</code>) nhiều thư mục <code>Part</code> nhỏ thành một thư mục <code>Part</code> lớn hơn đã được sắp xếp lại (tương tự cấu trúc <code>LSM-Tree</code>).</li>
+                <li><em>Đơn vị đọc nhỏ nhất <code>Granule (8,192 dòng)</code> &amp; Chỉ mục thưa <code>primary.idx</code>:</em> Khác với <code>PostgreSQL</code> đánh chỉ mục <code>B+Tree</code> trỏ tới từng dòng riêng lẻ (khiến cây chỉ mục của <code>10 tỷ</code> dòng chiếm hàng trăm Gigabyte RAM), ClickHouse chia dữ liệu đã sắp xếp trong mỗi <code>Data Part</code> thành các khối logic gọi là <strong><code>Granule</code></strong> với kích thước mặc định <strong><code>index_granularity = 8192</code> dòng/granule</strong>. Tệp chỉ mục chính <strong><code>primary.idx</code> (Sparse Primary Index)</strong> chỉ lưu giá trị khóa của <strong>dòng đầu tiên trong mỗi <code>8,192</code> dòng</strong> (gọi là một <code>Mark</code>). Nhờ vậy, chỉ mục của <code>10 tỷ</code> dòng chỉ gồm khoảng <code>1.22 triệu</code> mục (nhỏ hơn <code>8,192</code> lần), nằm gọn hoàn toàn trong vài Megabyte RAM cố định! Khi truy vấn lọc theo <code>region = 'VN-SGN'</code>, ClickHouse tìm kiếm nhị phân trên <code>primary.idx</code> để chọn ra các <code>Granule</code> có khả năng chứa dữ liệu, nhảy qua tệp con trỏ <code>.mrk2</code> tới đúng khối nén trong tệp <code>.bin</code>, rồi nạp thẳng các khối <code>8,192</code> dòng đó vào thanh ghi <code>SIMD</code>.</li>
+              </ul>
+            </li>
+            <li><strong>S3-Compatible Object Storage (Lưu trữ Đối tượng Tách rời Tính toán):</strong> Bên cạnh ổ đĩa cục bộ, ClickHouse kết nối trực tiếp với tầng lưu trữ đối tượng bên ngoài tương thích chuẩn S3 (<code>Amazon S3</code>, <code>Google Cloud Storage</code>, <code>MinIO</code>) để lưu trữ khối lượng dữ liệu lịch sử khổng lồ với chi phí thấp hoặc truy vấn trực tiếp các tệp <code>Parquet / Iceberg / Delta Lake</code> trên Data Lake (<em>Slide 49</em>). Kiến trúc phân tầng (Tiered Storage &amp; Zero-Copy Replication) cho phép giữ dữ liệu nóng 7 ngày gần nhất trên ổ <code>NVMe</code> của Node và tự động đẩy các <code>Data Part</code> lạnh sang <code>S3</code> mà vẫn truy vấn liền mạch trong cùng một bảng.</li>
+            <li><strong>ZooKeeper / ClickHouse Keeper (Dịch vụ Điều phối Phân tán):</strong> Để đảm bảo tính sẵn sàng cao (High Availability) khi một máy chủ ClickHouse bị hỏng ổ đĩa, các bảng sử dụng động cơ nhân bản <code>ReplicatedMergeTree</code> cần một bộ điều phối phân tán là <strong>Apache ZooKeeper</strong> hoặc <strong>ClickHouse Keeper</strong> (viết bằng C++ dùng thuật toán đồng thuận <code>Raft</code>) (<em>Slide 50</em>). Điểm cốt tử cần nhớ: <strong>Keeper chỉ lưu trữ <code>Metadata</code> và nhật ký thao tác (Replication Log), tuyệt đối KHÔNG lưu trữ dữ liệu bảng thực tế</strong>. Nó theo dõi danh sách các <code>Data Parts</code> (kèm mã băm <code>checksum</code>) đang có trên từng Node, điều phối việc các Node tự tải các <code>Part</code> còn thiếu từ nhau qua mạng nội bộ, và đảm bảo mọi bản sao (Replicas) hội tụ về trạng thái dữ liệu nhất quán.</li>
+          </ol>
+
+          <x-figure id="consumption-4-2-fig" key="4.2" title="Sơ đồ 4.2 — Giải phẫu 4 Thành phần Kiến trúc ClickHouse (Nodes, Columnar MergeTree 8,192 Granule, S3 Object Storage &amp; ZooKeeper/Keeper)">Mô hình phối hợp giữa ClickHouse Nodes (Vectorized Engine + Cache), cấu trúc tệp cột MergeTree với chỉ mục thưa 8,192 dòng/granule trên Block Storage, tầng S3 Object Storage và bộ điều phối metadata ClickHouse Keeper.</x-figure>
+
+          <h3>Bảng tổng hợp 4 thành phần kiến trúc ClickHouse &amp; Cơ chế xử lý Cập nhật/Khử trùng</h3>
+          <p>Bảng dưới đây hệ thống hóa vai trò vật lý của 4 thành phần trong <em>Slide 46–50</em> cùng cơ chế vận hành thực tế trên môi trường Production:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Thành phần Kiến trúc (Slide 46–50)</th>
+                  <th>Vai trò Cơ học Cốt lõi</th>
+                  <th>Cấu trúc Nội bộ &amp; Định lượng Kỹ thuật</th>
+                  <th>Cạm bẫy Vận hành &amp; Quy tắc Thực chiến</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. ClickHouse Nodes</strong><br><em>(Compute &amp; Caching Layer)</em></td>
+                  <td>Thực thi truy vấn SQL bằng động cơ vector hóa song song và quản lý bộ nhớ đệm truy vấn.</td>
+                  <td>Sử dụng <code>SIMD (AVX2 / AVX-512)</code> quét đa luồng trên toàn bộ vCPU; tích hợp <code>Mark Cache</code> và <code>Uncompressed Cache</code> trong RAM.</td>
+                  <td>Nếu bắn hàng nghìn lệnh <code>INSERT</code> nhỏ lẻ từng dòng/giây sẽ gây lỗi <code>Too many parts (300)</code> làm quá tải CPU gộp nền; bắt buộc phải gom lô trước khi ghi.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Columnar Storage</strong><br><em>(Block Storage &amp; MergeTree)</em></td>
+                  <td>Lưu trữ dữ liệu theo cột đã sắp xếp vật lý theo <code>ORDER BY</code> để đọc chọn lọc và nén cực đại.</td>
+                  <td>Chia mỗi <code>Data Part</code> thành các <strong><code>Granule = 8,192 dòng</code></strong>; tệp chỉ mục thưa <code>primary.idx</code> chỉ lưu 1 mốc cho mỗi <code>8,192</code> dòng kèm tệp <code>.mrk2</code> và <code>.bin</code>.</td>
+                  <td>Vì <code>Data Part</code> là bất biến, lệnh <code>ALTER TABLE UPDATE / DELETE</code> (Mutation) phải <strong>đọc và viết lại toàn bộ tệp <code>Part</code> hàng chục GB</strong> trên đĩa — cấm dùng cho giao dịch OLTP!</td>
+                </tr>
+                <tr>
+                  <td><strong>3. S3-Compatible Object Storage</strong><br><em>(External Lake &amp; Cold Tier)</em></td>
+                  <td>Lưu trữ dữ liệu lịch sử dung lượng lớn giá rẻ và tích hợp trực tiếp với Data Lake bên ngoài.</td>
+                  <td>Hỗ trợ chính sách lưu trữ đa tầng (<code>Hot NVMe → Cold S3</code>) qua cấu hình <code>Storage Policy</code> hoặc đọc thẳng bảng <code>Iceberg / Parquet</code> qua hàm <code>s3Cluster()</code>.</td>
+                  <td>Độ trễ truy cập mạng tới <code>S3</code> cao hơn ổ NVMe cục bộ (<code>10–50ms</code> first-byte); cần bật <code>Filesystem Cache</code> trên đĩa NVMe của Node để đệm các khối S3 hay đọc.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. ZooKeeper / ClickHouse Keeper</strong><br><em>(Distributed Coordination)</em></td>
+                  <td>Điều phối nhân bản dữ liệu và đồng bộ trạng thái giữa các Node trong cụm phân tán.</td>
+                  <td>Chỉ lưu <strong><code>Metadata</code></strong> (danh sách <code>Part</code>, <code>checksum</code>, hàng đợi lệnh <code>Replication Queue</code>, trạng thái <code>Mutation</code>) bằng giao thức đồng thuận <code>Raft</code>.</td>
+                  <td>Ưu tiên dùng <strong><code>ClickHouse Keeper</code></strong> (C++) thay cho <code>ZooKeeper</code> (Java) để tránh hiện tượng treo hệ thống do <code>JVM Garbage Collection Pause</code> và giảm <code>4x</code> lượng RAM tiêu thụ.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <pre><code>-- Khởi tạo bảng sự kiện giao dịch trên ClickHouse (Chuẩn Production ReplicatedMergeTree)
+CREATE TABLE analytics.fact_transactions on CLUSTER 'prod_cluster'
+(
+    txn_id        String,
+    user_id       String,
+    region        LowCardinality(String),   -- Tự động Dictionary Encoding cho cột ít giá trị riêng biệt
+    amount        Decimal64(2) CODEC(ZSTD(3)),
+    status        Enum8('CREATED' = 1, 'PAID' = 2, 'REFUNDED' = 3),
+    event_time    DateTime64(3, 'UTC'),
+    event_date    Date MATERIALIZED toDate(event_time)
+)
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/fact_transactions', '{replica}')
+PARTITION BY toYYYYMM(event_date)           -- Cắt phân vùng vật lý theo tháng để xóa/quản lý vòng đời nhanh
+ORDER BY (region, event_date, user_id)      -- Khóa sắp xếp vật lý quyết định trực tiếp Sparse Index (8,192 dòng/granule)
+SETTINGS index_granularity = 8192;
+
+-- Truy vấn 1 (Slide 43): Tổng doanh thu theo vùng trong quý trước (Chỉ đọc đúng 3 cột: region, event_date, amount)
+SELECT
+    region,
+    sum(amount) AS total_revenue,
+    count()     AS total_orders
+FROM analytics.fact_transactions
+WHERE event_date &gt;= toStartOfQuarter( subtractQuarters(today(), 1) )
+  AND event_date &lt;  toStartOfQuarter( today() )
+  AND status = 'PAID'
+GROUP BY region
+ORDER BY total_revenue DESC;</code></pre>
+
+          <div class="callout warn">
+            <div class="callout-title">Làm sao xử lý khi đơn hàng Order #8888 đổi trạng thái nếu ClickHouse cấm UPDATE thường xuyên?</div>
+            <p>Vì các tệp cột trong <code>MergeTree</code> đã được nén chặt và đóng băng theo từng khối <code>8,192</code> dòng, khi đơn hàng <code>Order #8888</code> chuyển từ <code>CREATED</code> sang <code>PAID</code>, bạn tuyệt đối không chạy lệnh <code>UPDATE</code>. Thay vào đó, kỹ sư dữ liệu sử dụng động cơ <strong><code>ReplacingMergeTree(event_time)</code></strong> (ghi nối đuôi bản ghi mới có nhãn thời gian mới hơn để luồng gộp nền tự động giữ lại dòng mới nhất khi <code>Merge</code>) hoặc <strong><code>CollapsingMergeTree(sign)</code></strong> (ghi một dòng <code>sign = -1</code> để triệt tiêu trạng thái cũ và một dòng <code>sign = +1</code> cho trạng thái mới, giúp phép tính <code>SUM(amount * sign)</code> luôn chính xác ngay lập tức mà không cần sửa tệp cũ). Tuy nhiên, nếu bài toán không chỉ phục vụ vài chục chuyên viên BI nội bộ mà phải trả lời truy vấn trực tiếp cho <strong><code>10 triệu</code> khách hàng đang mở ứng dụng di động cùng lúc</strong> với độ trễ bắt buộc dưới <code>10ms</code>, liệu kiến trúc quét khối của ClickHouse có còn phù hợp? Đó là lúc chúng ta bước sang <strong>Apache Pinot</strong> tại <strong>Trạm 4.3</strong>.</p>
+          </div>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="consumption-4-3">
+          <h2 id="consumption-4-3-h2" tabindex="-1">Trạm 4.3: Giải phẫu Apache Pinot: Lược đồ Dimensions/Metrics/Time &amp; Ba Loại Bảng (Real-time, Offline, Hybrid Tables)</h2>
+
+          <p><strong>Apache Pinot</strong> là kho dữ liệu OLAP phân tán thời gian thực (<code>Real-time Distributed OLAP Datastore</code>, khởi nguồn từ LinkedIn) được thiết kế chuyên biệt để cung cấp <strong>phân tích độ trễ cực thấp ở thông lượng truy vấn đồng thời cực cao (<code>Ultra low-latency analytics at high throughput</code>)</strong> — nơi hàng chục nghìn truy vấn mỗi giây (<code>10,000–100,000+ QPS</code>) từ người dùng cuối được trả lời chỉ trong vài mili-giây (<em>Slide 51–52</em>). Nếu ClickHouse giống như một cỗ máy nghiền dữ liệu đa năng cho phép đội ngũ Data Analyst viết các câu SQL phức tạp quét qua hàng tỷ dòng trong <code>0.5–2 giây</code>, thì Apache Pinot được chế tạo cho các <strong>ứng dụng phân tích hướng người dùng (User-Facing Analytics)</strong>: khi nhà bán hàng của <code>Order #8888</code> mở bảng điều khiển <em>Uber Eats Restaurant Manager</em>, <em>Stripe Merchant Dashboard</em> hay tính năng <em>"Who Viewed My Profile"</em> trên LinkedIn, hệ thống phải vừa nuốt sự kiện thanh toán <code>txn_9f3a21c8</code> từ Kafka trong vòng <code>1 giây</code>, vừa trả kết quả biểu đồ doanh thu trong <code>5–20ms</code> cho hàng triệu người đang xem đồng thời.</p>
+
+          <p>Để đạt được độ trễ mili-giây ổn định ở quy mô triệu người dùng, mỗi bảng trong Apache Pinot bắt buộc tuân thủ một <strong>lược đồ cố định (<code>Fixed Schema</code>)</strong> phân tách toàn bộ các cột thành <strong>3 nhóm ngữ nghĩa rõ rệt</strong> (<em>Slide 51</em>):</p>
+
+          <ul>
+            <li><strong>1. <code>Dimensions</code> (Các cột Chiều phân tích — Dùng cho <code>WHERE</code> &amp; <code>GROUP BY</code>):</strong> Lưu các thuộc tính định danh hoặc phân loại của sự kiện như <code>user_id = "user_48291"</code>, <code>region = "VN-SGN"</code>, <code>merchant_id</code>, <code>payment_method</code>. Pinot cho phép gắn đa dạng các loại chỉ mục chuyên biệt lên từng cột Dimension (<code>Inverted Index</code>, <code>Sorted Index</code>, <code>Range Index</code>, <code>Bloom Filter</code>) để nhảy thẳng tới các dòng thỏa điều kiện lọc mà không cần quét tuần tự.</li>
+            <li><strong>2. <code>Metrics</code> (Các cột Số liệu đo lường — Dùng cho <code>SUM</code>, <code>COUNT</code>, <code>AVG</code>, <code>MIN/MAX</code>):</strong> Lưu các giá trị định lượng dùng để cộng dồn như <code>amount = 1250.00</code>, <code>discount_amount</code>, <code>delivery_fee</code>. Tách riêng <code>Metrics</code> khỏi <code>Dimensions</code> giúp Pinot tự động xây dựng cấu trúc <strong><code>Star-Tree Index</code></strong> — tính toán và lưu sẵn kết quả tổng hợp trước (<code>Pre-aggregation</code>) tại các nút cây đa chiều ngay khi đóng gói phân đoạn.</li>
+            <li><strong>3. <code>Time Column</code> (Cột Nhãn thời gian — <code>Timestamp Dimension</code>):</strong> Lưu thời điểm xảy ra sự kiện như <code>event_time_ms = 1760776964000</code> (<code>DateTimeFieldSpec</code>). Đây không chỉ là cột lọc theo khung thời gian (<em>"trong 7 ngày qua"</em> hay <em>"trong quý trước"</em>), mà còn đóng vai trò là <strong>trục bản lề để Pinot quản lý vòng đời phân đoạn và hợp nhất liền mạch dữ liệu luồng thời gian thực với dữ liệu lô lịch sử</strong>.</li>
+          </ul>
+
+          <x-figure id="consumption-4-3-fig" key="4.3" title="Sơ đồ 4.3 — Kiến trúc Apache Pinot Hybrid Table: Hợp nhất Luồng Real-time (Kafka) và Offline Segments (S3) qua Ranh giới Time Boundary">Giải phẫu lược đồ 3 thành phần (Dimensions, Metrics, Time Column) và cơ chế Pinot Broker tự động tách truy vấn tại mốc Time Boundary để kết hợp dữ liệu tươi từ Kafka với dữ liệu lịch sử đã làm sạch từ S3/Data Lake.</x-figure>
+
+          <h3>Giải phẫu Ba Loại Bảng Logic trong Apache Pinot: Real-time, Offline &amp; Hybrid Tables (Slide 52)</h3>
+          <p>Điểm sáng kiến trúc đắt giá nhất của Apache Pinot (<em>Slide 52</em>) là khả năng xóa bỏ sự phức tạp của kiến trúc Lambda truyền thống (nơi ứng dụng phía trên phải tự gọi 2 cơ sở dữ liệu khác nhau rồi tự cộng gộp kết quả). Trong Pinot, kỹ sư có thể cấu hình <strong>3 loại bảng logic (Three Logical Table Types)</strong>, trong đó <strong><code>Hybrid Table</code></strong> tự động kết hợp cả luồng thời gian thực và kho lịch sử dưới một tên bảng SQL duy nhất:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Loại Bảng Logic (Slide 52)</th>
+                  <th>Nguồn Cấp Dữ liệu (Data Source)</th>
+                  <th>Cơ chế Nạp &amp; Lưu trữ Phân đoạn (Segments)</th>
+                  <th>Ưu điểm &amp; Vai trò trong Kiến trúc Thực tế</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. <code>Real-time Tables</code></strong><br><em>(Bảng Thời gian thực)</em></td>
+                  <td>Các hệ thống Message Streaming: <code>Apache Kafka</code>, <code>Amazon Kinesis</code>, <code>Google Pub/Sub</code>.</td>
+                  <td>Các nút <code>Pinot Realtime Server</code> nhúng trực tiếp Kafka Consumer để hút sự kiện <code>Order #8888</code> ngay khi phát sinh vào vùng nhớ <code>Mutable Consuming Segment</code> (đọc được ngay sau <code>&lt; 1 giây</code>). Khi đầy ngưỡng dòng hoặc thời gian, phân đoạn được đóng băng thành <code>Immutable Segment</code> và nén chỉ mục xuống đĩa.</td>
+                  <td>Đảm bảo độ tươi dữ liệu tính bằng mili-giây/giây. Tuy nhiên, giữ dữ liệu nhiều tháng trên cụm Real-time rất tốn RAM/CPU và chưa qua bước đối soát/khử trùng cuối ngày của đường ống Batch.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. <code>Offline Tables</code></strong><br><em>(Bảng Lịch sử theo Lô)</em></td>
+                  <td>Kho dữ liệu lịch sử &amp; Data Lake: <code>Amazon S3</code>, <code>GCS</code>, <code>HDFS</code>, <code>Snowflake / Spark</code>.</td>
+                  <td>Các job xử lý lô (<code>Spark / Flink / Hadoop</code>) đọc dữ liệu lịch sử trên S3, làm sạch, sắp xếp, xây dựng sẵn chỉ mục <code>Star-Tree / Inverted Index</code> thành các tệp <code>Pre-built Offline Segments</code> nén chặt, rồi đẩy lên cụm Pinot qua <code>Pinot Controller APIs</code>.</td>
+                  <td>Chi phí lưu trữ cực rẻ, dữ liệu đã được kiểm toán chính xác 100% và các phân đoạn lịch sử được nén/đánh chỉ mục tối ưu nhất cho việc quét dài hạn (ví dụ dữ liệu <code>1–3 năm</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>3. <code>Hybrid Tables</code></strong><br><em>(Bảng Lai Hợp nhất)</em></td>
+                  <td>Kết hợp đồng thời cả <strong><code>Real-time Stream (Kafka)</code></strong> và <strong><code>Offline Batch (S3)</code></strong> dưới <strong>1 tên bảng logic duy nhất</strong> (ví dụ <code>fact_transactions</code>).</td>
+                  <td>Bảng <code>Real-time</code> chỉ cần giữ dữ liệu ngắn hạn (ví dụ <code>retention = 3 đến 7 ngày</code>). Hàng ngày, khi job Batch đẩy phân đoạn <code>Offline</code> của ngày hôm qua (đến mốc $T_{\text{boundary}}$) lên xong, <code>Pinot Broker</code> tự động cập nhật mốc ranh giới thời gian <strong><code>Time Boundary</code></strong>.</td>
+                  <td>Khi người dùng chạy 1 câu SQL duy nhất, <code>Broker</code> tự động chẻ truy vấn làm đôi tại $T_{\text{boundary}}$: lấy dữ liệu $\text{event\_time} \le T_{\text{boundary}}$ từ <code>Offline Table</code> và $\text{event\_time} &gt; T_{\text{boundary}}$ từ <code>Real-time Table</code>, hợp nhất kết quả trong suốt mà không sợ đếm trùng!</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <pre><code>// 1. Trích đoạn cấu hình Fixed Schema của bảng fact_transactions trong Apache Pinot (Slide 51)
+{
+  "schemaName": "fact_transactions",
+  "dimensionFieldSpecs": [
+    { "name": "txn_id",  "dataType": "STRING" },
+    { "name": "user_id", "dataType": "STRING" },
+    { "name": "region",  "dataType": "STRING" }
+  ],
+  "metricFieldSpecs": [
+    { "name": "amount",  "dataType": "DOUBLE" }
+  ],
+  "dateTimeFieldSpecs": [{
+    "name": "event_time_ms",
+    "dataType": "LONG",
+    "format": "1:MILLISECONDS:EPOCH",
+    "granularity": "1:MILLISECONDS"
+  }]
+}
+
+-- 2. Truy vấn 2 (Slide 43) gửi tới Pinot Broker trên Hybrid Table fact_transactions:
+-- "Which users made 5+ transactions in the last 7 days?"
+-- Broker tự động tách tại Time Boundary (ví dụ t_boundary = 2026-10-17 00:00:00 UTC):
+--   + Nhánh Offline: event_time_ms BETWEEN (now - 7d) AND t_boundary
+--   + Nhánh Realtime (Kafka): event_time_ms &gt; t_boundary
+SELECT
+    user_id,
+    COUNT(*)    AS tx_count,
+    SUM(amount) AS total_spent
+FROM fact_transactions
+WHERE event_time_ms &gt;= ago('P7D')
+GROUP BY user_id
+HAVING COUNT(*) &gt;= 5
+ORDER BY tx_count DESC
+LIMIT 100;</code></pre>
+
+          <div class="callout">
+            <div class="callout-title">Đúc kết Cơ học Trạm 4.3 &amp; Cầu nối sang Trạm 4.4</div>
+            <p>Cơ chế <strong><code>Hybrid Table</code></strong> của Apache Pinot giải quyết triệt để bài toán kinh điển giữa tốc độ và độ chính xác: luồng <code>Real-time Table</code> từ Kafka giúp đơn hàng <code>Order #8888</code> xuất hiện trên biểu đồ của khách hàng ngay ở giây thứ nhất, trong khi luồng <code>Offline Table</code> từ S3 âm thầm thay thế dữ liệu cũ bằng các phân đoạn lịch sử đã được chuẩn hóa và đánh chỉ mục <code>Star-Tree</code> tối ưu phía sau ranh giới <strong><code>Time Boundary</code></strong>. Vậy khi đứng trước một bài toán thiết kế tầng Consumption thực tế, kiến trúc sư dữ liệu nên chọn <strong>ClickHouse</strong> hay <strong>Apache Pinot</strong>? Chúng ta sẽ đặt cả hai lên bàn cân đối chiếu trực diện tại <strong>Trạm 4.4</strong>.</p>
+          </div>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="consumption-4-4">
+          <h2 id="consumption-4-4-h2" tabindex="-1">Trạm 4.4: Đối chiếu Kiến trúc ClickHouse vs. Apache Pinot — Phân tích Lô Phức tạp hay Phục vụ Trực tiếp Độ trễ Mili-giây?</h2>
+
+          <p>Mặc dù cả <strong>ClickHouse</strong> và <strong>Apache Pinot</strong> đều là những động cơ OLAP hướng cột hàng đầu thế giới, chúng được tối ưu hóa cho hai cực tải công việc hoàn toàn khác nhau dựa trên triết lý đánh đổi giữa <strong>Tính linh hoạt của truy vấn quét (Scan Bandwidth &amp; SQL Expressiveness)</strong> và <strong>Độ trễ mili-giây ở lượng truy cập đồng thời cực cao (High-Concurrency Indexed Serving)</strong> (<em>Slide 53</em>). Hiểu rõ cơ chế chỉ mục bên dưới mỗi hệ thống là chìa khóa để không chọn nhầm công cụ khi thiết kế tầng phục vụ dữ liệu.</p>
+
+          <p>Tại sao <strong>ClickHouse</strong> lại thống trị các bài toán <strong>báo cáo BI phức tạp và phân tích log dung lượng lớn (<code>Batch analytics, logs, reports</code>)</strong>, trong khi <strong>Apache Pinot</strong> lại là lựa chọn số một cho các <strong>ứng dụng thời gian thực hướng người dùng cuối (<code>Real-time user-facing apps</code>)</strong>?</p>
+
+          <ul>
+            <li><strong>Cơ học của ClickHouse — Tối ưu hóa Băng thông Quét Tuần tự (Brute-Force Vectorized Scan + Sparse Index):</strong> ClickHouse mặc định chỉ dùng một chỉ mục thưa <code>primary.idx</code> gắn chặt với thứ tự sắp xếp vật lý <code>ORDER BY</code> của bảng (kèm các <code>Data Skipping Indexes</code> mức khối). Khi chuyên viên phân tích viết một câu SQL tùy biến (Ad-hoc SQL) có nhiều phép kết (<code>JOIN</code>), truy vấn con (<code>Subqueries</code>), mảng lồng nhau hoặc lọc trên các cột không nằm ở đầu khóa <code>ORDER BY</code>, ClickHouse huy động toàn bộ các luồng CPU trên máy chủ kết hợp <code>SIMD</code> và <code>LZ4/ZSTD</code> để quét qua hàng trăm triệu dòng với tốc độ hàng chục GB/giây, trả kết quả trong khoảng <strong>vài trăm mili-giây đến vài giây (<code>Milliseconds – seconds</code>)</strong>. Tuy nhiên, vì một truy vấn nặng có thể ngốn trọn 100% CPU của Node trong <code>500ms</code>, nếu có <code>10,000</code> khách hàng bên ngoài cùng bấm nút chạy truy vấn đó một lúc, hàng đợi CPU của ClickHouse sẽ nhanh chóng bị bão hòa.</li>
+            <li><strong>Cơ học của Apache Pinot — Tối ưu hóa Tra cứu Chỉ mục Đa chiều &amp; Tiền tổng hợp (Multi-Index &amp; Star-Tree Pre-aggregation):</strong> Để gánh <code>50,000 QPS</code> từ ứng dụng di động mà mỗi truy vấn chỉ được phép tốn một phần nhỏ CPU trong <strong>vài mili-giây (<code>Milliseconds</code>)</strong>, Pinot không cho phép một truy vấn đơn lẻ quét mù toàn bộ bảng. Thay vào đó, trên mỗi phân đoạn (Segment), Pinot xây dựng hệ thống chỉ mục dày đặc cho từng cột <code>Dimension</code> (<strong><code>Inverted Index</code></strong> dạng bitmap, <strong><code>Sorted Index</code></strong>, <strong><code>JSON Index</code></strong>) kết hợp với <strong><code>Star-Tree Index</code></strong> — một cây chỉ mục đặc biệt tính sẵn các giá trị <code>SUM(amount)</code>, <code>COUNT(*)</code> cho các tổ hợp <code>(region, status, event_date)</code> phổ biến. Khi khách hàng mở trang thống kê cá nhân, Pinot chỉ cần giao cắt các bitmap của <code>Inverted Index</code> hoặc đọc thẳng nút tổng hợp sẵn trên <code>Star-Tree</code> để trả kết quả trong <code>2–15ms</code>, đổi lại khả năng chạy các câu SQL tùy biến phức tạp và phép kết nhiều bảng lớn (<code>Complex multi-table joins</code>) bị giới hạn chặt hơn so với ClickHouse.</li>
+          </ul>
+
+          <x-figure id="consumption-4-4-fig" key="4.4" title="Sơ đồ 4.4 — Ma trận Kiến trúc &amp; Cơ chế Chỉ mục: ClickHouse (Sparse Index Scan) vs. Apache Pinot (Star-Tree &amp; Real-time Inverted Index)">Đối chiếu luồng xử lý bên trong: ClickHouse dùng Sparse Index (8,192 dòng/granule) kết hợp quét SIMD tốc độ cao cho SQL phức tạp, trong khi Apache Pinot dùng Inverted Index + Star-Tree Pre-aggregation gắn liền Kafka để phục vụ hàng chục nghìn QPS ở độ trễ mili-giây.</x-figure>
+
+          <h3>Bảng đối chiếu trực diện 5 trục: ClickHouse vs. Apache Pinot (Slide 53)</h3>
+          <p>Bảng dưới đây tổng hợp ma trận quyết định kiến trúc giữa <strong>ClickHouse</strong> và <strong>Apache Pinot</strong> theo đúng 5 trục tiêu chuẩn của <em>Slide 53</em> kèm giải thích cơ chế kỹ thuật bên dưới:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Trục Đối chiếu (Slide 53)</th>
+                  <th><code>ClickHouse</code></th>
+                  <th><code>Apache Pinot</code></th>
+                  <th>Bản chất Cơ học Quyết định Sự Khác biệt</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Phù hợp nhất cho (<code>Best for</code>)</strong></td>
+                  <td>Phân tích theo lô, hệ thống nhật ký log/trace, báo cáo quản trị nội bộ (<code>Batch analytics, logs, reports</code>).</td>
+                  <td>Ứng dụng phân tích thời gian thực hướng trực tiếp tới người dùng cuối (<code>Real-time user-facing apps</code>).</td>
+                  <td>ClickHouse tối ưu thông lượng quét dữ liệu thô cực lớn và tỷ lệ nén đĩa; Pinot tối ưu số lượng truy vấn đồng thời (High QPS) trên mỗi giây.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Độ trễ truy vấn (<code>Latency</code>)</strong></td>
+                  <td>Từ mili-giây đến vài giây (<code>Milliseconds – seconds</code>).</td>
+                  <td>Mili-giây ổn định (<code>Milliseconds</code>, thường <code>&lt; 10–50ms</code> ở phân vị <code>p99</code>).</td>
+                  <td>ClickHouse quét và giải nén các khối <code>8,192</code> dòng bằng <code>SIMD</code> lúc chạy truy vấn; Pinot dùng <code>Inverted Index</code> và <code>Star-Tree Index</code> để nhảy thẳng tới kết quả đã tổng hợp sẵn.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Độ tươi dữ liệu (<code>Data freshness</code>)</strong></td>
+                  <td>Gần thời gian thực (<code>Near real-time</code> — nạp theo từng micro-batch <code>1–10 giây</code>).</td>
+                  <td>Thời gian thực (<code>Real-time</code> — gắn liền trực tiếp với luồng <code>Apache Kafka</code>).</td>
+                  <td>ClickHouse cần gom lô khi <code>INSERT</code> để tránh tạo quá nhiều <code>Data Part</code> nhỏ trên đĩa; Pinot có sẵn <code>Mutable Consuming Segment</code> đọc từng sự kiện từ Kafka ngay trong RAM.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Độ phức tạp truy vấn (<code>Query complexity</code>)</strong></td>
+                  <td>Hỗ trợ SQL cực kỳ phong phú, phép kết phức tạp, mảng và hàm phân tích sâu (<code>Complex SQL, joins</code>).</td>
+                  <td>Tối ưu cho các truy vấn lọc, gom nhóm và tổng hợp đơn giản hơn (<code>Simpler aggregations</code>).</td>
+                  <td>Động cơ vector hóa của ClickHouse được xây dựng cho các câu truy vấn Ad-hoc tùy biến; Pinot ưu tiên các mẫu truy vấn cố định từ giao diện ứng dụng (Dashboard Widgets / API).</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Doanh nghiệp tiêu biểu (<code>Used by</code>)</strong></td>
+                  <td><code>Cloudflare</code> (phân tích hàng chục triệu HTTP request/giây), <code>Uber</code> (hệ thống log), <code>eBay</code>.</td>
+                  <td><code>LinkedIn</code> (<em>Who Viewed My Profile</em>, <em>Talent Insights</em>), <code>Uber</code> (<em>Uber Eats Restaurant Manager</em>), <code>Stripe</code>.</td>
+                  <td>Nhiều tập đoàn lớn (như <code>Uber</code>) vận hành song song cả hai: dùng <strong>ClickHouse</strong> cho kho Log/Observability và BI nội bộ, đồng thời dùng <strong>Apache Pinot</strong> cho các tính năng phân tích hiển thị trực tiếp trên màn hình khách hàng.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="callout">
+            <div class="callout-title">Đúc kết Chặng 4 &amp; Câu hỏi Chuyển giao sang Chặng 5 (Feature Store &amp; Feast)</div>
+            <p>Đến hết <strong>Chặng 4</strong>, giao dịch <strong>Order #8888</strong> (<code>txn_9f3a21c8</code>, <code>user_48291</code>, <code>amount = $1,250.00</code>) đã có thể được tổng hợp tức thì trên <strong>ClickHouse</strong> cho các báo cáo doanh thu quý của ban giám đốc, hoặc hiển thị trong vài mili-giây trên <strong>Apache Pinot</strong> cho bảng thống kê của người dùng cuối. Nhưng còn một "khách hàng" đặc biệt nữa của tầng Consumption chưa được giải quyết: <strong>các mô hình Học máy (Machine Learning Models)</strong> chấm điểm gian lận và gợi ý sản phẩm! Khi khách hàng <code>user_48291</code> vừa quẹt thẻ thanh toán <code>Order #8888</code>, mô hình AI phát hiện gian lận cần biết ngay lập tức <em>"tổng số giao dịch của user_48291 trong 30 ngày qua cộng với số lần quẹt thẻ thất bại trong 5 phút vừa rồi"</em> trong vòng <strong><code>&lt; 10ms</code></strong>, đồng thời dữ liệu huấn luyện lịch sử phải không bị rò rỉ tương lai (<code>Data Leakage</code>) hay lệch công thức giữa lúc huấn luyện và lúc chạy thật (<code>Training-Serving Skew</code>). Chúng ta sẽ giải phẫu kiến trúc <strong>Feature Store &amp; Feast</strong> tại <strong>Chặng 5</strong>.</p>
+          </div>
+        </section>
+
+        <section class="lesson-section summary-section" id="consumption-4-summary">
+          <h2 id="consumption-4-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 4 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <p><strong>Checklist 5 câu hỏi bản chất kiểm tra độ hiểu sâu Chặng 4 (Động cơ OLAP Hiệu năng Cao — Vectorized Execution, ClickHouse &amp; Apache Pinot):</strong></p>
+          <ol>
+            <li><strong>Ba trụ cột tốc độ của OLAP vs. OLTP:</strong> Tại sao khi trả lời câu hỏi <em>"Total revenue by region last quarter?"</em> trên <code>10 tỷ</code> dòng của bảng <code>fact_transactions</code>, các động cơ OLAP lại nhanh hơn cơ sở dữ liệu OLTP truyền thống từ <code>100x–1,000x</code>? Giải thích cơ chế của phép cộng vector hóa <code>SIMD</code> với ví dụ <code>(1, 2, 3, 4) + (5, 6, 7, 8)</code> trong Slide 43.
+              <br><em>Đáp án:</em> OLAP kết hợp 3 cơ chế vật lý: (1) <strong>Columnar Storage</strong> chỉ đọc đúng các tệp cột <code>region</code> và <code>amount</code> từ đĩa (bỏ qua hơn 90% dữ liệu các cột khác) và nén cùng kiểu dữ liệu đạt tỷ lệ <code>5x–15x</code>; (2) <strong>Vectorized Execution (SIMD)</strong> nạp cả mảng giá trị cột vào thanh ghi vector rộng (<code>256-bit / 512-bit</code>) để cộng đồng thời cả 4 cặp số <code>(1, 2, 3, 4) + (5, 6, 7, 8) = (6, 8, 10, 12)</code> chỉ trong <strong><code>1</code> chu kỳ lệnh CPU duy nhất</strong> thay vì <code>4</code> lệnh rời rạc như mô hình xử lý từng dòng; và (3) <strong>Distributed Query Execution (MPP)</strong> chia nhỏ truy vấn chạy song song trên nhiều nút máy chủ.</li>
+            <li><strong>Giải phẫu 4 thành phần kiến trúc ClickHouse:</strong> Bốn thành phần cốt lõi trong kiến trúc ClickHouse (Slide 46–50) gồm những gì và nhiệm vụ riêng biệt của <code>ZooKeeper / ClickHouse Keeper</code> là gì?
+              <br><em>Đáp án:</em> Gồm: (1) <strong>ClickHouse Nodes</strong> thực thi truy vấn bằng động cơ vector hóa song song kèm tầng bộ nhớ đệm (<code>Caching</code>); (2) <strong>Columnar Storage (Block Storage)</strong> lưu trữ dữ liệu theo từng cột trong các thư mục <code>MergeTree Data Part</code>; (3) <strong>S3-Compatible Object Storage</strong> lưu trữ đối tượng bên ngoài cho dữ liệu lịch sử / Data Lake với chi phí thấp; và (4) <strong>ZooKeeper / ClickHouse Keeper</strong> là dịch vụ điều phối phân tán chỉ lưu trữ <strong><code>Metadata</code></strong> (không lưu dữ liệu thật), theo dõi danh sách các <code>Data Parts</code> trên từng Node để đồng bộ nhân bản và đảm bảo tính nhất quán giữa các bản sao.</li>
+            <li><strong>Chỉ mục thưa MergeTree (<code>8,192</code> Granule) &amp; Hạn chế cập nhật của ClickHouse:</strong> Tại sao chỉ mục chính <code>primary.idx</code> của ClickHouse lại nằm gọn được trong RAM ngay cả khi bảng có hàng chục tỷ dòng, và tại sao ClickHouse lại <strong>KHÔNG được thiết kế cho thao tác cập nhật/xóa từng dòng thường xuyên (NOT designed for frequent updates)</strong>?
+              <br><em>Đáp án:</em> ClickHouse sắp xếp vật lý dữ liệu trên đĩa theo khóa <code>ORDER BY</code> và chia thành các khối <strong><code>Granule</code> (mặc định <code>8,192</code> dòng/granule)</strong>. Tệp chỉ mục thưa <code>primary.idx</code> chỉ lưu đúng 1 mốc giá trị cho mỗi <code>8,192</code> dòng nên nhỏ hơn chỉ mục <code>B+Tree</code> hàng nghìn lần. Vì mỗi lần <code>INSERT</code> tạo ra một thư mục <code>Data Part</code> đã nén và hoàn toàn bất biến trên đĩa, việc sửa hoặc xóa trực tiếp một dòng (<code>ALTER TABLE ... UPDATE / DELETE</code>) buộc hệ thống phải giải nén và viết lại toàn bộ tệp <code>Data Part</code> nặng hàng chục Gigabyte — gây tốn kém I/O nghiêm trọng.</li>
+            <li><strong>Lược đồ 3 nhóm cột &amp; Kiến trúc <code>Hybrid Table</code> của Apache Pinot:</strong> Apache Pinot chia các cột trong bảng cố định (<code>Fixed Schema</code>) thành 3 nhóm nào? Làm thế nào một bảng <strong><code>Hybrid Table</code></strong> hợp nhất dữ liệu từ <code>Apache Kafka</code> và <code>Amazon S3</code> mà không bị đếm trùng hay thiếu dữ liệu?
+              <br><em>Đáp án:</em> Lược đồ Pinot chia thành: <strong><code>Dimensions</code></strong> (dùng cho lọc <code>WHERE</code> và gom nhóm <code>GROUP BY</code>), <strong><code>Metrics</code></strong> (dùng cho tổng hợp <code>SUM / COUNT / AVG</code>), và <strong><code>Time Column</code></strong> (nhãn thời gian). Trong một <code>Hybrid Table</code>, Pinot kết hợp <code>Real-time Table</code> (đọc trực tiếp từ Kafka) và <code>Offline Table</code> (các phân đoạn lịch sử đẩy từ S3/Data Lake) dưới 1 tên bảng duy nhất. Khi nhận truy vấn, <code>Pinot Broker</code> dùng mốc ranh giới <strong><code>Time Boundary</code></strong> ($T_{\text{boundary}}$) để tự động tách truy vấn thành 2 nhánh không giao nhau ($\text{time} \le T_{\text{boundary}}$ đọc từ <code>Offline</code> và $\text{time} &gt; T_{\text{boundary}}$ đọc từ <code>Real-time</code>) rồi hợp nhất kết quả trả về trong vài mili-giây.</li>
+            <li><strong>Quyết định chọn ClickHouse hay Apache Pinot:</strong> Khi nào kiến trúc sư dữ liệu nên chọn <strong>ClickHouse</strong> và khi nào bắt buộc phải chọn <strong>Apache Pinot</strong>?
+              <br><em>Đáp án:</em> Chọn <strong>ClickHouse</strong> cho các bài toán phân tích theo lô, kho lưu trữ log/trace dung lượng lớn và báo cáo BI nội bộ cần viết các câu truy vấn SQL tùy biến phức tạp, có phép kết nhiều bảng (<code>Complex SQL, joins</code>) với độ trễ chấp nhận từ mili-giây đến vài giây. Chọn <strong>Apache Pinot</strong> cho các ứng dụng phân tích thời gian thực hướng trực tiếp tới người dùng cuối (<code>User-facing analytics</code> như bảng thống kê trên LinkedIn, Uber Eats, Stripe) đòi hỏi dữ liệu tươi từng giây từ Kafka và phải gánh hàng chục nghìn truy vấn đồng thời mỗi giây (High QPS) với độ trễ vài mili-giây nhờ hệ thống chỉ mục <code>Inverted Index</code> và <code>Star-Tree Pre-aggregation</code>.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/D05/5" onclick="selectStorageStage(5);return false;">Sang Chặng 5: Cửa Hàng Đặc Trưng Cho Học Máy — Feature Store, Training-Serving Skew &amp; Kiến Trúc Kép Feast →</a></p>
+        </section>
+      </div>

@@ -1,0 +1,272 @@
+      <div class="prose">
+        <x-spine id="flink-6-spine" badge="TRONG BÀI HỌC NÀY · D04" title="Chặng 6: Kỹ Thuật Tối Ưu Hóa (Operator Chaining, Backpressure) &amp; Kiến Trúc Triển Khai Cụm (Deployment Modes)" subtitle="Trạm 6.1 → 6.3">Đưa đường ống xử lý sự kiện <strong>Order #8888</strong> lên vận hành ở quy mô Production: triệt tiêu chi phí tuần tự hóa và chuyển ngữ cảnh bằng <code>Operator Chaining</code>, giải phẫu cơ chế lan truyền ngược dòng của <code>Backpressure</code> kèm 3 phác đồ xử lý tận gốc (<code>set_parallelism</code>, <code>Async I/O</code>, <code>RocksDB Block Cache</code>), và lựa chọn giữa <code>Session Mode</code> với <code>Application Mode</code>.</x-spine>
+
+        <p>Ở năm chặng trước, chúng ta đã thiết kế trọn vẹn logic xử lý luồng cho đơn hàng <code>Order #8888</code>: từ kiến trúc <code>JobManager</code> / <code>TaskManager</code>, quản lý trạng thái bằng <code>RocksDBStateBackend</code>, cắt khung <code>Event-Time Window</code> với <code>Watermark</code>, cho đến cam kết <code>End-to-End Exactly-Once</code> qua <code>Chandy-Lamport Checkpoint Barrier</code> và <code>Two-Phase Commit</code>. Tuy nhiên, một đường ống chạy đúng logic trên môi trường thử nghiệm với vài trăm bản ghi mỗi giây vẫn có thể tê liệt hoàn toàn vào giờ cao điểm Flash Sale khi lưu lượng vọt lên <code>100.000 events/sec</code>. Chặng 6 hoàn thiện mảnh ghép cuối cùng của kỹ nghệ xử lý luồng thực chiến: tối ưu hóa đường đi vật lý của bản ghi trong bộ nhớ bằng <code>Operator Chaining</code>, chẩn đoán và dập tắt nút thắt cổ chai <code>Backpressure</code> trên <code>Flink Web UI</code>, và đóng gói ứng dụng lên cụm Kubernetes theo kiến trúc cô lập tài nguyên chuẩn Production.</p>
+
+        <section class="lesson-section" id="flink-6-1">
+          <h2 id="flink-6-1-h2" tabindex="-1">Trạm 6.1: Bốn Trụ cột Tối ưu Hiệu năng &amp; Cơ học Hàn gắn Toán tử (Operator Chaining vs. Unchained)</h2>
+
+          <p>Hiệu năng tổng thể của một tác vụ Apache Flink trên môi trường Production được quyết định bởi bốn trụ cột kỹ thuật cốt lõi (<em>4 Performance Pillars</em>): (1) <code>Watermark strategy</code> quyết định sự đánh đổi giữa độ trễ phát kết quả (<em>latency</em>) và độ đầy đủ của dữ liệu trễ (<em>completeness</em>); (2) <code>Operator chaining</code> triệt tiêu chi phí giao tiếp nội bộ và tuần tự hóa giữa các toán tử; (3) <code>Memory tuning</code> phân bổ hợp lý bộ nhớ <code>JVM Heap</code>, <code>Network Buffers</code> và <code>RocksDB Off-Heap</code> để duy trì độ ổn định và thông lượng cao; và (4) <code>Backpressure handling</code> giúp định vị chính xác nút thắt cổ chai khi lưu lượng tăng đột biến. Trong đó, <code>Operator Chaining</code> là vũ khí tối ưu hóa cấp thấp mạnh mẽ nhất mà Flink kích hoạt ngay tại tầng biên dịch <code>ExecutionGraph</code>.</p>
+
+          <p>Hãy hình dung một dây chuyền đóng gói đơn hàng <code>Order #8888</code> gồm 3 công đoạn liên tiếp: lấy hàng khỏi kệ (<code>Source Operator</code>), dán nhãn giá tiền (<code>Map Operator</code>) và lọc bỏ đơn lỗi (<code>Filter Operator</code>). Nếu ba công nhân đứng ở ba tòa nhà khác nhau (<code>Without Operator Chaining</code>), người thứ nhất xử lý xong phải đóng thùng, dán băng keo (<code>Serialization</code>), chất lên xe tải (<code>Network Buffer</code>), chở sang tòa nhà bên cạnh để người thứ hai rạch thùng lấy ra (<code>Deserialization</code>) — làm lãng phí <code>70%–80%</code> chu kỳ CPU chỉ cho việc đóng/mở hộp và chuyển ngữ cảnh luồng (<code>Thread Context Switching</code>). Ngược lại, khi Flink hàn gắn ba toán tử đó vào cùng một chuỗi (<code>With Operator Chaining</code>), cả ba công đoạn được giao cho một công nhân duy nhất xử lý liền mạch ngay trên mặt bàn (cùng một luồng CPU trong một <code>Task Slot</code>): đối tượng Java/Python của <code>Order #8888</code> nằm nguyên trong bộ nhớ RAM (<code>data stays in memory longer</code>) và được truyền trực tiếp từ toán tử này sang toán tử kế tiếp thông qua một lời gọi hàm đơn giản (<code>direct method invocation</code>).</p>
+
+          <x-figure id="flink-6-1-fig" key="6.1" title="Sơ đồ 6.1 — Đối chiếu Đường đi của Bản ghi Khi Tắt Chaining (Tuần tự hóa + Đệm mạng + Đổi luồng) vs. Khi Bật Operator Chaining">Sự khác biệt cơ học giữa truyền bản ghi qua bộ đệm mạng rời rạc và gộp chuỗi thực thi Source + Map + Filter trong cùng một luồng CPU.</x-figure>
+
+          <h3 id="flink-6-1-chaining-mechanics">Điều kiện Hàn gắn Chuỗi (Chaining Conditions) &amp; Bốn Kịch bản Chủ động Ngắt Chuỗi trên Production</h3>
+          <p>Theo <em>Stream Processing with Apache Flink</em> (Ch. 3, tr. 46 &amp; Ch. 10, tr. 261), trình tối ưu hóa của Flink tự động gộp hai hay nhiều toán tử liên tiếp thành một <code>Operator Chain</code> chạy trên duy nhất một luồng (<code>single thread</code>) khi và chỉ khi thỏa mãn đồng thời các điều kiện vật lý: các toán tử có <em>cùng độ song song</em> (<code>same parallelism</code>), kết nối với nhau theo kênh truyền điểm-tới-điểm <code>Forward</code> (<code>1-to-1 partitioning</code>, tức là không có bước băm lại khóa <code>keyBy()</code>, <code>rebalance()</code>, hay <code>rescale()</code> chen giữa), và nằm trong cùng một nhóm chia sẻ khe thực thi (<code>same SlotSharingGroup</code>). Mặc định, <code>Operator Chaining</code> luôn được bật và cần giữ nguyên trên môi trường Production; kỹ sư chỉ chủ động can thiệp bằng mã lệnh để tách chuỗi trong 4 tình huống chẩn đoán chuyên biệt dưới đây:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chế độ / Kịch bản Vận hành</th>
+                  <th>Cơ chế Thực thi Dưới Tầng Vật lý (Thread, Memory &amp; Network)</th>
+                  <th>Tác động tới Đơn hàng <code>Order #8888</code> &amp; API Điều khiển</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Khi không có Chaining (<code>Without Operator Chaining</code>)</strong></td>
+                  <td>Luồng dữ liệu đi qua <code>Source -&gt; network -&gt; Map -&gt; network -&gt; Filter -&gt; network -&gt; Sink</code>. Mỗi toán tử chạy trên một tiểu trình độc lập; bản ghi phải tuần tự hóa ra mảng byte, chép vào <code>Network Buffer</code> (<code>32 KB</code>), đẩy qua hàng đợi liên luồng/mạng và giải tuần tự hóa ở đầu bên kia.</td>
+                  <td>Chi phí CPU cho <code>Serialization / Deserialization</code> và <code>Thread Context Switching</code> tăng vọt; độ trễ xử lý <code>Order #8888</code> qua 3 bước biến đổi đơn giản có thể tăng từ vài micro-giây lên <code>2–5 ms</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Khi bật Chaining mặc định (<code>With Operator Chaining</code>)</strong></td>
+                  <td>Các toán tử tương thích nối tiếp (<code>[Source + Map + Filter]</code>) được biên dịch gộp thành một <code>Subtask</code> duy nhất chạy trên <code>1 Thread</code> trong cùng <code>1 Task Slot</code>. Chỉ khi gặp <code>keyBy()</code> hoặc <code>Sink</code> khác chiến lược phân vùng mới phát sinh truyền mạng thực sự.</td>
+                  <td>Đối tượng <code>Order #8888</code> lưu trú lâu hơn trong bộ nhớ (<code>data stays in memory longer</code>) và chuyển giao qua lời gọi hàm nội bộ <code>collect(record)</code> với chi phí bằng <code>0 byte</code> copy mạng.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Kịch bản Tắt Chaining #1 &amp; #4: Gỡ lỗi hoặc Tái hiện Lỗi Cô lập (<code>Debug / Reproduce an isolated bug</code>)</strong></td>
+                  <td>Khi 3 toán tử gộp chung 1 chuỗi, Flink Web UI chỉ hiển thị tổng số bản ghi vào/ra và trạng thái <code>Backpressure</code> của cả cụm <code>[Source + Map + Filter]</code>, khiến kỹ sư không biết toán tử nào trong chuỗi đang làm rơi bản ghi hay ném ngoại lệ ngầm.</td>
+                  <td>Gắn <code>.disableChaining()</code> trực tiếp lên toán tử nghi vấn (ví dụ <code>map(...).disableChaining()</code>) để tách riêng toán tử đó ra một hộp độc lập trên Web UI, loại bỏ hoàn toàn nhiễu từ các toán tử hàng xóm.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Kịch bản Tắt Chaining #2: Đo FlameGraph CPU Từng Toán tử (<code>Profile CPU per operator</code>)</strong></td>
+                  <td>Do các toán tử trong cùng chuỗi dùng chung một luồng thực thi JVM, công cụ đo <code>CPU FlameGraph</code> sẽ gộp chung thời gian tiêu thụ CPU của cả chuỗi, làm mờ ranh giới giữa hàm phân tích JSON (<code>Map</code>) và hàm kiểm tra biểu thức chính quy (<code>Filter</code>).</td>
+                  <td>Gọi <code>.startNewChain()</code> tại điểm bắt đầu của toán tử nặng CPU để buộc Flink ngắt chuỗi cũ và khởi tạo một chuỗi thực thi mới trên luồng riêng biệt, giúp định lượng chính xác <code>% CPU</code> của từng khâu.</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Kịch bản Tắt Chaining #3: Toán tử có Nhu cầu Tài nguyên Khác biệt (<code>Different resource needs</code>)</strong></td>
+                  <td>Một toán tử suy luận mô hình ML hoặc gom nhóm trạng thái khổng lồ trên <code>RocksDB</code> nếu nằm chung chuỗi và chung <code>Task Slot</code> với <code>Source/Filter</code> sẽ tranh chấp bộ nhớ đệm CPU L1/L2 và làm nghẽn luồng đọc Kafka.</td>
+                  <td>Gắn <code>.slotSharingGroup("heavy-ml-group")</code> để không những ngắt chuỗi <code>Operator Chaining</code> mà còn đẩy hẳn toán tử nặng đó sang một nhóm <code>Task Slot</code> vật lý riêng biệt.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="callout">
+            <div class="callout-title">Đúc kết Cơ học Trạm 6.1 &amp; Cầu nối sang Trạm 6.2</div>
+            <p><code>Operator Chaining</code> giúp biến một chuỗi biến đổi <code>Source -&gt; Map -&gt; Filter</code> thành một đường cao tốc nội bộ trong RAM mà không tốn một chu kỳ tuần tự hóa mạng nào. Thế nhưng, điều gì sẽ xảy ra vào lúc 00:00 đêm Flash Sale khi đường cao tốc thượng nguồn đó đổ <code>100.000 đơn hàng/giây</code> (bao gồm <code>Order #8888</code>) xuống một toán tử hạ nguồn đang bị kẹt cứng vì phải tra cứu cơ sở dữ liệu bên ngoài hoặc ghi xuống đĩa chậm? Chúng ta bước sang Trạm 6.2 để giải phẫu cơ chế tự vệ sinh tử của Flink: <code>Backpressure</code>.</p>
+          </div>
+        </section>
+
+        <section class="lesson-section" id="flink-6-2">
+          <h2 id="flink-6-2-h2" tabindex="-1">Trạm 6.2: Giải phẫu Áp lực Ngược (Backpressure): Lan truyền Ngược dòng, Chẩn đoán trên Flink Web UI &amp; Ba Phác đồ Xử lý</h2>
+
+          <p>Hiện tượng áp lực ngược (<code>Backpressure</code>) xuất hiện khi một toán tử hạ nguồn (<code>downstream operator</code>) tiêu thụ và xử lý bản ghi chậm hơn tốc độ bơm dữ liệu của toán tử thượng nguồn (<code>upstream producer</code>). Sự chênh lệch tốc độ này lập tức kích hoạt ba hệ quả dây chuyền trên toàn bộ đường ống xử lý đơn hàng <code>Order #8888</code>: hàng đợi bộ đệm đầy dần (<code>queue growth</code>), độ trễ đầu-cuối tăng vọt từ vài mili-giây lên hàng chục giây (<code>increased latency</code> — đồng thời chặn đứng cả các rào chắn <code>Checkpoint Barrier</code> đang trôi cùng dòng dữ liệu!), và cuối cùng toàn bộ đường ống bị kéo chậm lại theo tốc độ của mắt xích yếu nhất (<code>pipeline slowdown</code>). Tuy nhiên, cần nhìn nhận đúng bản chất cơ học: trong Apache Flink, <code>Backpressure</code> không phải là một lỗi phần mềm mà vừa là <em>cơ chế tự vệ sinh tồn</em> (hãm phanh nguồn phát kịp thời để ngăn chặn thảm họa tràn bộ nhớ <code>OutOfMemoryError</code> làm sập cụm), vừa là <em>tín hiệu chỉ điểm chính xác vị trí nút thắt cổ chai</em> (<code>signal of a bottleneck</code>).</p>
+
+          <p>Cơ chế truyền lực phanh từ hạ nguồn ngược về thượng nguồn diễn ra như một vụ kẹt xe trên cầu cao tốc: khi trạm thu phí ở đầu ra xử lý chậm, dòng xe ùn ứ lùi dần về phía sau cho đến khi chặn kín cả lối vào cầu. Dưới tầng vật lý của <code>TaskManager</code> (<em>Stream Processing with Apache Flink</em>, Ch. 3, tr. 44–45), Flink thực thi quá trình này bằng giao thức điều khiển luồng dựa trên tín dụng (<code>Credit-Based Flow Control</code>) giữa các vùng nhớ đệm mạng (<code>Network Buffer Pools</code>):</p>
+
+          <x-figure id="flink-6-2-fig" key="6.2" title="Sơ đồ 6.2 — Cơ chế Lan truyền Backpressure Ngược dòng qua Bộ đệm Tín dụng (Credit-Based Buffers) &amp; Phác đồ Giải cứu 3 Bước">Quá trình đầy tràn Input/Output Buffers lan ngược từ Slow Operator về Fast Source và cách định vị thủ phạm trên Flink Web UI.</x-figure>
+
+          <h3 id="flink-6-2-credit-propagation">Giải phẫu Cơ chế Lan truyền Ngược dòng (Credit-Based Propagation) &amp; Quy tắc Chẩn đoán trên Flink Web UI</h3>
+          <p>Khi bản ghi <code>Order #8888</code> đi qua đường ống <code>Fast Source -&gt; Operator -&gt; Slow Operator -&gt; Sink</code>, mỗi kênh truyền mạng giữa hai <code>TaskManager</code> được cấp phát một tập hợp các <code>NetworkBuffer</code> (mặc định <code>32 KB</code> mỗi buffer). Toán tử nhận ở hạ lưu thường xuyên thông báo số lượng buffer trống hiện có của nó cho toán tử gửi ở thượng nguồn dưới dạng điểm tín dụng (<code>credits</code>: <code>1 buffer trống = 1 credit</code>). Khi <code>Slow Operator</code> bị nghẽn (ví dụ tốn <code>50 ms</code> để gọi API kiểm tra hạn mức thẻ tín dụng cho mỗi đơn hàng), luồng xử lý của nó không kịp rút dữ liệu khỏi <code>InputGate</code>, khiến toàn bộ <code>Input Buffer Pool</code> đầy cứng và điểm tín dụng rơi về <code>Credit = 0</code>. Ngay lập tức, toán tử đứng trước nó không được phép gửi thêm gói tin qua kết nối Netty nữa; các bản ghi mới sinh ra bị dồn ứ làm đầy tràn luôn <code>ResultPartition</code> (<code>Output Buffer Pool</code>) của toán tử đó, rồi tiếp tục báo <code>Credit = 0</code> ngược về <code>Fast Source</code>. Khi <code>Fast Source</code> cạn sạch buffer đầu ra, nó ngừng gọi hàm <code>poll()</code> từ Kafka — giữ cho dữ liệu nằm an toàn trên đĩa của Kafka thay vì làm nổ RAM của Flink!</p>
+
+          <p>Để tìm ra chính xác mắt xích nào đã khởi phát vụ tắc nghẽn này trên <code>Flink Web UI</code>, kỹ sư quan sát bảng chỉ số trạng thái <code>Backpressured / Idle / Busy %</code> của từng toán tử trên đồ thị <code>Job Graph</code> với 3 ngưỡng màu tiêu chuẩn và quy tắc truy vết ngược chiều:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Mức Cảnh báo trên Flink Web UI</th>
+                  <th>Ngưỡng Tỷ lệ Thời gian Bị Chặn (<code>Backpressured %</code>)</th>
+                  <th>Ý nghĩa Cơ học tại Bộ đệm Mạng (<code>ResultPartition</code>)</th>
+                  <th>Hành động Vận hành &amp; Quy tắc Định vị Thủ phạm Gốc</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Mức 1 — Trạng thái <code>OK</code> (Màu Xanh lá — <code>Green</code>)</strong></td>
+                  <td><code>&lt; 10%</code> thời gian bị thiếu buffer đầu ra.</td>
+                  <td>Toán tử luôn có sẵn điểm tín dụng (<code>Credit &gt; 0</code>) từ hạ nguồn; bản ghi <code>Order #8888</code> xử lý xong được đẩy đi ngay lập tức.</td>
+                  <td><em>Không cần can thiệp (<code>No action needed</code>):</em> Đường ống đang vận hành thông suốt dưới ngưỡng dung tải thiết kế.</td>
+                </tr>
+                <tr>
+                  <td><strong>Mức 2 — Trạng thái <code>LOW</code> (Màu Vàng — <code>Yellow</code>)</strong></td>
+                  <td><code>10% – 50%</code> thời gian phải chờ cấp phát buffer.</td>
+                  <td>Bắt đầu xuất hiện hiện tượng ùn ứ cục bộ vào các nhịp spike ngắn; <code>Output Buffer Pool</code> đôi lúc chạm ngưỡng đầy rồi lại vơi.</td>
+                  <td><em>Giám sát chặt chẽ (<code>Monitor closely</code>):</em> Kiểm tra xem có hiện tượng lệch khóa (<code>Data Skew</code> trên một vài subtask) hoặc chu kỳ <code>RocksDB Compaction</code> ngắn hạn hay không.</td>
+                </tr>
+                <tr>
+                  <td><strong>Mức 3 — Trạng thái <code>HIGH</code> (Màu Đỏ — <code>Red</code>)</strong></td>
+                  <td><code>&gt; 50% – 100%</code> thời gian bị khóa cứng đầu ra.</td>
+                  <td><code>Output Buffer Pool</code> đầy <code>100%</code>, <code>Credit = 0</code>; toán tử dành phần lớn thời gian đứng đợi hạ nguồn giải phóng chỗ trống, làm kẹt luôn <code>Checkpoint Barrier</code>.</td>
+                  <td><em>Xử lý khẩn cấp (<code>Investigate immediately</code>):</em> Lần theo chiều mũi tên từ các toán tử báo <code>HIGH (Red)</code> xuôi về phía hạ nguồn. Toán tử nằm ngay sau mắt xích <code>HIGH</code> cuối cùng (bản thân nó có <code>Backpressured = OK / 0%</code> nhưng <code>Busy = 95%–100%</code>) chính là <code>Slow Operator</code> gây nghẽn toàn bộ đường ống!</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 id="flink-6-2-resolution">Ba Phác đồ Giải quyết Tận gốc Backpressure theo Thứ tự Ưu tiên (Resolution in Order of Preference)</h3>
+          <p>Sau khi đã khoanh vùng được đúng <code>Slow Operator</code> trên <code>Flink Web UI</code>, tuyệt đối không tăng bộ nhớ đệm mạng một cách mù quáng (vì chỉ làm tăng dung lượng hàng đợi và kéo dài thời gian <code>Checkpoint</code>). Thay vào đó, kỹ sư áp dụng tuần tự 3 phác đồ giải cứu theo thứ tự ưu tiên từ cao xuống thấp (Slide 71):</p>
+
+          <ol>
+            <li><strong>Ưu tiên số 1 — Mở rộng độ song song độc lập cho riêng toán tử bị chậm (<code>Scale out the slow operator</code>):</strong> Nếu toán tử chậm bị giới hạn bởi năng lực tính toán CPU hoặc phân vùng trạng thái, ta không cần tăng <code>parallelism</code> cho toàn bộ Job (gây lãng phí slot ở các khâu nhẹ như <code>Source</code> hay <code>Filter</code>), mà chỉ gọi <code>.set_parallelism(N)</code> (PyFlink) hoặc <code>.setParallelism(N)</code> (Java/Scala) trực tiếp trên toán tử bị nghẽn để chia tải của <code>Order #8888</code> cho nhiều luồng xử lý song song hơn.</li>
+            <li><strong>Ưu tiên số 2 — Chuyển đổi tra cứu đồng bộ sang Bất đồng bộ (<code>Use Async I/O for external lookups</code>):</strong> Nguyên nhân phổ biến nhất gây <code>Backpressure HIGH</code> trong thực tế là toán tử <code>Map</code> / <code>ProcessFunction</code> thực hiện lời gọi đồng bộ (<code>synchronous HTTP / Database query</code>) để làm giàu dữ liệu cho <code>Order #8888</code>. Nếu mỗi truy vấn mất <code>20 ms</code> chờ phản hồi mạng, một luồng CPU ngồi không <code>99%</code> thời gian và chỉ xử lý được tối đa <code>50 đơn/giây</code>! Bằng cách thay thế bằng <code>AsyncDataStream.unorderedWait()</code> (hoặc <code>orderedWait()</code>), một luồng duy nhất có thể bắn đồng thời <code>100–500</code> yêu cầu bất đồng bộ mà không chặn luồng chính, đẩy thông lượng vọt lên hàng chục nghìn sự kiện/giây.</li>
+            <li><strong>Ưu tiên số 3 — Tinh chỉnh Bộ nhớ Đệm và Bộ nhớ Ghi của RocksDB (<code>Tune RocksDB Block Cache &amp; Write Buffer</code>):</strong> Nếu toán tử chậm là một <code>Window</code> hoặc <code>KeyedProcessFunction</code> có trạng thái khổng lồ phải đọc/ghi ổ đĩa liên tục qua <code>RocksDBStateBackend</code>, nút thắt cổ chai nằm ở <code>Disk I/O</code>. Khi đó, cần tăng dung lượng <code>state.backend.rocksdb.memory.managed</code> hoặc tinh chỉnh trực tiếp <code>block.cache-size</code> (bộ đệm đọc trong RAM Off-Heap) và <code>writebuffer.size</code> (bộ đệm gom ghi tuần tự vào <code>MemTable</code>) để giảm thiểu số lần đọc/ghi ngẫu nhiên xuống đĩa SSD.</li>
+          </ol>
+
+          <pre><code># ==============================================================================
+# 1. ƯU TIÊN SỐ 1 (PyFlink): Tăng Parallelism cục bộ cho riêng toán tử bị nghẽn
+# ==============================================================================
+enriched_orders = (
+    orders_stream
+    .key_by(lambda order: order["order_id"])
+    # Tách riêng toán tử nặng và nâng độ song song từ 4 lên 16 subtasks
+    .process(HeavyFraudScoringProcessFunction())
+    .set_parallelism(16)
+    .name("fraud-scoring-operator")
+)
+
+// =============================================================================
+// 2. ƯU TIÊN SỐ 2 (Flink Java): Dùng AsyncDataStream.unorderedWait() thay thế
+//    lời gọi đồng bộ chặn luồng khi tra cứu thông tin khách hàng cho Order #8888
+// =============================================================================
+DataStream&lt;EnrichedOrder&gt; asyncEnrichedStream = AsyncDataStream.unorderedWait(
+    ordersStream,
+    new AsyncCustomerDatabaseLookup(), // Triển khai RichAsyncFunction không chặn luồng
+    2000,                              // Timeout tối đa cho mỗi request: 2000 ms
+    TimeUnit.MILLISECONDS,
+    200                                // Capacity: cho phép 200 requests bay đồng thời/subtask
+).setParallelism(8);
+
+# ==============================================================================
+# 3. ƯU TIÊN SỐ 3 (flink-conf.yaml / config.yaml): Tinh chỉnh RocksDB State I/O
+# ==============================================================================
+state.backend.type: rocksdb
+state.backend.incremental: true
+# Cấp phát bộ nhớ Off-Heap có quản lý cho RocksDB trên mỗi Task Slot
+taskmanager.memory.managed.size: 4096m
+# Tăng Block Cache (đọc) và Write Buffer (ghi MemTable) để triệt tiêu Disk I/O bottleneck
+state.backend.rocksdb.block.cache-size: 1024m
+state.backend.rocksdb.writebuffer.size: 128m
+state.backend.rocksdb.writebuffer.count: 4
+state.backend.rocksdb.thread.num: 4</code></pre>
+
+          <div class="callout">
+            <div class="callout-title">Đúc kết Cơ học Trạm 6.2 &amp; Cầu nối sang Trạm 6.3</div>
+            <p>Nhờ cơ chế <code>Credit-Based Backpressure</code> và 3 phác đồ xử lý tận gốc (<code>set_parallelism</code>, <code>Async I/O</code>, <code>RocksDB Tuning</code>), đường ống <code>Order #8888</code> đã đạt thông lượng ổn định <code>100.000 sự kiện/giây</code> với chỉ số <code>Backpressured = OK (Green)</code> trên toàn đồ thị. Tuy nhiên, mọi nỗ lực tối ưu hóa tinh vi đó sẽ đổ sông đổ bể nếu một kỹ sư khác nộp một tác vụ thử nghiệm (<code>ad-hoc query</code>) vào chung cụm Flink và gây tràn bộ nhớ làm sập luôn các <code>TaskManager</code> đang chạy đường ống thanh toán chính! Làm thế nào để cô lập hoàn toàn tài nguyên của từng tác vụ trên môi trường Production? Chúng ta bước sang trạm cuối cùng: Trạm 6.3 — Kiến trúc Triển khai Cụm Flink (<code>Session Mode</code> vs. <code>Application Mode</code>).</p>
+          </div>
+        </section>
+
+        <section class="lesson-section" id="flink-6-3">
+          <h2 id="flink-6-3-h2" tabindex="-1">Trạm 6.3: Kiến trúc Triển khai Cụm Flink — Session Mode vs. Application Mode trên Kubernetes</h2>
+
+          <p>Khi đưa một tác vụ Apache Flink lên vận hành trên hạ tầng đám mây hoặc Kubernetes, quyết định kiến trúc quan trọng nhất là lựa chọn mô hình triển khai cụm (<code>Deployment Mode</code>) để định hình vòng đời của cụm máy chủ (<code>Cluster Lifecycle</code>) và ranh giới cô lập tài nguyên (<code>Resource &amp; Job Isolation</code>). Theo <em>Stream Processing with Apache Flink</em> (Ch. 9, tr. 221–236) và thực tiễn vận hành hiện đại, Flink cung cấp hai mô hình đối lập nhau: <code>Session Mode</code> (một cụm dùng chung cho nhiều tác vụ — <em>one shared cluster for many jobs</em>) và <code>Application Mode</code> (mỗi tác vụ sở hữu một cụm chuyên biệt độc lập — <em>one dedicated cluster per job</em>).</p>
+
+          <p>Sự khác biệt giữa hai chế độ này giống như việc thuê một khu văn phòng chia sẻ (<em>Co-working Space</em> — <code>Session Mode</code>) so với việc xây một nhà máy khép kín riêng cho từng dây chuyền sản xuất (<em>Dedicated Factory</em> — <code>Application Mode</code>). Trong khu văn phòng chia sẻ, nhân viên mới chỉ việc xách máy tính vào ngồi làm ngay mà không tốn thời gian xây dựng phòng ốc (khởi chạy tác vụ tức thì trong <code>&lt; 2 giây</code>), nhưng nếu một nhóm bên cạnh làm chập điện hoặc mở nhạc quá to (hiệu ứng hàng xóm ồn ào <code>Noisy Neighbor</code>), toàn bộ tòa nhà đều mất điện theo. Ngược lại, nhà máy chuyên biệt của đường ống <code>Order #8888</code> có máy phát điện, hệ thống mạng và đội ngũ bảo vệ hoàn toàn tách biệt: dù các ứng dụng khác trong công ty có gặp sự cố nghiêm trọng đến đâu, dây chuyền <code>Order #8888</code> vẫn vận hành bất khả xâm phạm.</p>
+
+          <x-figure id="flink-6-3-fig" key="6.3" title="Sơ đồ 6.3 — Đối chiếu Kiến trúc Session Mode (Dùng chung Cụm, Dễ Nhiễu Tải) vs. Application Mode (Cụm Độc lập Theo Job, Chuẩn Production)">So sánh biên giới cô lập tài nguyên giữa một cụm Session dùng chung cho nhiều Job và cụm Application chuyên biệt trên Kubernetes.</x-figure>
+
+          <h3 id="flink-6-3-comparison">Ma trận Đối chiếu Toàn diện: Session Mode vs. Application Mode</h3>
+          <p>Bảng phân tích dưới đây tổng hợp các tiêu chí kỹ thuật cốt lõi từ Slide 73 và chương triển khai cụm của Flink để làm cơ sở ra quyết định kiến trúc (ADR) cho từng môi trường:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Kiến trúc</th>
+                  <th><code>Session Mode</code> (Chế độ Cụm Dùng Chung)</th>
+                  <th><code>Application Mode</code> (Chế độ Cụm Độc Lập Theo Ứng Dụng)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Mô hình Phân bổ Cụm (<code>Cluster Topology</code>)</strong></td>
+                  <td>Khởi tạo sẵn <em>1 cụm Flink duy nhất dùng chung cho nhiều tác vụ</em> (<code>One shared cluster for many jobs</code>). Các tác vụ nộp vào sau sẽ xin cấp phát các <code>Task Slot</code> còn trống trên các <code>TaskManager</code> hiện hữu.</td>
+                  <td>Khởi tạo <em>1 cụm Flink chuyên biệt cho đúng 1 tác vụ duy nhất</em> (<code>One dedicated cluster per job</code>). Vòng đời của <code>JobManager</code> và các <code>TaskManager</code> gắn chặt với vòng đời của chính tác vụ đó.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Mức độ Cô lập Tác vụ (<code>Job Isolation</code>)</strong></td>
+                  <td><em>Thấp (<code>Low</code>):</em> Nhiều tác vụ cùng chia sẻ chung không gian tiến trình JVM của <code>TaskManager</code>, chung băng thông mạng và ổ đĩa <code>RocksDB</code>. Nếu một tác vụ thử nghiệm gây lỗi <code>OutOfMemoryError</code> hoặc bão <code>GC Pause</code>, toàn bộ các tác vụ khác chạy cùng <code>TaskManager</code> đều bị sập và phải khởi động lại.</td>
+                  <td><em>Cao tuyệt đối (<code>High</code>):</em> Toàn bộ CPU, RAM, <code>Network Buffers</code> và <code>RocksDB Disk</code> trong Pod Kubernetes chỉ phục vụ duy nhất một ứng dụng (ví dụ đường ống <code>Order #8888</code>). Triệt tiêu <code>100%</code> rủi ro nhiễu tải từ hàng xóm (<code>Zero Noisy Neighbor</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Vị trí Chạy Hàm <code>main()</code> &amp; Tạo Đồ thị (<code>Client Overhead</code>)</strong></td>
+                  <td>Hàm <code>main()</code> chạy trên máy trạm nộp lệnh (<code>Client machine</code>): máy Client phải tải toàn bộ thư viện phụ thuộc (<code>JAR/Python dependencies</code>), biên dịch <code>JobGraph</code> rồi đẩy qua mạng lên <code>JobManager</code> — dễ gây nghẽn băng thông tại máy Client hoặc cổng CI/CD.</td>
+                  <td>Hàm <code>main()</code> được đóng gói sẵn trong Docker Image và <em>thực thi trực tiếp bên trong <code>JobManager</code> trên cụm</em>. Máy Client chỉ gửi một lệnh khai báo YAML siêu nhẹ cho Kubernetes mà không tốn CPU hay băng thông tải thư viện.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Độ trễ Khởi chạy vs. Chi phí Tài nguyên</strong></td>
+                  <td>Khởi chạy tác vụ cực nhanh (<code>1–2 giây</code>) vì các Pod <code>TaskManager</code> đã bật sẵn; tuy nhiên nếu không có tác vụ nào chạy, cụm vẫn ngốn tài nguyên nhàn rỗi.</td>
+                  <td>Cần <code>15–45 giây</code> ban đầu để Kubernetes cấp phát Pod mới cho cụm; nhưng khi tác vụ kết thúc hoặc quy mô co giãn (Autoscaling), cụm tự giải phóng <code>100%</code> tài nguyên về cho K8s.</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Khuyến nghị cho Môi trường Production (<code>Production Recommended</code>)</strong></td>
+                  <td><em>Chỉ dành cho Dev / Testing (<code>Dev / testing only</code>):</em> Phù hợp cho môi trường phát triển, chạy thử nghiệm ngắn hạn (<code>ad-hoc SQL queries</code>), hoặc phòng thí nghiệm nội bộ.</td>
+                  <td><em>Bắt buộc cho Production (<code>Yes — Production Standard</code>):</em> Chuẩn mực vàng cho mọi đường ống xử lý luồng quan trọng cấp doanh nghiệp chạy <code>24/7</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 id="flink-6-3-k8s-manifest">Cấu hình Thực chiến: Triển khai Đường ống Order #8888 ở Chế độ Application Mode qua Flink Kubernetes Operator</h3>
+          <p>Trên hạ tầng Cloud-Native hiện đại, thay vì quản lý thủ công từng tập lệnh khởi chạy, kỹ sư đóng gói mã nguồn xử lý đơn hàng <code>Order #8888</code> vào một Docker Image bất biến và triển khai ở chế độ <code>Application Mode</code> thông qua <code>FlinkDeployment</code> Custom Resource của <code>Apache Flink Kubernetes Operator</code> (chỉ định <code>spec.job</code> để kích hoạt Application Mode kèm cơ chế tự động nâng cấp không mất trạng thái <code>upgradeMode: savepoint</code>):</p>
+
+          <pre><code>apiVersion: flink.apache.org/v1beta1
+kind: FlinkDeployment
+metadata:
+  name: order-8888-realtime-pipeline
+  namespace: flink-production
+spec:
+  image: registry.internal/fsds/d04-order-stream-processor:v2.4.0
+  flinkVersion: v1_19
+  flinkConfiguration:
+    taskmanager.numberOfTaskSlots: "4"
+    state.backend.type: rocksdb
+    state.backend.incremental: "true"
+    state.checkpoints.dir: s3://fsds-prod-lakehouse/flink-checkpoints/order-8888
+    state.savepoints.dir: s3://fsds-prod-lakehouse/flink-savepoints/order-8888
+    execution.checkpointing.interval: 30s
+    execution.checkpointing.mode: EXACTLY_ONCE
+    kubernetes.operator.periodic.savepoint.interval: 6h
+  serviceAccount: flink-prod-sa
+  jobManager:
+    resource:
+      memory: "2048m"
+      cpu: 1.0
+  taskManager:
+    resource:
+      memory: "8192m"
+      cpu: 4.0
+  # Khi khai báo khối spec.job, Flink Kubernetes Operator tự động khởi tạo
+  # một cụm độc lập ở chế độ APPLICATION MODE dành riêng cho đường ống này:
+  job:
+    jarURI: local:///opt/flink/usrlib/order-stream-processor.jar
+    entryClass: vn.fsds.d04.Order8888StreamingJob
+    parallelism: 16
+    upgradeMode: savepoint
+    state: running</code></pre>
+
+          <div class="callout">
+            <div class="callout-title">Đúc kết Cơ học Trạm 6.3</div>
+            <p>Việc triển khai đường ống <code>Order #8888</code> bằng <code>Application Mode</code> trên Kubernetes kết hợp <code>upgradeMode: savepoint</code> đã khóa chặt mảnh ghép vận hành cuối cùng: mỗi ứng dụng chạy trong một pháo đài tài nguyên độc lập, tự động chụp ảnh <code>Savepoint</code> trước khi nâng cấp phiên bản mới và tự động khôi phục từ <code>Checkpoint</code> trên S3/MinIO khi có sự cố phần cứng mà không ảnh hưởng tới bất kỳ dịch vụ nào khác trong doanh nghiệp.</p>
+          </div>
+        </section>
+
+        <section class="summary-section" id="flink-6-summary">
+          <h2 id="flink-6-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 6 &amp; Khép kín Toàn bộ Học phần Transformation Layer (Stream · Flink)</h2>
+
+          <p><strong>Khép kín hành trình 6 Chặng của Đơn hàng Order #8888 tại Tầng Biến đổi Luồng Thời gian thực (D04 · Stream Transformation with Apache Flink):</strong> Khởi đầu từ khoảnh khắc sự kiện thanh toán <code>Order #8888</code> (khách hàng Nguyễn Văn A tại Bình Dương mua bộ Sofa <code>15.000.000 VNĐ</code>) được đẩy vào Kafka từ Học phần D01, chúng ta đã chứng kiến lý do vì sao kiến trúc xử lý từng sự kiện (<code>True Event-at-a-Time</code>) của Apache Flink vượt qua giới hạn độ trễ của <code>Micro-Batching</code> để đạt ngưỡng phản hồi <code>&lt; 10–50 ms</code> (<strong>Chặng 1 &amp; 2</strong>). Đi sâu vào nội tạng hệ thống, đơn hàng <code>Order #8888</code> được định tuyến qua <code>keyBy(order_id)</code> vào đúng vùng nhớ trạng thái <code>Keyed State</code> trên <code>RocksDBStateBackend</code> (<strong>Chặng 3</strong>), được xếp vào đúng khung cửa sổ doanh thu <code>Event-Time Window</code> ngay cả khi mạng 4G bị trễ nhờ cơ chế đồng hồ <code>Watermark</code> và <code>Allowed Lateness</code> (<strong>Chặng 4</strong>), được bảo vệ bất tử trước sự cố sập nguồn bằng rào chắn <code>Chandy-Lamport Checkpoint Barrier</code> kết hợp giao thức <code>Two-Phase Commit (2PC)</code> để cam kết <code>End-to-End Exactly-Once</code> (<strong>Chặng 5</strong>), và cuối cùng được tối ưu hóa cực đại bằng <code>Operator Chaining</code>, giải phóng khỏi nút thắt <code>Backpressure</code> bằng <code>Async I/O</code> trước khi vận hành bền bỉ trên cụm Kubernetes theo kiến trúc <code>Application Mode</code> (<strong>Chặng 6</strong>). Từ đầu ra của Flink, dữ liệu đã được làm giàu và tổng hợp tức thì được ghi thẳng xuống các bảng <strong>Lakehouse (Iceberg / Delta Lake)</strong> và các kho phục vụ truy vấn tốc độ cao — mở đường bước vào <strong>Học phần D05: Consumption Layer (OLAP, Vector DB &amp; Semantic Serving)</strong>.</p>
+
+          <ol>
+            <li><strong>Bốn trụ cột quyết định hiệu năng của một ứng dụng Apache Flink là gì, và cơ chế <code>Operator Chaining</code> cắt giảm chi phí phần cứng bằng cách nào?</strong> → Bốn trụ cột gồm: (1) <code>Watermark strategy</code> (quyết định độ trễ và độ đầy đủ dữ liệu), (2) <code>Operator chaining</code> (giảm chi phí giao tiếp nội bộ), (3) <code>Memory tuning</code> (ổn định bộ nhớ và thông lượng), và (4) <code>Backpressure handling</code> (định vị điểm nghẽn). Khi bật <code>Operator Chaining</code>, các toán tử nối tiếp có cùng <code>parallelism</code> và kênh truyền <code>Forward</code> (<code>1-to-1</code>) được gộp vào chạy trên <strong>cùng 1 luồng CPU trong 1 Task Slot</strong>, giúp bản ghi nằm nguyên trong RAM và truyền qua lời gọi hàm trực tiếp mà không tốn chi phí <code>Serialization / Deserialization</code>, <code>Network Buffer copy</code> hay chuyển ngữ cảnh luồng.</li>
+            <li><strong>Khi nào kỹ sư cần chủ động tắt <code>Operator Chaining</code> mặc dù cơ chế này giúp tăng hiệu năng?</strong> → Chỉ chủ động ngắt chuỗi bằng <code>.disableChaining()</code>, <code>.startNewChain()</code> hoặc tách <code>.slotSharingGroup()</code> trong 4 trường hợp: (1) Cần cô lập chỉ số đo lường (metrics/backpressure) để gỡ lỗi một toán tử cụ thể trên Flink Web UI; (2) Cần đo <code>CPU FlameGraph</code> riêng biệt cho từng toán tử (do các toán tử nối chuỗi dùng chung 1 thread); (3) Toán tử có nhu cầu tài nguyên RAM/CPU đặc biệt nặng cần tách sang <code>Task Slot</code> riêng; và (4) Cần tái hiện một lỗi cô lập mà không bị nhiễu bởi các toán tử liền kề.</li>
+            <li><strong>Tại sao nói <code>Backpressure</code> vừa là cơ chế tự bảo vệ vừa là tín hiệu chỉ điểm nút thắt cổ chai, và nó lan truyền ngược dòng như thế nào?</strong> → Khi toán tử hạ nguồn xử lý chậm, vùng đệm đầu vào (<code>Input Buffer Pool</code>) của nó đầy cứng và điểm tín dụng rơi về <code>Credit = 0</code>, buộc toán tử đứng trước phải ngừng gửi dữ liệu và đầy luôn <code>Output Buffer Pool</code>, cứ thế truyền lực phanh ngược về tận <code>Source</code> để giảm tốc độ đọc Kafka. Nhờ vậy, hệ thống không bị nổ RAM (<code>OutOfMemoryError</code>), đồng thời chuỗi toán tử báo đỏ <code>HIGH (&gt; 50%)</code> trên Flink Web UI sẽ chỉ điểm chính xác <code>Slow Operator</code> nằm ngay phía hạ lưu của mắt xích <code>HIGH</code> cuối cùng.</li>
+            <li><strong>Ba phác đồ giải quyết <code>Backpressure</code> theo đúng thứ tự ưu tiên trên Production là gì?</strong> → Sau khi định vị được <code>Slow Operator</code>, thực hiện theo thứ tự ưu tiên: (1) <strong>Scale out the slow operator:</strong> tăng độ song song độc lập cho riêng toán tử chậm bằng <code>.set_parallelism(N)</code>; (2) <strong>Use Async I/O:</strong> thay thế các lời gọi tra cứu DB/API bên ngoài dạng đồng bộ gây chặn luồng bằng <code>AsyncDataStream.unorderedWait()</code>; (3) <strong>Tune RocksDB:</strong> tăng kích thước <code>Block Cache</code> (đọc) và <code>Write Buffer</code> (ghi) nếu điểm nghẽn nằm ở thao tác đọc/ghi trạng thái trên ổ đĩa.</li>
+            <li><strong>Tại sao <code>Application Mode</code> được khuyến nghị bắt buộc cho môi trường Production thay vì <code>Session Mode</code>?</strong> → Vì <code>Session Mode</code> dùng chung một cụm Flink cho nhiều tác vụ khác nhau (<code>Job isolation: Low</code>), nên nếu một tác vụ thử nghiệm bị tràn bộ nhớ hoặc chiếm dụng CPU/mạng sẽ kéo sập toàn bộ các tác vụ quan trọng chạy cùng <code>TaskManager</code> (chỉ phù hợp cho <code>Dev / testing</code>). Ngược lại, <code>Application Mode</code> cấp phát một cụm Flink chuyên biệt cho từng tác vụ (<code>one dedicated cluster per job</code>) với hàm <code>main()</code> chạy trực tiếp trên <code>JobManager</code>, mang lại sự cô lập tài nguyên tuyệt đối (<code>Job isolation: High</code>) và tự động thu hồi tài nguyên khi tác vụ kết thúc.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/D04/1" onclick="selectStorageStage(1);return false;">Quay lại Chặng 1: Bản đồ Kiến trúc 6 Chặng &amp; Phòng Thí Nghiệm Động Cơ Flink 2D →</a></p>
+        </section>
+      </div>

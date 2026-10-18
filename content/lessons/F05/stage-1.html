@@ -1,0 +1,189 @@
+      <div class="prose">
+        <x-spine id="validation-1-spine" badge="TRONG BÀI HỌC NÀY · F05" title="Chặng 1: Mô Hình V-Model, Chi Phí Lỗi Shift-Left &amp; Ba Phương Pháp Kiểm Thử" subtitle="Trạm 0.0 → 1.2">Hành trình kiểm định hàm thanh toán <strong>checkout_order(&quot;ORD-8888&quot;, amount=450000)</strong> trong dịch vụ <code>order-api</code>: phân biệt rạch ròi <strong>Verification</strong> và <strong>Validation</strong> trên mô hình chữ V (<strong>V-Model</strong>), định lượng quy luật nhân <code>30x</code> chi phí sửa lỗi (<strong>Shift-Left Testing</strong>), và cắt lớp 3 phương pháp kiểm thử <strong>Black-box, Grey-box, White-box</strong> cùng kiểm chứng hình thức.</x-spine>
+
+        <section class="lesson-section" id="validation-0-map">
+          <h2 id="validation-0-map-h2" tabindex="-1">Trạm 0.0: Nhân vật chính checkout_order(&quot;ORD-8888&quot;) &amp; Bản đồ Kiến trúc 4 Chặng Validation &amp; Verification</h2>
+
+          <p>Xuyên suốt học phần <strong>F05 · Validation &amp; Verification</strong>, chúng ta theo chân một nhân vật chính duy nhất: hàm xử lý thanh toán <code>checkout_order(order_id="ORD-8888", amount=450000)</code> nằm trong tệp <code>app/service.py</code> của dịch vụ <code>order-api</code>, chịu trách nhiệm kiểm tra hạn mức, gọi cổng thanh toán đối tác <code>payment_gateway.charge()</code> và lưu biên lai xuống cơ sở dữ liệu PostgreSQL. Trên máy lập trình viên, một lần chạy thử thủ công với số tiền dương có thể báo thành công mỹ mãn; nhưng khi lên môi trường Production, hàm này vẫn có thể trừ tiền khách hàng hai lần khi mạng chập chờn, cho phép thanh toán số tiền âm <code>amount=-50000</code>, hoặc làm treo toàn bộ hệ thống khi cổng thanh toán phản hồi chậm. Để chặn đứng các thảm họa đó trước khi chạm tới người dùng cuối, <code>checkout_order("ORD-8888")</code> phải đi qua quy trình kiểm định đa tầng trải dài 4 Chặng (8 Trạm) dưới đây.</p>
+
+          <x-figure id="validation-0-1" key="0.1" title="Sơ đồ 0.1 — Bản đồ Tư duy 4 Chặng: Hành trình Kiểm định Hàm checkout_order(&quot;ORD-8888&quot;) từ V-Model đến pytest &amp; TDD">Toàn cảnh lộ trình 4 Chặng (8 Trạm) bảo vệ hàm <code>checkout_order(&quot;ORD-8888&quot;)</code>: từ mô hình V-Model &amp; phân loại Black/Grey/White-box (Chặng 1) → phạm vi Functional/Non-Functional (Chặng 2) → tự động hóa với <code>pytest</code> Fixtures, Markers, Parametrize (Chặng 3) → cô lập phụ thuộc bằng <code>mocker.patch</code>, <code>Testcontainers</code> và quy trình TDD (Chặng 4).</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chặng &amp; Trạm</th>
+                  <th>Trọng tâm Slide 05 &amp; Syllabus</th>
+                  <th>Điểm nghẽn Khởi phát</th>
+                  <th>Cơ chế Giải quyết Cốt lõi</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Chặng 1</strong><br/><em>Trạm 0.0 → 1.2</em><br/>V-Model &amp; Ba Phương pháp</td>
+                  <td>• <strong>Verification vs. Validation</strong>, đối xứng <strong>V-Model</strong> &amp; <strong>Cost of Bugs (Shift-Left)</strong> (<em>Slide 04–10</em>).<br/>• <strong>Manual vs. Automated</strong>; <strong>Black-box, Grey-box, White-box</strong> &amp; kiểm chứng hình thức (<em>Slide 13–22</em>).</td>
+                  <td>Phát hiện lỗi logic thanh toán quá muộn ở môi trường Production khiến chi phí khắc phục đội lên gấp <code>30x</code>; chỉ kiểm thử bề nổi làm lọt nhánh rẽ <code>if/else</code> hiểm hóc.</td>
+                  <td>Đẩy kiểm định về sát pha thiết kế (<strong>Shift-Left</strong>) trên V-Model; kết hợp Black-box, Grey-box và White-box (kèm <strong>Hoare Logic</strong>, <strong>Symbolic Execution</strong>, <strong>Mutation Testing</strong>).</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 2</strong><br/><em>Trạm 2.1 → 2.2</em><br/>Functional &amp; Non-Functional</td>
+                  <td>• 4 cấp độ <strong>Functional Testing</strong>: <strong>Unit, Integration, System, Acceptance (UAT)</strong> (<em>Slide 23–28</em>).<br/>• <strong>Non-Functional Testing</strong>: <strong>Performance (Load/Stress/Scalability)</strong>, <strong>Security</strong>, <strong>Usability</strong> &amp; <strong>Testing Pyramid</strong> (<em>Slide 29–35</em>).</td>
+                  <td>Từng hàm chạy đúng nhưng ghép lại bị lệch lược đồ DB; hoặc hàm tính tiền đúng nhưng sập nguồn khi <code>5,000</code> người dùng cùng bấm thanh toán giờ Flash Sale.</td>
+                  <td>Tổ chức kiểm thử theo tháp <strong>70% Unit / 20% Integration / 10% E2E</strong>; đo định lượng ngưỡng chịu tải (<code>p99 latency</code>, RPS) và quét lỗ hổng bảo mật.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 3</strong><br/><em>Trạm 3.1 → 3.2</em><br/>Kiến trúc pytest Thực chiến</td>
+                  <td>• Cơ chế <strong>Test Discovery</strong>, cấu trúc <strong>AAA (Arrange – Act – Assert)</strong>, <strong>Assertion Introspection</strong> &amp; <code>pytest.raises</code> (<em>Slide 36–46</em>).<br/>• <strong>Fixtures</strong> (<code>yield</code>, Scopes), <code>conftest.py</code>, <strong>Markers</strong> &amp; <code>@pytest.mark.parametrize</code> (<em>Slide 47–58</em>).</td>
+                  <td>Viết hàng chục hàm test lặp lại code khởi tạo kết nối DB; khi quên dọn dẹp dữ liệu mẫu khiến các bài test chạy sau bị nhiễm bẩn trạng thái (State Pollution).</td>
+                  <td>Cấp phát và thu hồi tài nguyên tự động bằng <strong>Fixtures <code>yield</code></strong> theo đúng tầm vực (<code>function/module/session</code>); nén hàng chục kịch bản biên vào <code>@pytest.mark.parametrize</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 4</strong><br/><em>Trạm 4.1 → 4.2</em><br/>Mocking, Containers &amp; TDD</td>
+                  <td>• <strong>Test Doubles</strong> (Dummy, Stub, Spy, Mock, Fake), quy tắc vàng <code>mocker.patch</code> &amp; <strong>Testcontainers</strong> (<em>Slide 59–62</em>).<br/>• Vòng lặp <strong>TDD (Red – Green – Refactor)</strong>, <strong>Code Coverage</strong> &amp; <strong>CI/CD Quality Gate</strong>.</td>
+                  <td>Unit test gọi thẳng cổng thanh toán thật làm trừ tiền thật và phụ thuộc mạng; hoặc lạm dụng Mock cho cả câu lệnh SQL khiến test xanh giả tạo (Mock Drift).</td>
+                  <td>Cô lập API ngoại vi bằng <code>mocker.patch</code> đúng <strong>nơi đối tượng được import</strong>; kiểm thử DB thật bằng <strong>Testcontainers</strong> và khóa cổng CI/CD với quy trình <strong>TDD</strong>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="lesson-section" id="validation-1-0-sim">
+          <h2 id="validation-1-0-sim-h2" tabindex="-1">Trạm 1.0 (Mô phỏng 2D): Phòng Thí Nghiệm V-Model, Bẫy mocker.patch, Fixtures yield &amp; Vòng Lặp TDD</h2>
+
+          <p>Trước khi đi vào giải phẫu lý thuyết, hãy trực tiếp điều khiển hàm <code>checkout_order("ORD-8888", amount=450000)</code> đi qua <strong>6 kịch bản kiểm định tương tác</strong> trong Phòng Thí Nghiệm 2D dưới đây: từ đối chiếu hệ số chi phí lỗi <code>1x → 30x</code> trên <strong>V-Model</strong>, soi độ xuyên thấu của <strong>Black-box / Grey-box / White-box</strong>, cân chỉnh tỷ lệ <strong>Testing Pyramid</strong>, theo dõi vòng đời <strong>pytest Fixtures <code>yield</code></strong>, gỡ bẫy kinh điển <code>mocker.patch</code> sai vị trí namespace, cho tới thực hành nhịp điệu <strong>TDD (Red → Green → Refactor)</strong>.</p>
+
+          <x-validation2d></x-validation2d>
+        </section>
+
+        <section class="lesson-section" id="validation-1-1">
+          <h2 id="validation-1-1-h2" tabindex="-1">Trạm 1.1: Verification vs. Validation, Mô hình Chữ V (V-Model) &amp; Quy luật Nhân 30 Lần Chi phí Lỗi (Shift-Left)</h2>
+
+          <p>Trong kỹ nghệ phần mềm, <strong>Verification (Xác minh quy trình — "Are we building the product right?")</strong> và <strong>Validation (Thẩm định kết quả — "Are we building the right product?")</strong> là hai nửa kiểm chứng bổ trợ nhưng tách biệt hoàn toàn về thời điểm và mục tiêu (<em>Slide 04</em>). <strong>Verification</strong> là quá trình kiểm tra tĩnh (Static Check) trên tài liệu yêu cầu, bản vẽ kiến trúc và mã nguồn <em>trước khi chạy chương trình</em> nhằm đảm bảo sản phẩm được xây dựng đúng theo đặc tả kỹ thuật đã đề ra. Ngược lại, <strong>Validation</strong> là quá trình kiểm thử động (Dynamic Check) bằng cách <em>chạy phần mềm thực tế</em> để chứng minh sản phẩm thực sự giải quyết đúng bài toán và nhu cầu của người dùng cuối. Xét hàm <code>checkout_order("ORD-8888", amount=450000)</code>: nếu đặc tả yêu cầu giảm giá <code>10%</code> cho đơn trên <code>400,000đ</code> và code tính ra đúng <code>405,000đ</code>, hàm đã vượt qua <strong>Verification</strong>; nhưng nếu khách hàng ngoài đời thực bấm nhầm nút "Thanh toán" hai lần liên tiếp khi mạng lag và bị trừ <code>810,000đ</code> vì thiết kế thiếu cơ chế chống trùng lặp (<code>idempotency_key</code>), sản phẩm đã thất bại ở khâu <strong>Validation</strong>.</p>
+
+          <p>Để không đợi đến khi viết xong toàn bộ code mới bắt đầu tìm lỗi, <strong>V-Model (Validation &amp; Verification Model)</strong> uốn cong quy trình thác nước thành hình chữ V đối xứng qua đáy <code>&lt; CODING &gt;</code> (<em>Slide 05–08</em>): mỗi pha thiết kế ở nhánh trái (<strong>Verification</strong>: <code>Requirement Gathering → Functional Design → Internal System Design → Module Design</code>) đều sinh ra bộ kịch bản kiểm thử tương ứng trực tiếp cho một pha ở nhánh phải (<strong>Validation</strong>: <code>User Acceptance Testing → Functional Testing → Integration Testing → Unit Testing</code>). Lý do kinh tế cốt lõi buộc mọi kỹ sư phải áp dụng tư duy <strong>Shift-Left Testing (Dịch chuyển kiểm định sang nhánh trái)</strong> nằm ở <strong>Quy luật Chi phí Lỗi (The Cost of Bugs)</strong> (<em>Slide 09–10</em>): chi phí sửa một lỗi phần mềm tăng theo cấp số nhân theo thời gian tồn tại của nó — chỉ tốn <code>1x</code> nếu phát hiện ngay lúc chốt Requirements/Architecture, tăng lên <code>5x</code> ở giai đoạn Coding, <code>10x</code> ở Integration Testing, <code>15x</code> ở System/UAT, và vọt lên gấp <code>30x</code> khi lỗi đã lọt lên Production gây sai lệch dữ liệu tài chính.</p>
+
+          <x-figure id="validation-1-1-fig" key="1.1" title="Sơ đồ 1.1 — Đối xứng V-Model (Verification Trái ↔ Validation Phải) &amp; Hệ số Chi phí Sửa lỗi 1x → 30x">Cấu trúc đối xứng 4 tầng của V-Model hội tụ tại đáy Coding, đặt cạnh biểu đồ chi phí khắc phục lỗi tăng gấp 30 lần từ giai đoạn Thiết kế (1x) đến Production (30x).</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Nhánh Trái: Verification (Thiết kế &amp; Đặc tả)</th>
+                  <th>Nhánh Phải: Validation (Thực thi Kiểm thử)</th>
+                  <th>Hệ số Chi phí Lỗi (Cost Multiplier)</th>
+                  <th>Ví dụ Thực chiến trên Hàm <code>checkout_order("ORD-8888")</code></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Module Design</strong><br/>Thiết kế chi tiết từng hàm, kiểu dữ liệu đầu vào/đầu ra và công thức tính toán nội bộ.</td>
+                  <td><strong>Unit Testing</strong><br/>Kiểm thử đơn vị độc lập từng hàm với bộ dữ liệu biên ngay khi vừa viết code.</td>
+                  <td><code>1x</code> (Lúc thiết kế)<br/>→ <code>5x</code> (Lúc Coding / Unit Test)</td>
+                  <td>Phát hiện hàm <code>checkout_order</code> chưa chặn trường hợp <code>amount &lt;= 0</code> hoặc làm tròn sai thuế VAT ngay trên máy lập trình viên.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Internal System Design</strong><br/>Thiết kế kiến trúc nội bộ, lược đồ bảng PostgreSQL và hợp đồng giao tiếp API ngoại vi.</td>
+                  <td><strong>Integration Testing</strong><br/>Kiểm thử sự phối hợp giữa các mô-đun, kết nối cơ sở dữ liệu và cổng thanh toán.</td>
+                  <td><code>10x</code><br/>(Tốn công sửa giao thức giữa các dịch vụ)</td>
+                  <td>Phát hiện lệnh <code>INSERT INTO payments</code> trong <code>app/service.py</code> bị lỗi khóa ngoại hoặc lệch tên cột so với schema PostgreSQL.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Functional Design</strong><br/>Đặc tả luồng nghiệp vụ hoàn chỉnh của tính năng đặt hàng và thanh toán từ đầu đến cuối.</td>
+                  <td><strong>Functional / System Testing</strong><br/>Kiểm thử toàn bộ hệ thống hoàn chỉnh xem có đáp ứng đúng các tính năng nghiệp vụ không.</td>
+                  <td><code>15x</code><br/>(Phải viết lại luồng phối hợp nhiều tầng)</td>
+                  <td>Kiểm tra luồng hoàn chỉnh: khách tạo giỏ hàng → gọi <code>checkout_order("ORD-8888")</code> → trừ tồn kho → gửi email xác nhận.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Requirement Gathering</strong><br/>Thu thập bài toán kinh doanh và kỳ vọng thực tế của khách hàng / đối tác vận hành.</td>
+                  <td><strong>User Acceptance Testing (UAT)</strong> &amp; <strong>Production</strong><br/>Kiểm thử chấp nhận người dùng trước khi bàn giao vận hành thật.</td>
+                  <td><code>15x</code> (Tại UAT)<br/>→ <code>30x</code> (Lọt lên Production)</td>
+                  <td>Nếu lên Production mới phát hiện khách bấm đúp bị trừ tiền 2 lần, đội kỹ thuật phải dừng hệ thống, vá lỗi khẩn cấp và hoàn tiền thủ công (<code>30x</code>).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Mô hình V-Model và nguyên lý Shift-Left cho chúng ta biết <em>khi nào</em> cần thiết kế và chạy kiểm thử để khóa chặt chi phí ở mức <code>1x–5x</code>. Bước tiếp theo, để thiết kế được các bài kiểm thử không bỏ sót bất kỳ lỗ hổng nào bên trong hàm <code>checkout_order("ORD-8888")</code>, kỹ sư phải nắm vững 3 trục phân loại kiểm thử và mức độ xuyên thấu mã nguồn từ Hộp Đen đến Hộp Trắng tại <strong>Trạm 1.2</strong>.</p>
+        </section>
+
+        <section class="lesson-section" id="validation-1-2">
+          <h2 id="validation-1-2-h2" tabindex="-1">Trạm 1.2: Ba Trục Phân loại &amp; Kiểm thử Hộp Đen, Hộp Xám, Hộp Trắng (Kèm Hoare Logic, Symbolic Execution &amp; Mutation)</h2>
+
+          <p>Thế giới kiểm thử phần mềm được định vị qua <strong>3 trục phân loại trực giao</strong> (<em>Slide 13–17</em>): (1) <strong>Execution Method</strong> (<em>How we test — Cách thức thực thi</em>) chia thành <strong>Manual Testing</strong> (con người trực tiếp đóng vai người dùng thao tác bằng tay, linh hoạt để khám phá trải nghiệm UX ban đầu nhưng chậm, tốn nhân lực và dễ sai sót khi lặp lại) và <strong>Automated Testing</strong> (dùng kịch bản lệnh như <code>pytest</code> tự động chạy và đối chiếu kết quả, tốn chi phí viết test ban đầu nhưng đạt độ chính xác tuyệt đối, tốc độ mili-giây và là trụ cột bắt buộc cho <strong>Regression Testing</strong> sau mỗi lần sửa code); (2) <strong>Testing Methods</strong> (<em>Code knowledge — Mức độ am hiểu mã nguồn</em>) chia thành <strong>Black-box, Grey-box, White-box</strong>; và (3) <strong>Testing Scope</strong> (<em>Objectives — Mục tiêu kiểm định</em>) chia thành <strong>Functional</strong> và <strong>Non-Functional</strong>.</p>
+
+          <p>Đi sâu vào trục thứ hai (<em>Slide 18–22</em>), ba phương pháp kiểm thử phân tầng theo độ trong suốt của hệ thống: <strong>Black-box Testing</strong> coi hàm <code>checkout_order</code> là một chiếc hộp đen đóng kín (<code>0%</code> kiến thức về code), người kiểm thử chỉ truyền đầu vào <code>(order_id, amount)</code> và kiểm tra đầu ra; <strong>Grey-box Testing</strong> nắm một phần cấu trúc bên trong như lược đồ bảng PostgreSQL, hợp đồng REST API và tệp log để kiểm tra dữ liệu tại ranh giới giao tiếp; còn <strong>White-box (Glass-box) Testing</strong> do chính Developer hoặc kỹ sư <strong>SDET (Software Development Engineer in Test)</strong> thực hiện với tầm nhìn xuyên thấu <code>100%</code> mã nguồn, cấu trúc dữ liệu và mọi nhánh rẽ <code>if/else</code>. Đặc biệt, đối với các mô-đun thanh toán đòi hỏi độ tin cậy tuyệt đối trong Syllabus, kiểm chứng White-box còn mở rộng sang 3 kỹ thuật kiểm chứng hình thức: <strong>Hoare Logic</strong> chứng minh toán học bằng bộ ba <code>{P} C {Q}</code> (nếu tiền điều kiện <code>P</code> đúng trước khi chạy lệnh <code>C</code> thì hậu điều kiện <code>Q</code> luôn được bảo toàn), <strong>Symbolic Execution</strong> thay giá trị cụ thể bằng biến ký hiệu (<code>amount = α</code>) để giải hệ bất phương trình tìm ra bộ dữ liệu kích hoạt mọi nhánh lỗi tiềm ẩn, và <strong>Mutation Testing</strong> chủ động cấy lỗi nhân tạo vào mã nguồn (ví dụ đổi toán tử <code>if amount &gt; 0</code> thành <code>if amount &gt;= 0</code> tạo ra dị bản <strong>Mutant</strong>) nhằm kiểm tra xem bộ test hiện tại có đủ nhạy để phát hiện và "tiêu diệt" (Kill) dị bản đó hay không.</p>
+
+          <x-figure id="validation-1-2-fig" key="1.2" title="Sơ đồ 1.2 — Giải phẫu Black-box, Grey-box, White-box &amp; Ba Chốt chặn Kiểm chứng Hình thức">Đối chiếu độ xuyên thấu mã nguồn từ Black-box (0% code) → Grey-box (Schema/API Contract) → White-box (100% AST/Branching) cùng cơ chế Mutation Testing, Hoare Logic và Symbolic Execution.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Phương pháp / Kỹ thuật</th>
+                  <th>Độ hiểu biết Mã nguồn &amp; Người thực hiện</th>
+                  <th>Cơ chế Hoạt động Cốt lõi</th>
+                  <th>Áp dụng Thực tế trên <code>checkout_order("ORD-8888")</code></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Manual vs. Automated Testing</strong><br/>(<em>Slide 14–16</em>)</td>
+                  <td>QA Tester (Manual) vs. Developer / Automation QA / CI Pipeline (Automated).</td>
+                  <td><strong>Manual:</strong> Thao tác tay trực tiếp trên UI/Postman.<br/><strong>Automated:</strong> Chạy script kiểm thử tự động hàng loạt qua mỗi lần <code>git push</code>.</td>
+                  <td>Dùng Manual để duyệt giao diện trang thanh toán lần đầu; dùng Automated (<code>pytest</code>) để chạy lại <code>200</code> kịch bản tính tiền trong <code>1.5s</code> mỗi khi sửa code.</td>
+                </tr>
+                <tr>
+                  <td><strong>Black-box Testing</strong><br/>(Kiểm thử Hộp Đen — <em>Slide 18–19</em>)</td>
+                  <td><code>0%</code> mã nguồn nội bộ.<br/>Thực hiện bởi: QA Tester độc lập hoặc Người dùng cuối (UAT).</td>
+                  <td>Chỉ quan tâm <code>Input → Output</code> dựa trên tài liệu yêu cầu (Phân vùng tương đương &amp; Phân tích giá trị biên).</td>
+                  <td>Gửi <code>amount=450000</code> kỳ vọng nhận HTTP <code>200 OK</code>; gửi <code>amount=-1</code> kỳ vọng nhận lỗi <code>400 Bad Request</code> mà không cần biết code viết bằng hàm gì.</td>
+                </tr>
+                <tr>
+                  <td><strong>Grey-box Testing</strong><br/>(Kiểm thử Hộp Xám — <em>Slide 20</em>)</td>
+                  <td>Biết một phần kiến trúc (DB Schema, OpenAPI Spec, Log, Session state).<br/>Thực hiện bởi: QA Engineer / Integration Tester.</td>
+                  <td>Kích hoạt từ giao diện/API bên ngoài nhưng kiểm tra trạng thái biến đổi tại cơ sở dữ liệu và ranh giới tích hợp.</td>
+                  <td>Gọi API <code>POST /checkout</code> cho <code>ORD-8888</code> rồi truy vấn bảng <code>orders</code> trong PostgreSQL xem cột <code>status</code> đã chuyển sang <code>PAID</code> đúng chuẩn chưa.</td>
+                </tr>
+                <tr>
+                  <td><strong>White-box / Glass-box Testing</strong><br/>(Kiểm thử Hộp Trắng — <em>Slide 21–22</em>)</td>
+                  <td><code>100%</code> mã nguồn, cấu trúc nhánh <code>if/else</code>, vòng lặp.<br/>Thực hiện bởi: Developer / <strong>SDET</strong>.</td>
+                  <td>Thiết kế test case phủ kín từng câu lệnh (Statement Coverage) và từng nhánh điều kiện (Branch Coverage) bên trong hàm.</td>
+                  <td>Đọc code <code>app/service.py</code> thấy nhánh <code>if retry_count &gt; 3: raise PaymentTimeoutError</code> nên viết unit test ép đúng nhánh thứ 4 nổ ngoại lệ.</td>
+                </tr>
+                <tr>
+                  <td><strong>Hoare Logic &amp; Symbolic Execution</strong><br/>(Kiểm chứng Hình thức — <em>Syllabus</em>)</td>
+                  <td><code>100%</code> cấu trúc biểu thức toán học và cây cú pháp (AST) của chương trình.</td>
+                  <td><strong>Hoare Triple <code>{P} C {Q}</code>:</strong> Chứng minh bất biến trước/sau lệnh <code>C</code>.<br/><strong>Symbolic Execution:</strong> Giải ràng buộc biến ký hiệu <code>α</code> qua bộ giải SMT (như Z3).</td>
+                  <td>Khai báo <code>{P: balance &gt;= amount &gt; 0}</code> trước lệnh trừ tiền <code>C</code> để bảo đảm <code>{Q: new_balance == balance - amount &gt;= 0}</code>; dùng biến ký hiệu tìm ra điểm tràn số.</td>
+                </tr>
+                <tr>
+                  <td><strong>Mutation Testing</strong><br/>(Kiểm thử Đột biến — <em>Syllabus</em>)</td>
+                  <td>Công cụ tự động (như <code>mutmut</code>) can thiệp trực tiếp vào AST của mã nguồn.</td>
+                  <td>Tạo dị bản <strong>Mutant</strong> bằng cách đảo toán tử (<code>&gt;</code> thành <code>&gt;=</code>, <code>+</code> thành <code>-</code>). Nếu bộ test vẫn Pass → Mutant sống sót (test yếu); nếu test Fail → Mutant bị tiêu diệt (test tốt).</td>
+                  <td>Đổi điều kiện <code>if amount &gt;= 400000</code> thành <code>if amount &gt; 400000</code>; nếu bộ test thiếu ca kiểm thử đúng mốc biên <code>400000</code>, Mutant sẽ sống sót và báo động lỗ hổng.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="callout callout-tip">
+            <div class="callout-title">Nguyên tắc Phối hợp Đa Phương pháp &amp; Bước chuyển sang Chặng 2</div>
+            <p>Không một phương pháp đơn lẻ nào là đủ: <strong>White-box</strong> giúp Developer khóa chặt từng nhánh <code>if/else</code> bên trong hàm <code>checkout_order</code>, <strong>Grey-box</strong> bảo vệ hợp đồng dữ liệu giữa <code>order-api</code> với PostgreSQL, còn <strong>Black-box</strong> đảm bảo trải nghiệm thực tế của khách hàng không bị chệch khỏi bài toán kinh doanh. Sau khi nắm vững <em>cách thức</em> và <em>góc nhìn</em> kiểm thử ở Chặng 1, câu hỏi tiếp theo là: <strong>Cần tổ chức các cấp độ kiểm thử theo phạm vi nào (Unit, Integration, System, UAT) và đo lường các chỉ số phi chức năng (Performance, Security) ra sao để hệ thống không sập dưới tải cao?</strong> Chúng ta bước sang <strong>Chặng 2: Kiểm thử Chức năng, Phi Chức năng &amp; Tháp Kiểm thử</strong>.</p>
+          </div>
+        </section>
+
+        <section class="lesson-section summary-section" id="validation-1-summary">
+          <h2 id="validation-1-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 1 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <ol>
+            <li><strong>Phân biệt bản chất giữa Verification và Validation qua ví dụ hàm <code>checkout_order("ORD-8888")</code>?</strong><br/><strong>Verification ("Are we building the product right?")</strong> là kiểm tra quy trình và đặc tả kỹ thuật tĩnh xem code có làm đúng thiết kế không (ví dụ tính đúng công thức chiết khấu <code>10%</code>), còn <strong>Validation ("Are we building the right product?")</strong> là chạy phần mềm thực tế để thẩm định xem sản phẩm có giải quyết đúng nhu cầu thực của người dùng cuối không (ví dụ chặn lỗi khách bấm đúp bị trừ tiền 2 lần).</li>
+            <li><strong>Mô hình chữ V (V-Model) giải quyết điểm yếu cốt lõi nào của mô hình Waterfall truyền thống, và tại sao phải áp dụng Shift-Left Testing?</strong><br/>Thay vì đợi viết xong toàn bộ code mới kiểm thử như Waterfall, V-Model ghép cặp đối xứng từng pha thiết kế bên trái (Verification) với một pha kiểm thử bên phải (Validation) để lên kịch bản bắt lỗi ngay từ đầu. Áp dụng <strong>Shift-Left Testing</strong> giúp phát hiện lỗi ở pha thiết kế với chi phí <code>1x</code> hoặc lúc lập trình <code>5x</code>, ngăn lỗi lọt lên Production khiến chi phí khắc phục đội lên gấp <code>30x</code>.</li>
+            <li><strong>Khi nào nên dùng Manual Testing và khi nào bắt buộc phải đầu tư Automated Testing?</strong><br/><strong>Manual Testing</strong> phù hợp cho kiểm thử khám phá sớm (Exploratory), đánh giá trải nghiệm người dùng (Usability) hoặc các kịch bản chỉ chạy 1–2 lần. Ngược lại, <strong>Automated Testing</strong> là bắt buộc cho <strong>Regression Testing (Kiểm thử hồi quy)</strong> lặp đi lặp lại sau mỗi lần sửa code và kiểm thử tải lớn nhằm đảm bảo tốc độ phản hồi nhanh và loại bỏ hoàn toàn sai sót của con người.</li>
+            <li><strong>Sự khác biệt cốt lõi giữa Black-box, Grey-box và White-box Testing nằm ở đâu?</strong><br/>Sự khác biệt nằm ở <strong>mức độ xuyên thấu mã nguồn</strong>: <strong>Black-box</strong> mù code hoàn toàn (<code>0%</code>), chỉ đo <code>Input → Output</code> ở bề mặt ngoài; <strong>Grey-box</strong> biết một phần kiến trúc như lược đồ bảng DB và tài liệu API để kiểm tra luồng dữ liệu tích hợp; còn <strong>White-box (Glass-box)</strong> nhìn thấu <code>100%</code> mã nguồn và các nhánh rẽ nội tại để kiểm tra từng dòng logic.</li>
+            <li><strong>Ba kỹ thuật Hoare Logic, Symbolic Execution và Mutation Testing nâng tầm kiểm chứng White-box như thế nào?</strong><br/><strong>Hoare Logic</strong> dùng bộ ba <code>{P} C {Q}</code> để chứng minh toán học rằng nếu tiền điều kiện <code>P</code> thỏa mãn thì sau khi chạy lệnh <code>C</code>, hậu điều kiện <code>Q</code> luôn đúng; <strong>Symbolic Execution</strong> thay số cụ thể bằng biến ký hiệu để tìm đầu vào làm nổ lỗi ở các nhánh sâu; còn <strong>Mutation Testing</strong> chủ động cấy lỗi giả (Mutants) vào code để đánh giá xem bộ test hiện tại có thực sự bắt được lỗi hay chỉ chạy qua lấy lệ.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/F05/2" onclick="selectStorageStage(2);return false;">Sang Chặng 2: Kiểm thử Chức năng (Unit → UAT), Phi Chức năng &amp; Tháp Kiểm thử →</a></p>
+        </section>
+      </div>

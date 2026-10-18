@@ -1,0 +1,281 @@
+      <div class="prose">
+        <x-spine id="flink-5-spine" badge="TRONG BÀI HỌC NÀY · D04" title="Chặng 5: Quản Lý Trạng Thái (State Management), Rào Chắn Checkpoint Barriers &amp; Đảm Bảo Exactly-Once" subtitle="Trạm 5.1 → 5.3">Giải phẫu trái tim chịu lỗi của Apache Flink: từ vòng lặp đọc/ghi <code>State</code> trên từng sự kiện, phân biệt <code>Keyed State</code> và <code>Operator State</code>, lựa chọn <code>State Backend</code> (JVM Heap vs. <code>RocksDB</code>), đến cơ chế chụp ảnh phân tán không dừng luồng bằng <code>Checkpoint Barriers</code> (Chandy-Lamport) và cam kết <code>Exactly-Once</code> toàn trình.</x-spine>
+
+        <p>Ở Chặng 3 và Chặng 4, chúng ta đã biết cách dựng khung <code>Window</code> theo <code>Event Time</code> và dùng <code>Watermarks</code> để khóa sổ các sự kiện trễ của <code>Order #8888</code> (<code>user_id="USR-104"</code>, <code>amount=450000</code>, nằm tại <code>Offset 42</code> trên <code>Kafka Partition 1</code>). Nhưng một câu hỏi vật lý sống còn lập tức xuất hiện: <em>Trong suốt 60 phút cửa sổ chưa đóng, tổng doanh thu tạm tính, bộ đếm số đơn hàng của khách hàng <code>USR-104</code> và lịch sử giao dịch chống gian lận được cất giữ ở đâu trên phần cứng? Và nếu máy chủ <code>TaskManager</code> bị rút phích cắm điện ở phút thứ 59, làm sao hệ thống khôi phục lại chính xác tới từng đồng mà không phải tính lại từ đầu hay cộng trùng <code>450.000 VNĐ</code> của <code>Order #8888</code> thành hai lần?</em> Chặng 5 giải phẫu cơ chế quản lý trạng thái cục bộ (<code>Stateful Stream Processing</code>), kiến trúc lưu trữ <code>State Backends</code> và thuật toán chụp ảnh phân tán <code>Checkpoint Barriers</code> giúp Apache Flink đạt cam kết <code>Exactly-Once</code> ở quy mô hàng triệu sự kiện mỗi giây.</p>
+
+        <section class="lesson-section" id="flink-5-1">
+          <h2 id="flink-5-1-h2" tabindex="-1">Trạm 5.1: Tại sao Xử lý Luồng Cần Trạng thái (State)? Chu trình 5 Bước Đọc – Ghi State trên Từng Sự kiện</h2>
+
+          <p>Trong xử lý luồng, sự khác biệt căn bản nhất giữa một bộ lọc đơn giản và một hệ thống phân tích thời gian thực nằm ở ký ức trạng thái (<code>State</code>): một toán tử không trạng thái (<code>Stateless operator</code> như <code>map()</code>, <code>filter()</code>) chỉ nhìn từng sự kiện đơn lẻ một cách cô lập rồi quên ngay lập tức sau khi phát kết quả, trong khi một toán tử có trạng thái (<code>Stateful operator</code>) duy trì bộ nhớ tích lũy từ các sự kiện quá khứ để quyết định đầu ra cho các sự kiện tương lai. Theo <em>Stream Processing with Apache Flink</em> (Ch. 7, tr. 153–160), bất kỳ phép toán nào cần tổng hợp theo cửa sổ, nối hai luồng sự kiện hay dò tìm mẫu hành vi theo trình tự thời gian đều bắt buộc phải đọc và cập nhật <code>State</code> trên từng bản ghi đi qua.</p>
+
+          <p>Quy luật vật lý cốt tử quyết định kiến trúc của Flink nằm ở chỗ: trong chu trình 5 bước xử lý một sự kiện (<code>Step-by-step for every event</code>), <strong>Bước 2 (Đọc State hiện tại) và Bước 4 (Ghi State mới cập nhật) diễn ra trên TỪNG SỰ KIỆN ĐƠN LẺ — do đó tốc độ đọc/ghi của State Storage trực tiếp quyết định thông lượng tối đa của toàn bộ đường ống!</strong> Hãy hình dung nếu mỗi khi <code>Order #8888</code> của <code>user_id="USR-104"</code> đi tới toán tử, luồng xử lý phải gọi qua mạng sang một cơ sở dữ liệu bên ngoài như <code>Redis</code> hoặc <code>PostgreSQL</code> mất <code>1 ms – 5 ms</code> cho một vòng đọc – ghi (<code>Network Round-Trip</code>): một lõi CPU sẽ bị khóa cứng ở mức thông lượng thảm hại chỉ từ <code>200</code> đến <code>1.000 events/s</code>. Để phá vỡ bức tường vật lý này, Apache Flink đưa toàn bộ <code>State</code> về nằm <strong>cục bộ ngay bên trong tiến trình TaskManager</strong> (trên vùng nhớ <code>JVM Heap</code> đạt độ trễ <code>~50–200 ns</code> hoặc trên ổ đĩa <code>NVMe SSD</code> cục bộ qua <code>EmbeddedRocksDBStateBackend</code> đạt độ trễ <code>~5–50 µs</code>), nâng thông lượng mỗi lõi lên hàng trăm nghìn sự kiện mỗi giây.</p>
+
+          <x-figure id="flink-5-1-fig" key="5.1" title="Sơ đồ 5.1 — Chu trình 5 Bước Xử lý Trạng thái (Stateful Processing Loop) trên Từng Sự kiện &amp; Nút thắt Hiệu năng Đọc/Ghi State">Cơ chế toán tử đọc và cập nhật State cục bộ ở Bước 2 &amp; Bước 4 cho mỗi sự kiện Order #8888, tránh hoàn toàn độ trễ vòng lặp mạng.</x-figure>
+
+          <h3 id="flink-5-1-usecases">Năm Bài toán Nghiệp vụ Kinh điển Cần Trạng thái &amp; Giải phẫu Chu trình 5 Bước trên Từng Sự kiện</h3>
+          <p>Khi sự kiện <code>Order #8888</code> (<code>user_id="USR-104"</code>, <code>amount=450000</code>, tại <code>Offset 42</code>) tiến vào một toán tử có trạng thái, Flink thực thi tuần tự 5 bước cơ học khép kín: <code>(1) Event arrives at operator</code> → <code>(2) Operator reads current state for that key</code> → <code>(3) Operator applies business logic (update count, check pattern, etc.)</code> → <code>(4) Operator writes updated state back to storage</code> → <code>(5) Operator emits output (if condition met)</code>. Bảng dưới đây đối chiếu 5 bài toán nghiệp vụ kinh điển trong xử lý luồng cùng kiểu cấu trúc <code>State Primitive</code> tương ứng mà Flink cung cấp:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Bài toán Nghiệp vụ Thực tế (Use Case)</th>
+                  <th>Trạng thái Cần Ghi nhớ (What State Must Be Kept)</th>
+                  <th>Cấu trúc <code>State Primitive</code> trong Flink &amp; Cơ chế Thực thi với <code>Order #8888</code></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Đếm tổng số đơn theo người dùng (Count total orders per user)</strong></td>
+                  <td>Bộ đếm lũy kế cho từng mã khách hàng (<code>Running count per user ID</code>).</td>
+                  <td>Sử dụng <code>ValueState&lt;Long&gt;</code> lưu một giá trị đơn lẻ cho mỗi khóa. Khi <code>Order #8888</code> của <code>USR-104</code> tới: Bước 2 đọc <code>count = 11</code> → Bước 3 cộng thêm <code>1</code> → Bước 4 ghi đè <code>count = 12</code> xuống bộ nhớ cục bộ → Bước 5 phát bản ghi <code>(USR-104, 12)</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Phát hiện 3 lần đăng nhập sai trong 5 phút (Detect 3 failed logins in 5 minutes)</strong></td>
+                  <td>Danh sách <code>N</code> sự kiện gần nhất của từng người dùng kèm nhãn thời gian (<code>Last N events per user</code>).</td>
+                  <td>Sử dụng <code>ListState&lt;LoginEvent&gt;</code> kết hợp bộ hẹn giờ <code>TimerService</code>. Mỗi sự kiện thất bại được nối đuôi vào danh sách bằng <code>add()</code>; nếu độ dài danh sách trong khoảng <code>5 phút</code> chạm ngưỡng <code>3</code>, Bước 5 lập tức phát cảnh báo khóa tài khoản tạm thời.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Tính tổng doanh thu theo giờ (Compute hourly revenue)</strong></td>
+                  <td>Tổng tiền tích lũy một phần bên trong cửa sổ hiện hành (<code>Partial sum within the current window</code>).</td>
+                  <td>Sử dụng <code>ReducingState&lt;Long&gt;</code> hoặc <code>AggregatingState&lt;Order, Long&gt;</code> gắn với cặp <code>(Key, Window)</code>. Khi <code>Order #8888</code> (<code>450.000 VNĐ</code>) rơi vào cửa sổ <code>[10:00, 11:00)</code>, Flink cộng dồn ngay vào tổng tạm tính mà không cần giữ lại danh sách từng đơn hàng thô.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Theo dõi phiên hoạt động của người dùng (Session tracking)</strong></td>
+                  <td>Nhãn thời gian hoạt động cuối cùng của mỗi phiên (<code>Last activity timestamp per session</code>).</td>
+                  <td>Sử dụng <code>ValueState&lt;Long&gt;</code> lưu mốc <code>last_seen_ts</code> kết hợp <code>Event-Time Timer</code> đặt tại <code>last_seen_ts + 30 phút</code>. Nếu <code>USR-104</code> phát sinh <code>Order #8888</code> trước khi hết hạn, toán tử xóa Timer cũ và dời Timer sang mốc mới; nếu im lặng đủ 30 phút, Timer nổ để đóng phiên.</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Phát hiện mẫu giao dịch gian lận (Fraud pattern detection)</strong></td>
+                  <td>Lịch sử giao dịch và hồ sơ hành vi theo từng tài khoản (<code>Transaction history per account</code>).</td>
+                  <td>Sử dụng <code>MapState&lt;String, TransactionSummary&gt;</code> lưu bảng băm con theo từng loại thiết bị hoặc quốc gia của <code>USR-104</code>. Bước 2 chỉ cần tra cứu đúng khóa con <code>mapState.get("DEVICE_IOS")</code> với chi phí <code>O(1)</code> thay vì phải giải tuần tự hóa toàn bộ lịch sử tài khoản.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 id="flink-5-1-ttl">Lập trình Trạng thái Thực chiến &amp; Cơ chế Tự dọn rác State TTL (Time-To-Live)</h3>
+          <p>Vì luồng dữ liệu là vô hạn và số lượng khóa <code>user_id</code> mới tăng lên mỗi ngày (bao gồm hàng triệu khách vãng lai chỉ mua 1 đơn duy nhất rồi rời bỏ ứng dụng), việc giữ <code>State</code> vĩnh viễn sẽ sớm làm tràn bộ nhớ <code>JVM Heap</code> hoặc đầy ổ đĩa <code>RocksDB</code>. Theo <em>Stream Processing with Apache Flink</em> (Ch. 7, tr. 165–168), khi khai báo <code>StateDescriptor</code> trong hàm <code>open()</code> của <code>KeyedProcessFunction</code>, kỹ sư thực chiến bắt buộc phải đính kèm chính sách tự hết hạn <code>StateTtlConfig</code> để Flink tự động thu gom rác các khóa không còn hoạt động:</p>
+
+          <pre><code>from pyflink.common import Time, Types
+from pyflink.datastream import KeyedProcessFunction, RuntimeContext
+from pyflink.datastream.state import ValueStateDescriptor, StateTtlConfig
+
+class UserOrderAccumulationFunction(KeyedProcessFunction):
+    def open(self, runtime_context: RuntimeContext):
+        # Cấu hình State TTL: Tự động xóa trạng thái nếu user_id không có đơn mới sau 24 giờ
+        ttl_config = (
+            StateTtlConfig.new_builder(Time.hours(24))
+            .set_update_type(StateTtlConfig.UpdateType.OnCreateAndWrite)
+            .set_state_visibility(StateTtlConfig.StateVisibility.NeverReturnExpired)
+            .cleanup_in_rocksdb_compact_filter(1000)
+            .build()
+        )
+        # Khai báo ValueState lưu (order_count, total_amount_vnd) cho từng user_id
+        descriptor = ValueStateDescriptor(
+            "user_order_stats",
+            Types.TUPLE([Types.LONG(), Types.LONG()])
+        )
+        descriptor.enable_time_to_live(ttl_config)
+        self.stats_state = runtime_context.get_state(descriptor)
+
+    def process_element(self, event, ctx: KeyedProcessFunction.Context):
+        # Bước 1: Sự kiện Order #8888 (user_id="USR-104", amount=450000) tới toán tử
+        # Bước 2: Đọc State hiện tại từ lưu trữ cục bộ (Heap hoặc RocksDB)
+        current = self.stats_state.value() or (0, 0)
+
+        # Bước 3: Áp dụng logic nghiệp vụ (cập nhật bộ đếm &amp; tổng chi tiêu)
+        updated_count = current[0] + 1
+        updated_amount = current[1] + event["amount"]
+
+        # Bước 4: Ghi State đã cập nhật trở lại bộ nhớ cục bộ
+        self.stats_state.update((updated_count, updated_amount))
+
+        # Bước 5: Phát kết quả đầu ra nếu tổng chi tiêu trong ngày vượt ngưỡng VIP 1.000.000 VNĐ
+        if updated_amount &gt;= 1_000_000:
+            yield {
+                "user_id": ctx.get_current_key(),
+                "trigger_order_id": event["order_id"],
+                "order_count": updated_count,
+                "vip_total_vnd": updated_amount
+            }</code></pre>
+
+          <div class="callout">
+            <div class="callout-title">Đúc kết Cơ học Trạm 5.1 &amp; Cầu nối sang Trạm 5.2</div>
+            <p>Đặt <code>State</code> cục bộ ngay tại <code>TaskManager</code> giúp Bước 2 (Đọc) và Bước 4 (Ghi) diễn ra ở tốc độ micro-giây mà không tốn chi phí mạng, đồng thời <code>StateTtlConfig</code> giúp dọn dẹp các khóa hết hạn ngay trong quá trình đọc hoặc khi chạy nén ngầm <code>RocksDB Compaction</code>. Tuy nhiên, khi một toán tử chạy song song trên hàng chục <code>TaskManagers</code>, làm sao Flink phân chia trạng thái theo khóa (<code>Keyed State</code>) tách biệt với trạng thái của bộ đọc nguồn (<code>Operator State</code>), và khi nào kỹ sư phải chuyển từ <code>JVM Heap</code> sang <code>RocksDB</code>? Chúng ta bước sang Trạm 5.2.</p>
+          </div>
+        </section>
+
+        <section class="lesson-section" id="flink-5-2">
+          <h2 id="flink-5-2-h2" tabindex="-1">Trạm 5.2: Giải phẫu Keyed State vs. Operator State, State Backends (Heap vs. RocksDB) &amp; Co giãn Quy mô với Key Groups</h2>
+
+          <p>Không phải mọi trạng thái trong Apache Flink đều được tổ chức và định tuyến giống nhau. Dựa trên phạm vi sở hữu và cách thức phân vùng lại khi thay đổi độ song song (<code>Parallelism</code>), Flink chia trạng thái thành hai nhánh kiến trúc riêng biệt: <code>Keyed State</code> (trạng thái gắn chặt với từng khóa định tuyến sau phép <code>keyBy()</code>) và <code>Operator State</code> (trạng thái gắn trực tiếp với một bản sao toán tử vật lý <code>Sub-task</code>, hoàn toàn độc lập với khóa dữ liệu). Theo <em>Stream Processing with Apache Flink</em> (Ch. 3, tr. 53–57 &amp; Ch. 7, tr. 168–173), việc hiểu rõ ranh giới giữa hai loại trạng thái này cùng cơ chế lưu trữ vật lý bên dưới (<code>State Backends</code>) là chìa khóa để thiết kế đường ống chịu tải hàng Terabyte dữ liệu mà không gặp lỗi tràn bộ nhớ <code>OutOfMemoryError</code>.</p>
+
+          <p>Hãy quan sát luồng đi thực tế trên cụm Flink có độ song song <code>Parallelism = 2</code>: ở đầu nguồn, hai luồng <code>Source [1]</code> và <code>Source [2]</code> đọc các phân vùng Kafka chứa hỗn hợp các khóa người dùng <code>A, B, Y</code> và <code>D, E, Z</code> (trong đó có <code>Order #8888</code> mang khóa <code>user_id="USR-104"</code> tại <code>Offset 42</code> của <code>Partition 1</code>). Bản thân <code>Kafka Source [1]</code> phải dùng <code>Operator State</code> để ghi nhớ con trỏ <code>Partition 1 → Offset 42</code> của riêng nó; ngay sau đó, phép biến đổi <code>keyBy(user_id)</code> băm khóa để định tuyến toàn bộ các bản ghi mang khóa <code>A, B, Y</code> (và <code>USR-104</code>) về <code>Stateful [1]</code> (lưu trong phân vùng <code>KeyedState-1</code>), còn toàn bộ khóa <code>D, E, Z</code> về <code>Stateful [2]</code> (lưu trong phân vùng <code>KeyedState-2</code>).</p>
+
+          <x-figure id="flink-5-2-fig" key="5.2" title="Sơ đồ 5.2 — Đối chiếu Phân vùng Keyed State (Sau keyBy) vs. Operator State (Source Offsets) &amp; Chia lại Key Groups khi Co giãn Quy mô">Sự khác biệt giữa Keyed State (gắn theo khóa định tuyến) và Operator State (gắn theo Sub-task), cùng kiến trúc State Backend Heap vs. RocksDB.</x-figure>
+
+          <h3 id="flink-5-2-keyed-vs-operator">Đối chiếu Cơ học: Keyed State, Operator State &amp; Cơ chế Chia Dải Key Groups Khi Co giãn (State Scaling)</h3>
+          <p>Tại sao Flink không gán thẳng từng khóa <code>user_id</code> vào từng <code>TaskSlot</code> khi sử dụng <code>Keyed State</code>? Nếu cụm có <code>100 triệu</code> khóa <code>user_id</code> và kỹ sư tăng độ song song từ <code>Parallelism = 2</code> lên <code>Parallelism = 4</code>, việc quét và băm lại toàn bộ <code>100 triệu</code> khóa đơn lẻ trên mạng sẽ làm tê liệt hệ thống. Để giải quyết bài toán này ở cấp độ nguyên lý gốc, Flink gom các khóa vào một số lượng cố định các <strong>Nhóm Khóa (<code>Key Groups</code>, được xác định bởi tham số <code>maxParallelism</code>, mặc định là <code>128</code>)</strong> theo công thức băm hai tầng:</p>
+
+          <pre><code>// Tầng 1: Ánh xạ khóa nghiệp vụ (ví dụ "USR-104" của Order #8888) vào một Key Group cố định
+keyGroupId = MathUtils.murmurHash(key.hashCode()) % maxParallelism;   // Ví dụ: maxParallelism = 128 -&gt; keyGroupId = 37
+
+// Tầng 2: Phân bổ dải Key Groups liên tiếp (Contiguous Key Group Ranges) cho từng Sub-task
+assignedSubtaskIndex = keyGroupId * currentParallelism / maxParallelism;
+// Khi Parallelism = 2: Sub-task 0 giữ KeyGroup [0..63] (chứa KG #37 của USR-104), Sub-task 1 giữ [64..127]
+// Khi Scale-out lên Parallelism = 4: Sub-task 0 giữ [0..31], Sub-task 1 giữ [32..63] (nhận trọn khối KG #37 tuần tự!)</code></pre>
+
+          <p>Nhờ kiến trúc <code>Key Groups</code>, mỗi nhóm khóa trở thành <strong>đơn vị nguyên tử nhỏ nhất để phân phối lại trạng thái (atomic unit of state redistribution)</strong>: khi mở rộng quy mô từ <code>2</code> lên <code>4</code> tác vụ con, Flink chỉ cần cắt đôi dải <code>KeyGroup [0..63]</code> thành <code>[0..31]</code> và <code>[32..63]</code> rồi đọc tuần tự các khối byte từ ảnh chụp <code>Checkpoint</code> trên S3 mà không phải giải tuần tự hóa hay tính lại hàm băm cho từng khách hàng!</p>
+
+          <h3 id="flink-5-2-backends">Lựa chọn State Backend Thực chiến: HashMapStateBackend (JVM Heap) vs. EmbeddedRocksDBStateBackend (Off-Heap LSM-Tree)</h3>
+          <p>Nơi lưu trữ vật lý của <code>Keyed State</code> và <code>Operator State</code> trên mỗi <code>TaskManager</code> được quyết định bởi thành phần <code>State Backend</code>. Bảng dưới đây phân tích toàn diện sự khác biệt giữa các loại trạng thái và hai kiến trúc <code>State Backend</code> chuẩn trong Apache Flink hiện đại:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí / Thành phần</th>
+                  <th>Bản chất Cơ học &amp; Phạm vi Áp dụng</th>
+                  <th>Cơ chế Lưu trữ, Hiệu năng Đọc/Ghi &amp; Đánh đổi Thực chiến (Trade-offs)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Trạng thái theo khóa (<code>Keyed State</code>)</strong></td>
+                  <td>Mỗi khóa có không gian trạng thái độc lập riêng (<code>each key has its own independent state</code>). <strong>Chỉ sử dụng được sau phép biến đổi <code>keyBy()</code></strong> trên <code>KeyedStream</code>.</td>
+                  <td>• Hỗ trợ đủ bộ cấu trúc: <code>ValueState&lt;T&gt;</code>, <code>ListState&lt;T&gt;</code>, <code>MapState&lt;K,V&gt;</code>, <code>ReducingState&lt;T&gt;</code>, <code>AggregatingState&lt;I,O&gt;</code>.<br>• Khi co giãn độ song song, trạng thái được chia lại tự động theo các dải <code>Key Groups</code> (<code>0 .. maxParallelism - 1</code>).<br>• Lưu trữ toàn bộ số liệu của <code>Order #8888</code> theo khóa <code>user_id="USR-104"</code> (và bao gồm cả <code>Window State</code> vốn là <code>Keyed State</code> gắn thêm định danh khung cửa sổ).</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Trạng thái theo toán tử (<code>Operator State</code>)</strong></td>
+                  <td>Gắn trực tiếp với một bản sao toán tử vật lý (<code>belongs to one operator instance / sub-task, not to individual keys</code>), hoạt động trên luồng chưa phân khóa (<code>DataStream</code>).</td>
+                  <td>• Hiếm khi dùng trong logic nghiệp vụ thông thường và chưa hỗ trợ trực tiếp cho hàm người dùng trong <code>PyFlink</code>, nhưng là <strong>nền tảng sống còn của mọi bộ kết nối <code>Sources</code> và <code>Sinks</code></strong>.<br>• Ví dụ kinh điển: <code>Kafka Source Operator</code> dùng <code>Operator State</code> để lưu bản đồ <code>(Partition 1 → Offset 42)</code> của các phân vùng mà Sub-task đó đang phụ trách.<br>• Khi thay đổi độ song song, hỗ trợ 3 kiểu chia lại: <code>Even-split redistribution</code> (chia đều danh sách phần tử <code>ListState</code>), <code>Union redistribution</code> (gửi toàn bộ danh sách cho mọi Sub-task để tự lọc), hoặc <code>BroadcastState</code> (nhân bản bảng quy tắc cấu hình tới 100% các Sub-task).</td>
+                </tr>
+                <tr>
+                  <td><strong>3. <code>HashMapStateBackend</code> (Bộ nhớ trong <code>JVM Heap</code>)</strong></td>
+                  <td>Lưu giữ trực tiếp các đối tượng trạng thái dưới dạng Object trên vùng nhớ <code>JVM Heap</code> của <code>TaskManager</code> (thay thế cho <code>MemoryStateBackend</code> và <code>FsStateBackend</code> cũ).</td>
+                  <td>• <strong>Ưu điểm tuyệt đối về tốc độ:</strong> Bước 2 (Đọc) và Bước 4 (Ghi) chỉ là phép truy cập con trỏ bộ nhớ với độ trễ <code>~50–200 ns</code>, không tốn chi phí tuần tự hóa/giải tuần tự hóa (<code>SerDe</code>) trên từng sự kiện.<br>• <strong>Điểm nghẽn vật lý:</strong> Bị giới hạn cứng bởi dung lượng RAM vật lý (thường chỉ phù hợp khi State mỗi TaskManager <code>&lt; 10–30 GB</code>), tiêu tốn bộ nhớ gấp <code>2–3 lần</code> do Object Header của Java, và dễ gây dừng hình <code>Stop-The-World</code> do <code>JVM Garbage Collection (GC)</code> khi State phình to; không hỗ trợ chụp ảnh vi sai (<code>Incremental Checkpoints</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>4. <code>EmbeddedRocksDBStateBackend</code> (Bộ nhớ ngoài <code>Off-Heap</code> + <code>NVMe SSD</code>)</strong></td>
+                  <td>Nhúng cơ sở dữ liệu <code>RocksDB</code> (viết bằng C++ theo cấu trúc <code>LSM-Tree</code>) chạy ngay trong tiến trình <code>TaskManager</code>, quản lý bộ nhớ <code>Off-Heap</code> (<code>MemTable</code> + <code>BlockCache</code>) và ghi tệp bất biến <code>SSTables</code> xuống ổ đĩa <code>NVMe</code> cục bộ.</td>
+                  <td>• <strong>Ưu điểm quy mô công nghiệp:</strong> Chứa được trạng thái khổng lồ từ <strong>hàng trăm Gigabyte tới nhiều Terabyte</strong> (chỉ giới hạn bởi dung lượng ổ đĩa cục bộ), hoàn toàn <strong>miễn nhiễm với JVM GC Pause</strong>, và là backend duy nhất hỗ trợ <strong>chụp ảnh vi sai (<code>Incremental Checkpoints</code>)</strong> bằng cách chỉ đẩy các tệp <code>SSTable</code> mới phát sinh lên S3.<br>• <strong>Đánh đổi kỹ thuật:</strong> Mỗi lần đọc/ghi ở Bước 2 &amp; Bước 4 đều phải <code>Serialize / Deserialize</code> mảng byte qua cầu nối <code>JNI</code>, khiến thông lượng thấp hơn Heap khoảng <code>3–10 lần</code> (độ trễ <code>~5–50 µs</code> mỗi thao tác).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="callout">
+            <div class="callout-title">Đúc kết Cơ học Trạm 5.2 &amp; Cầu nối sang Trạm 5.3</div>
+            <p>Đối với các bài toán Production có cửa sổ dài hoặc giữ lịch sử hàng chục triệu khách hàng như hệ thống xử lý <code>Order #8888</code>, <code>EmbeddedRocksDBStateBackend</code> bật chế độ <code>Incremental Checkpoints</code> là lựa chọn mặc định bắt buộc để tránh thảm họa <code>OutOfMemoryError</code> và <code>GC Pause</code>. Nhưng vì cả <code>JVM Heap</code> lẫn ổ đĩa <code>NVMe</code> cục bộ của <code>TaskManager</code> đều sẽ bốc hơi ngay khi máy chủ vật lý cháy nguồn, làm cách nào Flink chụp lại ảnh nhất quán của hàng chục máy chủ đang chạy song song mà không cần dừng luồng dữ liệu? Câu trả lời nằm ở thuật toán rào chắn <code>Checkpoint Barriers</code> tại Trạm 5.3.</p>
+          </div>
+        </section>
+
+        <section class="lesson-section" id="flink-5-3">
+          <h2 id="flink-5-3-h2" tabindex="-1">Trạm 5.3: Cơ học Rào chắn Checkpoint Barriers (Chandy-Lamport), Phục hồi Sự cố (Fault Recovery) &amp; Cam kết Exactly-Once Toàn trình</h2>
+
+          <p>Một bản chụp trạng thái (<code>Checkpoint</code>) trong Apache Flink là một ảnh chụp nhất quán toàn cục (<code>consistent global snapshot</code>) của toàn bộ trạng thái các toán tử cùng vị trí con trỏ nguồn dữ liệu tại một mốc logic xác định, được thực hiện <strong>ngay trong khi tác vụ vẫn đang xử lý luồng liên tục (while the job keeps running)</strong>. Cần khắc cốt ghi tâm nguyên lý cốt lõi từ tài liệu kiến trúc Flink: <code>A checkpoint is not a backup of code; it is a snapshot of runtime state</code> (Checkpoint không phải là bản sao lưu mã nguồn, mà là ảnh chụp ký ức trạng thái lúc chạy). Nếu chụp ảnh theo kiểu ngây thơ là ra lệnh dừng toàn bộ cụm máy chủ lại vài giây để chép dữ liệu lên <code>Amazon S3</code> hay <code>HDFS</code>, độ trễ thời gian thực (<code>SLA &lt; 50 ms</code>) sẽ bị phá hủy hoàn toàn.</p>
+
+          <p>Để chụp ảnh phân tán không dừng luồng (<code>Non-blocking Distributed Snapshot</code>), Apache Flink triển khai biến thể của thuật toán kinh điển <strong>Chandy-Lamport (1985)</strong> mang tên <strong>Asynchronous Barrier Snapshotting (ABS)</strong>. Bí quyết cơ học của Flink là sử dụng một gói tin đặc biệt gọi là <strong>Rào chắn Điểm kiểm tra (<code>Checkpoint Barrier #N</code>)</strong> bơm trực tiếp vào chính luồng dữ liệu tại <code>Source</code> để nó chảy cùng tốc độ với các sự kiện nghiệp vụ. Hãy hình dung <code>Barrier #42</code> như một vạch sơn đỏ di động cắt ngang băng chuyền: mọi sự kiện nằm <strong>trước</strong> <code>Barrier #42</code> (bao gồm <code>Order #8888</code> tại <code>Offset 42</code> của <code>Kafka Partition 1</code>) bắt buộc phải được phản ánh đầy đủ vào ảnh chụp <code>Checkpoint #42</code>; còn mọi sự kiện nằm <strong>sau</strong> <code>Barrier #42</code> (từ <code>Offset 43</code> trở đi) sẽ thuộc về ảnh chụp <code>Checkpoint #43</code> kế tiếp.</p>
+
+          <x-figure id="flink-5-3-fig" key="5.3" title="Sơ đồ 5.3 — Cơ học Rào chắn Checkpoint Barrier #N Chảy dọc Luồng Dữ liệu (Chandy-Lamport) &amp; Chu trình 6 Bước Phục hồi từ Checkpoint">Hành trình Barrier N phân tách luồng sự kiện thành trước/sau mốc chụp ảnh và quy trình khôi phục trạng thái kèm tua lại Kafka Offset.</x-figure>
+
+          <h3 id="flink-5-3-barriers">Giải phẫu 5 Bước Hoạt động của Rào chắn Checkpoint Barriers &amp; Cơ chế Căn chỉnh (Barrier Alignment)</h3>
+          <p>Theo <em>Stream Processing with Apache Flink</em> (Ch. 8, tr. 183–191), toàn bộ quá trình chụp ảnh <code>Checkpoint #42</code> cho đơn hàng <code>Order #8888</code> diễn ra nhịp nhàng qua 5 bước kết hợp giữa <code>JobManager</code>, các <code>TaskManagers</code> và kho lưu trữ bền vững từ xa (<code>S3 / HDFS / GCS</code>):</p>
+          <ol>
+            <li><strong>Bước 1 — JobManager phát lệnh khởi tạo Checkpoint N:</strong> Bộ điều phối <code>CheckpointCoordinator</code> trên <code>JobManager</code> gửi thông điệp RPC định kỳ (ví dụ mỗi <code>10 giây</code>) tới tất cả các <code>Source Operators</code> để bắt đầu chu kỳ chụp ảnh mang số hiệu <code>Checkpoint #42</code>.</li>
+            <li><strong>Bước 2 — Source chụp Offset hiện hành và bơm Barrier N vào luồng:</strong> Ngay khi vừa đọc xong <code>Order #8888</code> tại <code>Partition 1: Offset 42</code> (và <code>Partition 2: Offset 109</code>), toán tử <code>Kafka Source</code> ghi nhận cặp vị trí <code>{P1: 42, P2: 109}</code> vào <code>Operator State</code> của mình, đồng thời chèn dấu mốc <code>Barrier #42</code> vào luồng đầu ra ngay phía sau <code>Order #8888</code>.</li>
+            <li><strong>Bước 3 — Rào chắn chảy qua Toán tử (Barrier Alignment &amp; Local Snapshot):</strong> Khi một toán tử hạ lưu (như <code>Stateful Operator A</code>) nhận các luồng đầu vào từ nhiều phân vùng nguồn khác nhau, nó thực hiện <strong>Căn chỉnh Rào chắn (<code>Barrier Alignment</code>)</strong>: nếu <code>Barrier #42</code> trên kênh đầu vào số 1 tới trước (ngay sau khi đã cập nhật <code>450.000 VNĐ</code> của <code>Order #8888</code> vào <code>RocksDB</code>), toán tử tạm ngừng xử lý các bản ghi mới đến sau <code>Barrier #42</code> trên kênh 1 (đẩy vào bộ đệm đầu vào <code>Input Buffer</code>) và chờ cho tới khi <code>Barrier #42</code> trên kênh đầu vào số 2 cũng tới nơi. Ngay khoảnh khắc cả hai rào chắn hội tụ đủ, toán tử đóng băng trạng thái cục bộ (tạo ảnh chụp điểm thời gian trên <code>Heap</code> bằng <code>Copy-on-Write</code> hoặc tạo <code>Hardlink</code> tới các tệp <code>SSTables</code> của <code>RocksDB</code> chỉ mất vài mili-giây), phát ngay <code>Barrier #42</code> xuống <code>Operator B</code> phía sau và tiếp tục xử lý luồng dữ liệu như bình thường!</li>
+            <li><strong>Bước 4 — Ghi trạng thái Bất đồng bộ (Asynchronous Background Upload) xuống S3/HDFS:</strong> Trong lúc luồng chính đã tiếp tục xử lý <code>Order #8889</code> (<code>Offset 43</code>), một luồng nền (<code>Background Thread</code>) âm thầm chép bản chụp trạng thái cục bộ từ <code>TaskManager</code> lên kho lưu trữ phân tán bền vững (<code>s3://fsds-flink-checkpoints/job-d04/chk-42/</code>) để hoàn toàn không gây khựng luồng xử lý.</li>
+            <li><strong>Bước 5 — Tất cả toán tử báo cáo hoàn tất &amp; Đóng dấu Checkpoint N:</strong> Khi mọi toán tử từ <code>Source</code> tới <code>Sink</code> đều tải xong tệp trạng thái lên S3 và gửi đường dẫn siêu dữ liệu (<code>State Handle</code>) về <code>JobManager</code>, <code>CheckpointCoordinator</code> ghi tệp <code>_metadata</code> tổng hợp và chính thức đóng dấu <code>Checkpoint #42</code> hoàn tất (đồng thời phát thông báo <code>notifyCheckpointComplete(42)</code> cho các <code>Transactional Sinks</code>).</li>
+          </ol>
+
+          <h3 id="flink-5-3-recovery">Quy trình 6 Bước Phục hồi Sự cố Tự động (Fault Recovery) &amp; Hai Câu hỏi Cốt tử Sau Thảm họa</h3>
+          <p>Giả sử đúng 3 giây sau khi <code>Checkpoint #42</code> hoàn tất (khi hệ thống đang xử lý dở <code>Offset 43, 44, 45</code>), máy chủ vật lý chứa <code>TaskManager #2</code> bị chập nguồn sập đột ngột. Khi một <code>TaskManager</code> khởi động lại từ đống tro tàn, nó bắt buộc phải trả lời chính xác <strong>2 câu hỏi sinh tử</strong>: (1) <em>Chạy tiếp từ đâu? (Where should the job continue from?)</em> → Chính là vị trí <code>Kafka Offset 42</code> đã lưu trong <code>Operator State</code> của <code>Source</code>; và (2) <em>Job đã nhớ những gì tính đến thời điểm đó? (What had the job already remembered?)</em> → Chính là tổng chi tiêu của <code>USR-104</code> đã cộng <code>450.000 VNĐ</code> của <code>Order #8888</code> nằm trong <code>Keyed State</code>! Quy trình 6 bước khôi phục tự động diễn ra hoàn toàn khép kín: <code>(1) Failure detected</code> → <code>(2) JobManager identifies latest completed Checkpoint #42</code> → <code>(3) TaskManagers restart and restore state from Checkpoint #42</code> → <code>(4) Sources rewind to offsets in Checkpoint #42 (Offset 42)</code> → <code>(5) Events after Checkpoint #42 (Offsets 43, 44, 45...) are replayed</code> → <code>(6) Pipeline resumes normal processing</code>.</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Cơ chế / Khái niệm Kiến trúc</th>
+                  <th>Cách thức Vận hành Kỹ thuật trong Apache Flink</th>
+                  <th>Tác động lên <code>Order #8888</code> &amp; Đánh đổi Thực chiến</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Căn chỉnh Rào chắn Chuẩn (<code>Aligned Checkpoints</code> — <code>EXACTLY_ONCE</code>) vs. <code>AT_LEAST_ONCE</code></strong></td>
+                  <td>• Với <code>EXACTLY_ONCE</code>: Toán tử đa đầu vào tạm đệm (buffer) kênh nhanh đã thấy <code>Barrier #42</code> để chờ kênh chậm, đảm bảo không có bản ghi nào sau rào chắn lọt vào trạng thái trước rào chắn.<br>• Với <code>AT_LEAST_ONCE</code>: Toán tử không chặn kênh nhanh mà xử lý tiếp luôn cả các bản ghi sau <code>Barrier #42</code> trong lúc chờ kênh chậm.</td>
+                  <td>• <code>EXACTLY_ONCE</code> bảo vệ <code>Order #8888</code> không bao giờ bị cộng hai lần vào trạng thái nội bộ của Flink, nhưng dưới áp lực nghẽn cổ chai (<code>Backpressure</code>), bước chờ căn chỉnh có thể làm tăng độ trễ đầu-cuối.<br>• <code>AT_LEAST_ONCE</code> giữ độ trễ thấp nhưng khi sập máy và tua lại từ <code>Checkpoint #42</code>, các bản ghi sau rào chắn đã lỡ cộng trước đó sẽ bị cộng lặp lần thứ hai.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Điểm kiểm tra Không căn chỉnh (<code>Unaligned Checkpoints</code> — Flink 1.11+)</strong></td>
+                  <td>Khi bật <code>enableUnalignedCheckpoints()</code>, ngay khi <code>Barrier #42</code> đầu tiên chạm tới toán tử, nó lập tức nhảy vọt lên đầu hàng đợi đầu ra và toán tử chụp luôn cả các gói tin đang nằm chờ trong bộ đệm mạng (<code>In-flight network buffers</code>) vào trong tệp <code>Checkpoint #42</code>.</td>
+                  <td>Giải cứu các đường ống bị nghẽn <code>Backpressure</code> nặng (khiến <code>Barrier</code> bị kẹt không chảy đi được và gây <code>Checkpoint Timeout</code>), đổi lại kích thước tệp <code>Checkpoint</code> ghi lên S3 tăng lên do phải chứa thêm dữ liệu đang bay trên đường ống.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. <code>Checkpoint</code> (Tự động) vs. <code>Savepoint</code> (Thủ công Chủ động)</strong></td>
+                  <td>• <code>Checkpoint</code>: Do Flink tự động tạo và tự động xóa định kỳ nhằm mục đích duy nhất là phục hồi sự cố nhanh (hỗ trợ định dạng đặc thù của backend như <code>RocksDB Incremental SSTables</code>).<br>• <code>Savepoint</code>: Do kỹ sư chủ động kích hoạt qua CLI (<code>flink stop --savepointPath s3://...</code>) trước khi nâng cấp code, sửa logic DAG, đổi <code>Parallelism</code> hoặc chuyển cụm; luôn lưu ở định dạng chuẩn thống nhất (<code>Canonical Format</code>).</td>
+                  <td>Kỹ sư dùng <code>Checkpoint</code> để ngủ ngon lúc 2 giờ sáng khi máy chủ sập bất ngờ; và dùng <code>Savepoint</code> vào giờ bảo trì để nâng cấp thuật toán tính thuế cho <code>Order #8888</code> từ phiên bản <code>v1.0</code> lên <code>v2.0</code> mà không làm mất trạng thái đang chạy.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Cam kết <code>End-to-End Exactly-Once</code> tại Đích (<code>Two-Phase Commit / 2PC Sink</code>)</strong></td>
+                  <td>Bản thân Flink Checkpoint chỉ đảm bảo <code>Exactly-Once</code> cho trạng thái <em>bên trong</em> Flink; nhưng khi tua lại các bản ghi sau <code>Checkpoint #42</code> (<code>Offset 43..45</code>), chúng sẽ được đẩy ra <code>Sink</code> một lần nữa. Để đạt <code>End-to-End Exactly-Once</code>, <code>Sink</code> phải là <strong>Ghi Đè Bất Biến (Idempotent Upsert theo khóa chính <code>order_id = 8888</code>)</strong> hoặc dùng giao thức <strong>Cam kết Hai Pha (<code>Two-Phase Commit — 2PC</code>)</strong>: mở giao dịch tạm (<code>pre-commit</code>) khi xử lý bản ghi và chỉ thực sự <code>COMMIT</code> giao dịch ở hệ thống đích (Kafka / Iceberg / PostgreSQL) khi nhận tín hiệu <code>notifyCheckpointComplete(#42)</code>.</td>
+                  <td>Đảm bảo dù <code>TaskManager</code> có sập đúng khoảnh khắc vừa tính xong <code>Order #8888</code> rồi chạy lại từ <code>Offset 42</code>, bảng đích trên <code>Apache Iceberg</code> hoặc topic <code>Kafka</code> hạ lưu vẫn chỉ xuất hiện kết quả của <code>Order #8888</code> (<code>amount=450000</code>) đúng <strong>1 lần duy nhất</strong>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 id="flink-5-3-config">Cấu hình Chuẩn Production: Bật RocksDB Incremental Checkpointing &amp; Exactly-Once trên PyFlink</h3>
+          <p>Đoạn mã dưới đây thiết lập cấu hình chuẩn công nghiệp cho đường ống xử lý <code>Order #8888</code>: kích hoạt <code>EmbeddedRocksDBStateBackend</code> với chụp ảnh vi sai (<code>Incremental Checkpoints</code>), ép chế độ <code>CheckpointingMode.EXACTLY_ONCE</code>, đặt khoảng nghỉ tối thiểu giữa hai lần chụp để không làm nghẽn I/O đĩa, và giữ lại bản chụp trên S3 ngay cả khi tác vụ bị hủy thủ công (<code>RETAIN_ON_CANCELLATION</code>):</p>
+
+          <pre><code>from pyflink.datastream import StreamExecutionEnvironment, CheckpointingMode, ExternalizedCheckpointCleanup
+from pyflink.datastream.state_backend import EmbeddedRocksDBStateBackend
+
+env = StreamExecutionEnvironment.get_execution_environment()
+
+# 1. Kích hoạt Checkpoint mỗi 10 giây (10.000 ms) với cam kết EXACTLY_ONCE
+env.enable_checkpointing(10_000, CheckpointingMode.EXACTLY_ONCE)
+chk_config = env.get_checkpoint_config()
+
+# 2. Bảo vệ tài nguyên cụm: Khoảng nghỉ tối thiểu 5 giây giữa 2 lần chụp &amp; Timeout 60 giây
+chk_config.set_min_pause_between_checkpoints(5_000)
+chk_config.set_checkpoint_timeout(60_000)
+chk_config.set_max_concurrent_checkpoints(1)
+
+# 3. Bật Unaligned Checkpoints khi đường ống có nguy cơ Backpressure cao
+chk_config.enable_unaligned_checkpoints(True)
+
+# 4. Giữ lại ảnh chụp Checkpoint trên S3 ngay cả khi kỹ sư hủy Job để phục vụ khôi phục sau sự cố
+chk_config.enable_externalized_checkpoints(
+    ExternalizedCheckpointCleanup.RETAIN_ON_CANCELLATION
+)
+
+# 5. Sử dụng EmbeddedRocksDBStateBackend kèm Incremental Checkpoints (enable_incremental_checkpointing=True)
+rocksdb_backend = EmbeddedRocksDBStateBackend(enable_incremental_checkpointing=True)
+env.set_state_backend(rocksdb_backend)
+chk_config.set_checkpoint_storage_dir("s3://fsds-lakehouse-prod/flink-checkpoints/d04-order-pipeline/")</code></pre>
+
+          <div class="callout warn">
+            <div class="callout-title">Cảnh báo Thực chiến: Bão Checkpoint (Checkpoint Storm) &amp; Tham số <code>minPauseBetweenCheckpoints</code></div>
+            <p>Nếu bạn cấu hình chu kỳ <code>checkpointInterval = 10s</code> nhưng một lần chụp <code>RocksDB</code> đẩy lên S3 mất tới <code>9,5s</code> do mạng chậm, ngay khi <code>Checkpoint #42</code> vừa xong thì <code>0,5s</code> sau <code>Checkpoint #43</code> lại nổ tiếp, khiến ổ đĩa và băng thông mạng của <code>TaskManager</code> bị vắt kiệt 100% cho việc chụp ảnh thay vì xử lý dữ liệu. Luôn thiết lập <code>set_min_pause_between_checkpoints(5000)</code> kết hợp <code>set_max_concurrent_checkpoints(1)</code> để đảm bảo giữa thời điểm kết thúc <code>Checkpoint #42</code> và thời điểm bắt đầu <code>Checkpoint #43</code> luôn có ít nhất <code>5 giây</code> cho CPU chuyên tâm xử lý luồng sự kiện.</p>
+          </div>
+        </section>
+
+        <section class="summary-section" id="flink-5-summary">
+          <h2 id="flink-5-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 5 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <p>Khép lại Chặng 5, hành trình của <code>Order #8888</code> (<code>user_id="USR-104"</code>, <code>amount=450000</code>, tại <code>Offset 42</code> trên <code>Kafka Partition 1</code>) đã được trang bị bộ giáp chịu lỗi cấp công nghiệp: từ chu trình 5 bước đọc/ghi trạng thái cục bộ với tốc độ micro-giây, cơ chế phân vùng khóa thông minh qua <code>Key Groups</code> và lưu trữ <code>Off-Heap LSM-Tree</code> bằng <code>EmbeddedRocksDBStateBackend</code>, cho tới thuật toán rào chắn <code>Checkpoint Barriers</code> (Chandy-Lamport) giúp khôi phục trạng thái và tua lại con trỏ Kafka chính xác tuyệt đối (<code>Exactly-Once</code>) sau mọi sự cố sập nguồn phần cứng. Hãy tự kiểm tra 5 câu hỏi bản chất dưới đây trước khi bước sang chặng cuối cùng của học phần D04:</p>
+
+          <ol>
+            <li><strong>Trong chu trình 5 bước xử lý một sự kiện có trạng thái (Stateful Processing Loop), tại sao tốc độ đọc/ghi của State Storage ở Bước 2 và Bước 4 lại quyết định trực tiếp thông lượng tối đa của toàn bộ đường ống Flink?</strong> → Vì Bước 2 (<code>Read current state for key</code>) và Bước 4 (<code>Write updated state back to storage</code>) bắt buộc phải thực thi đồng bộ trên <strong>từng sự kiện đơn lẻ</strong>. Nếu đặt State ở một cơ sở dữ liệu bên ngoài qua mạng tốn <code>1–5 ms</code> mỗi vòng gọi, một luồng CPU chỉ xử lý được tối đa <code>200–1.000 events/s</code>; do đó Flink phải giữ State cục bộ ngay trong tiến trình <code>TaskManager</code> (trên <code>JVM Heap</code> hoặc ổ đĩa <code>NVMe</code> cục bộ qua <code>RocksDB</code>) để đạt thông lượng hàng trăm nghìn sự kiện mỗi giây.</li>
+            <li><strong>Sự khác biệt cốt lõi giữa <code>Keyed State</code> và <code>Operator State</code> là gì, và tại sao <code>Kafka Source</code> lại phải dùng <code>Operator State</code> thay vì <code>Keyed State</code>?</strong> → <code>Keyed State</code> được phân vùng tách biệt cho từng khóa dữ liệu (như <code>user_id="USR-104"</code>), chỉ dùng được sau phép biến đổi <code>keyBy()</code> và được chia lại theo các dải <code>Key Groups</code>. Ngược lại, <code>Operator State</code> gắn trực tiếp với từng bản sao toán tử vật lý (<code>Sub-task</code>) trước cả khi có <code>keyBy()</code>; bộ đọc <code>Kafka Source</code> bắt buộc dùng <code>Operator State</code> vì nhiệm vụ của nó là ghi nhớ danh sách các con trỏ phân vùng <code>(Partition ID → Offset)</code> mà Sub-task đó được giao đọc, vốn thuộc về cấp độ phân vùng hạ tầng chứ không gắn với khóa nghiệp vụ của từng bản ghi.</li>
+            <li><strong>Khi nào kỹ sư phải chuyển từ <code>HashMapStateBackend</code> (JVM Heap) sang <code>EmbeddedRocksDBStateBackend</code>, và đánh đổi kỹ thuật giữa hai lựa chọn này là gì?</strong> → Dùng <code>HashMapStateBackend</code> khi tổng dung lượng trạng thái nhỏ (vài Gigabyte mỗi TaskManager) và cần độ trễ cực thấp ở mức nano-giây (<code>~50–200 ns</code>) vì dữ liệu nằm sẵn dưới dạng Java Object trên RAM. Bắt buộc chuyển sang <code>EmbeddedRocksDBStateBackend</code> khi trạng thái lớn từ hàng chục Gigabyte tới hàng Terabyte hoặc cửa sổ tích lũy dài: dù phải chịu chi phí tuần tự hóa (<code>SerDe</code>) mảng byte làm giảm thông lượng trên mỗi lõi, <code>RocksDB</code> lưu dữ liệu ở vùng nhớ <code>Off-Heap</code> kết hợp đĩa <code>NVMe</code> cục bộ nên miễn nhiễm hoàn toàn với hiện tượng đứng hình <code>JVM Garbage Collection</code> và hỗ trợ chụp ảnh vi sai (<code>Incremental Checkpoints</code>) cực nhanh.</li>
+            <li><strong>Rào chắn <code>Checkpoint Barrier #N</code> (thuật toán Chandy-Lamport) giúp Flink chụp ảnh nhất quán toàn cục mà không cần dừng luồng dữ liệu bằng cơ chế nào?</strong> → Thay vì khóa toàn cụm tại một thời điểm vật lý, các toán tử <code>Source</code> bơm dấu mốc <code>Barrier #N</code> vào luồng dữ liệu ngay sau vị trí <code>Offset</code> hiện tại. Khi <code>Barrier #N</code> chảy dọc theo luồng sự kiện và được căn chỉnh (<code>Barrier Alignment</code>) tại mỗi toán tử, nó tự động phân tách luồng dữ liệu thành hai nửa rõ rệt (mọi sự kiện trước rào chắn thuộc về <code>Checkpoint #N</code>, mọi sự kiện sau rào chắn thuộc về <code>Checkpoint #N+1</code>). Toán tử chỉ mất vài mili-giây để đánh dấu bản chụp cục bộ rồi đẩy việc chép tệp lên <code>S3/HDFS</code> sang một luồng nền bất đồng bộ (<code>Asynchronous Upload</code>).</li>
+            <li><strong>Khi một <code>TaskManager</code> bị sập nguồn đột ngột rồi khởi động lại, quy trình 6 bước <code>Fault Recovery</code> kết hợp với <code>Two-Phase Commit (2PC) Sink</code> làm cách nào để đảm bảo <code>Order #8888</code> được xử lý <code>Exactly-Once</code> toàn trình?</strong> → Khi phát hiện lỗi, <code>JobManager</code> chọn bản <code>Checkpoint #N</code> hoàn tất gần nhất, khôi phục trạng thái <code>Keyed State</code> của mọi toán tử về đúng mốc <code>#N</code>, đồng thời ra lệnh cho <code>Kafka Source</code> tua ngược con trỏ đọc về đúng <code>Offset</code> đã lưu trong <code>Checkpoint #N</code> để phát lại (<code>replay</code>) các sự kiện sau đó. Ở đầu ra cuối cùng, nhờ cơ chế ghi đè bất biến (<code>Idempotent Upsert</code>) hoặc giao thức <code>Two-Phase Commit (2PC)</code> chỉ thực sự <code>COMMIT</code> giao dịch xuống hệ thống đích khi nhận tín hiệu <code>notifyCheckpointComplete(#N)</code>, các bản ghi phát lại không bao giờ tạo ra dữ liệu trùng lặp ở hạ lưu.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/D04/6" onclick="selectStorageStage(6);return false;">Sang Chặng 6: Kỹ Thuật Tối Ưu Hóa (Operator Chaining, Backpressure) &amp; Kiến Trúc Triển Khai Cụm →</a></p>
+        </section>
+      </div>

@@ -1,0 +1,356 @@
+      <div class="prose">
+        <x-spine id="spark-3-spine" badge="CHẶNG 3 · SERIALIZATION &amp; IN-MEMORY COMPUTING" title="Chặng 3: Tuần Tự Hóa (Java vs. Kryo), Tính Toán Trong Bộ Nhớ (cache / persist) &amp; Quản Trị Bộ Nhớ Hợp Nhất" subtitle="Trạm 3.1 → 3.4">Giải phẫu nền tảng hiệu năng vật lý của Apache Spark: cách dữ liệu được biến đổi thành dòng byte qua <code>Serialization</code>, tại sao <code>Kryo</code> nhỏ gọn gấp 10 lần <code>Java Serialization</code>, 5 chế độ lưu trữ của <code>persist()</code> và cơ chế phân chia ranh giới động giữa <code>Storage Memory</code> và <code>Execution Memory</code>.</x-spine>
+
+        <section class="lesson-section" id="spark-3-1">
+          <h2 id="spark-3-1-h2" tabindex="-1">Trạm 3.1: Giải phẫu Serialization &amp; Deserialization — Ba Điểm Nóng Di Chuyển Dữ Liệu Trong Cụm Spark</h2>
+
+          <p><strong>Serialization (Tuần tự hóa)</strong> là quá trình biến đổi một cấu trúc dữ liệu đang tồn tại trong bộ nhớ chương trình (<code>object</code> — <em>a data structure stored in a program's memory</em>) thành một chuỗi byte liên tiếp (<code>byte stream</code> — <em>a sequence of bytes that can be sent over a network or saved to storage</em>), và <strong>Deserialization (Giải tuần tự hóa)</strong> là quá trình ngược lại nhằm tái tạo chuỗi byte đó thành đối tượng dữ liệu có thể thực thi trên nút máy chủ đích (Slides 31–34 &amp; 41). Trong một cụm tính toán phân tán như Apache Spark, các máy chủ vật lý không thể truyền trực tiếp các đồ thị đối tượng (Object Graphs) chứa con trỏ bộ nhớ JVM/Python thô qua cáp mạng hoặc ghi thẳng xuống các khối đĩa cứng. Mọi bản ghi, hàm xử lý (Task Closure) hay biến phát tán (Broadcast Variable) muốn rời khỏi không gian RAM của một tiến trình đều bắt buộc phải đi qua chu trình hai chiều: <code>Object → Serializer → Byte stream → Transfer or storage</code> ở đầu phát, tiếp nối bởi <code>Byte stream (Received on target node) → Deserializer (Rebuild the object) → Java object (Restored on target)</code> ở đầu nhận.</p>
+
+          <x-figure id="spark-3-1-fig" key="3.1" title="Sơ đồ 3.1 — Giải phẫu Serialization &amp; Deserialization tại 3 Điểm Nóng trong Apache Spark">Chu trình biến đổi Object thành Byte Stream và tác động dây chuyền lên cả 3 tài nguyên: CPU, RAM và Băng thông mạng.</x-figure>
+
+          <h3>Ba Điểm Nóng Kích Hoạt Serialization Trong Cụm Spark &amp; Hiệu Ứng Dây Chuyền Lên Tài Nguyên</h3>
+          <p>Theo Slide 35 (<em>Where Serialization Happens in Spark</em>) và <em>Learning Spark, 2nd Edition</em>, bộ tuần tự hóa của Spark được kích hoạt tự động tại <strong>3 điểm nóng vận hành (Operational Hotspots)</strong> mỗi khi dữ liệu di chuyển giữa các máy chủ hoặc lưu trữ tạm thời để tái sử dụng:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Điểm Nóng (Operation)</th>
+                  <th>Bản Chất Cơ Học Trong Cụm Spark (Explanation — Slide 35)</th>
+                  <th>Luồng Biến Đổi Object ↔ Byte Stream Thực Tế</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Shuffle (Trao đổi dữ liệu liên nút)</strong></td>
+                  <td>Dữ liệu được trao đổi chéo giữa các <strong>Executors</strong> để gom các bản ghi có cùng khóa (Key) về chung một phân vùng xử lý trong các phép biến đổi rộng như <code>groupBy</code>, <code>reduceByKey</code>, <code>join</code> hoặc <code>repartition</code>.</td>
+                  <td>Ở phía <code>Map Stage</code>, từng bản ghi được <code>Serializer</code> nén thành dòng byte để ghi xuống tệp tạm (Shuffle Spill / Shuffle Data Files) trên đĩa cục bộ; ở phía <code>Reduce Stage</code>, Executor đích kéo dòng byte qua mạng và gọi <code>Deserializer</code> để khôi phục đối tượng phục vụ gộp nhóm hoặc nối bảng.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Caching (Lưu đệm tái sử dụng)</strong></td>
+                  <td>Dữ liệu trung gian được lưu vào bộ nhớ RAM hoặc đĩa cục bộ (qua <code>cache()</code> / <code>persist()</code>) để Spark tái sử dụng trực tiếp ở các <code>Action</code> kế tiếp mà không phải tính toán lại từ đầu.</td>
+                  <td>Khi lưu ở các chế độ tuần tự hóa (<code>MEMORY_ONLY_SER</code>, <code>MEMORY_AND_DISK_SER</code>) hoặc khi tràn bộ nhớ phải đẩy xuống đĩa (<code>MEMORY_AND_DISK</code>, <code>DISK_ONLY</code>), toàn bộ phân vùng được gom thành mảng byte phẳng; khi tác vụ sau đọc lại, <code>Deserializer</code> giải mã mảng byte về lại bản ghi.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Network Transfer (Truyền tải qua mạng)</strong></td>
+                  <td>Dữ liệu, mã lệnh và biến dùng chung được gửi từ máy chủ này sang máy chủ khác trong cụm (<code>Driver ↔ Executors</code> hoặc <code>Executor ↔ Executor</code>).</td>
+                  <td><code>Driver</code> tuần tự hóa hàm ẩn danh (Task Closures) và các biến <code>Broadcast</code> để phát cho toàn bộ Executors trước khi chạy Task; chiều ngược lại, các Executors tuần tự hóa kết quả phân vùng gửi trả về Driver khi gọi <code>collect()</code> hoặc <code>take()</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Tại sao tối ưu hóa Serialization lại là nền tảng sống còn của hiệu năng Spark (Slide 36 — <em>Why Serialization Matters</em>)? Một cơ chế tuần tự hóa kém hiệu quả không chỉ làm chậm một khâu đơn lẻ, mà gây ra hiệu ứng dây chuyền làm suy thoái đồng thời cả <strong>3 trụ cột tài nguyên phần cứng (Memory, Network, CPU)</strong> theo đúng chuỗi nhân quả vật lý:</p>
+
+          <pre><code>Large object  →  CPU: Serialize  →  Large byte stream  →  Slow network transfer  →  CPU: Deserialize  →  Slow Spark job</code></pre>
+
+          <ul>
+            <li><strong>Áp lực Bộ nhớ (Memory Bloat &amp; GC Pause):</strong> Các đối tượng dữ liệu cồng kềnh (Large objects) chiếm dụng dung lượng lớn trong vùng nhớ <code>JVM Heap</code> của Executor, làm giảm không gian khả dụng cho tính toán và kích hoạt bộ dọn rác <code>Garbage Collection (GC)</code> chạy liên tục.</li>
+            <li><strong>Nghẽn Băng thông Mạng &amp; Đĩa (Network &amp; Disk I/O Bottleneck):</strong> Khi bộ tuần tự hóa sinh ra chuỗi byte phình to (Large byte streams), việc truyền hàng trăm gigabyte dữ liệu qua mạng nội bộ trong pha <code>Shuffle</code> hoặc ghi xuống đĩa tạm sẽ làm bão hòa băng thông card mạng (NIC) và ổ cứng.</li>
+            <li><strong>Đốt Chu kỳ Vi xử lý (CPU Overhead):</strong> Vì Spark bắt buộc phải mã hóa dữ liệu trước khi gửi và giải mã ngay sau khi nhận (<code>CPU: Serialize</code> → <code>CPU: Deserialize</code>), định dạng byte càng phức tạp thì nhân CPU của Executor càng tốn nhiều thời gian vào việc dịch chuyển byte thay vì thực thi logic nghiệp vụ. Giảm kích thước dữ liệu thông qua tuần tự hóa hiệu quả sẽ giải phóng đồng thời cả 3 tài nguyên: <strong>Memory, CPU và Network</strong>.</li>
+          </ul>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="spark-3-2">
+          <h2 id="spark-3-2-h2" tabindex="-1">Trạm 3.2: Đọ sức Java Serialization vs. Kryo Serialization &amp; Cấu hình Đăng ký Lớp Chuẩn Production</h2>
+
+          <p>Để chuyển đổi đối tượng thành dòng byte trên tầng RDD và các cấu trúc dữ liệu nội bộ, Apache Spark cung cấp hai cơ chế tuần tự hóa chính (Slides 37–38): <strong>Java Serialization</strong> (trình tuần tự hóa mặc định của JVM) và <strong>Kryo Serialization</strong> (thư viện tuần tự hóa nhị phân hiệu năng cao), bên cạnh định dạng nhị phân chuyên biệt <strong>Tungsten <code>UnsafeRow</code></strong> dành riêng cho tầng DataFrame/Spark SQL. Mặc dù <code>Java Serialization</code> cực kỳ tiện lợi vì hoạt động sẵn mà không cần bất kỳ cấu hình nào (chỉ cần lớp dữ liệu kế thừa giao diện <code>java.io.Serializable</code>), nó lại là thủ phạm chính gây nghẽn cổ chai trong các tác vụ lớn do ghi kèm toàn bộ siêu dữ liệu phả hệ lớp (Full Class Name, tên trường, chữ ký kiểu dữ liệu và mã kiểm tra <code>serialVersionUID</code>) vào dòng byte. Ngược lại, <strong>Kryo Serialization</strong> cắt bỏ hoàn toàn lớp vỏ siêu dữ liệu rườm rà đó để nén đối tượng thành dòng byte siêu nhỏ gọn — giúp <strong>tốc độ xử lý nhanh hơn gấp 10 lần và giảm dung lượng bộ nhớ chiếm dụng tới 10 lần</strong> so với Java Serialization.</p>
+
+          <x-figure id="spark-3-2-fig" key="3.2" title="Sơ đồ 3.2 — Đối chiếu Java Serialization vs. Kryo Serialization trong Spark">So sánh cấu trúc khung byte, chi phí CPU/RAM và cách cấu hình KryoSerializer cho các tác vụ Shuffle lớn.</x-figure>
+
+          <h3>Đối sánh Toàn diện: Java Serialization vs. Kryo Serialization vs. Tungsten UnsafeRow (DataFrame)</h3>
+          <p>Bảng dưới đây tổng hợp các tiêu chí cốt lõi từ Slide 37–38 kết hợp cơ chế quản lý bộ nhớ nhị phân của <em>Learning Spark, 2nd Edition</em> để kỹ sư lựa chọn đúng công cụ tuần tự hóa cho từng bài toán:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Kỹ thuật (Feature)</th>
+                  <th>Java Serialization (Mặc định RDD)</th>
+                  <th>Kryo Serialization (Tối ưu cho RDD &amp; Shuffle)</th>
+                  <th>Tungsten <code>UnsafeRow</code> (Mặc định DataFrame / SQL)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Tham số Cấu hình Spark</strong></td>
+                  <td><code>org.apache.spark.serializer.JavaSerializer</code> (Mặc định khi không khai báo).</td>
+                  <td><code>org.apache.spark.serializer.KryoSerializer</code> (Cần bật tường minh trong <code>SparkConf</code>).</td>
+                  <td>Tự động kích hoạt ngầm bởi bộ tối ưu hóa <strong>Project Tungsten</strong> khi dùng DataFrame / Dataset / Spark SQL.</td>
+                </tr>
+                <tr>
+                  <td><strong>Cấu trúc Khung Byte (Byte Layout)</strong></td>
+                  <td>Đóng gói đầy đủ tên lớp đầy đủ (Fully Qualified Class Name), mô tả trường, cây kế thừa và cờ điều khiển của chuẩn <code>ObjectOutputStream</code>.</td>
+                  <td>Chỉ ghi mã định danh lớp dạng số nguyên (1–2 bytes nếu đã đăng ký) nối tiếp bởi mảng giá trị trường nhị phân sát nhau (Compact Binary Payload).</td>
+                  <td>Định dạng hàng nhị phân phẳng (Flat Binary Row) gồm vùng <code>Null Bitset</code>, vùng con trỏ độ dài cố định (8 bytes/cột) và vùng dữ liệu độ dài biến thiên, thao tác trực tiếp qua địa chỉ bộ nhớ mà không cần giải tuần tự hóa thành Object JVM.</td>
+                </tr>
+                <tr>
+                  <td><strong>Tốc độ Tuần tự hóa (Speed — Slide 37)</strong></td>
+                  <td><strong>Chậm (Slower):</strong> Tốn nhiều chu kỳ CPU để quét siêu dữ liệu phản chiếu (Reflection) và dựng lại cây đối tượng.</td>
+                  <td><strong>Nhanh vượt trội (Faster):</strong> Tốc độ mã hóa và giải mã nhanh gấp nhiều lần, giảm mạnh thời gian chờ CPU ở hai đầu Shuffle.</td>
+                  <td><strong>Nhanh nhất (Zero-Deserialization):</strong> Thực hiện so sánh, sắp xếp (Sort) và băm (Hash) trực tiếp trên mảng byte nhị phân.</td>
+                </tr>
+                <tr>
+                  <td><strong>Dung lượng Bộ nhớ (Memory Usage — Slide 37)</strong></td>
+                  <td><strong>Cao (Higher):</strong> Dòng byte phình to gấp 2–5 lần dữ liệu gốc, làm đầy nhanh bộ đệm Shuffle và vùng nhớ đệm Executor.</td>
+                  <td><strong>Thấp (Lower):</strong> Dòng byte nhỏ gọn hơn tới 10 lần, tiết kiệm đáng kể RAM trên Executor và giảm tải băng thông mạng.</td>
+                  <td><strong>Cực thấp &amp; Ổn định:</strong> Loại bỏ hoàn toàn tiêu đề đối tượng JVM (<code>16-byte Object Header</code>) và tránh áp lực dọn rác <code>JVM GC</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chi phí Thiết lập (Setup — Slide 37)</strong></td>
+                  <td><strong>Dễ dàng (Easier):</strong> Lựa chọn mặc định, chạy ngay mà không cần cấu hình.</td>
+                  <td><strong>Cần cấu hình trước (Needs configuration):</strong> Phải khai báo <code>spark.serializer</code> và đăng ký các lớp tự định nghĩa (Custom Classes) trước khi khởi chạy Job.</td>
+                  <td><strong>Tự động hoàn toàn:</strong> Không cần cấu hình thủ công khi viết truy vấn bằng DataFrame API hoặc Spark SQL.</td>
+                </tr>
+                <tr>
+                  <td><strong>Trường hợp Sử dụng Tối ưu (Best Use — Slides 37–38)</strong></td>
+                  <td>Các nguyên mẫu thử nghiệm nhỏ (Prototyping), dữ liệu ít và không có yêu cầu khắt khe về độ trễ.</td>
+                  <td><strong>Các Job lớn (Good for large jobs):</strong> Tác vụ RDD có <strong>Shuffle nặng (Heavy Shuffle)</strong>, lưu đệm tập dữ liệu lớn (<code>MEMORY_ONLY_SER</code>) hoặc truyền mạng liên tục.</td>
+                  <td>Mọi đường ống ETL, phân tích dữ liệu có cấu trúc và bán cấu trúc chuẩn Production trên Apache Spark hiện đại.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Cấu hình Kryo Serialization &amp; Tại sao Phải Đăng ký Lớp (Class Registration) Trước Khi Chạy Job</h3>
+          <p>Theo Slide 39 (<em>Setting Up Kryo Serialization</em>), vì Kryo không phải là chế độ mặc định, kỹ sư bắt buộc phải cấu hình <code>SparkConf</code> <strong>trước khi khởi tạo <code>SparkContext</code> hoặc <code>SparkSession</code></strong>. Đặc biệt, khi ứng dụng có sử dụng các lớp đối tượng tự định nghĩa (Custom Domain Classes), việc đăng ký trước các lớp này qua tham số <code>spark.kryo.classesToRegister</code> đóng vai trò quyết định đến hiệu suất nén:</p>
+          <ul>
+            <li><strong>Nếu KHÔNG đăng ký lớp (Without Registration):</strong> Kryo vẫn hoạt động bình thường mà không báo lỗi, nhưng mỗi khi tuần tự hóa một đối tượng thuộc lớp chưa đăng ký, Kryo buộc phải <strong>ghi lặp lại toàn bộ chuỗi tên lớp đầy đủ</strong> (ví dụ chuỗi <code>"com.example.MyClass"</code> tốn hàng chục byte) vào bên trong từng bản ghi trên dòng byte, làm giảm đáng kể hiệu quả tiết kiệm bộ nhớ và băng thông.</li>
+            <li><strong>Nếu ĐÃ đăng ký lớp (With Explicit Registration):</strong> Kryo lập bảng ánh xạ tĩnh gắn tên lớp <code>"com.example.MyClass"</code> với một <strong>mã số nguyên định danh ngắn (Class ID chỉ 1–2 bytes)</strong> trên toàn bộ các Executor. Khi hàng trăm triệu bản ghi đi qua Shuffle hoặc được nén vào RAM, mỗi bản ghi chỉ tốn đúng 1–2 bytes để nhận diện kiểu đối tượng, phát huy tối đa sức mạnh của Kryo.</li>
+          </ul>
+
+          <pre><code>from pyspark import SparkConf, SparkContext
+
+conf = SparkConf()
+conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+
+# Optional: register custom classes so Kryo knows how to handle them
+conf.set("spark.kryo.classesToRegister", "com.example.MyClass")
+
+sc = SparkContext(conf=conf)</code></pre>
+
+          <p>Trong môi trường Production thực tế với <code>SparkSession</code>, bên cạnh hai tham số chuẩn trên Slide 39, kỹ sư thường cấu hình thêm <code>spark.kryoserializer.buffer.max</code> (mặc định <code>64m</code>, có thể nâng lên <code>512m</code> hoặc <code>1024m</code> nếu từng đối tượng dữ liệu đơn lẻ rất lớn) để tránh lỗi tràn bộ đệm <code>KryoException: Buffer overflow</code> trong pha Shuffle.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="spark-3-3">
+          <h2 id="spark-3-3-h2" tabindex="-1">Trạm 3.3: Tính toán Trong Bộ nhớ (In-Memory Computing) — cache() vs. persist() &amp; Giải phẫu 5 Chế độ Lưu trữ (Storage Choices)</h2>
+
+          <p><strong>In-Memory Computing (Tính toán trong bộ nhớ)</strong> là kiến trúc giữ các phân vùng dữ liệu trung gian trực tiếp trong bộ nhớ <code>RAM</code> của cụm máy chủ để Apache Spark tái sử dụng tức thì qua nhiều bước tính toán tiếp theo mà không phải đọc/ghi lặp đi lặp lại xuống ổ đĩa cứng (Slides 42–44). Trong các hệ thống xử lý lô truyền thống như Hadoop MapReduce (Slide 43 — <em>Traditional Computing Problem</em>), mỗi bước chuyển tiếp đều phải đọc dữ liệu từ đĩa, đưa qua RAM lên CPU xử lý rồi lại xả kết quả trung gian xuống đĩa (<code>Disk ⇄ Memory ⇄ CPU</code>); vì tốc độ I/O của ổ cứng chậm hơn RAM từ hàng chục đến hàng trăm lần, việc truy cập đĩa lặp đi lặp lại làm tê liệt các đường ống đa bước hoặc thuật toán lặp. Ngược lại, với <strong>In-Memory Computing</strong> (Slide 44), Spark chỉ cần đọc dữ liệu từ đĩa một lần duy nhất (<code>Read data from disk → Store in RAM</code>), sau đó phục vụ trực tiếp từ RAM cho hàng loạt hành động kế tiếp (<code>Use in Action 1</code>, <code>Reuse in Action 2</code>, <code>Reuse in Action 3</code>) với tốc độ băng thông bộ nhớ.</p>
+
+          <x-figure id="spark-3-3-fig" key="3.3" title="Sơ đồ 3.3 — In-Memory Computing: cache() vs. persist() &amp; 5 Chế độ Lưu trữ (Storage Choices)">Đối chiếu nơi lưu trữ (RAM vs. Đĩa), định dạng lưu trữ (Deserialized vs. Serialized) và hành vi khi tràn bộ nhớ của 5 cấp độ persist().</x-figure>
+
+          <h3>Phân biệt cache() vs. persist() &amp; Quy tắc Bất biến về Mặc định Lưu trữ giữa RDD và DataFrame</h3>
+          <p>Mặc định, do cơ chế <strong>Lazy Evaluation</strong> (đã học ở Chặng 2), mỗi khi bạn gọi một <code>Action</code> mới trên cùng một biến RDD hoặc DataFrame, Spark sẽ truy ngược đồ thị phả hệ (Lineage DAG) để đọc lại dữ liệu gốc từ đĩa và tính toán lại toàn bộ các bước biến đổi từ đầu. Để ra lệnh cho Spark giữ lại kết quả trung gian sau lần tính toán đầu tiên, Spark cung cấp hai phương thức (Slides 45–46):</p>
+          <ul>
+            <li><strong><code>cache()</code> (Slide 45 — Giữ dữ liệu tái sử dụng bằng cấu hình mặc định):</strong> Là hàm viết tắt (Shorthand) gọi xuống <code>persist()</code> với mức lưu trữ mặc định của từng cấu trúc dữ liệu. Nếu bộ nhớ RAM đủ chỗ, Spark giữ toàn bộ các phân vùng đã tính toán trong RAM và tái sử dụng ngay ở các Action sau; nếu RAM không đủ (trên RDD), các phân vùng không còn chỗ chứa sẽ bị bỏ qua và được tính toán lại (Recomputed) từ Lineage khi cần.</li>
+            <li><strong>Quy tắc Bất biến phân biệt <code>cache()</code> trên RDD và DataFrame (Slide 45):</strong> <em><code>cache()</code> đều khả dụng cho cả RDD và DataFrame, nhưng hành vi lưu trữ mặc định của chúng hoàn toàn khác nhau:</em>
+              <ul>
+                <li><strong>Đối với <code>RDD</code>:</strong> <code>rdd.cache()</code> mặc định lưu dữ liệu <strong>chỉ trong bộ nhớ RAM (<code>StorageLevel.MEMORY_ONLY</code>)</strong>.</li>
+                <li><strong>Đối với <code>DataFrame / Dataset</code>:</strong> <code>df.cache()</code> mặc định lưu dữ liệu <strong>trong bộ nhớ RAM và tràn xuống Đĩa nếu đầy (<code>StorageLevel.MEMORY_AND_DISK</code>)</strong>. Lý do kiến trúc: một truy vấn DataFrame thường đứng sau các phép nối bảng (Join) và gộp nhóm (Aggregation) rất nặng; việc mặc định có đĩa dự phòng (Disk Fallback) đảm bảo nếu tập dữ liệu lớn hơn RAM thì Spark chỉ cần đọc phần tràn từ ổ SSD cục bộ thay vì phải chạy lại toàn bộ các pha Shuffle đắt đỏ từ đầu.</li>
+              </ul>
+            </li>
+            <li><strong><code>persist(storageLevel)</code> (Slide 46 — Kiểm soát toàn diện nơi lưu và định dạng lưu):</strong> Cho phép kỹ sư chỉ định tường minh cách Spark lưu trữ dữ liệu tái sử dụng theo dung lượng RAM và kích thước dữ liệu: lưu trên <strong>RAM, trên Đĩa, hoặc kết hợp cả hai</strong>; lưu dưới dạng <strong>đối tượng nguyên bản (Deserialized)</strong> hay <strong>nén thành mảng byte (Serialized)</strong> để tiết kiệm bộ nhớ.</li>
+          </ul>
+
+          <pre><code># 1. Sử dụng cache() cho kịch bản lưu đệm mặc định đơn giản (Slide 45)
+filtered_rdd = rdd.filter(lambda x: x.status == "success")
+filtered_rdd.cache()     # Đánh dấu lưu đệm (Lazy: chưa nạp vào RAM ngay lúc này!)
+filtered_rdd.count()     # Action 1: Tính toán từ nguồn, nạp phân vùng vào RAM và trả kết quả
+filtered_rdd.collect()   # Action 2: Tái sử dụng trực tiếp dữ liệu đã cache trong RAM - nhanh hơn tính lại
+
+# 2. Sử dụng persist() khi cần chỉ định cơ chế tràn xuống đĩa hoặc nén tiết kiệm RAM (Slide 46)
+from pyspark import StorageLevel
+
+filtered_rdd = rdd.filter(lambda x: x.status == "success")
+filtered_rdd.persist(StorageLevel.MEMORY_AND_DISK)  # Nếu bộ nhớ đệm đầy, tự động lưu phần dư xuống đĩa</code></pre>
+
+          <h3>Giải phẫu 5 Chế độ Lưu trữ (5 Storage Choices) trong persist()</h3>
+          <p>Khi gọi <code>persist()</code>, kỹ sư dữ liệu có <strong>5 lựa chọn lưu trữ cốt lõi (5 Storage Choices)</strong> tương ứng với sự đánh đổi trực tiếp giữa <strong>Dung lượng RAM (Memory Space)</strong>, <strong>Chu kỳ CPU (Deserialization Cost)</strong> và <strong>Độ trễ Đọc/Ghi Đĩa (Disk I/O)</strong> (Slides 47–52 &amp; <em>Learning Spark, 2nd Edition</em>):</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chế độ Lưu trữ (Storage Choice)</th>
+                  <th>Nơi Lưu &amp; Định dạng Lưu trữ (Meaning — Slides 47–52)</th>
+                  <th>Hành vi Khi Tràn Bộ nhớ RAM (Overflow Behavior)</th>
+                  <th>Đánh đổi Tài nguyên (CPU vs. RAM vs. Disk)</th>
+                  <th>Khi nào Nên Sử dụng (When to Use — Slide 47)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. <code>MEMORY_ONLY</code></strong><br>(Slide 48)</td>
+                  <td>Lưu các phân vùng dưới dạng <strong>đối tượng Java đã giải tuần tự hóa (Deserialized Java Objects)</strong> trực tiếp trong vùng nhớ JVM trên RAM.</td>
+                  <td>Nếu tập dữ liệu không vừa hết trong RAM, các phân vùng còn dư sẽ <strong>không được lưu</strong> và phải <strong>tính toán lại từ đầu (Recompute)</strong> mỗi khi cần dùng tới.</td>
+                  <td><strong>Tốc độ đọc CPU nhanh nhất</strong> (không tốn chi phí giải mã byte), nhưng <strong>tốn RAM nhất</strong> (phình gấp 2–5 lần kích thước thô do tiêu đề Object JVM).</td>
+                  <td><strong>Data fits in RAM:</strong> Tập dữ liệu trung gian nhỏ/vừa, nằm gọn 100% trong RAM khả dụng của các Executor.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. <code>MEMORY_AND_DISK</code></strong><br>(Slide 49)</td>
+                  <td>Lưu dưới dạng <strong>đối tượng Java đã giải tuần tự hóa (Deserialized)</strong> trong RAM trước; phần vượt quá RAM được ghi xuống đĩa cục bộ.</td>
+                  <td>Các phân vùng không vừa trong RAM được <strong>chuyển xuống lưu trên ổ đĩa cục bộ (Spill to Disk)</strong> thay vì phải tính toán lại mỗi khi cần.</td>
+                  <td>Các phân vùng nằm trong RAM vẫn đọc cực nhanh; các phân vùng tràn xuống đĩa tốn thêm chi phí tuần tự hóa và I/O đĩa nhưng tránh được việc chạy lại cả đồ thị Lineage.</td>
+                  <td><strong>Data may not fit in RAM:</strong> Không chắc chắn dữ liệu có vừa khít RAM hay không, và chi phí tính toán lại từ nguồn quá đắt đỏ (mặc định của <code>DataFrame.cache()</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>3. <code>MEMORY_ONLY_SER</code></strong><br>(Slide 50 — Scala/Java)</td>
+                  <td>Lưu các phân vùng dưới dạng <strong>đối tượng Java đã tuần tự hóa (Serialized Java Objects)</strong> — mỗi phân vùng được gom thành <strong>một mảng byte duy nhất (Single byte array per partition)</strong> trong RAM.</td>
+                  <td>Tương tự <code>MEMORY_ONLY</code>: nếu mảng byte đã nén vẫn vượt quá RAM thì các phân vùng dư sẽ không được lưu và phải <strong>tính toán lại (Recompute)</strong> khi cần.</td>
+                  <td><strong>Tiết kiệm RAM vượt trội</strong> (đặc biệt khi kết hợp với <code>KryoSerializer</code>) và giảm hẳn áp lực dọn rác <code>JVM GC</code>, đổi lại <strong>tốn thêm CPU</strong> để giải tuần tự hóa mảng byte mỗi lần đọc.</td>
+                  <td><strong>Need to save memory:</strong> Cần giữ toàn bộ dữ liệu trên RAM để truy xuất nhanh nhưng dung lượng RAM hạn hẹp so với kích thước đối tượng thô.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. <code>MEMORY_AND_DISK_SER</code></strong><br>(Slide 51 — Scala/Java)</td>
+                  <td>Lưu các phân vùng dưới dạng <strong>mảng byte đã tuần tự hóa (Serialized byte array)</strong> trong RAM trước; nếu tràn RAM thì đẩy mảng byte dư xuống đĩa.</td>
+                  <td>Các phân vùng vượt quá dung lượng RAM được <strong>ghi thẳng xuống đĩa cục bộ (Store remaining partitions on disk)</strong> dưới dạng byte nén mà không cần tính toán lại.</td>
+                  <td>Kết hợp ưu điểm tiết kiệm RAM của <code>_SER</code> và lưới an toàn chống tính toán lại của <code>_AND_DISK</code>; chi phí I/O đĩa cũng thấp hơn vì ghi mảng byte đã nén gọn.</td>
+                  <td><strong>Large data, limited memory:</strong> Tập dữ liệu lớn trong môi trường cụm giới hạn RAM, ưu tiên độ ổn định Production cao nhất cho RDD.</td>
+                </tr>
+                <tr>
+                  <td><strong>5. <code>DISK_ONLY</code></strong><br>(Slide 52)</td>
+                  <td>Chỉ lưu toàn bộ các phân vùng dữ liệu <strong>trực tiếp trên ổ đĩa cục bộ (Local Disk)</strong> của các Executor, không giữ trong RAM.</td>
+                  <td>Mọi phân vùng đều nằm trên đĩa cục bộ ngay từ đầu (không chiếm dụng <code>Storage Memory</code> trong RAM).</td>
+                  <td>Tốn 0% bộ nhớ đệm RAM (nhường toàn bộ RAM cho các phép Join/Aggregate), nhưng mọi lượt đọc lại đều phải chịu độ trễ I/O đĩa và giải tuần tự hóa.</td>
+                  <td><strong>Memory is not available:</strong> RAM đã bị chiếm kín bởi tác vụ khác hoặc tập dữ liệu quá khổng lồ, nhưng đọc lại từ SSD cục bộ vẫn nhanh hơn tính lại chuỗi Join phức tạp.</td>
+                </tr>
+                <tr>
+                  <td><strong>Hậu tố <code>_2</code></strong><br>(<code>MEMORY_ONLY_2</code>, <code>MEMORY_AND_DISK_2</code>)</td>
+                  <td>Giống hệt các chế độ tương ứng nhưng <strong>nhân bản mỗi phân vùng lưu đệm sang 2 nút Executor khác nhau</strong> trong cụm.</td>
+                  <td>Nếu 1 Executor bị sập bất ngờ, tác vụ có thể đọc ngay bản sao trên Executor thứ hai mà không phải tính toán lại phân vùng bị mất.</td>
+                  <td>Tốn <strong>gấp đôi (2x)</strong> dung lượng RAM/Đĩa và băng thông mạng để sao chép liên nút khi tạo bản đệm.</td>
+                  <td>Các hệ thống yêu cầu độ sẵn sàng tức thì (Low-latency interactive serving) không chấp nhận độ trễ phục hồi khi nút mạng gặp sự cố.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p><em>Lưu ý kỹ thuật đối với PySpark:</em> Trong API Python (<code>pyspark.StorageLevel</code>), vì các đối tượng dữ liệu Python được trao đổi giữa tiến trình Python Worker và JVM Executor nên chúng luôn được tuần tự hóa sẵn (Pickle/Arrow) khi lưu vào JVM; do đó trên PySpark bạn sử dụng trực tiếp <code>StorageLevel.MEMORY_ONLY</code>, <code>StorageLevel.MEMORY_AND_DISK</code>, <code>StorageLevel.DISK_ONLY</code> (hoặc <code>StorageLevel.OFF_HEAP</code>), trong khi trên Scala/Java API có sự phân tách tường minh giữa đối tượng JVM nguyên bản và hậu tố <code>_SER</code>.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="spark-3-4">
+          <h2 id="spark-3-4-h2" tabindex="-1">Trạm 3.4: Chiến lược Khi Nào Nên Cache &amp; Giải phẫu Bộ Quản lý Bộ nhớ Hợp nhất (Unified Memory Manager)</h2>
+
+          <p>Lưu đệm (Caching) không phải là chiếc đũa thần tăng tốc mọi câu lệnh: nguyên tắc vàng trên Slide 53 (<em>When Should We Cache? — Cache only data that will be reused</em>) khẳng định rằng <strong>chỉ được lưu đệm khi cùng một tập dữ liệu được tái sử dụng nhiều lần</strong>. Để hiểu tại sao việc lạm dụng <code>cache()</code> trên dữ liệu quá lớn hoặc dữ liệu chỉ đọc một lần lại làm giảm bộ nhớ khả dụng và bóp nghẹt các phép Join/Sort đang chạy, kỹ sư dữ liệu phải nắm rõ cơ chế phân bổ vùng nhớ của <strong>Bộ Quản lý Bộ nhớ Hợp nhất (Unified Memory Manager)</strong> bên trong mỗi Executor JVM (<em>Learning Spark, 2nd Edition</em>, Ch. 7).</p>
+
+          <x-figure id="spark-3-4-fig" key="3.4" title="Sơ đồ 3.4 — Chiến lược Sử dụng Cache &amp; Kiến trúc Bộ nhớ Hợp nhất (Unified Memory Manager)">Phân bổ vùng nhớ bên trong Executor JVM và quy tắc ưu tiên nhường bộ nhớ giữa Storage Memory và Execution Memory.</x-figure>
+
+          <h3>Ma trận Quyết định: Khi Nào Nên Cache (Good Cases) &amp; Khi Nào Cấm Cache (Bad Cases)</h3>
+          <p>Dựa trên Slide 53, trước khi đặt lệnh <code>.cache()</code> hoặc <code>.persist()</code> vào bất kỳ nhánh nào của đường ống ETL, hãy đối chiếu trực tiếp với hai bảng kịch bản Nên và Không nên dưới đây:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Phân loại</th>
+                  <th>Tình huống Thực tế (Case — Slide 53)</th>
+                  <th>Cơ chế Tác động lên Hiệu năng Cụm (Why Caching Helps / Hurts)</th>
+                  <th>Khuyến nghị Kỹ thuật Thực chiến</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>NÊN CACHE<br>(Good Cases)</strong></td>
+                  <td><strong>1. Cùng một tập dữ liệu được đọc lặp đi lặp lại</strong><br>(<em>Same data read repeatedly</em>)</td>
+                  <td><strong>Tránh đọc lặp lại từ nguồn gốc chậm:</strong> Ngăn chặn việc phải kéo đi kéo lại cùng một bảng dữ liệu từ Object Storage (S3/MinIO/ADLS) hoặc cơ sở dữ liệu JDBC qua mạng ở mỗi <code>Action</code>.</td>
+                  <td>Áp dụng cho các bảng dữ liệu đã qua bước làm sạch/lọc chuẩn bị phục vụ đồng thời nhiều nhánh kiểm tra chất lượng dữ liệu (DQ Checks), thống kê và ghi ra nhiều bảng đích, hoặc các vòng lặp huấn luyện <strong>MLlib / GraphFrames</strong>.</td>
+                </tr>
+                <tr>
+                  <td><strong>NÊN CACHE<br>(Good Cases)</strong></td>
+                  <td><strong>2. Tái sử dụng kết quả của một phép tính toán đắt đỏ</strong><br>(<em>Expensive computation result reused</em>)</td>
+                  <td><strong>Tránh tính toán lại cùng một kết quả:</strong> Cắt đứt chuỗi Lineage phía trước để các nhánh hạ nguồn không phải chạy lại các phép <code>join</code> đa bảng, <code>groupBy</code> hoặc hàm cửa sổ (Window Functions) tốn nhiều Shuffle.</td>
+                  <td>Luôn <strong>lọc dòng (<code>filter</code>) và cắt bỏ cột thừa (<code>select</code>) trước khi gọi <code>.cache()</code></strong> để thu nhỏ tối đa kích thước tập dữ liệu trung gian cần giữ trong RAM.</td>
+                </tr>
+                <tr>
+                  <td><strong>CẤM CACHE<br>(Bad Cases)</strong></td>
+                  <td><strong>1. Dữ liệu chỉ được sử dụng đúng một lần</strong><br>(<em>Data used only once</em>)</td>
+                  <td><strong>Không mang lại bất kỳ lợi ích tái sử dụng nào (No reuse benefit):</strong> Tác vụ vẫn phải chịu thêm chi phí CPU đóng gói khối nhớ đệm (Cache Block Materialization) và ghi đĩa tạm một cách vô ích.</td>
+                  <td>Trong đường ống tuyến tính một mạch (<code>Read → Filter → Join → Write</code> chỉ có 1 Action duy nhất ở cuối), tuyệt đối không gọi <code>.cache()</code> ở giữa.</td>
+                </tr>
+                <tr>
+                  <td><strong>CẤM CACHE<br>(Bad Cases)</strong></td>
+                  <td><strong>2. Dữ liệu lưu đệm chiếm quá nhiều bộ nhớ</strong><br>(<em>Cached data uses too much memory</em>)</td>
+                  <td><strong>Làm giảm bộ nhớ khả dụng cho các công việc tính toán hữu ích (Reduces memory available for useful work):</strong> Chiếm chỗ của <code>Execution Memory</code>, ép các phép Join và Aggregation phải tràn xuống đĩa (Shuffle Spill) và gây nghẽn <code>JVM GC</code>.</td>
+                  <td>Không bao giờ gọi <code>.cache()</code> ngay trên bảng thô (Raw Fact Table) hàng trăm gigabyte khi chưa lọc; nếu bắt buộc phải lưu vết bảng cực lớn, hãy cân nhắc dùng <code>DISK_ONLY</code> hoặc ghi tạm ra bảng Delta/Parquet trung gian.</td>
+                </tr>
+                <tr>
+                  <td><strong>CẤM CACHE<br>(Bad Cases)</strong></td>
+                  <td><strong>3. Dữ liệu lưu đệm không bao giờ được dọn dẹp</strong><br>(<em>Cached data is never removed</em>)</td>
+                  <td><strong>Lãng phí tài nguyên cụm (Wastes resources):</strong> Các phân vùng đã hết giá trị sử dụng vẫn nằm lì trong RAM của Executor suốt vòng đời ứng dụng, bóp nghẹt các Stage phía sau.</td>
+                  <td>Bắt buộc gọi tường minh <strong><code>df.unpersist()</code></strong> (hoặc <code>rdd.unpersist()</code>) ngay sau khi nhánh tính toán cuối cùng sử dụng tập dữ liệu đó đã hoàn tất.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Giải phẫu Bộ Quản lý Bộ nhớ Hợp nhất (Unified Memory Manager) trong Executor JVM</h3>
+          <p>Tại sao Slide 53 lại cảnh báo: <em>"Cached data uses too much memory → Reduces memory available for useful work"</em>? Câu trả lời nằm ở kiến trúc <strong>Unified Memory Manager</strong> (được giới thiệu từ Spark 1.6+ và hoàn thiện trong Spark 3.x/4.x, <em>Learning Spark, 2nd Edition</em> Ch. 7). Khi bạn cấp phát bộ nhớ cho một Executor thông qua tham số <code>spark.executor.memory</code> (ví dụ <code>10 GB</code> JVM Heap), Spark không dành toàn bộ <code>10 GB</code> đó cho việc cache mà chia không gian <strong>JVM Heap</strong> thành 3 vùng rõ rệt:</p>
+
+          $$\text{Usable Heap} = \text{JVM Heap (spark.executor.memory)} - 300\text{ MB (Reserved Memory)}$$
+
+          <ul>
+            <li><strong>1. Reserved Memory (<code>300 MB</code> cố định):</strong> Vùng bộ nhớ an toàn được Spark khóa cứng (<code>300 MB</code>) cho hệ thống nội bộ và phục hồi lỗi để đảm bảo tiến trình Executor không bị sập đột ngột (<code>OutOfMemoryError</code>) ngay cả khi tác vụ của người dùng dùng cạn kiệt các vùng nhớ còn lại.</li>
+            <li><strong>2. Spark Unified Memory (<code>60%</code> phần Heap khả dụng — cấu hình qua <code>spark.memory.fraction = 0.6</code>):</strong> Đây là bể bộ nhớ dùng chung cho cả việc lưu đệm (Caching) và việc tính toán (Shuffle/Join/Sort), được chia đôi mặc định theo tỷ lệ <code>50% / 50%</code> bởi vạch ranh giới mềm <code>spark.memory.storageFraction = 0.5</code>:
+              <ul>
+                <li><strong><code>Storage Memory</code> (<code>50%</code> của Unified Memory = <code>30%</code> Usable Heap):</strong> Chuyên dùng để lưu trữ các phân vùng <code>cache()</code> / <code>persist()</code> và các biến phát tán <code>Broadcast Variables</code>.</li>
+                <li><strong><code>Execution Memory</code> (<code>50%</code> của Unified Memory = <code>30%</code> Usable Heap):</strong> Chuyên dùng cho các bộ đệm tính toán đang chạy trực tiếp (Useful execution work) bao gồm <strong>Shuffles, Joins (<code>SortMergeJoin</code>, <code>BroadcastHashJoin</code>), Sorts và Aggregations (<code>HashAggregate</code>)</strong>.</li>
+              </ul>
+            </li>
+            <li><strong>3. User Memory (<code>40%</code> phần Heap khả dụng còn lại = <code>1.0 - spark.memory.fraction</code>):</strong> Dành cho các cấu trúc dữ liệu tự tạo bên trong code người dùng (như Dictionary/List trong UDF hoặc phép biến đổi RDD), siêu dữ liệu nội bộ của Spark và đồ thị phụ thuộc Lineage.</li>
+          </ul>
+
+          <p>Điểm tinh túy nhất của <strong>Unified Memory Manager</strong> nằm ở <strong>Quy tắc Ranh giới Động &amp; Trục xuất Bất đối xứng (Dynamic Boundary Eviction Rule)</strong> giữa <code>Storage Memory</code> và <code>Execution Memory</code>:</p>
+          <ul>
+            <li><strong>Quy tắc 1 — Vay mượn linh hoạt khi bên kia nhàn rỗi:</strong> Ranh giới <code>50% / 50%</code> không phải là bức tường cứng. Nếu không có tác vụ Join/Shuffle nào đang chạy, <code>Storage Memory</code> có thể mượn toàn bộ phần không gian trống của <code>Execution Memory</code> (lên tới 100% Unified Pool) để chứa thêm dữ liệu <code>cache()</code>, và ngược lại.</li>
+            <li><strong>Quy tắc 2 — <code>Execution Memory</code> có quyền TRỤC XUẤT (Evict) phần <code>Storage Memory</code> vay mượn:</strong> Khi một phép <code>SortMergeJoin</code> hoặc <code>groupBy</code> lớn bắt đầu chạy và cần bộ nhớ, <code>Execution Memory</code> sẽ đòi lại phần không gian mà <code>Storage Memory</code> đã mượn vượt quá vạch bảo vệ <code>50%</code> (<code>spark.memory.storageFraction</code>). Các khối dữ liệu <code>cache()</code> nằm trong phần vay mượn này sẽ bị <strong>ép buộc trục xuất khỏi RAM</strong> ngay lập tức (đẩy xuống đĩa nếu dùng <code>MEMORY_AND_DISK</code>, hoặc xóa bỏ hoàn toàn nếu dùng <code>MEMORY_ONLY</code>). Tuy nhiên, <code>Execution</code> không được phép xâm phạm phần <code>Storage</code> nằm dưới ngưỡng sàn <code>50%</code> đã cam kết.</li>
+            <li><strong>Quy tắc 3 — <code>Storage Memory</code> KHÔNG BAO GIỜ được phép trục xuất <code>Execution Memory</code>:</strong> Vì việc xóa ngang xương bộ đệm của một phép Join hay Shuffle đang chạy dở sẽ làm hỏng tiến trình tính toán, Spark ưu tiên tuyệt đối cho <code>Execution</code>. Nếu <code>Execution Memory</code> đang mượn sang phần đất của <code>Storage</code> (ví dụ chiếm <code>80%</code> Unified Memory) mà lúc đó có lệnh <code>.cache()</code> mới yêu cầu lưu phân vùng, <code>Storage Memory</code> <strong>không thể đòi lại bộ nhớ</strong> mà buộc phải đẩy thẳng phân vùng cache mới đó xuống đĩa (hoặc bỏ qua). Mặt khác, nếu bạn đã lấp đầy <code>50%</code> sàn bảo vệ của <code>Storage Memory</code> bằng các bảng cache khổng lồ không giải phóng, <code>Execution Memory</code> sẽ mất hoàn toàn khả năng vay thêm RAM và bị khóa cứng ở <code>50%</code> còn lại — dẫn tới tràn đĩa (Shuffle Spill) liên tục.</li>
+          </ul>
+
+          <pre><code>from pyspark.sql import SparkSession
+from pyspark import StorageLevel
+
+spark = SparkSession.builder \
+    .appName("Production-Memory-Management") \
+    .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
+    .config("spark.memory.fraction", "0.6") \
+    .config("spark.memory.storageFraction", "0.5") \
+    .getOrCreate()
+
+# Nguyên tắc Production: Lọc dòng (filter) và cắt cột (select) TRƯỚC KHI cache!
+clean_orders_df = spark.read.parquet("s3a://lakehouse/bronze/orders") \
+    .filter("order_status = 'COMPLETED' AND order_date >= '2026-01-01'") \
+    .select("order_id", "customer_id", "store_id", "total_amount")
+
+# Đánh dấu lưu đệm (mặc định của DataFrame là MEMORY_AND_DISK)
+clean_orders_df.cache()
+
+# Action 1: Kích hoạt nạp dữ liệu vào Storage Memory và đếm tổng số đơn
+total_completed = clean_orders_df.count()
+
+# Action 2: Tái sử dụng trực tiếp từ RAM (không đọc lại S3, không lọc lại)
+top_stores_df = clean_orders_df.groupBy("store_id").sum("total_amount")
+top_stores_df.write.mode("overwrite").parquet("s3a://lakehouse/gold/store_revenue")
+
+# Bắt buộc giải phóng bộ nhớ đệm ngay sau khi hoàn tất tái sử dụng!
+clean_orders_df.unpersist()</code></pre>
+        </section>
+
+        <section class="summary-section" id="spark-3-summary">
+          <h2 id="spark-3-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 3 &amp; Checklist 5 câu hỏi bản chất</h2>
+          <p><strong>Checklist tự kiểm tra Chặng 3 (5 Câu hỏi Bản chất):</strong></p>
+          <ol>
+            <li><strong>Ba điểm nóng nào trong cụm Apache Spark bắt buộc phải kích hoạt quá trình Serialization / Deserialization, và tại sao một bộ tuần tự hóa kém lại làm chậm đồng thời cả CPU, RAM lẫn Network?</strong><br>Ba điểm nóng là <strong>Shuffle</strong> (trao đổi dữ liệu giữa các Executor khi <code>groupBy</code>/<code>join</code>), <strong>Caching</strong> (lưu phân vùng vào RAM ở chế độ nén hoặc tràn xuống đĩa) và <strong>Network Transfer</strong> (gửi Task Closures, biến <code>Broadcast</code> và kết quả về Driver). Theo chuỗi nhân quả <code>Large object → CPU: Serialize → Large byte stream → Slow network transfer → CPU: Deserialize → Slow Spark job</code>, đối tượng lớn vừa ngốn RAM gây dừng hình <code>JVM GC</code>, vừa tạo dòng byte phình to làm nghẽn băng thông mạng, vừa đốt chu kỳ CPU ở hai đầu mã hóa/giải mã.</li>
+            <li><strong>Tại sao <code>KryoSerializer</code> lại nhỏ gọn và nhanh gấp 10 lần <code>JavaSerializer</code>, và điều gì xảy ra nếu bạn bật Kryo nhưng quên đăng ký các lớp tự định nghĩa qua <code>spark.kryo.classesToRegister</code>?</strong><br><code>JavaSerializer</code> ghi kèm toàn bộ tên lớp đầy đủ, mô tả trường và phả hệ kế thừa vào dòng byte, trong khi <code>KryoSerializer</code> chỉ ghi dữ liệu nhị phân tối giản. Nếu bật Kryo mà không đăng ký lớp tự định nghĩa (Custom Classes), Kryo vẫn chạy được nhưng buộc phải ghi lặp lại toàn bộ chuỗi tên lớp đầy đủ (ví dụ <code>"com.example.MyClass"</code>) vào từng bản ghi thay vì mã số nguyên 1–2 bytes, làm mất đi phần lớn lợi thế nén bộ nhớ.</li>
+            <li><strong>Gọi lệnh <code>cache()</code> trên <code>RDD</code> khác với gọi <code>cache()</code> trên <code>DataFrame</code> ở điểm cốt lõi nào, và khi nào bạn phải chuyển sang dùng <code>persist(StorageLevel.MEMORY_AND_DISK_SER)</code>?</strong><br>Theo đúng chuẩn kiến trúc Spark (Slide 45), <code>rdd.cache()</code> mặc định là <strong><code>MEMORY_ONLY</code></strong> (nếu tràn RAM thì phân vùng bị thiếu phải tính toán lại từ đầu), trong khi <code>df.cache()</code> mặc định là <strong><code>MEMORY_AND_DISK</code></strong> (phân vùng vượt quá RAM được ghi tạm xuống đĩa để bảo vệ kết quả của các bước SQL nặng). Khi xử lý các tập dữ liệu RDD lớn trong môi trường hạn hẹp RAM, cần dùng <code>MEMORY_AND_DISK_SER</code> để vừa nén mỗi phân vùng thành một mảng byte duy nhất trên RAM, vừa có đĩa dự phòng chống tính toán lại.</li>
+            <li><strong>Tại sao việc gọi <code>df.cache()</code> ngay sau khi đọc bảng gốc chưa qua <code>filter</code>/<code>select</code> hoặc quên gọi <code>df.unpersist()</code> lại là phản mẫu (Anti-pattern) nguy hiểm trong Production?</strong><br>Nạp nguyên bảng thô chưa lọc vào bộ nhớ đệm sẽ làm đầy cứng vùng <code>Storage Memory</code>, chiếm dụng không gian đáng lẽ có thể cho <code>Execution Memory</code> vay mượn để chạy các phép Join/Sort. Tương tự, quên gọi <code>df.unpersist()</code> sau khi đã dùng xong khiến các khối dữ liệu chết nằm lì trong RAM suốt thời gian còn lại của Job, gây tràn đĩa (Shuffle Spill) dây chuyền ở các Stage phía sau.</li>
+            <li><strong>Trong <code>UnifiedMemoryManager</code> của mỗi Executor JVM, bộ nhớ được chia thành những vùng nào và tại sao quy tắc trục xuất giữa <code>Storage Memory</code> và <code>Execution Memory</code> lại bất đối xứng?</strong><br>Sau khi trừ <code>300 MB</code> <strong>Reserved Memory</strong>, phần Heap khả dụng được chia thành <code>40%</code> <strong>User Memory</strong> và <code>60%</code> <strong>Spark Unified Memory</strong> (<code>spark.memory.fraction = 0.6</code>, chia đôi mặc định 50/50 giữa <code>Storage</code> và <code>Execution</code> qua <code>spark.memory.storageFraction = 0.5</code>). Hai vùng này có thể mượn chỗ trống của nhau, nhưng khi <code>Execution</code> cần RAM cho Shuffle/Join, nó có quyền <strong>trục xuất (Evict)</strong> các khối <code>Storage</code> vay vượt ngưỡng 50% xuống đĩa; ngược lại, <code>Storage</code> <strong>không bao giờ</strong> được phép trục xuất <code>Execution</code> đang chạy để bảo vệ sự toàn vẹn của tác vụ tính toán.</li>
+          </ol>
+          <p style="margin-top:14px;"><a href="#/D03/4" onclick="selectStorageStage(4);return false;">Sang Chặng 4: Năm Thách Thức Xử Lý Lô &amp; Bộ Ba Tối Ưu Hóa Nội Sinh (Catalyst, Tungsten &amp; AQE) →</a></p>
+        </section>
+      </div>

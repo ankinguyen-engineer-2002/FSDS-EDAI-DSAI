@@ -1,0 +1,382 @@
+      <div class="prose">
+        <x-spine id="flink-4-spine" badge="TRONG BÀI HỌC NÀY · D04" title="Chặng 4: Hệ Sinh Thái Flink APIs — DataStream API, Dynamic Tables, Table API &amp; Flink SQL Interoperability" subtitle="Trạm 4.1 → 4.3">Làm chủ tháp trừu tượng 3 tầng API của Apache Flink: từ kiểm soát từng sự kiện và bộ hẹn giờ ở tầng đáy <code>DataStream API / ProcessFunction</code>, tư duy bảng động <code>Dynamic Table</code> trong <code>Table API</code>, truy vấn khai báo với <code>Flink SQL</code> (<code>TUMBLE</code>, <code>HOP</code>, <code>SESSION</code>), đến phối hợp cả 3 API trong cùng một tác vụ thực chiến.</x-spine>
+
+        <p>Ở Chặng 3, chúng ta đã giải quyết bài toán cốt tử của xử lý luồng: dùng nhãn thời gian gốc <code>Event Time</code> kết hợp tín hiệu <code>Watermark</code> để đóng các cửa sổ thời gian (<code>Tumbling</code>, <code>Sliding</code>, <code>Session</code>) một cách chính xác bất chấp độ trễ mạng. Bước sang Chặng 4 (Trạm 4.1 → 4.3), chúng ta đi vào câu hỏi thực thi của kỹ sư dữ liệu: làm thế nào để viết mã điều khiển Apache Flink biến đổi sự kiện giao dịch <code>Order #8888</code> (<code>productId="PRD-99"</code>, <code>amount=450000</code>, <code>event_time="10:00:50"</code>) trong luồng <code>SalesEvents</code>? Thay vì ép kỹ sư dùng một công cụ cứng nhắc cho mọi bài toán, Apache Flink cung cấp một tháp giao diện lập trình ứng dụng phân tầng từ cấp thấp mệnh lệnh (Imperative) đến cấp cao khai báo (Declarative), tất cả cùng hội tụ về một bộ lập lịch thực thi vật lý duy nhất.</p>
+
+        <section class="lesson-section" id="flink-4-1">
+          <h2 id="flink-4-1-h2" tabindex="-1">Trạm 4.1: Tháp Trừu tượng Flink APIs &amp; Giải phẫu Tầng Đáy DataStream API / ProcessFunction</h2>
+
+          <p>Apache Flink thiết kế hệ sinh thái lập trình theo mô hình tháp 3 tầng trừu tượng (Layered APIs), đặt sự đánh đổi trực diện giữa hai trục: <strong>Năng suất phát triển ở đỉnh tháp và quyền kiểm soát chi tiết ở đáy tháp</strong> (<em>Slide 41–42</em>; <em>Stream Processing with Apache Flink</em>, Ch. 5 &amp; Ch. 6, tr. 116–121). Càng đi lên đỉnh tháp, mã nguồn càng ngắn gọn và dễ bảo trì; càng lặn xuống đáy tháp, kỹ sư càng nắm toàn quyền thao túng từng bản ghi, từng vùng nhớ trạng thái và từng nhịp đồng hồ:</p>
+
+          <ul>
+            <li><em>Tầng Đỉnh — <code>Flink SQL</code> (Highest Productivity / Declarative):</em> Ngôn ngữ truy vấn khai báo chuẩn ANSI SQL, dễ viết và dễ đọc nhất đối với cả kỹ sư dữ liệu lẫn chuyên viên phân tích. Người dùng chỉ cần mô tả kết quả mong muốn (<em>What</em>), toàn bộ việc tối ưu hóa kế hoạch thực thi và quản lý trạng thái do bộ tối ưu hóa tự động đảm nhiệm.</li>
+            <li><em>Tầng Giữa — <code>Table API</code> (Relational Operations in Code):</em> Giao diện lập trình kiểu ngôn ngữ chuyên biệt (Language-Integrated Query DSL) nhúng trực tiếp trong Python, Java hoặc Scala. <code>Table API</code> biểu diễn logic dưới dạng chuỗi các phép toán đại số quan hệ (<code>select</code>, <code>filter</code>, <code>group_by</code>, <code>join</code>) có kiểm tra kiểu dữ liệu ngay lúc viết code và dễ dàng tách hàm tái sử dụng.</li>
+            <li><em>Tầng Đáy — <code>DataStream API</code> &amp; <code>ProcessFunction</code> (Lowest-Level Control / Imperative):</em> Tầng lập trình mệnh lệnh cung cấp quyền kiểm soát từng sự kiện đơn lẻ (<code>event-by-event control</code>), truy cập trực tiếp vào bộ nhớ trạng thái có khóa (<code>Keyed State</code> như <code>ValueState</code>, <code>ListState</code>, <code>MapState</code>) và đăng ký bộ hẹn giờ (<code>TimerService</code>) theo cả <code>Event Time</code> lẫn <code>Processing Time</code>.</li>
+          </ul>
+
+          <x-figure id="flink-4-1-fig" key="4.1" title="Sơ đồ 4.1 — Tháp Trừu tượng 3 Tầng Flink APIs (Flink SQL → Table API → DataStream API) &amp; Chuỗi Phép Biến đổi Cốt lõi">Sự đánh đổi giữa tốc độ phát triển (Declarative SQL) và quyền kiểm soát cấp thấp (Events, State, Timers) cùng luồng toán tử DataStream.</x-figure>
+
+          <h3>Bản chất của DataStream và 7 phép biến đổi nền tảng (Slide 43)</h3>
+          <p>Ở tầng <code>DataStream API</code>, cấu trúc dữ liệu trung tâm là đối tượng <code>DataStream&lt;T&gt;</code> — được định nghĩa chính xác là <strong>một chuỗi sự kiện có kiểu dữ liệu tường minh và có thể vô hạn</strong> (<em>a typed, possibly unbounded sequence of events</em>, <em>Slide 43</em>). Khi sự kiện <code>Order #8888</code> (<code>SalesEvent(productId="PRD-99", amount=450000, event_time="10:00:50")</code>) chảy vào hệ thống, kỹ sư lắp ghép các phép biến đổi (Transformations) để tạo thành đồ thị luồng dữ liệu (Dataflow Graph). Bảng dưới đây phân tích 7 phép biến đổi cốt lõi của <code>DataStream API</code> cùng cơ chế của <code>KeyedProcessFunction</code>:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Phép biến đổi (Operation)</th>
+                  <th>Đầu vào → Đầu ra</th>
+                  <th>Cơ chế vận hành trên luồng sự kiện</th>
+                  <th>Minh họa với sự kiện Order #8888 (<code>PRD-99</code>)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>map()</code></td>
+                  <td><code>DataStream[T]</code> → <code>DataStream[R]</code><br>(Tỷ lệ <code>1 : 1</code>)</td>
+                  <td>Biến đổi từng sự kiện độc lập sang đúng một sự kiện mới thông qua hàm ánh xạ một-đối-một. Không làm thay đổi số lượng bản ghi trên luồng.</td>
+                  <td>Chuyển đổi đơn vị tiền tệ của <code>Order #8888</code> từ <code>450000 VND</code> sang <code>18.0 USD</code> hoặc chuẩn hóa mã <code>productId</code> viết hoa.</td>
+                </tr>
+                <tr>
+                  <td><code>filter()</code></td>
+                  <td><code>DataStream[T]</code> → <code>DataStream[T]</code><br>(Tỷ lệ <code>1 : 0..1</code>)</td>
+                  <td>Đánh giá biểu thức điều kiện Boolean cho từng sự kiện; chỉ giữ lại các bản ghi trả về <code>true</code> và loại bỏ ngay các bản ghi trả về <code>false</code>.</td>
+                  <td>Giữ lại <code>Order #8888</code> vì thỏa mãn điều kiện <code>event.amount &gt; 0</code>, loại bỏ các bản ghi lỗi có doanh thu âm hoặc bằng không.</td>
+                </tr>
+                <tr>
+                  <td><code>flatMap()</code></td>
+                  <td><code>DataStream[T]</code> → <code>DataStream[R]</code><br>(Tỷ lệ <code>1 : 0..N</code>)</td>
+                  <td>Nhận vào một sự kiện và phát ra <code>0</code>, <code>1</code> hoặc nhiều sự kiện đầu ra thông qua bộ thu thập <code>Collector.collect()</code> (kết hợp cả tách dòng lẫn lọc dòng).</td>
+                  <td>Tách một giỏ hàng tổng của <code>Order #8888</code> gồm 3 mặt hàng thành 3 bản ghi dòng chi tiết (<code>OrderLineItem</code>) riêng biệt trên luồng.</td>
+                </tr>
+                <tr>
+                  <td><code>keyBy()</code></td>
+                  <td><code>DataStream[T]</code> → <code>KeyedStream[T, K]</code></td>
+                  <td>Phân vùng logic luồng dữ liệu theo khóa <code>K</code> bằng thuật toán băm kép <code>murmurHash(key) → KeyGroup → TaskSlot</code>, định tuyến qua mạng (Network Shuffle) để mọi sự kiện có cùng khóa luôn chảy về đúng một <code>sub-task</code> vật lý.</td>
+                  <td>Gom <code>Order #8888</code> và mọi giao dịch khác có cùng <code>productId = "PRD-99"</code> về cùng một nhánh thực thi để cộng dồn chính xác.</td>
+                </tr>
+                <tr>
+                  <td><code>window()</code></td>
+                  <td><code>KeyedStream[T, K]</code> → <code>WindowedStream[T, K, W]</code></td>
+                  <td>Cắt luồng đã phân khóa <code>KeyedStream</code> thành các giỏ hữu hạn (<code>Window</code>) dựa trên thời gian hoặc số lượng bản ghi cho từng khóa riêng biệt.</td>
+                  <td>Xếp sự kiện <code>Order #8888</code> (<code>10:00:50</code>) vào giỏ cửa sổ 1 phút <code>[10:00:00, 10:01:00)</code> của riêng khóa <code>"PRD-99"</code>.</td>
+                </tr>
+                <tr>
+                  <td><code>aggregate()</code> / <code>reduce()</code></td>
+                  <td><code>WindowedStream</code> → <code>DataStream[R]</code></td>
+                  <td>Cộng dồn cuốn chiếu (Incremental Aggregation) từng sự kiện ngay khi rơi vào cửa sổ thông qua bộ tích lũy <code>Accumulator</code>, tiết kiệm bộ nhớ tối đa.</td>
+                  <td>Cộng ngay <code>450000</code> của <code>Order #8888</code> vào tổng doanh thu đang tích lũy của mã <code>"PRD-99"</code> trong khung <code>10:00–10:01</code>.</td>
+                </tr>
+                <tr>
+                  <td><code>union()</code> &amp; <code>connect()</code></td>
+                  <td>Đa luồng → <code>DataStream</code> / <code>ConnectedStreams</code></td>
+                  <td><code>union()</code> gộp nhiều luồng có <em>cùng kiểu dữ liệu</em> thành một luồng duy nhất (FIFO). <code>connect()</code> nối hai luồng có <em>kiểu dữ liệu khác nhau</em> nhưng dùng chung trạng thái (Shared State) qua <code>CoProcessFunction</code>.</td>
+                  <td><code>union()</code> gộp luồng đơn hàng Web và App; <code>connect()</code> nối luồng giao dịch <code>SalesEvents</code> với luồng quy tắc khuyến mãi động.</td>
+                </tr>
+                <tr>
+                  <td><code>process()</code> (<code>KeyedProcessFunction</code>)</td>
+                  <td><code>KeyedStream[T, K]</code> → <code>DataStream[R]</code></td>
+                  <td>Cơ chế cấp thấp nhất cho phép can thiệp vào từng sự kiện qua <code>processElement()</code>, đọc/ghi trực tiếp <code>Keyed State</code> và đặt lịch hẹn giờ ngược qua <code>onTimer()</code>.</td>
+                  <td>Khi nhận <code>Order #8888 (CREATED)</code>, lưu trạng thái chờ và đặt hẹn giờ cộng thêm <code>15 phút</code>; nếu tới hạn chưa có sự kiện <code>PAID</code> thì tự động phát cảnh báo hủy đơn.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Tại sao keyBy() gần như luôn phải được gọi trước window()?</h3>
+          <p>Một quy tắc sống còn được nhấn mạnh trên <em>Slide 43</em> là: <strong>phép toán phân khóa keyBy() luôn đi liền trước phép chia cửa sổ window()</strong>. Lý do xuất phát từ kiến trúc xử lý song song phân tán của Flink: nếu không gọi <code>keyBy(e -&gt; e.productId)</code> trước, các sự kiện bán hàng của cùng mã sản phẩm <code>"PRD-99"</code> (trong đó có <code>Order #8888</code>) sẽ nằm rải rác ngẫu nhiên trên hàng chục máy chủ <code>TaskManager</code> khác nhau. Khi đó, một phép chia cửa sổ không khóa (<code>windowAll()</code>) buộc phải dồn toàn bộ lưu lượng của cả cụm về một tiến trình duy nhất với độ song song <code>parallelism = 1</code>, gây nghẽn cổ chai lập tức. Ngược lại, khi gọi <code>stream.keyBy(e -&gt; e.productId).window(...)</code>, Flink băm khóa <code>"PRD-99"</code> để định tuyến toàn bộ sự kiện của sản phẩm này về cùng một <code>sub-task</code>, cho phép hàng trăm cửa sổ của hàng trăm mã sản phẩm khác nhau được tính toán song song độc lập trên khắp cụm máy chủ.</p>
+
+          <h3>Giải phẫu KeyedProcessFunction: Khi nào phải lặn xuống đáy tháp?</h3>
+          <p>Dù <code>Table API</code> và <code>Flink SQL</code> giải quyết được phần lớn nhu cầu thống kê, vẫn có những bài toán nghiệp vụ thời gian thực đòi hỏi điều khiển trạng thái tinh vi theo từng mili-giây mà SQL không thể diễn đạt tự nhiên. Khi áp dụng <code>KeyedProcessFunction&lt;K, I, O&gt;</code> trên một <code>KeyedStream</code>, Flink cung cấp cho kỹ sư hai phương thức móc nối (callbacks) kết hợp với đối tượng ngữ cảnh <code>Context</code> và dịch vụ <code>TimerService</code> (<em>Stream Processing with Apache Flink</em>, Ch. 6, tr. 116–121):</p>
+
+          <ul>
+            <li><em>Phương thức <code>processElement(I value, Context ctx, Collector&lt;O&gt; out)</code>:</em> Được kích hoạt ngay khi mỗi sự kiện (như <code>Order #8888</code>) chảy tới toán tử. Tại đây, kỹ sư có thể tra cứu nhãn thời gian của sự kiện qua <code>ctx.timestamp()</code>, kiểm tra <code>Watermark</code> hiện tại qua <code>ctx.timerService().currentWatermark()</code>, cập nhật biến trạng thái cục bộ (ví dụ <code>ValueState&lt;OrderEvent&gt;</code>), và đăng ký một đồng hồ báo thức trong tương lai bằng <code>ctx.timerService().registerEventTimeTimer(timeoutTimestamp)</code>.</li>
+            <li><em>Phương thức <code>onTimer(long timestamp, OnTimerContext ctx, Collector&lt;O&gt; out)</code>:</em> Được Flink tự động gọi ngược lại ngay khi <code>Watermark</code> của luồng dữ liệu tiến tới hoặc vượt qua mốc <code>timestamp</code> đã đăng ký. Nhờ cơ chế này, kỹ sư dễ dàng xây dựng máy trạng thái hữu hạn (State Machine) để phát hiện đơn hàng treo quá hạn thanh toán, khử trùng lặp có thời hạn (TTL Deduplication), hoặc đẩy dữ liệu trễ ra luồng phụ <code>Side Output</code> qua <code>ctx.output(OutputTag, value)</code>.</li>
+          </ul>
+
+          <pre><code># Minh họa PyFlink DataStream API &amp; KeyedProcessFunction xử lý sự kiện Order #8888
+from pyflink.common import WatermarkStrategy, Time
+from pyflink.common.typeinfo import Types
+from pyflink.datastream import StreamExecutionEnvironment
+from pyflink.datastream.functions import KeyedProcessFunction, RuntimeContext
+from pyflink.datastream.state import ValueStateDescriptor
+
+class UnpaidOrderTimeoutDetector(KeyedProcessFunction):
+    def open(self, runtime_context: RuntimeContext):
+        # Khởi tạo trạng thái lưu thông tin đơn hàng chờ thanh toán cho từng orderId
+        descriptor = ValueStateDescriptor("pending_order", Types.PICKLED_BYTE_ARRAY())
+        self.pending_state = runtime_context.get_state(descriptor)
+
+    def process_element(self, event, ctx: KeyedProcessFunction.Context):
+        # event: {"orderId": "ORD-8888", "productId": "PRD-99", "amount": 450000, "status": "CREATED"}
+        if event["status"] == "CREATED":
+            self.pending_state.update(event)
+            # Đặt bộ hẹn giờ Event Time: kích hoạt sau 15 phút (900,000 ms) kể từ lúc tạo đơn
+            timeout_ts = ctx.timestamp() + 15 * 60 * 1000
+            ctx.timer_service().register_event_time_timer(timeout_ts)
+        elif event["status"] == "PAID":
+            # Nếu khách đã thanh toán trước hạn, xóa trạng thái chờ để hủy cảnh báo
+            self.pending_state.clear()
+
+    def on_timer(self, timestamp: int, ctx: KeyedProcessFunction.OnTimerContext):
+        # Được gọi tự động khi Watermark vượt mốc timeout_ts mà trạng thái vẫn chưa bị xóa
+        unpaid_order = self.pending_state.value()
+        if unpaid_order is not None:
+            yield f"TIMEOUT_ALERT: Order {unpaid_order['orderId']} ({unpaid_order['amount']} VND) quá hạn 15 phút!"
+            self.pending_state.clear()</code></pre>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="flink-4-2">
+          <h2 id="flink-4-2-h2" tabindex="-1">Trạm 4.2: Nguyên lý Đối ngẫu Luồng – Bảng (Stream-Table Duality), Dynamic Tables &amp; Table API</h2>
+
+          <p>Nếu tầng <code>DataStream API</code> buộc kỹ sư phải chỉ đạo từng bước cơ học (chọn khóa, mở cửa sổ, viết bộ cộng dồn), thì khi bước lên tầng thứ hai — <code>Table API</code> — cách tiếp cận chuyển hẳn sang tư duy đại số quan hệ. Để thấy rõ sự khác biệt, hãy đặt hai đoạn mã cùng giải quyết một bài toán duy nhất lên bàn cân: tính tổng doanh thu (<code>amount</code>) theo từng mã sản phẩm (<code>productId</code>) trong mỗi cửa sổ lăn 1 phút cho luồng sự kiện chứa <code>Order #8888</code> (<em>Slide 44</em>):</p>
+
+          <pre><code># 1. Cách tiếp cận DataStream API (Slide 44 — Tầng kiểm soát cơ học: "Engine Room")
+stream \
+    .key_by(lambda e: e.product_id) \
+    .window(TumblingEventTimeWindows.of(Time.minutes(1))) \
+    .aggregate(SalesAggregator())
+
+# 2. Cách tiếp cận Table API (Slide 44 — Tầng quan hệ khai báo: "Cockpit")
+table \
+    .window(Tumble.over(lit(1).minutes).on(col("event_time")).alias("window")) \
+    .group_by(col("productId"), col("window")) \
+    .select(col("productId"), col("amount").sum.alias("total"))</code></pre>
+
+          <p>Chân lý kiến trúc quan trọng nhất từ phép so sánh trên <em>Slide 44</em> là: <strong>Cả hai cách viết đều biên dịch ra cùng một Execution Plan vật lý giống hệt nhau</strong> (<em>Both produce the same execution plan!</em>). Khi gửi lên cụm máy chủ Flink, đoạn mã <code>Table API</code> không hề chạy chậm hơn hay tốn bộ nhớ hơn <code>DataStream API</code>; trình tối ưu hóa <code>Flink Planner</code> sẽ tự động dịch chuỗi <code>.group_by().select()</code> thành chính xác các toán tử băm khóa, cửa sổ và bộ cộng dồn trạng thái ở tầng dưới. Sự khác biệt nằm hoàn toàn ở trải nghiệm lập trình viên (<code>developer experience</code>) chứ không phải hiệu năng (<code>not performance</code>): nếu <code>DataStream API</code> là buồng máy (<em>engine room</em>) nơi kỹ sư tự tay vặn từng bánh răng, thì <code>Table API</code> chính là buồng lái hiện đại (<em>cockpit</em>) giúp điều khiển cỗ máy bằng các lệnh quan hệ ngắn gọn, an toàn kiểu dữ liệu.</p>
+
+          <x-figure id="flink-4-2-fig" key="4.2" title="Sơ đồ 4.2 — Nguyên lý Đối ngẫu Luồng – Bảng (Event Stream ↔ Dynamic Table) &amp; Sự tương đương Execution Plan giữa DataStream và Table API">Cách mỗi sự kiện trên luồng bất biến chuyển hóa thành dòng cập nhật trong Dynamic Table và hội tụ về cùng một Execution Graph.</x-figure>
+
+          <h3>Giải phẫu Dynamic Table (Bảng động) &amp; Nguyên lý Đối ngẫu Luồng – Bảng (Slide 45)</h3>
+          <p>Làm thế nào <code>Table API</code> và <code>Flink SQL</code> có thể chạy các câu truy vấn quan hệ (vốn được thiết kế cho các bảng tĩnh trong cơ sở dữ liệu) trên một luồng sự kiện vô hạn không có điểm dừng? Câu trả lời nằm ở khái niệm trung tâm <strong>Bảng động biến đổi liên tục theo thời gian (Dynamic Table)</strong> và nguyên lý <strong>Đối ngẫu Luồng – Bảng (Stream-Table Duality)</strong> (<em>Slide 45</em>; <em>Streaming Systems</em>, Ch. 6):</p>
+
+          <ul>
+            <li><em>Từ Luồng sự kiện (Event Stream) sang Bảng động (Dynamic Table):</em> Thay vì nhìn luồng dữ liệu như những gói tin bay qua rồi biến mất, <code>Table API</code> coi luồng sự kiện là nhật ký thay đổi (Changelog) đắp vào một bảng logic đang lớn dần liên tục (<code>continuously changing table</code>). Trên <em>Slide 45</em>, khi sự kiện thứ nhất <code>{id: 1, amount: 100}</code> chảy tới, bảng động có 1 dòng; khi sự kiện thứ hai <code>{id: 2, amount: 200}</code> và sự kiện thứ ba <code>{id: 3, amount: 50}</code> (hay <code>Order #8888: {productId: "PRD-99", amount: 450000}</code>) lần lượt chảy tới, mỗi sự kiện mới tương đương với một phép chèn (<code>+I Insert</code>) làm bảng động <code>SalesEvents</code> bồi đắp thêm dòng mới theo thời gian thực.</li>
+            <li><em>Truy vấn Liên tục (Continuous Query) trên Bảng động:</em> Khi kỹ sư viết một truy vấn sử dụng các phép toán quan hệ quen thuộc gồm <code>select</code>, <code>filter</code>, <code>join</code>, <code>groupBy</code> trên một <code>Dynamic Table</code> đầu vào, câu truy vấn đó không chạy một lần rồi tắt mà trở thành một <em>Continuous Query</em> chạy mãi mãi. Mỗi khi bảng động đầu vào nhận thêm sự kiện <code>Order #8888</code>, truy vấn liên tục lập tức tính toán lại phần chênh lệch và cập nhật sang một <code>Dynamic Table</code> kết quả ở đầu ra.</li>
+            <li><em>Từ Bảng động kết quả ngược về Luồng sự kiện (Result Table → Changelog Stream):</em> Để gửi kết quả xuống hệ thống đích (như Kafka hoặc cơ sở dữ liệu), Flink chuyển đổi ngược từng thay đổi trên bảng động kết quả thành luồng sự kiện đầu ra theo hai chế độ: <code>Append-only Stream</code> (chỉ phát bản ghi chèn mới <code>+I</code>, điển hình như kết quả đóng cửa sổ <code>TUMBLE</code> khi <code>Watermark</code> đi qua) hoặc <code>Retract / Upsert Stream</code> (phát cặp bản ghi thu hồi giá trị cũ <code>-U</code> và cập nhật giá trị mới <code>+U</code> đối với các phép <code>GROUP BY</code> không dùng cửa sổ). Nhờ nguyên lý đối ngẫu này, cùng một biểu thức <code>Table API</code> hoạt động đồng nhất trên cả luồng thời gian thực (<code>Streaming</code>) lẫn tập dữ liệu lịch sử hữu hạn (<code>Batch</code>).</li>
+          </ul>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí đối chiếu</th>
+                  <th>Cơ sở dữ liệu truyền thống / Batch Table</th>
+                  <th>Flink Dynamic Table (Streaming Table API &amp; SQL)</th>
+                  <th>Ví dụ với luồng SalesEvents &amp; Order #8888</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Bản chất dữ liệu nền</td>
+                  <td>Tập dữ liệu tĩnh, hữu hạn (Bounded snapshot) đã nằm cố định trên đĩa tại thời điểm bắt đầu chạy truy vấn.</td>
+                  <td>Bảng logic biến đổi liên tục (<code>Continuously changing table</code>); mỗi sự kiện mới trên luồng là một bản ghi <code>Insert / Update</code> bồi đắp vào bảng.</td>
+                  <td>Khi <code>Order #8888</code> (<code>PRD-99, 450000</code>) đến lúc <code>10:00:50</code>, bảng động <code>SalesEvents</code> lập tức tăng thêm 1 dòng mới.</td>
+                </tr>
+                <tr>
+                  <td>Vòng đời câu truy vấn</td>
+                  <td>Chạy một lần duy nhất (Point-in-time query), quét hết bảng, trả về bảng kết quả tĩnh rồi kết thúc tiến trình.</td>
+                  <td>Truy vấn liên tục (<code>Continuous Query</code>) không bao giờ tự kết thúc; duy trì <code>State</code> nội bộ để cập nhật kết quả ngay khi có sự kiện mới.</td>
+                  <td>Toán tử cộng dồn giữ trạng thái tổng tiền của <code>PRD-99</code> trong RAM/RocksDB và cộng thêm <code>450000</code> ngay khi đọc đơn hàng.</td>
+                </tr>
+                <tr>
+                  <td>Cơ chế xuất kết quả ra Sink</td>
+                  <td>Ghi đè (Overwrite) hoặc nối thêm một lần vào bảng đích khi truy vấn hoàn tất.</td>
+                  <td>Phát luồng thay đổi (<code>Changelog Stream</code>) liên tục dưới dạng dòng chỉ thêm (<code>+I Append</code>) hoặc dòng cập nhật thu hồi (<code>-U / +U Retract</code>).</td>
+                  <td>Khi <code>Watermark</code> vượt mốc <code>10:01:00</code>, cửa sổ 1 phút đóng lại và phát bản ghi <code>+I("PRD-99", total_sales)</code> ra Kafka Sink.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Giải phẫu hoàn chỉnh chương trình Table API với DDL và Watermark (Slide 46)</h3>
+          <p>Trong thực tế vận hành, một tác vụ <code>Table API</code> chuẩn mực gồm hai phần tách biệt rõ ràng như minh họa trên <em>Slide 46</em>: (1) Đăng ký siêu dữ liệu bảng nguồn kèm chiến lược <code>Watermark</code> thông qua câu lệnh <code>CREATE TABLE</code> (DDL kết nối trực tiếp tới Kafka topic <code>sales</code>), và (2) Viết chuỗi biểu thức quan hệ đọc từ bảng đó để lọc các đơn hàng hợp lệ (<code>amount &gt; 0</code>) rồi gom nhóm theo sản phẩm:</p>
+
+          <pre><code># Ví dụ hoàn chỉnh Table API đăng ký bảng nguồn Kafka và tính tổng doanh thu (Slide 46)
+from pyflink.table import EnvironmentSettings, TableEnvironment
+from pyflink.table.expressions import col
+
+env_settings = EnvironmentSettings.in_streaming_mode()
+table_env = TableEnvironment.create(env_settings)
+
+# Bước 1: Định nghĩa bảng động SalesEvents gắn với Kafka topic 'sales' và khai báo Watermark trễ 5 giây
+table_env.execute_sql("""
+    CREATE TABLE SalesEvents (
+        productId STRING,
+        amount DOUBLE,
+        event_time TIMESTAMP(3),
+        WATERMARK FOR event_time AS event_time - INTERVAL '5' SECOND
+    ) WITH (
+        'connector' = 'kafka',
+        'topic' = 'sales',
+        'properties.bootstrap.servers' = 'localhost:9092',
+        'format' = 'json'
+    )
+""")
+
+# Bước 2: Biểu diễn logic nghiệp vụ bằng các toán tử quan hệ của Table API
+# Sự kiện Order #8888 (productId="PRD-99", amount=450000, event_time="10:00:50") đi qua bộ lọc amount > 0
+sales = table_env.from_path("SalesEvents")
+result = sales \
+    .filter(col("amount") &gt; 0) \
+    .group_by(col("productId")) \
+    .select(col("productId"), col("amount").sum.alias("total_sales"))</code></pre>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="flink-4-3">
+          <h2 id="flink-4-3-h2" tabindex="-1">Trạm 4.3: Động cơ Thực thi Flink SQL, Các Hàm Cửa sổ (TUMBLE, HOP, SESSION) &amp; Phối hợp Đa Tầng API (Interoperability)</h2>
+
+          <p>Ở đỉnh cao nhất của tháp trừu tượng là <code>Flink SQL</code> — nơi toàn bộ bài toán xử lý luồng thời gian thực được rút gọn thành một câu truy vấn SQL tiêu chuẩn mà bất kỳ ai làm dữ liệu cũng có thể đọc hiểu ngay lập tức. Nhưng đằng sau một câu lệnh <code>SELECT ... GROUP BY</code> tưởng chừng đơn giản đó là cả một dây chuyền biên dịch và tối ưu hóa 5 bước tinh vi trước khi biến thành các tác vụ chạy trên cụm máy chủ (<em>Slide 47</em>):</p>
+
+          <ol>
+            <li><em>Bước 1 — <code>Write SQL Query</code> (Viết câu truy vấn SQL):</em> Kỹ sư khai báo logic nghiệp vụ bằng cú pháp chuẩn SQL (ví dụ tính tổng <code>SUM(amount)</code> theo <code>productId</code> và cửa sổ thời gian trên bảng <code>SalesEvents</code>).</li>
+            <li><em>Bước 2 — <code>Parse SQL</code> (Phân tích cú pháp &amp; Kiểm tra ngữ nghĩa):</em> Bộ phân tích dựa trên nền tảng Apache Calcite kiểm tra cú pháp câu lệnh SQL, chuyển thành cây cú pháp trừu tượng (<code>Abstract Syntax Tree - AST</code>), sau đó đối chiếu với <code>Catalog</code> để xác thực tên bảng <code>SalesEvents</code>, tên cột <code>productId</code>, kiểu dữ liệu <code>TIMESTAMP(3)</code> và tạo ra kế hoạch logic ban đầu (<code>Logical Plan</code>).</li>
+            <li><em>Bước 3 — <code>Optimize Plan</code> (Tối ưu hóa kế hoạch truy vấn):</em> Trình tối ưu hóa của Flink (<code>Flink Optimizer</code>) áp dụng hàng loạt quy tắc đại số quan hệ và ước lượng chi phí (như đẩy bộ lọc <code>WHERE amount &gt; 0</code> xuống sát nguồn đọc Kafka — <em>Predicate Pushdown</em>, loại bỏ các cột không dùng đến — <em>Projection Pruning</em>, sắp xếp lại thứ tự phép nối) để tạo ra kế hoạch vật lý tối ưu nhất.</li>
+            <li><em>Bước 4 — <code>Create Execution Plan</code> (Sinh mã &amp; Dịch sang đồ thị thực thi):</em> <code>Flink Planner</code> cùng bộ sinh mã trực tiếp (<code>Janino Code Generation</code>) biên dịch kế hoạch đã tối ưu thành các toán tử thực thi cấp thấp (<code>StreamGraph</code> → <code>JobGraph</code> → <code>ExecutionGraph</code>), hoàn toàn tương đương với đồ thị sinh ra từ <code>Table API</code> hay <code>DataStream API</code>.</li>
+            <li><em>Bước 5 — <code>Run on Flink Runtime</code> (Thực thi phân tán trên cụm Flink):</em> Đồ thị thực thi được triển khai xuống các <code>TaskSlot</code> của <code>TaskManager</code> để tiêu thụ luồng sự kiện <code>Order #8888</code> với đầy đủ cơ chế quản lý trạng thái và chịu lỗi <code>Checkpointing</code>.</li>
+          </ol>
+
+          <x-figure id="flink-4-3-fig" key="4.3" title="Sơ đồ 4.3 — Chu trình 5 Bước Biên dịch Flink SQL &amp; Đường ống Phối hợp Liên thông DataStream ↔ Table API ↔ Flink SQL (Slide 50)">Kiến trúc lai kết hợp sức mạnh tùy biến cấp thấp của DataStream API với sự cô đọng của Table API và Flink SQL trong cùng một Job.</x-figure>
+
+          <h3>Ba hàm cửa sổ thời gian tích hợp sẵn trong Flink SQL (Slide 48–49)</h3>
+          <p>Để gom nhóm luồng sự kiện vô hạn theo các khung thời gian mà chúng ta đã học ở Chặng 3, <code>Flink SQL</code> cung cấp sẵn 3 hàm cửa sổ trực tiếp trong mệnh đề <code>GROUP BY</code> (hoặc cú pháp hàm trả về bảng <code>Windowing TVF</code> trong chuẩn Flink mới). Điều kiện tiên quyết bắt buộc được cảnh báo trên <em>Slide 49</em> là: <strong>bảng nguồn bắt buộc phải có mệnh đề khai báo WATERMARK FOR trên cột thời gian sự kiện</strong> thì các hàm cửa sổ <code>Event Time</code> dưới đây mới có thể kích hoạt và đóng cửa sổ:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Hàm cửa sổ trong Flink SQL (Slide 48)</th>
+                  <th>Cú pháp chuẩn &amp; Ý nghĩa tham số</th>
+                  <th>Bản chất cơ học của cửa sổ</th>
+                  <th>Trường hợp sử dụng thực tế (Use Case)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>TUMBLE</code><br>(Cửa sổ lăn cố định)</td>
+                  <td><code>TUMBLE(time_col, INTERVAL '1' MINUTE)</code><br>Tham số: cột thời gian <code>time_col</code> và độ rộng cửa sổ <code>size</code>.</td>
+                  <td>Chia trục thời gian thành các khung có kích thước cố định, nối đuôi nhau và <em>không bao giờ chồng lấp</em>. Mỗi sự kiện (như <code>Order #8888</code> lúc <code>10:00:50</code>) chỉ thuộc về duy nhất 1 cửa sổ <code>[10:00, 10:01)</code>.</td>
+                  <td>Báo cáo doanh thu theo từng phút hoặc từng giờ (<code>Hourly sales report</code>), chốt sổ giao dịch định kỳ không trùng lặp.</td>
+                </tr>
+                <tr>
+                  <td><code>HOP</code><br>(Cửa sổ trượt chồng lấp)</td>
+                  <td><code>HOP(time_col, INTERVAL '30' SECOND, INTERVAL '1' MINUTE)</code><br>Tham số 1 sau cột giờ là bước trượt <code>slide</code> (<code>30s</code>); tham số 2 là độ rộng cửa sổ <code>size</code> (<code>1m</code>).</td>
+                  <td>Cửa sổ có độ rộng cố định <code>1 phút</code> nhưng cứ mỗi <code>30 giây</code> lại trượt sang mở một cửa sổ mới. Do <code>slide &lt; size</code>, các cửa sổ chồng lấp lên nhau và sự kiện <code>Order #8888</code> được tính trong 2 cửa sổ liên tiếp.</td>
+                  <td>Tính trung bình trượt làm mượt đường biểu đồ (<code>Rolling average</code>), phát hiện xu hướng tăng đột biến đơn hàng trong 1 phút gần nhất cập nhật mỗi 30 giây.</td>
+                </tr>
+                <tr>
+                  <td><code>SESSION</code><br>(Cửa sổ phiên động)</td>
+                  <td><code>SESSION(time_col, INTERVAL '5' MINUTE)</code><br>Tham số: cột thời gian <code>time_col</code> và khoảng lặng tối đa <code>inactivity gap</code> (<code>5m</code>).</td>
+                  <td>Không có độ dài cố định và không căn theo mốc đồng hồ tròn; tự động gom các sự kiện diễn ra liên tiếp và chỉ đóng phiên khi không có sự kiện mới nào xuất hiện quá khoảng lặng <code>5 phút</code>.</td>
+                  <td>Phân tích hành vi người dùng theo phiên truy cập (<code>User session analytics</code>), đo tổng giá trị giỏ hàng trong một đợt lướt ứng dụng liên tục.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <pre><code>-- Truy vấn Flink SQL tính tổng doanh thu mỗi phút theo sản phẩm và gắn mốc đầu/cuối cửa sổ (Slide 49)
+-- Lưu ý bắt buộc: Bảng SalesEvents phải được định nghĩa kèm WATERMARK FOR event_time trước đó!
+SELECT
+    productId,
+    TUMBLE_START(event_time, INTERVAL '1' MINUTE) AS window_start,
+    TUMBLE_END(event_time, INTERVAL '1' MINUTE)   AS window_end,
+    SUM(amount) AS total_sales
+FROM SalesEvents
+WHERE amount &gt; 0
+GROUP BY
+    productId,
+    TUMBLE(event_time, INTERVAL '1' MINUTE);</code></pre>
+
+          <p>Trong câu truy vấn trên <em>Slide 49</em>, khi sự kiện <code>Order #8888</code> (<code>productId = "PRD-99"</code>, <code>amount = 450000</code>, <code>event_time = "10:00:50"</code>) đi qua bộ lọc <code>WHERE amount &gt; 0</code>, nó được gom vào nhóm khóa <code>"PRD-99"</code> của cửa sổ <code>TUMBLE</code> 1 phút. Hai hàm phụ trợ <code>TUMBLE_START(...)</code> và <code>TUMBLE_END(...)</code> trích xuất chính xác hai đầu mút của khung thời gian đó (<code>window_start = 10:00:00.000</code> và <code>window_end = 10:01:00.000</code>) để xuất ra bản ghi kết quả hoàn chỉnh ngay khi <code>Watermark</code> vượt qua mốc <code>10:01:00</code>.</p>
+
+          <h3>Phối hợp Đa tầng API trong cùng một Flink Job — API Interoperability (Slide 50)</h3>
+          <p>Trong các dự án thực chiến, kỹ sư hiếm khi chỉ dùng độc quyền một tầng API duy nhất từ đầu tới cuối. Chẳng hạn: đầu vào cần đọc luồng sự kiện thô từ Kafka kèm logic lọc dữ liệu hỏng và gán <code>Watermark</code> tùy biến phức tạp (thế mạnh của <code>DataStream API</code>); phần lõi ở giữa cần tính tổng doanh thu theo cửa sổ 1 phút một cách ngắn gọn, dễ đọc (thế mạnh của <code>Table API</code> &amp; <code>Flink SQL</code>); và đầu ra lại cần đẩy kết quả xuống một hệ thống cảnh báo hoặc <code>custom_sink</code> đặc thù (thế mạnh của <code>DataStream API</code>). Điểm ưu việt của Apache Flink là <strong>cho phép chuyển đổi qua lại liền mạch giữa cả 3 tầng API trong cùng một chương trình mà không tốn chi phí tuần tự hóa thừa</strong> (<em>Slide 50 — Mixing APIs in One Job</em>):</p>
+
+          <pre><code># Kịch bản phối hợp cả 3 tầng API (DataStream ↔ Table API ↔ Flink SQL) trong cùng 1 Flink Job (Slide 50)
+
+# Step 1: Dùng DataStream API để đọc nguồn tùy biến (Custom Source) và gán chiến lược Watermark phức tạp
+stream = env.from_source(kafka_source, watermark_strategy, "Kafka")
+
+# Step 2: Dùng Table API để cầu nối chuyển đổi luồng DataStream thành đối tượng Dynamic Table có Schema rõ ràng
+table = table_env.from_data_stream(
+    stream,
+    Schema.new_builder()
+        .column("productId", DataTypes.STRING())
+        .column("amount", DataTypes.DOUBLE())
+        .column("event_time", DataTypes.TIMESTAMP(3))
+        .watermark("event_time", "event_time - INTERVAL '5' SECOND")
+        .build()
+)
+
+# Step 3: Dùng Flink SQL để thực hiện phép gom nhóm cửa sổ TUMBLE 1 phút cực kỳ ngắn gọn và dễ bảo trì
+table_env.create_temporary_view("SalesEvents", table)
+result = table_env.sql_query("""
+    SELECT productId, SUM(amount) AS total_sales
+    FROM SalesEvents
+    GROUP BY productId, TUMBLE(event_time, INTERVAL '1' MINUTE)
+""")
+
+# Step 4: Chuyển bảng kết quả Dynamic Table ngược trở lại thành DataStream để đẩy ra Custom Sink
+output_stream = table_env.to_data_stream(result)
+output_stream.sink_to(custom_sink)</code></pre>
+
+          <h3>Khung quyết định lựa chọn tầng API cho Kỹ sư Dữ liệu</h3>
+          <p>Để tránh hai thái cực sai lầm — hoặc lạm dụng <code>KeyedProcessFunction</code> viết hàng trăm dòng code thủ công cho một phép cộng dồn đơn giản, hoặc cố ép <code>Flink SQL</code> giải quyết các bài toán máy trạng thái nhiều bước — bảng dưới đây tổng kết ma trận quyết định chọn tầng API theo đúng bản chất bài toán:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tầng API trong Flink</th>
+                  <th>Trừu tượng dữ liệu trung tâm</th>
+                  <th>Quyền kiểm soát State &amp; Timer</th>
+                  <th>Khi nào nên chọn làm công cụ chính?</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>Flink SQL</code></td>
+                  <td>Bảng động (<code>Dynamic Table</code>) khai báo qua DDL và truy vấn bằng chuẩn ANSI SQL.</td>
+                  <td>Hoàn toàn tự động (Managed by Planner); người dùng không chạm trực tiếp vào biến State hay Timer.</td>
+                  <td>Các bài toán ETL thời gian thực, lọc dòng, làm giàu dữ liệu (Lookup/Interval Join), thống kê gom nhóm theo cửa sổ <code>TUMBLE</code>, <code>HOP</code>, <code>SESSION</code>.</td>
+                </tr>
+                <tr>
+                  <td><code>Table API</code></td>
+                  <td>Đối tượng <code>Table</code> trong Python/Java/Scala với chuỗi hàm quan hệ có kiểm tra kiểu.</td>
+                  <td>Hoàn toàn tự động (chia sẻ chung bộ tối ưu hóa Calcite và sinh cùng một <code>Execution Plan</code> với <code>Flink SQL</code>).</td>
+                  <td>Khi cần xây dựng các đường ống biến đổi quan hệ có tính mô-đun hóa cao, truyền tham số động bằng code và kiểm thử đơn vị (Unit Test) từng hàm.</td>
+                </tr>
+                <tr>
+                  <td><code>DataStream API</code> &amp; <code>ProcessFunction</code></td>
+                  <td>Luồng sự kiện bất biến <code>DataStream&lt;T&gt;</code> và luồng phân khóa <code>KeyedStream&lt;T, K&gt;</code>.</td>
+                  <td>Kiểm soát thủ công toàn diện từng sự kiện (<code>processElement</code>), trạng thái thô (<code>ValueState</code>, <code>MapState</code>) và bộ hẹn giờ (<code>onTimer</code>).</td>
+                  <td>Khi cần xây dựng máy trạng thái nghiệp vụ phức tạp (như phát hiện đơn hàng <code>Order #8888</code> quá hạn 15 phút), định tuyến đa luồng phụ (<code>Side Outputs</code>), hoặc tích hợp Source/Sink tùy chỉnh.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="summary-section" id="flink-4-summary">
+          <h2 id="flink-4-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 4 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <p><strong>Checklist 5 câu hỏi bản chất kiểm tra độ hiểu sâu Chặng 4 (Hệ sinh thái Flink APIs &amp; Interoperability):</strong></p>
+          <ol>
+            <li><strong>Tháp trừu tượng 3 tầng API của Flink:</strong> Sự đánh đổi cốt lõi khi đi từ đỉnh tháp (<code>Flink SQL</code> → <code>Table API</code>) xuống đáy tháp (<code>DataStream API</code> / <code>ProcessFunction</code>) là gì? Khi nào kỹ sư bắt buộc phải sử dụng <code>KeyedProcessFunction</code> thay vì SQL?
+              <br><em>Đáp án:</em> Đi lên đỉnh tháp mang lại năng suất lập trình cao nhất (<code>higher productivity</code>) với cú pháp khai báo ngắn gọn; đi xuống đáy tháp mang lại quyền kiểm soát cấp thấp chi tiết nhất (<code>lower-level control</code>) trên từng sự kiện. Kỹ sư phải dùng <code>KeyedProcessFunction</code> khi bài toán đòi hỏi thao tác trực tiếp trên <code>Keyed State</code> và đăng ký bộ hẹn giờ <code>TimerService</code> (<code>onTimer</code>) cho các kịch bản máy trạng thái hoặc cảnh báo quá hạn mà SQL không diễn đạt được.</li>
+            <li><strong>Quy tắc vàng <code>keyBy()</code> trước <code>window()</code> trong DataStream API:</strong> Tại sao khi tính tổng doanh thu theo cửa sổ cho sự kiện <code>Order #8888</code> (<code>productId = "PRD-99"</code>), phép biến đổi <code>keyBy()</code> gần như luôn phải được gọi ngay trước <code>window()</code>?
+              <br><em>Đáp án:</em> Vì trong môi trường phân tán, các sự kiện của cùng một mã sản phẩm <code>"PRD-99"</code> ban đầu nằm rải rác trên nhiều tiến trình khác nhau. Gọi <code>keyBy(e -&gt; e.productId)</code> giúp Flink băm khóa để định tuyến mọi sự kiện có chung <code>productId</code> về cùng một <code>sub-task</code> vật lý, nhờ đó các cửa sổ thời gian của từng sản phẩm được gom nhóm chính xác và tính toán song song trên toàn cụm.</li>
+            <li><strong>So sánh hiệu năng giữa DataStream API và Table API:</strong> Cùng một bài toán cộng dồn doanh thu cửa sổ 1 phút, viết bằng <code>Table API</code> có chạy chậm hơn viết thủ công bằng <code>DataStream API</code> không? Khái niệm <code>Dynamic Table</code> giúp thống nhất xử lý luồng và xử lý lô như thế nào?
+              <br><em>Đáp án:</em> Hoàn toàn không chậm hơn — cả hai cách viết đều được bộ tối ưu hóa của Flink biên dịch ra cùng một kế hoạch thực thi vật lý (<code>same execution plan</code>); sự khác biệt nằm ở trải nghiệm lập trình viên (buồng lái <code>cockpit</code> so với buồng máy <code>engine room</code>) chứ không phải hiệu năng. Khái niệm <code>Dynamic Table</code> xem luồng sự kiện đang chảy như một bảng logic biến đổi liên tục (mỗi sự kiện mới là một phép chèn/cập nhật vào bảng), cho phép chạy cùng các toán tử quan hệ <code>select</code>, <code>filter</code>, <code>join</code>, <code>groupBy</code> trên cả dữ liệu vô hạn lẫn hữu hạn.</li>
+            <li><strong>Chu trình 5 bước của Flink SQL &amp; Ba hàm cửa sổ thời gian:</strong> Một câu truy vấn <code>Flink SQL</code> đi qua 5 bước nào để chạy trên cụm? Sự khác biệt giữa 3 hàm <code>TUMBLE</code>, <code>HOP</code>, <code>SESSION</code> là gì và điều kiện tiên quyết nào trên bảng nguồn giúp chúng hoạt động theo <code>Event Time</code>?
+              <br><em>Đáp án:</em> Chu trình 5 bước gồm: <code>Write SQL Query</code> → <code>Parse SQL</code> → <code>Optimize Plan</code> → <code>Create Execution Plan</code> → <code>Run on Flink Runtime</code>. Hàm <code>TUMBLE(time_col, size)</code> tạo cửa sổ cố định không chồng lấp; <code>HOP(time_col, slide, size)</code> tạo cửa sổ trượt chồng lấp (chú ý tham số <code>slide</code> đứng trước <code>size</code>); và <code>SESSION(time_col, gap)</code> tạo cửa sổ động đóng theo khoảng lặng. Điều kiện bắt buộc là bảng nguồn phải khai báo mệnh đề <code>WATERMARK FOR event_time AS ...</code> trong DDL.</li>
+            <li><strong>Phối hợp đa tầng API (API Interoperability):</strong> Làm thế nào để kết hợp cả <code>DataStream API</code>, <code>Table API</code> và <code>Flink SQL</code> trong cùng một tác vụ xử lý luồng <code>SalesEvents</code>?
+              <br><em>Đáp án:</em> Kỹ sư thực hiện quy trình 4 bước liên thông: (1) Dùng <code>env.from_source(...)</code> ở <code>DataStream API</code> để đọc Kafka kèm chiến lược Watermark tùy chỉnh; (2) Dùng <code>table_env.from_data_stream(stream, Schema...)</code> để chuyển luồng thành bảng động; (3) Đăng ký view tạm bằng <code>create_temporary_view</code> và chạy truy vấn cửa sổ bằng <code>table_env.sql_query(...)</code>; cuối cùng (4) Dùng <code>table_env.to_data_stream(result)</code> chuyển bảng kết quả ngược lại thành <code>DataStream</code> để ghi ra <code>custom_sink</code>.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/D04/5" onclick="selectStorageStage(5);return false;">Sang Chặng 5: Quản Lý Trạng Thái (State Management), Rào Chắn Checkpoint Barriers &amp; Đảm Bảo Exactly-Once →</a></p>
+        </section>
+      </div>

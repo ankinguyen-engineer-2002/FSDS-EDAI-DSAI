@@ -1,0 +1,343 @@
+      <div class="prose">
+        <x-spine id="api-4-spine" badge="TRONG BÀI HỌC NÀY · F04" title="Chặng 4: Giám Sát Sức Khỏe (/liveness, /readiness), Phân Vị Độ Trễ (p50/p95/p99) &amp; Kiểm Thử Chịu Tải" subtitle="Trạm 4.1 → 4.3">Giải phẫu cơ chế vận hành sống còn của dịch vụ <strong>order-api</strong> (kèm mô hình ML chấm điểm gian lận cho <strong>Order #8888</strong>) trên môi trường Production: từ việc phân tách rạch ròi hai đầu điểm kiểm tra sức khỏe <code>/liveness</code> và <code>/readiness</code> trên cụm Kubernetes để ngăn chặn bão khởi động lại dây chuyền, giải mã toán học phân vị độ trễ đuôi dài (<code>p50</code>, <code>p95</code>, <code>p99</code>) vạch trần lời nói dối của số trung bình cộng, cho đến 6 kịch bản kiểm thử hiệu năng (<code>Load</code>, <code>Stress</code>, <code>Spike</code>, <code>Soak</code>, <code>Capacity</code>, <code>Volume</code>) và nghệ thuật thiết kế suy thoái êm dịu (<code>Graceful Degradation</code>) khi lưu lượng vượt ngưỡng <code>100 → 220 → 280 concurrent users</code>.</x-spine>
+
+        <p>Ở <strong>Chặng 3</strong>, chúng ta đã dựng lên lớp giáp bảo mật đa tầng gồm xác thực <code>OAuth2 / JWT</code>, chính sách <code>CORS</code>, bộ giới hạn lưu lượng <code>Rate Limiting</code> (<code>HTTP 429</code>) và chiến lược quản lý phiên bản <code>/api/v1/orders</code> cho dịch vụ <strong><code>order-api</code></strong>. Tuy nhiên, một Web API bảo mật chặt và đúng chuẩn REST vẫn có thể sập toàn diện ngay trong giờ cao điểm nếu đội ngũ kỹ sư mù mờ về <strong>sức khỏe nội tại của tiến trình</strong> và <strong>giới hạn chịu tải vật lý của hệ thống</strong>. Bước vào <strong>Chặng 4 (Trạm 4.1 → 4.3)</strong>, chúng ta đặt dịch vụ <code>order-api</code> — hiện tích hợp thêm một mô hình học máy (ML Fraud Detection Model nặng <code>2.4 GB</code> trong RAM) để chấm điểm rủi ro gian lận thời gian thực cho đơn hàng <strong>Order #8888</strong> (<code>order_id = "ORD-8888"</code>, <code>amount = 15000000</code>) — lên bàn thử nghiệm khắc nghiệt của môi trường Production (<em>Slide 77–85</em>; <em>Designing Data-Intensive Applications</em>, Ch. 1; <em>Google SRE Book</em>, Ch. 4 &amp; Ch. 22).</p>
+
+        <section class="lesson-section" id="api-4-1">
+          <h2 id="api-4-1-h2" tabindex="-1">Trạm 4.1: Giải phẫu Health Check Endpoints — Phân tách Sinh tử giữa /liveness và /readiness trên Kubernetes</h2>
+
+          <p>Khi triển khai hàng chục bản sao (Pods/Containers) của dịch vụ <strong><code>order-api</code></strong> đằng sau bộ cân bằng tải (Load Balancer) và trình điều phối <strong>Kubernetes</strong>, hệ thống hạ tầng không thể đoán mò xem một tiến trình Python/FastAPI bên trong container còn hoạt động bình thường hay đã treo cứng. Do đó, mọi Web API chuẩn Production bắt buộc phải cung cấp các <strong>Health Check Endpoints</strong> — những đường dẫn HTTP chuyên biệt, nhẹ và phản hồi nhanh để công cụ giám sát (Prometheus Blackbox Exporter, Datadog), Load Balancer (AWS ALB, NGINX Ingress) và trình điều phối container (<code>kubelet</code>) liên tục thăm dò trạng thái sống còn của dịch vụ (<em>Slide 78</em>):</p>
+
+          <ul>
+            <li><strong>Đầu điểm kiểm tra tổng quát (<code>GET /health</code> → <code>{"status": "ok"}</code>):</strong> Phản hồi mã <code>HTTP 200 OK</code> kèm thông tin phiên bản (<code>version</code>, <code>uptime_seconds</code>) để báo hiệu dịch vụ đang trực tuyến cho hệ thống cảnh báo bên ngoài.</li>
+            <li><strong>Đầu điểm kiểm tra phụ thuộc hạ nguồn (<code>GET /health/db</code> hoặc kiểm tra thành phần):</strong> Xác minh kết nối từ <code>order-api</code> tới cơ sở dữ liệu PostgreSQL, bộ nhớ đệm Redis và trạng thái nạp mô hình ML trong bộ nhớ.</li>
+          </ul>
+
+          <h3>Tại sao Production trên Kubernetes bắt buộc phải tách biệt /liveness và /readiness?</h3>
+          <p>Một sai lầm kinh điển của kỹ sư mới vận hành dịch vụ trên Kubernetes là chỉ viết duy nhất một endpoint <code>GET /health</code> (bên trong có câu lệnh <code>SELECT 1</code> kiểm tra kết nối PostgreSQL) rồi gán chung endpoint đó cho mọi cơ chế thăm dò của Kubernetes. Trên thực tế, <strong>Kubernetes bắt buộc phải tách biệt hai đầu điểm <code>GET /liveness</code> và <code>GET /readiness</code></strong> vì mỗi đầu điểm trả lời một câu hỏi cơ học hoàn toàn khác nhau và kích hoạt một <strong>hành động khắc phục (Remediation Action) trái ngược nhau</strong> tại tầng điều phối <code>kubelet</code> (<em>Slide 79</em>):</p>
+
+          <ol>
+            <li><strong><code>GET /liveness</code> — Câu hỏi cốt lõi: <em>"Tiến trình có còn sống và không bị kẹt cứng (deadlock) hay không?"</em> (<em>"Is the process alive and not stuck?"</em>):</strong>
+              <ul>
+                <li><strong>Hành động của Kubernetes khi thất bại:</strong> Nếu <code>GET /liveness</code> trả về mã lỗi <code>HTTP 5xx</code> hoặc quá hạn thời gian chờ (Timeout) liên tiếp vượt ngưỡng <code>failureThreshold</code> (thường là 3 lần), <code>kubelet</code> kết luận tiến trình Python/ASGI bên trong container đã rơi vào trạng thái treo bất khả hồi phục (Event Loop bị chặn vĩnh viễn bởi một hàm C-extension lỗi hoặc Deadlock khóa bộ nhớ). Ngay lập tức, Kubernetes <strong>giết chết và khởi động lại container (<code>SIGTERM</code> → <code>SIGKILL</code> → Restart Pod / <code>CrashLoopBackOff</code>)</strong>.</li>
+                <li><strong>Quy tắc Sinh tử trên Production (<em>Slide 79 Critical Rule</em>):</strong> <em>Chỉ được phép trả về lỗi ở <code>/liveness</code> khi bản thân tiến trình ứng dụng thực sự bị kẹt cứng hoặc hỏng nội tại không thể tự phục hồi; TUYỆT ĐỐI KHÔNG cho <code>/liveness</code> thất bại chỉ vì một dịch vụ phụ thuộc bên ngoài (như PostgreSQL, Redis, hoặc cổng thanh toán) tạm thời bị sập!</em> Hãy hình dung thảm họa thực tế: cụm <code>order-api</code> đang chạy <code>50 Pods</code> khỏe mạnh. Đúng 12h00 trưa, cơ sở dữ liệu PostgreSQL thực hiện chuyển đổi dự phòng (Failover) mất <code>8 giây</code>. Nếu <code>GET /liveness</code> có chứa lệnh <code>SELECT 1</code> xuống PostgreSQL, cả <code>50 Pods</code> sẽ đồng loạt báo lỗi <code>/liveness</code> và bị Kubernetes <strong>giết sạch cùng một lúc (Cascading Restart Storm)</strong>! Khi PostgreSQL vừa hồi phục sau 8 giây, toàn bộ 50 Pods lại đồng loạt khởi động lại từ đầu, tranh nhau mở hàng nghìn kết nối TCP mới và nạp lại mô hình ML nặng hàng Gigabyte vào RAM, đánh sập toàn bộ hệ thống trong nhiều phút liền.</li>
+              </ul>
+            </li>
+            <li><strong><code>GET /readiness</code> — Câu hỏi cốt lõi: <em>"Dịch vụ đã sẵn sàng nhận lưu lượng truy cập thực tế từ khách hàng hay chưa?"</em> (<em>"Is the service ready to receive traffic?"</em>):</strong>
+              <ul>
+                <li><strong>Hành động của Kubernetes khi thất bại:</strong> Nếu <code>GET /readiness</code> trả về <code>HTTP 503 Service Unavailable</code>, Kubernetes <strong>KHÔNG giết hay khởi động lại container</strong>; thay vào đó, <code>EndpointSlice Controller</code> lập tức <strong>rút địa chỉ IP của Pod đó ra khỏi danh sách xoay vòng của Service Load Balancer</strong> (ngừng gửi yêu cầu mới của khách hàng tới Pod này) và kiên nhẫn chờ đợi cho tới khi <code>/readiness</code> trả về <code>HTTP 200 OK</code> trở lại.</li>
+                <li><strong>Vai trò sống còn trong Hệ thống ML &amp; Data API (<em>Slide 79 ML Systems Rule</em>):</strong> Khi một Pod mới của <code>order-api</code> vừa khởi tạo để xử lý đơn hàng <strong>Order #8888</strong>, tiến trình Uvicorn/FastAPI chỉ mất <code>0.5 giây</code> để mở cổng TCP <code>8000</code> (lúc này <code>/liveness</code> đã báo <code>200 OK</code>), nhưng nó cần thêm <code>15–25 giây</code> để kéo tệp trọng số mô hình chống gian lận <code>xgb_fraud_v4.onnx</code> (nặng <code>2.4 GB</code>) từ Object Storage về nạp vào RAM/GPU và chạy thử một mẫu khởi động (Warm-up Inference), đồng thời khởi tạo bể kết nối <code>SQLAlchemy QueuePool</code> tới PostgreSQL. Trong suốt 25 giây đó, <code>GET /readiness</code> phải trả về <code>HTTP 503</code> để Load Balancer không đẩy bất kỳ đơn hàng nào vào Pod chưa nạp xong mô hình. Nhờ vậy, khách hàng không bao giờ gặp lỗi <code>ModelNotLoadedError</code> hay chịu độ trễ <code>25 giây</code> ở yêu cầu đầu tiên (Cold-start Penalty).</li>
+              </ul>
+            </li>
+          </ol>
+
+          <x-figure id="api-4-1-fig" key="4.1" title="Sơ đồ 4.1 — Cơ chế Phản ứng Phân nhánh của Kubernetes trước /liveness (Restart Pod) vs. /readiness (Ngắt Load Balancer khi Nạp Model ML)">Đối chiếu hai nhánh phản ứng của Kubelet và Service Load Balancer khi thăm dò /liveness (kiểm tra tiến trình sống) và /readiness (kiểm tra mô hình ML 2.4GB &amp; kết nối PostgreSQL đã sẵn sàng nhận đơn hàng Order #8888).</x-figure>
+
+          <h3>Bảng đối chiếu toàn diện 3 loại Probe chuẩn Production (Liveness, Readiness &amp; Startup)</h3>
+          <p>Bên cạnh hai đầu điểm cốt lõi từ <em>Slide 79</em>, các hệ thống ML có thời gian nạp mô hình cực lâu (từ 30 giây đến vài phút cho các mô hình ngôn ngữ lớn LLM) còn phối hợp thêm <strong><code>Startup Probe</code></strong> để bảo vệ tiến trình trong giai đoạn khởi động ban đầu:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Endpoint &amp; Câu hỏi Cốt lõi</th>
+                  <th>Hành động của Kubelet &amp; Load Balancer khi Thất bại</th>
+                  <th>Điều kiện Kiểm tra Hợp lệ bên trong <code>order-api</code></th>
+                  <th>Thảm họa Thực chiến nếu Cấu hình Sai</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong><code>GET /liveness</code></strong><br><em>"Tiến trình có còn sống và không bị kẹt cứng (stuck)?"</em></td>
+                  <td><code>kubelet</code> gửi tín hiệu <strong>giết và khởi động lại Container</strong> (<code>Restart Pod</code>). Nếu chết lặp lại sẽ rơi vào <code>CrashLoopBackOff</code>.</td>
+                  <td>Chỉ kiểm tra vòng lặp sự kiện nội bộ (ASGI Event Loop phản hồi được JSON tĩnh <code>{"status": "alive"}</code> trong vài mili-giây) và không bị deadlock luồng chính.</td>
+                  <td><strong>Bão khởi động lại dây chuyền (Cascading Restart Storm):</strong> Kiểm tra cả DB/Redis bên trong <code>/liveness</code> khiến toàn bộ dàn Pod bị giết sạch khi DB chập chờn vài giây.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>GET /readiness</code></strong><br><em>"Dịch vụ đã sẵn sàng nhận lưu lượng truy cập chưa?"</em></td>
+                  <td><strong>Giữ nguyên Container sống</strong>, nhưng <strong>ngắt Pod khỏi danh sách Load Balancer</strong> (<code>Remove from Service Endpoints</code>) cho tới khi hồi phục.</td>
+                  <td>Kiểm tra cờ <code>fraud_model_loaded == True</code> (mô hình ML đã nạp xong vào RAM), bể kết nối PostgreSQL còn khả dụng và bộ nhớ hệ thống chưa vượt ngưỡng quá tải.</td>
+                  <td><strong>Rớt đơn hàng lúc Cold-start:</strong> Trả về <code>200 OK</code> trước khi nạp xong mô hình ML hoặc Pool kết nối khiến các đơn hàng <strong>Order #8888</strong> đầu tiên dính lỗi <code>HTTP 500</code> hàng loạt.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>GET /startup</code></strong><br><em>(Hoặc dùng chung <code>/readiness</code> cho <code>startupProbe</code>)</em></td>
+                  <td>Tạm vô hiệu hóa mọi lần kiểm tra của <code>livenessProbe</code> và <code>readinessProbe</code> cho tới khi ứng dụng khởi tạo xong lần đầu tiên.</td>
+                  <td>Kiểm tra quá trình khởi tạo nặng một lần duy nhất lúc bật container (tải tệp mô hình ML nhiều GB qua mạng, biên dịch đồ thị TensorRT/ONNX).</td>
+                  <td><strong>Vòng lặp chết yểu trước khi kịp sống:</strong> Đặt chu kỳ <code>livenessProbe</code> quá ngắn (10 giây) cho một Pod ML cần 45 giây để nạp mô hình khiến Pod bị giết đi giết lại vĩnh viễn.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Triển khai chuẩn Production trên FastAPI &amp; Cấu hình Kubernetes Manifest</h3>
+          <p>Đoạn mã dưới đây minh họa cách dịch vụ <code>order-api</code> sử dụng vòng đời <code>lifespan</code> của FastAPI để nạp mô hình ML chống gian lận trong nền và tách biệt hoàn toàn logic của <code>/liveness</code> với <code>/readiness</code>:</p>
+
+          <pre><code>from contextlib import asynccontextmanager
+from fastapi import FastAPI, Response, status
+from sqlalchemy import text
+
+# Trạng thái nội bộ theo dõi quá trình nạp mô hình ML (2.4 GB) và bể kết nối DB
+app_health_state = {
+    "ml_fraud_model_ready": False,
+    "db_pool_ready": False,
+}
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Giai đoạn khởi động (Startup): mở DB Pool và nạp mô hình ML vào RAM + chạy Warm-up
+    await init_postgres_pool()
+    app_health_state["db_pool_ready"] = True
+
+    await load_onnx_fraud_model_into_memory("models/xgb_fraud_v4.onnx")
+    app_health_state["ml_fraud_model_ready"] = True
+    yield
+    # Giai đoạn tắt êm dịu (Graceful Shutdown): đánh dấu ngừng nhận khách mới trước khi đóng kết nối
+    app_health_state["ml_fraud_model_ready"] = False
+    await close_postgres_pool()
+
+app = FastAPI(title="order-api", lifespan=lifespan)
+
+@app.get("/liveness", status_code=status.HTTP_200_OK)
+async def liveness_probe():
+    """
+    CHỈ kiểm tra tiến trình ASGI Event Loop còn phản hồi.
+    TUYỆT ĐỐI KHÔNG gọi PostgreSQL hay Redis tại đây để tránh Cascading Restart!
+    """
+    return {"status": "alive"}
+
+@app.get("/readiness")
+async def readiness_probe(response: Response):
+    """
+    Kiểm tra dịch vụ đã nạp xong mô hình ML chống gian lận và kết nối được DB chưa.
+    Nếu chưa sẵn sàng, trả về HTTP 503 để Kubernetes rút Pod khỏi Load Balancer.
+    """
+    if not app_health_state["ml_fraud_model_ready"] or not app_health_state["db_pool_ready"]:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {
+            "status": "not_ready",
+            "ml_fraud_model_ready": app_health_state["ml_fraud_model_ready"],
+            "db_pool_ready": app_health_state["db_pool_ready"],
+        }
+    try:
+        async with async_engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        return {"status": "ready", "model": "xgb_fraud_v4"}
+    except Exception:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {"status": "not_ready", "reason": "database_unreachable"}</code></pre>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="api-4-2">
+          <h2 id="api-4-2-h2" tabindex="-1">Trạm 4.2: Hệ thống Chỉ số Hiệu năng API — Response Time, RPS, Error Rate &amp; Toán học Phân vị Độ trễ (p50 / p95 / p99)</h2>
+
+          <p>Sau khi các Pod của <strong><code>order-api</code></strong> vượt qua chốt chặn <code>/readiness</code> và bắt đầu tiếp nhận dòng thác đơn hàng như <strong>Order #8888</strong>, làm thế nào kỹ sư định lượng chính xác chất lượng vận hành của hệ thống? Trong kỹ thuật độ tin cậy trang web (Site Reliability Engineering — SRE), hiệu năng của một Web API không thể đánh giá bằng cảm tính "nhanh hay chậm" mà được đo lường qua <strong>6 Chỉ số Hiệu năng Cốt lõi (Key Performance Metrics)</strong> (<em>Slide 80</em>; <em>Google SRE Book</em>, Ch. 4):</p>
+
+          <ol>
+            <li><strong>Thời gian Phản hồi (Response Time / Latency — tính bằng <code>ms</code>):</strong> Tổng thời gian kể từ khoảnh khắc máy chủ nhận được gói tin yêu cầu HTTP cho đến khi gửi xong byte cuối cùng của gói tin phản hồi. Đối với <code>POST /api/v1/orders</code> xử lý <code>Order #8888</code>, tổng thời gian phản hồi bằng tổng độ trễ của các chặng tuần tự:
+              $$T_{\text{response}} = T_{\text{network\_in}} + T_{\text{auth\_jwt}} + T_{\text{ml\_fraud\_inference}} + T_{\text{db\_transaction}} + T_{\text{serialization}}$$</li>
+            <li><strong>Tỷ lệ Lỗi (Error Rate — tính bằng <code>%</code>):</strong> Phần trăm số lượng yêu cầu thất bại (trả về mã <code>HTTP 5xx</code>, lỗi quá hạn <code>Timeout</code>, hoặc lỗi <code>HTTP 429</code> do tràn tải) trên tổng số yêu cầu gửi tới trong cùng cửa sổ thời gian:
+              $$\text{Error Rate (\%)} = \left( \frac{N_{\text{failed (5xx + timeouts)}}}{N_{\text{total\_requests}}} \right) \times 100\%$$</li>
+            <li><strong>Lưu lượng Truy cập (Traffic Level / Throughput — tính bằng <code>RPS</code>):</strong> Số lượng yêu cầu mà hệ thống tiếp nhận và xử lý trong mỗi giây (<strong><code>RPS</code> — Requests Per Second</strong>). Chỉ số này phản ánh áp lực tải thực tế đang đè lên <code>order-api</code> theo từng khung giờ trong ngày.</li>
+            <li><strong>Thời gian Hoạt động &amp; Độ Sẵn sàng (Uptime &amp; Availability — tính bằng <code>%</code>):</strong> Tỷ lệ phần trăm thời gian dịch vụ hoạt động bình thường và sẵn sàng phục vụ khách hàng trong một chu kỳ cam kết (tháng hoặc năm). Trong hợp đồng cam kết chất lượng dịch vụ (<code>SLA — Service Level Agreement</code>), mỗi "con số 9" tăng thêm đòi hỏi kiến trúc dự phòng khắt khe gấp bội:
+              <ul>
+                <li><strong><code>99.0%</code> ("Two Nines"):</strong> Cho phép sập tối đa <code>3.65 ngày/năm</code> (hoặc <code>7.3 giờ/tháng</code>).</li>
+                <li><strong><code>99.9%</code> ("Three Nines" — Chuẩn phổ biến cho API nội bộ/TMĐT):</strong> Cho phép sập tối đa <strong><code>8.76 giờ/năm</code></strong> (tương đương <code>43.8 phút/tháng</code>).</li>
+                <li><strong><code>99.99%</code> ("Four Nines" — Chuẩn thanh toán lõi &amp; tài chính):</strong> Chỉ cho phép sập tối đa <strong><code>52.6 phút/năm</code></strong> (tương đương <code>4.38 phút/tháng</code> — bắt buộc tự động chuyển đổi dự phòng <code>Failover</code> không cần con người can thiệp).</li>
+              </ul>
+            </li>
+            <li><strong>Phân bố Độ trễ (Latency Distribution — <code>p50</code>, <code>p95</code>, <code>p99</code>):</strong> Thay vì gộp chung hàng triệu yêu cầu vào một con số trung bình cộng duy nhất, kỹ sư sắp xếp toàn bộ thời gian phản hồi trong một cửa sổ đo (ví dụ 1 phút) theo thứ tự tăng dần từ nhanh nhất đến chậm nhất để trích xuất các mốc phân vị (Percentiles).</li>
+            <li><strong>Độ trễ Đuôi dài (Tail Latency — <code>p99</code> / <code>p99.9</code>):</strong> Tập trung giám sát nhóm <code>1%</code> (hoặc <code>0.1%</code>) yêu cầu chậm nhất hệ thống — nơi ẩn chứa các nút thắt cổ chai vật lý nguy hiểm nhất.</li>
+          </ol>
+
+          <h3>Tại sao Số Trung bình Cộng (Arithmetic Mean) là "Lời nói dối nguy hiểm" trong Kỹ thuật Hệ thống?</h3>
+          <p>Hãy xét một lô gồm <code>100 yêu cầu</code> đặt hàng gửi tới <code>order-api</code> trong cùng một giây (<em>Designing Data-Intensive Applications</em>, Ch. 1, tr. 13–16):</p>
+          <ul>
+            <li>Có <strong><code>99 yêu cầu</code></strong> được xử lý trơn tru qua bộ nhớ đệm và chỉ mục B-Tree với thời gian chỉ <strong><code>10 ms</code></strong> mỗi yêu cầu.</li>
+            <li>Duy nhất <strong><code>1 yêu cầu</code></strong> (chính là đơn hàng giá trị lớn <strong>Order #8888</strong> gồm 40 mặt hàng trong giỏ) bị vướng vào đợt thu gom rác bộ nhớ (Garbage Collection Pause), tranh chấp khóa dòng (Row Lock Contention) trên PostgreSQL hoặc phải chờ nạp trang từ đĩa cứng, khiến nó mất tới <strong><code>5,000 ms</code> (<code>5 giây</code>)</strong> mới phản hồi.</li>
+          </ul>
+          <p>Nếu bảng điều khiển giám sát chỉ hiển thị <strong>Thời gian phản hồi trung bình cộng (Mean / Average)</strong>, con số hiện lên màn hình sẽ là:</p>
+          $$\bar{T}_{\text{mean}} = \frac{99 \times 10\text{ ms} + 1 \times 5000\text{ ms}}{100} = 59.9\text{ ms}$$
+          <p>Nhìn vào con số <code>59.9 ms</code>, đội ngũ vận hành sẽ lầm tưởng hệ thống đang chạy cực nhanh! Nhưng trên thực tế, không có bất kỳ khách hàng nào trải nghiệm độ trễ <code>59.9 ms</code> cả: 99 người thấy <code>10 ms</code>, còn khách hàng VIP của <strong>Order #8888</strong> phải nhìn màn hình quay vòng suốt <code>5 giây</code>. Để lột tả trung thực phân bố lệch phải (Right-skewed Distribution) của độ trễ mạng và hệ thống, chúng ta bắt buộc phải dùng bộ ba <strong>Phân vị Độ trễ (Latency Percentiles — <code>p50</code>, <code>p95</code>, <code>p99</code>)</strong> (<em>Slide 80</em>):</p>
+
+          <ul>
+            <li><strong><code>p50</code> (Phân vị thứ 50 — Trung vị / Median):</strong> Giá trị nằm chính giữa tập dữ liệu đã sắp xếp. Ví dụ <code>p50 = 18 ms</code> nghĩa là có đúng <strong><code>50%</code> số yêu cầu phản hồi nhanh hơn hoặc bằng <code>18 ms</code></strong>, và <code>50%</code> còn lại chậm hơn <code>18 ms</code>. Chỉ số <code>p50</code> đại diện cho trải nghiệm của một "người dùng điển hình" và hoàn toàn miễn nhiễm trước vài giá trị ngoại lai (Outliers) cực đoan.</li>
+            <li><strong><code>p95</code> (Phân vị thứ 95):</strong> Mốc thời gian mà <strong><code>95%</code> tổng số yêu cầu hoàn tất nhanh hơn ngưỡng này</strong>, chỉ còn <code>5%</code> yêu cầu chậm hơn (cứ 20 yêu cầu thì có 1 yêu cầu vượt ngưỡng <code>p95</code>). Đây là chỉ số tiêu chuẩn để đặt cảnh báo sớm cho các luồng nghiệp vụ thông thường.</li>
+            <li><strong><code>p99</code> (Phân vị thứ 99 — Tail Latency):</strong> Mốc thời gian mà <strong><code>99%</code> tổng số yêu cầu hoàn tất nhanh hơn ngưỡng này</strong>, cô lập đúng <strong><code>1%</code> yêu cầu chậm nhất hệ thống</strong> (<em>Slide 80: "p99 is the 99th percentile, meaning 99% of requests are faster than that value; it captures the slowest 1% — the worst experience your users face"</em>). Nghiên cứu thực nghiệm tại Amazon và Google chỉ ra rằng những khách hàng rơi vào nhóm <code>p99</code> chậm nhất thường chính là <strong>nhóm khách hàng mang lại doanh thu cao nhất</strong>, bởi tài khoản của họ có lịch sử giao dịch dày đặc nhất, giỏ hàng nhiều sản phẩm nhất (như <code>Order #8888</code>) khiến truy vấn SQL và mô hình ML tốn nhiều chu kỳ CPU nhất!</li>
+          </ul>
+
+          <x-figure id="api-4-2-fig" key="4.2" title="Sơ đồ 4.2 — Phân bố Độ trễ Đuôi Dài (p50 / p95 / p99 Tail Latency) &amp; Cạm bẫy Trung bình Cộng trong Hệ thống Phân tán">Biểu đồ phân bố độ trễ lệch phải của order-api: sự khác biệt giữa trung vị p50 (trải nghiệm điển hình), trung bình cộng Mean (bị bóp méo) và đuôi dài p95 / p99 cùng hiệu ứng khuếch đại độ trễ đuôi khi gọi chuỗi Microservices.</x-figure>
+
+          <h3>Hiệu ứng Khuếch đại Độ trễ Đuôi (Tail Latency Amplification) trong Kiến trúc Microservices</h3>
+          <p>Tại sao khi chuyển từ kiến trúc nguyên khối sang Microservices, chỉ số <code>p99</code> của từng dịch vụ con lại trở thành vấn đề sống còn? Giả sử để hoàn tất thao tác thanh toán <strong>Order #8888</strong>, cổng API Gateway phải gọi song song (Fan-out) tới $k = 5$ dịch vụ nội bộ (<code>user-service</code>, <code>inventory-service</code>, <code>pricing-service</code>, <code>ml-fraud-service</code>, <code>payment-service</code>), và mỗi dịch vụ đều đạt cam kết chất lượng rất tốt với xác suất bị rơi vào đuôi chậm <code>p99 (&gt; 500ms)</code> chỉ là $1\% = 0.01$ (tức xác suất phản hồi nhanh của mỗi dịch vụ là $0.99$). Vì cổng API Gateway phải chờ <strong>cả 5 dịch vụ cùng trả kết quả</strong> mới tổng hợp được phản hồi cho khách hàng, xác suất để toàn bộ 5 cuộc gọi đều nhanh là $(0.99)^5$. Do đó, xác suất để khách hàng cuối phải hứng chịu độ trễ đuôi dài (chỉ cần ít nhất 1 trong 5 dịch vụ bị chậm) tăng vọt lên:</p>
+          $$P(\text{Slow End-User Request}) = 1 - (1 - 0.01)^k = 1 - (0.99)^5 \approx 4.9\%$$
+          <p>Nếu một trang thương mại điện tử gọi tới $k = 20$ dịch vụ hạ nguồn, xác suất người dùng gặp độ trễ <code>p99</code> tăng từ <code>1%</code> lên tới $1 - (0.99)^{20} \approx \mathbf{18.2\%}$ (gần 1 trên 5 yêu cầu bị chậm)! Đó là lý do các kỹ sư hệ thống phải kiểm soát gắt gao <code>p99</code> ở từng API đơn lẻ.</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chỉ số Hiệu năng (Slide 80)</th>
+                  <th>Công thức / Định nghĩa Toán học</th>
+                  <th>Ngưỡng Mục tiêu SLO Chuẩn cho <code>order-api</code></th>
+                  <th>Nguyên nhân Gốc rễ khi Chỉ số Suy thoái</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Response Time (<code>p50</code> Median)</strong></td>
+                  <td>Mốc thời gian tại vị trí thứ $0.50 \times N$ của mảng độ trễ đã sắp xếp tăng dần.</td>
+                  <td><code>p50 &lt; 35 ms</code> cho thao tác đọc; <code>p50 &lt; 80 ms</code> cho <code>POST /orders</code>.</td>
+                  <td>Thiếu bộ nhớ đệm (Cache Miss), thuật toán tuần tự hóa JSON chậm, hoặc mô hình ML chạy trên CPU chưa bật vector hóa.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Tail Latency (<code>p95</code> &amp; <code>p99</code>)</strong></td>
+                  <td>Mốc thời gian bao phủ <code>95%</code> và <code>99%</code> yêu cầu nhanh nhất; cô lập <code>5%</code> và <code>1%</code> yêu cầu chậm nhất.</td>
+                  <td><code>p95 &lt; 180 ms</code><br><code>p99 &lt; 450 ms</code></td>
+                  <td>Truy vấn SQL thiếu Index gây <code>Seq Scan</code> cho khách hàng lớn, tranh chấp khóa dòng (Lock Contention), cạn Pool kết nối DB, hoặc GC Pause.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Traffic Level (<code>RPS</code>)</strong></td>
+                  <td>$\text{RPS} = \frac{\text{Tổng số Requests}}{\Delta t\text{ (giây)}}$</td>
+                  <td>Bình thường: <code>150 RPS</code><br>Đỉnh Flash Sale: <code>1,200 RPS</code></td>
+                  <td>Chiến dịch khuyến mãi đột biến, bot cào dữ liệu, hoặc một Client bên ngoài bị lỗi vòng lặp gọi lại (Retry Storm) không có Exponential Backoff.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Error Rate (<code>%</code>)</strong></td>
+                  <td>$\frac{\text{Số phản hồi } 5\text{xx} + \text{Timeouts}}{\text{Tổng số Requests}} \times 100\%$</td>
+                  <td><code>Error Rate &lt; 0.1%</code><br><em>(Cảnh báo khẩn cấp nếu <code>&gt; 1.0%</code>)</em></td>
+                  <td>Tràn bể kết nối cơ sở dữ liệu (<code>QueuePool Overflow</code>), tiến trình bị giết do hết RAM (<code>OOMKilled</code>), hoặc dịch vụ hạ nguồn sập không có Circuit Breaker.</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Uptime &amp; Availability (<code>%</code>)</strong></td>
+                  <td>$\frac{T_{\text{total}} - T_{\text{downtime}}}{T_{\text{total}}} \times 100\%$</td>
+                  <td><code>99.95%</code> (Tối đa <code>21.9 phút</code> gián đoạn mỗi tháng).</td>
+                  <td>Cấu hình sai <code>/liveness</code> gây khởi động lại toàn cụm, triển khai phiên bản mới không dùng Rolling Update, hoặc lỗi đơn điểm (Single Point of Failure).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="api-4-3">
+          <h2 id="api-4-3-h2" tabindex="-1">Trạm 4.3: Sáu Kịch bản Kiểm thử Hiệu năng (Load, Stress, Spike, Soak, Capacity, Volume) &amp; Suy thoái Êm dịu (Graceful Degradation)</h2>
+
+          <p>Nếu chỉ đợi đến khi khách hàng thật ồ ạt đổ vào lúc 0h00 ngày hội siêu giảm giá mới nhìn vào bảng đo <code>p99</code> và <code>Error Rate</code> ở <strong>Trạm 4.2</strong>, mọi thứ đã quá muộn. Để biết chính xác dịch vụ <strong><code>order-api</code></strong> chịu được bao nhiêu người dùng đồng thời trước khi đổ gục, kỹ sư phải chủ động giả lập lưu lượng truy cập bằng <strong>6 Kịch bản Kiểm thử Hiệu năng (6 Types of Performance Testing)</strong> trước khi đưa hệ thống lên Production (<em>Slide 81</em>):</p>
+
+          <ol>
+            <li><strong>Load Testing (Kiểm thử Tải chuẩn):</strong> Kiểm tra hành vi của hệ thống dưới mức lưu lượng <strong>bình thường và mức đỉnh kỳ vọng (Expected Normal &amp; Peak Load)</strong> để xác nhận API đạt đúng cam kết <code>SLA</code> (<em>Slide 81–83</em>).</li>
+            <li><strong>Stress Testing (Kiểm thử Quá tải / Tìm Điểm Gãy):</strong> Chủ đích đẩy lưu lượng <strong>vượt xa giới hạn thiết kế (Beyond Expected Limits)</strong> để tìm ra điểm gãy vật lý (Breaking Point) và quan sát cách hệ thống sụp đổ hay tự hồi phục (<em>Slide 81, 84–85</em>).</li>
+            <li><strong>Spike Testing (Kiểm thử Tăng vọt Đột ngột):</strong> Bơm một lượng người dùng khổng lồ tăng dựng đứng gần như tức thì (ví dụ từ <code>20 users</code> vọt lên <code>500 users</code> chỉ trong <code>5 giây</code> lúc mở bán Flash Sale 0h00) rồi hạ đột ngột để kiểm tra tốc độ phản ứng của bộ tự động mở rộng (Horizontal Pod Autoscaler — HPA) và hàng đợi kết nối.</li>
+            <li><strong>Soak Testing / Endurance Testing (Kiểm thử Ngâm tải Dài hạn):</strong> Duy trì một mức tải khá cao (ví dụ <code>70–80%</code> công suất đỉnh) liên tục suốt <strong>nhiều giờ hoặc nhiều ngày liền (12h–72h)</strong> nhằm phát hiện các lỗi tích tụ chậm theo thời gian như <strong>rò rỉ bộ nhớ (Memory Leaks)</strong> trong mô hình ML, quên đóng kết nối cơ sở dữ liệu (Connection Pool Leaks), hoặc đầy ổ đĩa chứa tệp nhật ký (Log Disk Exhaustion).</li>
+            <li><strong>Capacity Testing (Kiểm thử Ngưỡng Công suất Trần SLA):</strong> Tăng tải từng nấc bậc thang có kiểm soát để xác định <strong>con số người dùng đồng thời hoặc <code>RPS</code> tối đa tuyệt đối</strong> mà tại đó hệ thống vẫn giữ vững 100% chỉ tiêu <code>SLA</code> (ví dụ <code>p99 &lt; 200ms</code> và <code>Error Rate &lt; 0.1%</code>), làm cơ sở hoạch định số lượng Pod và ngân sách phần cứng.</li>
+            <li><strong>Volume Testing / Flood Testing (Kiểm thử Khối lượng Dữ liệu Lớn):</strong> Không chỉ tăng số người gọi API mà tập trung bơm một <strong>khối lượng bản ghi khổng lồ vào cơ sở dữ liệu hạ nguồn</strong> (ví dụ bảng <code>orders</code> phình từ <code>10,000 dòng</code> trên máy Dev lên <code>100 triệu dòng</code> như Production) để phát hiện các truy vấn SQL bị tràn bộ nhớ đệm <code>Shared Buffers</code> hoặc suy thoái chỉ mục B-Tree.</li>
+          </ol>
+
+          <h3>Giải phẫu chuyên sâu Kịch bản 1: Load Testing &amp; Đồ thị Hình thang 3 Pha (Slide 82–83)</h3>
+          <p>Giả sử theo tính toán sản phẩm, vào khung giờ cao điểm buổi tối, dịch vụ <code>order-api</code> cần phục vụ ổn định <strong><code>100 người dùng đồng thời (100 Concurrent Users)</code></strong> liên tục gửi yêu cầu đặt hàng như <strong>Order #8888</strong>. Một bài <strong>Load Testing</strong> chuẩn mực không bao giờ ném thẳng 100 người dùng vào giây đầu tiên, mà tuân theo <strong>Đồ thị Hình thang 3 Pha (3-Phase Trapezoid Profile)</strong> kéo dài <code>18 phút</code> (<em>Slide 82</em>):</p>
+
+          <ul>
+            <li><strong>Pha 1 — Tăng tải dần đều (<code>Ramp up</code>: Phút <code>0 → 9</code>, từ <code>0 → 100 users</code>):</strong> Tăng từng nấc từ 0 lên 100 người dùng ảo trong 9 phút đầu tiên. Giai đoạn này cho phép bộ biên dịch JIT, vùng nhớ đệm Redis, bể kết nối <code>SQLAlchemy QueuePool</code> và bộ cân bằng tải làm nóng dần, đồng thời giúp kỹ sư quan sát chính xác tại mốc bao nhiêu người dùng thì độ trễ <code>p95/p99</code> bắt đầu nhích lên.</li>
+            <li><strong>Pha 2 — Giữ tải ở mức đỉnh kỳ vọng (<code>Hold at peak load</code>: Phút <code>9 → 15</code>, giữ nguyên <code>100 concurrent users</code>):</strong> Duy trì đường ngang ổn định ở mức <code>100 người dùng đồng thời</code> trong suốt <code>6 phút</code> liên tục. Đây là pha quyết định để đo xem dưới áp lực đỉnh thiết kế, thời gian phản hồi có giữ được mức ổn định hay tăng dần do nghẽn hàng đợi ngầm.</li>
+            <li><strong>Pha 3 — Hạ tải dần về không (<code>Ramp down</code>: Phút <code>15 → 18</code>, từ <code>100 → 0 users</code>):</strong> Giảm dần lưu lượng về 0 để kiểm tra xem các kết nối TCP, luồng xử lý (Worker Threads) và vùng nhớ RAM của <code>order-api</code> có được giải phóng sạch sẽ về trạng thái ban đầu hay không.</li>
+          </ul>
+
+          <p><strong>Bốn câu hỏi kỹ thuật mà Load Testing trả lời trực tiếp (<em>Slide 83</em>):</strong> (1) Thời gian phản hồi (<code>p50/p95/p99</code>) có nằm trong ngưỡng chấp nhận được (<code>Acceptable</code>) xuyên suốt mức tải kỳ vọng <code>100 users</code> hay không? (2) Các điểm chậm lại đầu tiên (<em>First Slowdowns</em>) bắt đầu xuất hiện ở mốc bao nhiêu người dùng? (3) Có truy vấn cơ sở dữ liệu nào của <code>order-api</code> bắt đầu gặp hiện tượng tranh chấp tài nguyên (<em>DB Query Contention</em>) dưới tải thực tế hay không? (4) Nếu vượt qua bài kiểm tra này một cách êm ả, đội ngũ kỹ sư có bằng chứng định lượng vững chắc rằng API hoàn toàn đủ sức gánh mức lưu lượng kỳ vọng hàng ngày.</p>
+
+          <x-figure id="api-4-3a-fig" key="4.3" title="Sơ đồ 4.3 — Đồ thị Hình thang Load Testing (Ramp-up → Hold 100 Users → Ramp-down) &amp; Bản đồ 6 Loại Kiểm thử Hiệu năng">Cấu trúc 3 pha của bài kiểm thử Load Testing ở mức tải kỳ vọng 100 users (Slide 82–83) đặt cạnh ma trận nhận diện 6 kịch bản kiểm thử hiệu năng (Load, Stress, Spike, Soak, Capacity, Volume).</x-figure>
+
+          <h3>Giải phẫu chuyên sâu Kịch bản 2: Stress Testing — Tìm Điểm Gãy (100 → 220 → 280 Users) &amp; Suy thoái Êm dịu (Slide 84–85)</h3>
+          <p>Vượt qua Load Testing ở mức <code>100 users</code> mới chỉ đảm bảo hệ thống sống tốt trong ngày thường. Nhưng điều gì xảy ra nếu một chiến dịch truyền thông lan truyền khiến lưu lượng đổ vào <code>order-api</code> vượt gấp đôi, gấp ba mức dự kiến? Đó là lúc kỹ sư thực thi <strong>Stress Testing</strong>: thay vì dừng lại ở vạch đứt <code>Expected Load (100 users)</code>, ta tiếp tục bơm tải dốc lên tới <code>300 users</code> để giải phẫu quá trình sụp đổ của hệ thống qua <strong>3 cột mốc định lượng trên đường cong Stress Testing</strong> (<em>Slide 84</em>):</p>
+
+          <ul>
+            <li><strong>Mốc 1 — Vượt ngưỡng thiết kế nhưng vẫn gồng được (<code>100 → 219 users</code>, Phút <code>6 → 11</code>):</strong> Lưu lượng vượt qua đường kẻ đứt <code>Expected load (100 users)</code>. Lúc này các Worker của Uvicorn và bể kết nối PostgreSQL hoạt động hết công suất dự phòng; độ trễ có tăng nhẹ nhưng tỷ lệ lỗi vẫn bằng <code>0%</code>.</li>
+            <li><strong>Mốc 2 — Điểm bắt đầu Suy thoái Độ trễ (<code>220 users</code> tại Phút <code>11</code> — <em>"Response time degrades"</em>):</strong> Khi chạm mốc <strong><code>220 người dùng đồng thời</code></strong>, toàn bộ <code>20 kết nối</code> trong bể <code>SQLAlchemy QueuePool</code> và các lõi CPU chấm điểm mô hình ML đã bão hòa 100%. Các yêu cầu đặt hàng mới như <strong>Order #8888</strong> bắt đầu phải xếp hàng chờ (Queueing Delay) trước khi lấy được kết nối DB, khiến độ trễ <code>p95 / p99</code> vọt lên từ <code>100 ms</code> lên <code>800 ms</code>, dù chưa trả về lỗi <code>HTTP 5xx</code>.</li>
+            <li><strong>Mốc 3 — Điểm Gãy Vật lý / Bắt đầu Sập (<code>280 users</code> tại Phút <code>14</code> — <em>"API starts failing"</em>):</strong> Khi lưu lượng chạm mốc <strong><code>280 người dùng đồng thời</code></strong>, thời gian chờ trong hàng đợi vượt quá ngưỡng <code>pool_timeout = 30s</code> hoặc bộ cân bằng tải NGINX cắt kết nối do quá hạn <code>504 Gateway Timeout</code> / ứng dụng văng lỗi <code>HTTP 500 / 503</code>. Đây chính là <strong>Điểm Gãy (Breaking Point = 280 users)</strong> của cấu hình hiện tại.</li>
+          </ul>
+
+          <h3>Đối chiếu Sinh tử trên Production: Suy thoái Êm dịu (Graceful Degradation) vs. Sụp đổ Cứng (Hard Failure)</h3>
+          <p>Mục đích tối thượng của Stress Testing không chỉ là tìm ra con số <code>220</code> hay <code>280 users</code>, mà là kiểm chứng xem khi bị ép vượt giới hạn, <code>order-api</code> sẽ phản ứng theo mô hình <strong>Suy thoái Êm dịu (Graceful Degradation)</strong> hay <strong>Sụp đổ Cứng (Hard Failure)</strong> (<em>Slide 85</em>):</p>
+
+          <ul>
+            <li><strong>Kịch bản Thảm họa — Sụp đổ Cứng (Hard Failure tại <code>150 users</code>):</strong> Một API thiết kế kém không giới hạn kích thước bể kết nối, không đặt <code>timeout</code> cho các lệnh gọi phụ thuộc và nạp toàn bộ dữ liệu vào RAM. Ngay khi lưu lượng vừa nhích qua <strong><code>150 người dùng</code></strong>, tiến trình văng ngoại lệ <code>TooManyConnectionsError</code> chưa được bắt hoặc bị nhân Linux giết tươi vì tràn bộ nhớ (<code>OOMKilled</code>), trả về bão lỗi <strong><code>HTTP 500 Internal Server Error</code> cho 100% khách hàng</strong>. Tệ hơn nữa, ngay cả khi lưu lượng đã giảm xuống, Pod vẫn nằm chết hoặc kẹt cứng kết nối rác, đòi hỏi kỹ sư trực ca phải thức dậy khởi động lại bằng tay.</li>
+            <li><strong>Kịch bản Chuẩn Production — Suy thoái Êm dịu &amp; Tự hồi phục (Graceful Degradation: <code>100 ms → 800 ms</code>):</strong> Một API được thiết kế phòng vệ tốt khi chịu áp lực vượt ngưỡng sẽ <strong>chấp nhận chậm lại một cách có kiểm soát chứ không sập</strong>: thời gian phản hồi tăng từ <strong><code>100 ms</code> lên <code>800 ms</code></strong> do cơ chế xếp hàng có giới hạn (Bounded Queueing), đồng thời chủ động cắt giảm các tác vụ phụ không thiết yếu (<em>Load Shedding / Feature Degradation</em> — ví dụ: tạm ngắt tính năng gợi ý sản phẩm đi kèm hoặc chuyển từ mô hình Deep Learning nặng sang bộ quy tắc chấm điểm gian lận nhanh trong bộ nhớ cho <strong>Order #8888</strong>, và trả về mã <code>HTTP 429</code>/<code>503</code> có kèm <code>Retry-After</code> cho phần lưu lượng vượt đỉnh). Quan trọng nhất, <strong>ngay khi lưu lượng giảm về mức bình thường (<code>Ramp down</code> ở phút <code>15 → 18</code>), hệ thống tự động giải phóng hàng đợi và hồi phục độ trễ về lại <code>100 ms</code> mà không cần bất kỳ sự can thiệp thủ công nào</strong> (<em>Slide 85</em>).</li>
+          </ul>
+
+          <x-figure id="api-4-3b-fig" key="4.4" title="Sơ đồ 4.4 — Giải phẫu Đường cong Stress Testing (100 → 220 Degrading → 280 Failing) &amp; Đối chiếu Graceful Degradation vs. Hard Failure">Đường cong Stress Testing vượt ngưỡng kỳ vọng 100 users qua mốc suy thoái 220 users (phút 11) tới điểm gãy 280 users (phút 14) trên Slide 84, đặt cạnh bảng đối chiếu cơ học giữa Suy thoái Êm dịu (100ms → 800ms + tự hồi phục) và Sụp đổ Cứng (HTTP 500 tại 150 users) trên Slide 85.</x-figure>
+
+          <h3>Bảng tổng hợp 6 Kịch bản Kiểm thử Hiệu năng cho Dịch vụ order-api</h3>
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Loại Kiểm thử (Slide 81–85)</th>
+                  <th>Hình dạng Đường tải (Traffic Profile)</th>
+                  <th>Câu hỏi Kỹ thuật Cốt lõi cần Trả lời</th>
+                  <th>Điểm gãy Vật lý Phát hiện được trên <code>order-api</code></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Load Testing</strong><br><em>(Kiểm thử Tải kỳ vọng)</em></td>
+                  <td>Hình thang 3 pha (<code>0 → 9m</code> tăng lên <code>100 users</code>; <code>9 → 15m</code> giữ <code>100 users</code>; <code>15 → 18m</code> hạ về <code>0</code>).</td>
+                  <td>Hệ thống có đạt chuẩn độ trễ (<code>p99 &lt; 200ms</code>) và <code>0%</code> lỗi ở mức tải bình thường và mức đỉnh kỳ vọng (<code>100 users</code>) không?</td>
+                  <td>Phát hiện các điểm chậm đầu tiên (<em>First Slowdowns</em>) và tranh chấp truy vấn cơ sở dữ liệu (<em>DB Query Contention</em>) khi nhiều người cùng đặt hàng.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Stress Testing</strong><br><em>(Kiểm thử Quá tải / Điểm gãy)</em></td>
+                  <td>Tăng dốc vượt xa mức kỳ vọng <code>100 users</code> lên <code>220 users</code> (phút 11) → <code>280 users</code> (phút 14) → <code>300 users</code> rồi hạ tải.</td>
+                  <td>Hệ thống bắt đầu chậm đi ở mốc nào (<code>220 users</code>), sập ở mốc nào (<code>280 users</code>), và có <strong>suy thoái êm dịu (<code>100ms → 800ms</code>) rồi tự hồi phục</strong> không?</td>
+                  <td>Xác định khoảng dự phòng an toàn (Safety Margin) trước khi cạn kiệt Pool kết nối DB hoặc tràn bộ nhớ, ngăn chặn <em>Hard Failure</em> ở <code>150 users</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Spike Testing</strong><br><em>(Kiểm thử Tăng vọt Đột ngột)</em></td>
+                  <td>Đang chạy nền thấp bất ngờ dựng đứng lên đỉnh cực đại trong vài giây rồi sụt giảm nhanh (dạng xung nhọn Flash Sale).</td>
+                  <td>Hệ thống có sống sót qua cú sốc lưu lượng tức thời trong lúc chờ Kubernetes HPA khởi tạo thêm Pod mới (mất 20–30s nạp ML model) không?</td>
+                  <td>Tràn hàng đợi kết nối TCP (<code>somaxconn</code>), lỗi <code>502 Bad Gateway</code> hàng loạt do bộ tự động mở rộng (Autoscaler) phản ứng chậm hơn tốc độ tăng tải.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Soak Testing</strong><br><em>(Kiểm thử Ngâm tải Dài hạn)</em></td>
+                  <td>Đường phẳng duy trì mức tải ổn định (<code>70–80 users</code>) kéo dài liên tục suốt <code>12 giờ – 72 giờ</code>.</td>
+                  <td>Có tài nguyên nào bị rò rỉ âm thầm theo thời gian khiến hệ thống tự chết sau vài ngày vận hành liên tục không?</td>
+                  <td>Rò rỉ bộ nhớ RAM (Memory Leak trong các tensor trung gian của mô hình ML), rò rỉ kết nối DB không đóng, hoặc cạn kiệt File Descriptors.</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Capacity Testing</strong><br><em>(Kiểm thử Trần Công suất SLA)</em></td>
+                  <td>Tăng tải theo từng bậc thang (Step-load: <code>50 → 100 → 150 → 200 users</code>), giữ mỗi bậc 5 phút để đo SLA.</td>
+                  <td>Con số người dùng đồng thời tối đa tuyệt đối mà cụm hiện tại phục vụ được mà <strong>không vi phạm bất kỳ điều khoản SLA nào</strong> là bao nhiêu?</td>
+                  <td>Xác định chính xác ngưỡng trần (ví dụ <code>185 users</code> là giới hạn cuối cùng giữ được <code>p99 &lt; 200ms</code>) để thiết lập quy tắc Auto-scaling ở ngưỡng <code>70%</code> (<code>130 users</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>6. Volume Testing</strong><br><em>(Kiểm thử Khối lượng Dữ liệu)</em></td>
+                  <td>Giữ lưu lượng người dùng bình thường nhưng chạy trên cơ sở dữ liệu đã nạp sẵn <code>100 triệu bản ghi</code> đơn hàng lịch sử.</td>
+                  <td>Khi bảng <code>orders</code> phình to gấp 1,000 lần sau 2 năm vận hành, tốc độ truy vấn và ghi đơn hàng <strong>Order #8888</strong> có bị sụt giảm nghiêm trọng không?</td>
+                  <td>Phát hiện các câu lệnh SQL thiếu phân vùng bảng (Table Partitioning) hoặc chỉ mục B-Tree không còn nằm gọn trong RAM gây bão đọc đĩa I/O.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="lesson-section summary-section" id="api-4-summary">
+          <h2 id="api-4-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 4 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <p><strong>Checklist 5 câu hỏi bản chất kiểm tra độ hiểu sâu Chặng 4 (Giám sát Sức khỏe, Phân vị Độ trễ &amp; Kiểm thử Chịu tải):</strong></p>
+          <ol>
+            <li><strong>Phân tách Sinh tử <code>/liveness</code> vs. <code>/readiness</code>:</strong> Trên môi trường Kubernetes, hành động khắc phục của hệ thống khi <code>GET /liveness</code> thất bại khác gì so với khi <code>GET /readiness</code> thất bại? Tại sao việc đặt câu lệnh kiểm tra cơ sở dữ liệu PostgreSQL bên trong <code>/liveness</code> lại là một "quả bom nổ chậm" gây ra bão khởi động lại dây chuyền?
+              <br><em>Đáp án:</em> Khi <code>/liveness</code> thất bại, <code>kubelet</code> <strong>giết và khởi động lại container (Restart Pod)</strong> vì cho rằng tiến trình đã bị treo cứng (deadlock); ngược lại, khi <code>/readiness</code> thất bại, Kubernetes <strong>giữ nguyên container sống nhưng rút Pod khỏi danh sách chia tải của Service Load Balancer</strong>. Nếu nhét lệnh kiểm tra DB vào <code>/liveness</code>, một sự cố chập chờn mạng tới DB trong vài giây sẽ khiến toàn bộ 100% số Pod của <code>order-api</code> đồng loạt báo lỗi <code>/liveness</code> và bị Kubernetes giết sạch cùng một lúc (<em>Cascading Restart Storm</em>), làm sập toàn diện dịch vụ.</li>
+            <li><strong>Vai trò của <code>/readiness</code> trong Hệ thống ML:</strong> Tại sao đối với một dịch vụ như <code>order-api</code> có tích hợp mô hình học máy chấm điểm gian lận (nặng <code>2.4 GB</code>), đầu điểm <code>GET /readiness</code> lại đóng vai trò sống còn trong quá trình khởi động mới hoặc mở rộng ngang (Auto-scaling)?
+              <br><em>Đáp án:</em> Tiến trình máy chủ web (Uvicorn/FastAPI) chỉ mất chưa đầy 1 giây để mở cổng mạng nhưng cần từ vài chục giây để tải tệp trọng số mô hình ML vào RAM/GPU và chạy làm nóng (Warm-up). Đầu điểm <code>/readiness</code> trả về <code>HTTP 503</code> trong suốt thời gian nạp mô hình để ngăn Load Balancer đẩy đơn hàng thực tế như <strong>Order #8888</strong> vào Pod chưa sẵn sàng, chỉ trả về <code>HTTP 200 OK</code> sau khi mô hình đã nạp hoàn tất vào bộ nhớ.</li>
+            <li><strong>Cạm bẫy Trung bình Cộng &amp; Toán học Phân vị (<code>p50 / p95 / p99</code>):</strong> Tại sao trong kỹ thuật hệ thống phân tán, chỉ số Thời gian phản hồi trung bình cộng (Arithmetic Mean) lại che giấu trải nghiệm tồi tệ của người dùng? Hãy giải thích ý nghĩa định lượng của <code>p50</code>, <code>p95</code> và <code>p99</code> khi giám sát đơn hàng <code>Order #8888</code>.
+              <br><em>Đáp án:</em> Phân bố độ trễ luôn lệch phải mạnh; nếu 99 yêu cầu mất <code>10ms</code> và 1 yêu cầu mất <code>5,000ms</code>, trung bình cộng chỉ là <code>59.9ms</code> — che khuất hoàn toàn việc có 1% khách hàng phải chờ tới 5 giây. Phân vị <code>p50</code> (Trung vị) cho biết 50% yêu cầu nhanh hơn mốc này (trải nghiệm điển hình); <code>p95</code> bao phủ 95% yêu cầu; còn <code>p99</code> (Tail Latency) cô lập đúng <strong>1% yêu cầu chậm nhất hệ thống</strong> — nơi phản ánh trải nghiệm tệ nhất mà những khách hàng có giỏ hàng lớn thường gặp phải.</li>
+            <li><strong>Ma trận 6 Loại Kiểm thử Hiệu năng:</strong> Hãy phân biệt mục đích cốt lõi của 6 kịch bản kiểm thử: <code>Load Testing</code>, <code>Stress Testing</code>, <code>Spike Testing</code>, <code>Soak Testing</code>, <code>Capacity Testing</code> và <code>Volume Testing</code>. Tại sao <code>Load Testing</code> phải chạy theo đồ thị hình thang 3 pha (<code>Ramp up</code> → <code>Hold at peak</code> → <code>Ramp down</code>)?
+              <br><em>Đáp án:</em> <code>Load</code> kiểm tra hệ thống dưới tải bình thường và đỉnh kỳ vọng (<code>100 users</code>); <code>Stress</code> ép vượt giới hạn để tìm điểm gãy; <code>Spike</code> thử thách cú sốc tăng tải dựng đứng tức thời; <code>Soak</code> ngâm tải nhiều giờ/ngày để bắt lỗi rò rỉ bộ nhớ (Memory Leak); <code>Capacity</code> tìm trần lưu lượng tối đa vẫn đạt 100% SLA; và <code>Volume</code> kiểm thử với hàng trăm triệu dòng dữ liệu trong DB. Đồ thị hình thang 3 pha của <code>Load Testing</code> giúp quan sát điểm bắt đầu chậm dần khi tăng tải (<code>0 → 9m</code>), kiểm chứng độ ổn định bền vững khi giữ đỉnh <code>100 users</code> (<code>9 → 15m</code>), và xác nhận tài nguyên giải phóng sạch khi hạ tải (<code>15 → 18m</code>).</li>
+            <li><strong>Điểm Gãy Stress Testing &amp; Suy thoái Êm dịu (Graceful Degradation):</strong> Trên đường cong <code>Stress Testing</code> của <code>order-api</code> (vượt mức kỳ vọng <code>100 users</code>), điều gì xảy ra tại mốc <code>220 users</code> (phút 11) và mốc <code>280 users</code> (phút 14)? Sự khác biệt bản chất giữa <strong>Graceful Degradation</strong> và <strong>Hard Failure</strong> là gì?
+              <br><em>Đáp án:</em> Tại mốc <code>220 users</code>, tài nguyên chạm ngưỡng bão hòa khiến thời gian phản hồi bắt đầu suy thoái mạnh (tăng vọt do xếp hàng chờ); tới mốc <code>280 users</code>, hàng đợi tràn và vượt ngưỡng timeout khiến API bắt đầu trả về lỗi thất bại (Điểm Gãy). Một hệ thống bị <strong>Hard Failure</strong> sẽ sập cứng hoặc trả về bão lỗi <code>HTTP 500</code> ngay khi vượt ngưỡng (ví dụ ở <code>150 users</code>) và không tự gượng dậy được; ngược lại, hệ thống có <strong>Graceful Degradation</strong> chấp nhận chậm lại có kiểm soát (ví dụ từ <code>100ms</code> lên <code>800ms</code>, cắt giảm tác vụ phụ) để bảo vệ luồng đặt hàng cốt lõi và <strong>tự động hồi phục</strong> về trạng thái chuẩn ngay khi lưu lượng giảm xuống.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/F04/5" onclick="selectStorageStage(5);return false;">Sang Chặng 5: Thực Chiến Xây Dựng Web API Chuẩn Production Với FastAPI, Pydantic, Uvicorn &amp; Kiểm Thử Locust →</a></p>
+        </section>
+      </div>

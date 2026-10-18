@@ -1,0 +1,353 @@
+      <div class="prose">
+        <x-spine id="spark-4-spine" badge="CHẶNG 4 · BATCH CHALLENGES &amp; BUILT-IN OPTIMIZERS" title="Chặng 4: Năm Thách Thức Xử Lý Lô &amp; Bộ Ba Tối Ưu Hóa Nội Sinh (Catalyst Optimizer, Project Tungsten &amp; AQE)" subtitle="Trạm 4.1 → 4.4">Giải phẫu 5 căn bệnh kinh điển làm tê liệt các cụm Spark hàng trăm máy chủ (<code>Data Skew</code>, <code>Shuffle Explosion</code>, <code>High Cardinality</code>, <code>Wide Schema</code>, <code>Schema Evolution</code>) và 3 cơ chế tối ưu hóa tự động bên dưới nắp máy của Spark: <strong>Catalyst Optimizer</strong>, <strong>Project Tungsten</strong> và <strong>Adaptive Query Execution (AQE)</strong>.</x-spine>
+
+        <p>Ở <strong>Chặng 3</strong>, chúng ta đã nắm vững cách Spark phân rã một câu truy vấn thành đồ thị thực thi <code>DAG</code>, cắt ranh giới các <code>Stage</code> tại điểm nghẽn <code>Shuffle</code> và điều phối các <code>Task</code> chạy song song trên bộ nhớ <code>Unified Memory</code> của <code>Executor</code>. Bước sang <strong>Chặng 4 (Trạm 4.1 → 4.4)</strong>, chúng ta giải quyết nghịch lý lớn nhất trong vận hành hệ thống phân tán: <strong>tại sao cấp phát gấp đôi số lượng máy chủ (Scale Out) vẫn không cứu được một Job đang chạy chậm hoặc sập <code>OutOfMemoryError</code>?</strong> Chúng ta sẽ mổ xẻ cơ học vật lý của 5 căn bệnh kinh điển trong xử lý lô (<code>Data Skew</code>, <code>Shuffle Explosion</code>, <code>High Cardinality</code>, <code>Wide Schema</code>, <code>Schema Evolution</code>), sau đó đi sâu vào 3 bộ máy tối ưu hóa nội sinh mà Spark trang bị sẵn dưới nắp máy: <strong>Catalyst Optimizer</strong> (tối ưu hóa cây kế hoạch logic và vật lý trước khi chạy), <strong>Project Tungsten</strong> (quản lý nhị phân <code>Off-Heap</code>, tối ưu bộ nhớ đệm <code>L1/L2/L3 CPU Cache</code> và biên dịch mã <code>Whole-Stage CodeGen</code>), cùng <strong>Adaptive Query Execution (AQE)</strong> (tự động điều chỉnh kế hoạch thực thi lúc đang chạy dựa trên thống kê <code>Shuffle</code> thực tế).</p>
+
+        <section class="lesson-section" id="spark-4-1">
+          <h2 id="spark-4-1-h2" tabindex="-1">Trạm 4.1: Năm Thách thức Cốt lõi của Xử lý Lô — Tại sao Thêm Máy Chủ Không Tự Động Cứu Được Job Chậm?</h2>
+
+          <p>Trong tính toán phân tán, việc bổ sung thêm máy chủ (<code>Worker Nodes</code> / <code>Executors</code>) chỉ phát huy tác dụng khi khối lượng công việc được chia đều thành các phần độc lập và lượng dữ liệu di chuyển qua mạng ở mức tối thiểu (<em>Slide 54–57</em>). Trên thực tế, phần lớn các sự cố treo cụm hoặc nổ chi phí đám mây đều bắt nguồn từ sự phân bố lệch của dữ liệu thực tế hoặc cách viết truy vấn làm phình đại dung lượng trung gian. Dưới đây là <strong>5 thách thức cốt lõi của xử lý lô (Batch Processing Challenges)</strong> trực tiếp vô hiệu hóa khả năng mở rộng ngang của cụm Spark (<em>Slide 58–62</em>):</p>
+
+          <ol>
+            <li><strong>Lệch dữ liệu phân vùng (<code>Data Skew</code> — <em>Slide 58</em>):</strong>
+              <ul>
+                <li><em>Hiện tượng vật lý:</em> Khi thực hiện phép gom nhóm <code>groupBy("country")</code> hoặc kết nối <code>JOIN</code> theo khóa quốc gia, các bản ghi có cùng giá trị khóa bắt buộc phải băm (hash) về cùng một <code>Partition</code>. Giả sử dữ liệu thực tế phân bố cực kỳ bất đối xứng: <code>Partition 1 (US)</code> gánh tới <strong><code>700M rows</code></strong> (700 triệu dòng), trong khi <code>Partition 2 (VN)</code> chỉ có <strong><code>10M rows</code></strong>, <code>Partition 3 (SG)</code> có <strong><code>8M rows</code></strong> và <code>Partition 4 (JP)</code> có <strong><code>12M rows</code></strong>.</li>
+                <li><em>Cơ chế gây nghẽn:</em> Ba <code>Task</code> xử lý <code>VN</code>, <code>SG</code>, <code>JP</code> hoàn tất chỉ sau vài giây rồi để 99% số lõi <code>CPU</code> trên cụm ngồi chơi (Idle). Ngược lại, <strong>1 <code>Task</code> duy nhất (Straggler Task)</strong> được giao xử lý <code>Partition 1 (US: 700M rows)</code> bị quá tải bộ nhớ <code>Execution Memory</code>, liên tục tràn dữ liệu xuống đĩa (<code>Disk Spill</code>) hoặc nổ lỗi <code>OutOfMemoryError</code>. Vì một <code>Stage</code> chỉ hoàn tất khi <code>Task</code> cuối cùng chạy xong, việc thêm 100 máy chủ mới hoàn toàn vô nghĩa bởi <code>700M rows</code> của khóa <code>US</code> vẫn bị khóa chặt vào đúng 1 lõi <code>CPU</code> đơn lẻ.</li>
+              </ul>
+            </li>
+            <li><strong>Bùng nổ dữ liệu xáo trộn (<code>Shuffle Explosion</code> — <em>Slide 59</em>):</strong>
+              <ul>
+                <li><em>Hiện tượng vật lý:</em> Dữ liệu đầu vào ban đầu chỉ nặng <strong><code>100 GB input</code></strong>, nhưng sau khi đi qua một phép biến đổi rộng (<code>Wide Join</code> nhiều chiều khóa bị trùng lặp M:N hoặc phép <code>groupBy</code> đa cấp), tổng dung lượng dữ liệu trung gian phải truyền qua mạng bị nhân bản vọt lên tới <strong><code>600 GB shuffle data</code></strong>.</li>
+                <li><em>Cơ chế gây nghẽn:</em> Chuỗi phản ứng dây chuyền <code>100 GB input → Wide Join or GroupBy → 600 GB shuffle data → Memory pressure + Disk spill + Slow job</code> đánh sập đồng thời cả ba tài nguyên: tràn vùng nhớ đệm sắp xếp khiến <code>Executor</code> phải ghi/đọc tạm xuống ổ cứng cục bộ nhiều lần, bão hòa băng thông card mạng <code>NIC</code> giữa các nút, và kéo dài thời gian chờ <code>Shuffle Read</code> lên gấp chục lần.</li>
+              </ul>
+            </li>
+            <li><strong>Số lượng giá trị duy nhất cực lớn (<code>High Cardinality</code> — <em>Slide 60</em>):</strong>
+              <ul>
+                <li><em>Hiện tượng vật lý:</em> Các cột định danh chi tiết như <code>user_id</code>, <code>device_id</code>, <code>session_id</code> hoặc <code>transaction_id</code> chứa hàng chục đến hàng trăm triệu giá trị duy nhất (Unique Values).</li>
+                <li><em>Cơ chế gây nghẽn:</em> Khi thực thi <code>groupBy("user_id")</code> hoặc đếm chính xác <code>countDistinct("user_id")</code>, mỗi <code>Executor</code> phải khởi tạo và duy trì một bảng băm (Hash Map) khổng lồ trong bộ nhớ để theo dõi từng trạng thái <code>user_id</code> riêng biệt, đồng thời phải <code>Shuffle</code> toàn bộ tập khóa khổng lồ đó qua mạng để hợp nhất kết quả cuối cùng.</li>
+              </ul>
+            </li>
+            <li><strong>Bảng siêu rộng nhiều cột (<code>Wide Schema</code> — <em>Slide 61</em>):</strong>
+              <ul>
+                <li><em>Hiện tượng vật lý:</em> Trong các kho dữ liệu doanh nghiệp hoặc bảng <code>Feature Store</code> cho học máy, một bảng có thể chứa tới <strong><code>1,000 columns</code></strong>, trong khi logic nghiệp vụ của câu truy vấn thực tế chỉ cần tính toán trên <strong><code>5 columns</code></strong>.</li>
+                <li><em>Cơ chế gây nghẽn:</em> Nếu kỹ sư viết thói quen <code>SELECT *</code> (hoặc <code>df.select("*")</code> rồi đẩy qua các hàm tự định nghĩa chặn tối ưu hóa), Spark buộc phải đọc toàn bộ <code>995 columns</code> dư thừa từ đĩa lên <code>RAM</code>, tuần tự hóa (serialize) và kéo lê toàn bộ <code>1,000 columns</code> đó qua mạng trong các bước <code>Shuffle</code>, gây lãng phí tới 99.5% băng thông đọc/ghi và bộ nhớ.</li>
+              </ul>
+            </li>
+            <li><strong>Biến đổi cấu trúc bảng theo thời gian (<code>Schema Evolution</code> — <em>Slide 62</em>):</strong>
+              <ul>
+                <li><em>Hiện tượng vật lý:</em> Dữ liệu nguồn không bao giờ đứng yên: ở <strong><code>Day 1 Schema</code></strong>, bảng sự kiện chỉ có 3 cột <code>(user_id, event, ts)</code>; nhưng đến <strong><code>Day 30 Schema</code></strong>, đội ứng dụng thêm cột <code>(user_id, event, ts, country, platform)</code>, đổi tên cột, hoặc thay đổi kiểu dữ liệu (ví dụ từ <code>INT</code> sang <code>STRING</code> / <code>BIGINT</code>).</li>
+                <li><em>Cơ chế gây nghẽn:</em> Khi một Job xử lý lô quét lịch sử 30 ngày dữ liệu cùng lúc hoặc ghi nối vào bảng đích có cấu trúc cố định, sự lệch pha giữa <code>Day 1 Schema</code> và <code>Day 30 Schema</code> sẽ làm gãy toàn bộ đường ống hạ nguồn (<code>SchemaMismatchException</code>), làm lệch vị trí cột trong tệp <code>CSV</code>/<code>JSON</code>, hoặc âm thầm biến dữ liệu thành <code>NULL</code>.</li>
+              </ul>
+            </li>
+          </ol>
+
+          <x-figure id="spark-4-1-fig" key="4.1" title="Sơ đồ 4.1 — Năm Thách Thức Cốt Lõi Của Xử Lý Lô (Tại Sao Thêm Máy Chủ Không Đủ?)">Minh họa cơ học của Data Skew (700M vs. 10M dòng), Shuffle Explosion (100GB thành 600GB), High Cardinality, Wide Schema và Schema Evolution.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Thách thức</th>
+                  <th>Triệu chứng Vật lý trên Cụm</th>
+                  <th>Nguyên nhân Gốc (Root Cause)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. <code>Data Skew</code></strong><br><em>(Slide 58: <code>US = 700M rows</code> vs. <code>VN/SG/JP = 8M–12M rows</code>)</em></td>
+                  <td>Trên Spark UI, 199/200 <code>Task</code> hoàn thành trong vài giây nhưng 1 <code>Straggler Task</code> cuối cùng treo hàng giờ kèm <code>Shuffle Spill (Disk)</code> lớn hoặc lỗi <code>OOM</code>.</td>
+                  <td>Hàm băm khóa <code>hash(key) % N</code> gom toàn bộ bản ghi của một khóa phổ biến (Hot Key như <code>country = 'US'</code> hoặc <code>NULL</code>) vào duy nhất 1 <code>Partition</code> và 1 lõi <code>CPU</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. <code>Shuffle Explosion</code></strong><br><em>(Slide 59: <code>100 GB input → 600 GB shuffle data</code>)</em></td>
+                  <td>Dung lượng <code>Shuffle Write</code> / <code>Shuffle Read</code> phình gấp nhiều lần dữ liệu gốc; áp lực bộ nhớ (<code>Memory pressure</code>) cao, tràn đĩa (<code>Disk spill</code>) liên tục, nghẽn mạng toàn cụm.</td>
+                  <td>Phép <code>Wide Join</code> trên khóa bị lặp nhiều lần (quan hệ M:N làm tích Đề-các cục bộ) hoặc chuỗi nhiều phép <code>groupBy</code> / <code>orderBy</code> liên tiếp không lọc hay gom trước.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. <code>High Cardinality</code></strong><br><em>(Slide 60: hàng triệu <code>user_id</code> duy nhất)</em></td>
+                  <td>Giai đoạn tổng hợp ngốn sạch vùng nhớ <code>Execution Memory</code>, thời gian thu gom rác <code>JVM GC</code> tăng vọt khi chạy <code>groupBy(user_id)</code> hoặc <code>countDistinct(user_id)</code>.</td>
+                  <td>Số lượng nhóm duy nhất quá lớn khiến bảng băm trạng thái (Hash Aggregate Map) không vừa bộ nhớ đệm, buộc phải chuyển sang <code>SortAggregate</code> và đổ xuống đĩa.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. <code>Wide Schema</code></strong><br><em>(Slide 61: bảng <code>1,000 columns</code>, chỉ dùng <code>5 columns</code>)</em></td>
+                  <td>Tốc độ đọc tệp đầu vào (<code>Scan</code>) chậm bất thường và lưu lượng mạng <code>Shuffle</code> phình to dù số lượng dòng (Row count) không lớn.</td>
+                  <td>Truy vấn quét <code>SELECT *</code> hoặc dùng định dạng lưu trữ theo dòng / hàm hộp đen khiến Spark phải nạp, giải mã và truyền tải cả <code>995 columns</code> không dùng tới.</td>
+                </tr>
+                <tr>
+                  <td><strong>5. <code>Schema Evolution</code></strong><br><em>(Slide 62: <code>Day 1 (user_id, event, ts)</code> → <code>Day 30 (+country, platform)</code>)</em></td>
+                  <td>Job hàng ngày bất ngờ báo lỗi sập pipeline khi đọc phân vùng mới, hoặc cột dữ liệu ở bảng báo cáo hạ nguồn bị lệch/nhận giá trị <code>NULL</code> hàng loạt.</td>
+                  <td>Ứng dụng thượng nguồn thêm/bớt cột hoặc đổi kiểu dữ liệu theo thời gian mà không có cơ chế kiểm soát hợp đồng dữ liệu (Schema Enforcement / Merge Schema).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="spark-4-2">
+          <h2 id="spark-4-2-h2" tabindex="-1">Trạm 4.2: Bộ Tối ưu Nội sinh #1 — Catalyst Optimizer &amp; Phẫu thuật Cây Kế hoạch Thực thi (Predicate Pushdown, Constant Folding)</h2>
+
+          <p>Trước khi người kỹ sư phải can thiệp thủ công để xử lý 5 thách thức ở Trạm 4.1, bản thân động cơ <strong>Spark SQL / DataFrame</strong> đã tự động bảo vệ cụm máy chủ thông qua một dây chuyền <strong>3 bộ tối ưu hóa nội sinh (Built-in Optimizers)</strong> nối tiếp nhau (<em>Slide 63–64</em>):<br>
+          <code>User Code → Catalyst Optimizer → Tungsten Execution → Adaptive Query Execution → Executors</code>.<br>
+          Trong đó, chốt chặn đầu tiên và quan trọng nhất ở tầng lập kế hoạch là <strong>Catalyst Optimizer</strong> — bộ tối ưu hóa dựa trên quy tắc (Rule-based) và chi phí (Cost-based) có nhiệm vụ <strong>viết lại và tái cấu trúc cây kế hoạch logic (Logical Plan) trước khi sinh ra kế hoạch thực thi vật lý</strong> (<em>Slide 65</em>; <em>Learning Spark, 2nd Edition</em>, Ch. 3, tr. 69–76).</p>
+
+          <h3>Phẫu thuật Ví dụ SQL Kinh điển (Slide 66–67): Constant Folding, Predicate Pushdown &amp; Column Pruning</h3>
+          <p>Để thấy rõ sự khác biệt một trời một vực giữa việc thực thi mù quáng theo đúng thứ tự câu lệnh của lập trình viên so với kế hoạch đã được <strong>Catalyst Optimizer</strong> phẫu thuật lại, hãy xét câu truy vấn <code>SQL</code> nguyên bản trên <em>Slide 66–67</em>:</p>
+
+          <pre><code>SELECT sum(v) FROM (
+  SELECT t1.id, 1 + 2 + t1.value AS v
+  FROM t1 JOIN t2 ON t1.id = t2.id
+) tmp WHERE t2.id &gt; 50 * 1000</code></pre>
+
+          <p>Nếu chạy theo đúng thứ tự chữ viết trong truy vấn lồng (Subquery) mà <strong>không có Catalyst Optimizer (Unoptimized Plan)</strong>, cụm Spark sẽ thực hiện một chuỗi thao tác cực kỳ lãng phí: (1) Đọc toàn bộ các cột của bảng <code>t1</code> và <code>t2</code>; (2) Thực hiện phép kết nối đắt đỏ <code>JOIN</code> trên 100% số dòng của cả hai bảng qua mạng; (3) Với từng dòng sau khi <code>JOIN</code>, cộng lặp đi lặp lại phép tính <code>1 + 2 + t1.value</code>; rồi (4) Cuối cùng mới áp dụng bộ lọc <code>WHERE t2.id &gt; 50 * 1000</code> (mỗi dòng lại phải nhân <code>50 * 1000</code> một lần) để vứt bỏ đi 95% số dòng vừa vất vả <code>JOIN</code> xong! Ngược lại, <strong>Catalyst Optimizer</strong> phân tích cây cú pháp trừu tượng (Tree Transformation) và tự động áp dụng <strong>3 quy tắc viết lại kế hoạch (Logical Optimization Rules)</strong> trước khi chạm vào một byte dữ liệu nào:</p>
+
+          <ol>
+            <li><strong>Gấp hằng số tại thời điểm biên dịch (<code>Constant Folding</code>):</strong> Catalyst phát hiện các biểu thức toán học chỉ chứa hằng số tĩnh gồm <code>1 + 2</code> và <code>50 * 1000</code>. Thay vì bắt hàng tỷ dòng dữ liệu phải tính đi tính lại các phép toán này trên <code>CPU</code> lúc chạy, Catalyst tính sẵn một lần duy nhất ngay lúc lập kế hoạch: biến <code>1 + 2 + t1.value</code> thành <strong><code>3 + t1.value</code></strong>, và biến điều kiện <code>t2.id &gt; 50 * 1000</code> thành <strong><code>t2.id &gt; 50000</code></strong>.</li>
+            <li><strong>Đẩy bộ lọc xuống sát nguồn dữ liệu (<code>Predicate Pushdown</code>):</strong> Đây là đòn bẩy cứu mạng cụm máy chủ. Catalyst nhận thấy điều kiện <code>WHERE t2.id &gt; 50000</code> đặt ở bên ngoài Subquery thực chất chỉ phụ thuộc vào bảng <code>t2</code> (và bởi điều kiện kết nối là <code>t1.id = t2.id</code>, điều kiện tương đương <code>t1.id &gt; 50000</code> cũng được suy diễn và đẩy sang cả nhánh <code>t1</code>). Catalyst lập tức <strong>đẩy nút <code>Filter(t2.id &gt; 50000)</code> trượt xuyên qua nút <code>Join</code> xuống ngay sát bước đọc bảng <code>Scan t2</code></strong> (và đẩy tiếp xuống tầng định dạng tệp <code>Parquet</code>/<code>Delta</code> để bỏ qua nguyên các <code>Row Group</code> không thỏa mãn). Kết quả: 95% số dòng không hợp lệ bị loại bỏ ngay từ đĩa, lượng dữ liệu đi vào bước <code>Shuffle Join</code> giảm đi 20 lần!</li>
+            <li><strong>Cắt tỉa cột thừa (<code>Column Pruning</code> / <code>Projection Pushdown</code>):</strong> Dù bảng <code>t1</code> và <code>t2</code> có thể chứa hàng trăm cột, Catalyst truy vết từ hàm <code>sum(v)</code> ở đỉnh cây xuống đáy và xác nhận truy vấn chỉ thực sự cần đúng 2 cột của <code>t1</code> (<code>t1.id</code>, <code>t1.value</code>) và 1 cột duy nhất của <code>t2</code> (<code>t2.id</code>). Toàn bộ các cột còn lại bị cắt bỏ ngay tại bước đọc <code>Parquet</code>.</li>
+          </ol>
+
+          <x-figure id="spark-4-2-fig" key="4.2" title="Sơ đồ 4.2 — Bộ Tối Ưu Hóa Nội Sinh #1: Catalyst Optimizer (Viết Lại Kế Hoạch Trước Khi Chạy)">Đường ống 4 pha của Catalyst và đối chiếu cây kế hoạch trước/sau khi đẩy bộ lọc xuống dưới phép Join (Predicate Pushdown).</x-figure>
+
+          <h3>Giải phẫu Đường ống 4 Pha của Catalyst Optimizer (Learning Spark, 2nd Ed., Ch. 3)</h3>
+          <p>Dù kỹ sư viết mã bằng <code>Spark SQL</code>, <code>PySpark DataFrame API</code> hay <code>Scala Dataset API</code>, toàn bộ đều đi qua cùng một đường ống biên dịch <strong>4 pha của Catalyst</strong> trước khi biến thành các tác vụ <code>RDD</code> cấp thấp chạy trên <code>Executor</code>:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Pha Biên dịch của Catalyst</th>
+                  <th>Đầu vào → Đầu ra</th>
+                  <th>Cơ chế Hoạt động Nội bộ</th>
+                  <th>Ví dụ Thực tế trên Truy vấn Slide 66</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Pha 1: <code>Analysis</code></strong><br><em>(Phân tích ngữ nghĩa)</em></td>
+                  <td><code>Unresolved Logical Plan</code> → <strong><code>Analyzed Logical Plan</code></strong></td>
+                  <td>Tra cứu siêu dữ liệu trong <strong><code>SessionCatalog</code></strong> (hoặc Hive Metastore / Unity Catalog) để kiểm tra bảng có tồn tại không, phân giải tên cột (<code>Attribute</code>), gắn mã định danh duy nhất (như <code>id#12L</code>) và kiểm tra tính hợp lệ của kiểu dữ liệu.</td>
+                  <td>Xác nhận bảng <code>t1</code>, <code>t2</code> tồn tại; phân giải <code>t1.id</code>, <code>t1.value</code>, <code>t2.id</code> là kiểu số (<code>BIGINT</code>/<code>DOUBLE</code>) và bí danh <code>v</code> hợp lệ cho hàm <code>sum(v)</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Pha 2: <code>Logical Optimization</code></strong><br><em>(Tối ưu hóa logic theo luật)</em></td>
+                  <td><code>Analyzed Logical Plan</code> → <strong><code>Optimized Logical Plan</code></strong></td>
+                  <td>Áp dụng hàng chục quy tắc biến đổi cây (Rule-based Tree Transformations) chạy lặp cho tới điểm bất động (Fixed-point): <code>ConstantFolding</code>, <code>PushDownPredicates</code>, <code>ColumnPruning</code>, <code>BooleanSimplification</code>, <code>CombineFilters</code>.</td>
+                  <td>Rút gọn <code>1 + 2 → 3</code>, <code>50 * 1000 → 50000</code>; đẩy <code>Filter(id &gt; 50000)</code> xuống dưới nút <code>Join</code> cho cả hai nhánh <code>t1</code>, <code>t2</code>; chỉ giữ lại các cột <code>t1.id, t1.value, t2.id</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Pha 3: <code>Physical Planning</code></strong><br><em>(Lập kế hoạch vật lý &amp; Cost Model)</em></td>
+                  <td><code>Optimized Logical Plan</code> → <code>Physical Plans</code> → <strong><code>Selected Physical Plan</code></strong></td>
+                  <td>Ánh xạ các toán tử logic trừu tượng thành các toán tử thực thi vật lý cụ thể của Spark (<code>SparkPlan</code>) và dùng mô hình chi phí (Cost Model / kích thước bảng) để chọn phương án rẻ nhất.</td>
+                  <td>Quyết định chọn thuật toán kết nối vật lý nào cho nút <code>Join</code>: dùng <code>BroadcastHashJoinExec</code> (nếu <code>t2</code> sau khi lọc nhỏ hơn <code>10MB</code>) hay <code>SortMergeJoinExec</code> (nếu cả hai nhánh đều lớn).</td>
+                </tr>
+                <tr>
+                  <td><strong>Pha 4: <code>Code Generation</code></strong><br><em>(Sinh mã Bytecode)</em></td>
+                  <td><code>Selected Physical Plan</code> → <strong><code>Executable RDDs &amp; Java Bytecode</code></strong></td>
+                  <td>Chuyển giao cây vật lý đã chọn cho <strong>Project Tungsten</strong> sử dụng trình biên dịch <code>Janino</code> để sinh mã nguồn Java và biên dịch thành <code>Java Bytecode</code> ngay trong bộ nhớ lúc runtime.</td>
+                  <td>Gộp chuỗi toán tử <code>FileScan → Filter → Project → HashAggregate</code> thành một vòng lặp <code>while</code> phẳng duy nhất chạy trực tiếp trên thanh ghi <code>CPU</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Trong thực tế vận hành, kỹ sư không bao giờ đoán mò xem Catalyst có đẩy bộ lọc xuống thành công hay không mà kiểm chứng trực tiếp bằng lệnh <strong><code>df.explain(mode="formatted")</code></strong> (hoặc <code>EXPLAIN FORMATTED SELECT ...</code> trong SQL):</p>
+
+          <pre><code># Kiểm tra trực tiếp cây kế hoạch vật lý đã được Catalyst tối ưu hóa
+query = """
+SELECT sum(v) FROM (
+  SELECT t1.id, 1 + 2 + t1.value AS v
+  FROM t1 JOIN t2 ON t1.id = t2.id
+) tmp WHERE t2.id &gt; 50 * 1000
+"""
+spark.sql(query).explain(mode="formatted")
+
+# Kết quả Physical Plan chứng minh Constant Folding + Predicate Pushdown + Column Pruning:
+# == Physical Plan ==
+# * HashAggregate (9)
+# +- Exchange (8)
+#    +- * HashAggregate (7)
+#       +- * Project (6)          -- [Constant Folding]: v = (3 + value#2)
+#          +- * BroadcastHashJoin Inner BuildRight (5)
+#             :- * Filter (2)     -- [Predicate Pushdown]: isnotnull(id#1) AND (id#1 &gt; 50000)
+#             :  +- * ColumnarToRow (1)
+#             :     +- Scan parquet default.t1 [id#1, value#2]  -- [Column Pruning]: chỉ đọc 2 cột
+#             +- BroadcastExchange (4)
+#                +- * Filter (3)  -- [Predicate Pushdown]: isnotnull(id#3) AND (id#3 &gt; 50000)
+#                   +- Scan parquet default.t2 [id#3]           -- [Column Pruning]: chỉ đọc 1 cột</code></pre>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="spark-4-3">
+          <h2 id="spark-4-3-h2" tabindex="-1">Trạm 4.3: Bộ Tối ưu Nội sinh #2 — Project Tungsten &amp; Ba Kỹ thuật Vắt kiệt Phần cứng (Off-Heap, Cache-Aware, Whole-Stage CodeGen)</h2>
+
+          <p>Nếu <strong>Catalyst Optimizer</strong> giải quyết bài toán <strong>"Làm cái gì?" (<em>Catalyst = what to do / plan</em>)</strong> bằng cách cắt bỏ dữ liệu dư thừa trên cây kế hoạch, thì bộ tối ưu hóa nội sinh thứ hai — <strong>Project Tungsten</strong> — giải quyết bài toán <strong>"Làm như thế nào trên phần cứng vật lý?" (<em>Tungsten = how to do it / execution</em>)</strong> (<em>Slide 68–69</em>). Khi Spark phát triển lên thế hệ 2.x và 3.x, các tác giả nhận ra rằng điểm nghẽn của hầu hết các tác vụ xử lý lô hiện đại không còn nằm ở tốc độ ổ đĩa hay mạng, mà nằm ở <strong>chi phí quản lý đối tượng của máy ảo <code>JVM</code> và sự lãng phí chu kỳ xung nhịp <code>CPU</code></strong>. Project Tungsten tái thiết kế hoàn toàn động cơ thực thi của Spark dựa trên <strong>3 kỹ thuật cốt lõi (Three Tungsten Techniques)</strong> để vắt kiệt giới hạn vật lý của bộ nhớ và vi xử lý (<em>Slide 70–72</em>):</p>
+
+          <h3>Kỹ thuật 1: Quản lý Bộ nhớ Nhị phân Ngoài Heap (Off-Heap Memory Management &amp; UnsafeRow — Slide 70)</h3>
+          <p>Trong ngôn ngữ Java/Scala truyền thống, mỗi dòng dữ liệu hay mỗi chuỗi ký tự là một <strong><code>Java Object</code></strong> nằm trên vùng nhớ <strong><code>JVM Heap</code></strong>. Cách biểu diễn này gây ra hai thảm họa cho xử lý dữ liệu lớn: (1) <em>Phình đại dung lượng bộ nhớ (Memory Overhead):</em> một chuỗi ký tự <code>"abcd"</code> chỉ có <code>4 bytes</code> dữ liệu thực nhưng khi bọc thành đối tượng <code>java.lang.String</code> trên <code>JVM Heap</code> (kèm Object Header 16 bytes, mảng <code>char[]</code>, căn lề 8-byte alignment và con trỏ tham chiếu) sẽ ngốn tới <strong><code>48 bytes</code></strong> — gấp 12 lần kích thước thực! (2) <em>Đóng băng hệ thống vì thu gom rác (<code>JVM Garbage Collection / GC Pause</code>):</em> khi tạo và hủy hàng trăm triệu đối tượng Java mỗi giây, bộ dọn rác <code>JVM GC</code> phải quét toàn bộ đồ thị đối tượng và tạm dừng mọi luồng tính toán (Stop-the-World), làm các <code>Executor</code> bị treo và mất kết nối.</p>
+
+          <p><strong>Giải pháp của Project Tungsten (<em>Slide 70</em>):</strong> Thay vì lưu dữ liệu dưới dạng các đối tượng Java nặng nề trên <code>JVM Heap</code>, Spark tự quản lý các trang bộ nhớ nhị phân phẳng (cấp phát trực tiếp ngoài Heap thông qua <code>sun.misc.Unsafe</code> hoặc các mảng byte thô quản lý bởi <code>TaskMemoryManager</code>) theo định dạng <strong><code>UnsafeRow</code> (Tungsten Binary Format)</strong>. Mỗi dòng dữ liệu được mã hóa thành một dải byte liên tục gồm 3 phần: vùng bit đánh dấu giá trị rỗng (<code>Null Bitset Bitmap</code>), vùng độ dài cố định 8-byte cho từng trường (lưu trực tiếp giá trị <code>INT</code>/<code>LONG</code>/<code>DOUBLE</code> hoặc lưu cặp <code>[Offset + Length]</code> trỏ tới vùng độ dài thay đổi), và vùng dữ liệu độ dài thay đổi (như chuỗi <code>UTF8String</code>). Nhờ không tạo ra đối tượng Java trên Heap, dung lượng bộ nhớ giảm từ 2 đến 5 lần và <strong>triệt tiêu gần như hoàn toàn hiện tượng treo máy vì <code>JVM Garbage Collection</code></strong>.</p>
+
+          <h3>Kỹ thuật 2: Tính toán Thân thiện với Bộ nhớ Đệm CPU (Cache-Aware Computation — Slide 71)</h3>
+          <p>Một vi xử lý hiện đại có tốc độ tính toán cực nhanh, nhưng nó thường xuyên phải ngồi chờ dữ liệu được nạp từ thanh <code>RAM</code> lên. Theo phân cấp độ trễ phần cứng được chỉ rõ trên <em>Slide 71</em>:</p>
+          <ul>
+            <li>Truy xuất dữ liệu tại bộ nhớ đệm <strong><code>L1 Cache</code></strong> nằm ngay trong lõi <code>CPU</code> chỉ mất khoảng <strong><code>~1 ns</code> (1 nano-giây)</strong>, tiếp theo là <strong><code>L2 Cache</code></strong> (<code>~3–4 ns</code>) và <strong><code>L3 Cache</code></strong> (<code>~10–20 ns</code>).</li>
+            <li>Ngược lại, nếu dữ liệu không có sẵn trong <code>L1/L2/L3 Cache</code> (xảy ra lỗi trượt bộ nhớ đệm — <code>Cache Miss</code>) buộc <code>CPU</code> phải thò xuống thanh <strong><code>RAM</code> chính</strong> để đọc, thời gian chờ vọt lên tới <strong><code>~100 ns</code> — chậm hơn <code>L1 Cache</code> tới <code>100 lần</code> (<code>up to 100x slower!</code>)</strong>!</li>
+          </ul>
+          <p>Trong mô hình đối tượng Java cũ, các bản ghi nằm rải rác ngẫu nhiên khắp vùng nhớ <code>Heap</code>; muốn sắp xếp hay tìm kiếm, <code>CPU</code> phải nhảy theo các con trỏ địa chỉ (<em>Pointer-chasing</em>), gây ra <code>Cache Miss</code> liên tục ở mức <code>100 ns</code>. <strong>Project Tungsten</strong> khắc phục triệt để bằng cách xếp các bản ghi nhị phân <code>UnsafeRow</code> <strong>nằm sát cạnh nhau tuần tự trên một dải bộ nhớ liên tục (Sequential Memory Layout)</strong>, đồng thời khi sắp xếp (<code>Tungsten Sort</code>), Spark tạo một mảng con trỏ <code>8-byte</code> siêu gọn chứa sẵn <strong><code>[4-byte Key Prefix + 4-byte Memory Pointer]</code></strong> nằm hoàn toàn trong <code>L1/L2/L3 Cache</code>. Nhờ đó, bộ nạp trước của phần cứng (Hardware Prefetcher) tự động kéo sẵn các dòng dữ liệu kế tiếp vào <code>L1 Cache (~1 ns)</code>, giúp các phép so sánh, sắp xếp và băm khóa đạt tốc độ sát trần phần cứng.</p>
+
+          <h3>Kỹ thuật 3: Biên dịch Mã Toàn Chặng (Whole-Stage Code Generation — Slide 72)</h3>
+          <p>Trước khi có Project Tungsten, các hệ quản trị cơ sở dữ liệu truyền thống và Spark 1.x thực thi truy vấn theo <strong>Mô hình Bộ lặp Volcano (<code>Volcano Iterator Model</code>)</strong>: mỗi toán tử vật lý (<code>Scan → Filter → Project → Aggregate</code>) là một lớp đối tượng riêng biệt có hàm ảo <code>next()</code>. Để xử lý 1 tỷ dòng dữ liệu qua 4 toán tử, <code>CPU</code> phải thực hiện hàng tỷ lời gọi hàm ảo (Virtual Function Calls), liên tục đóng gói và mở gói từng dòng dữ liệu qua lại giữa các toán tử kèm hàng loạt lệnh rẽ nhánh <code>if/else</code> kiểm tra kiểu dữ liệu.</p>
+
+          <p><strong>Giải pháp <code>Whole-Stage Code Generation</code> (<em>Slide 72</em>):</strong> Spark nhìn toàn bộ chuỗi toán tử không có <code>Shuffle</code> trong cùng một <code>Stage</code> (ví dụ cả cụm <code>Scan → Filter → Project → Aggregate</code>) như một khối thống nhất. Sử dụng trình biên dịch nhúng <code>Janino</code> ngay lúc runtime, Tungsten <strong>hợp nhất toàn bộ các toán tử đó và biên dịch thẳng thành một hàm <code>Java Bytecode</code> phẳng duy nhất</strong> (giống hệt như code viết tay bằng một vòng lặp <code>for/while</code> tối ưu trong C/Java). Trong bản kế hoạch <code>df.explain()</code>, mọi toán tử có dấu hoa thị <strong><code>*</code></strong> ở phía trước (như <code>*Filter</code>, <code>*Project</code>, <code>*HashAggregate</code>) chính là minh chứng cho thấy <code>Whole-Stage CodeGen</code> đã được kích hoạt: không còn lời gọi hàm ảo giữa các bước, dữ liệu nằm nguyên trên các thanh ghi <code>CPU Registers</code> từ lúc đọc lên cho tới lúc cộng dồn xong.</p>
+
+          <x-figure id="spark-4-3-fig" key="4.3" title="Sơ đồ 4.3 — Bộ Tối Ưu Hóa Nội Sinh #2: Project Tungsten (Vắt Kiệt Hiệu Năng CPU &amp; Bộ Nhớ)">Ba trụ cột của Project Tungsten: Quản lý nhị phân Off-Heap chống GC, tính toán thân thiện L1/L2/L3 Cache (~1ns) và sinh mã Whole-Stage CodeGen.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Kỹ thuật trong Project Tungsten</th>
+                  <th>Điểm nghẽn Truyền thống (Trước Tungsten)</th>
+                  <th>Cơ chế Vật lý của Tungsten</th>
+                  <th>Tác động Hiệu năng Thực tế</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. <code>Off-Heap Memory Management</code></strong><br><em>(Slide 70: <code>UnsafeRow</code>)</em></td>
+                  <td>Lưu <code>Java Objects</code> trên <code>JVM Heap</code> gây phình bộ nhớ gấp 3–10 lần và kích hoạt các đợt <code>GC Pause</code> làm đóng băng <code>Executor</code>.</td>
+                  <td>Mã hóa dòng dữ liệu thành mảng nhị phân phẳng <code>UnsafeRow</code> và cấp phát trực tiếp ngoài vùng quản lý của <code>GC</code> qua <code>sun.misc.Unsafe</code>.</td>
+                  <td>Giảm mạnh dung lượng <code>RAM</code> tiêu thụ, loại bỏ chi phí <code>JVM Garbage Collection</code> và tăng tốc độ tuần tự hóa khi <code>Shuffle</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. <code>Cache-Aware Computation</code></strong><br><em>(Slide 71: <code>L1 ~1ns</code> vs. <code>RAM ~100ns</code>)</em></td>
+                  <td>Các đối tượng nằm phân tán ngẫu nhiên trong <code>RAM</code>; truy cập qua con trỏ gây <code>Cache Miss</code> liên tục (chờ <code>RAM ~100 ns</code>).</td>
+                  <td>Sắp xếp bản ghi nhị phân nằm liền kề tuần tự và nhúng sẵn tiền tố khóa (Key Prefix) vào mảng con trỏ nằm gọn trong <code>L1/L2/L3 Cache</code>.</td>
+                  <td>Tận dụng tốc độ <code>L1 Cache (~1 ns)</code> nhanh gấp <code>100x</code> so với <code>RAM</code>, tăng tốc độ sắp xếp và gom nhóm băm lên nhiều lần.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. <code>Whole-Stage Code Generation</code></strong><br><em>(Slide 72: <code>Scan → Filter → Project → Aggregate</code>)</em></td>
+                  <td>Mô hình <code>Volcano Iterator</code> gọi hàm ảo <code>next()</code> qua từng toán tử cho từng dòng, tốn hàng tỷ chu kỳ <code>CPU</code> cho việc chuyển ngữ cảnh.</td>
+                  <td>Biên dịch gộp toàn bộ chuỗi toán tử trong một <code>Stage</code> thành một vòng lặp <code>Java Bytecode</code> phẳng duy nhất lúc runtime (đánh dấu <code>*</code> trong <code>explain</code>).</td>
+                  <td>Triệt tiêu lời gọi hàm ảo, giữ biến trung gian trực tiếp trên thanh ghi <code>CPU Registers</code> và cho phép phần cứng chạy lệnh vector hóa <code>SIMD</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="spark-4-4">
+          <h2 id="spark-4-4-h2" tabindex="-1">Trạm 4.4: Bộ Tối ưu Nội sinh #3 — Adaptive Query Execution (AQE) &amp; Ba Phép Hiệu chỉnh Động Lúc Runtime</h2>
+
+          <p>Dù <strong>Catalyst Optimizer</strong> (Trạm 4.2) rất thông minh, nó có một điểm mù chí mạng: <strong>Catalyst phải chốt kế hoạch thực thi vật lý TRƯỚC khi câu truy vấn bắt đầu chạy</strong> (Compile-time Planning). Trong thực tế, thống kê bảng (Table Statistics) thường bị lỗi thời hoặc hoàn toàn không tồn tại; hơn nữa, sau khi dữ liệu đi qua các điều kiện lọc phức tạp, hàm tự định nghĩa <code>UDF</code> hoặc nhiều tầng <code>JOIN</code> lồng nhau, kích thước thực tế của dữ liệu trung gian có thể nhỏ hơn hoặc lệch hơn hàng trăm lần so với ước lượng ban đầu của Catalyst. Để lấp đầy khoảng trống này, từ Spark 3.0+ (và được bật mặc định <code>spark.sql.adaptive.enabled = true</code> từ Spark 3.2+), Spark giới thiệu bộ tối ưu hóa nội sinh thứ ba: <strong>Adaptive Query Execution (AQE)</strong> — cơ chế <strong>tự động viết lại và điều chỉnh kế hoạch thực thi ngay trong lúc Job đang chạy (Runtime Re-optimization)</strong> (<em>Slide 73–74</em>; <em>Learning Spark, 2nd Edition</em>, Ch. 3 &amp; Ch. 7).</p>
+
+          <h3>Cơ chế Vòng lặp Phản hồi tại Ranh giới Shuffle: Initial Plan → Runtime Statistics → Adjusted Plan</h3>
+          <p>Tại sao <strong>AQE</strong> có thể sửa lại kế hoạch khi Job đang chạy dở dang? Bí mật nằm ở tính chất vật lý của ranh giới <strong><code>Shuffle</code> (Materialization Point)</strong> mà chúng ta đã học ở Chặng 3: mỗi khi kết thúc một <code>Shuffle Map Stage</code>, toàn bộ dữ liệu trung gian bắt buộc phải được ghi xuống các tệp <code>Shuffle</code> trên đĩa cục bộ trước khi <code>Stage</code> tiếp theo có thể bắt đầu đọc. Chính tại khoảnh khắc chuyển giao giữa hai <code>Stage</code> này, <strong>AQE</strong> tạm dừng một nhịp cực ngắn để thu thập <strong>Thống kê Thực tế Lúc Chạy (<code>Runtime Statistics</code>)</strong> chính xác tuyệt đối tới từng byte (gồm tổng dung lượng thực của từng nhánh dữ liệu và kích thước chính xác của từng <code>Shuffle Partition</code>), sau đó đưa ngược về cho Catalyst để sinh ra <strong>Kế hoạch Điều chỉnh (<code>Adjusted Plan</code>)</strong> tối ưu nhất cho các <code>Stage</code> còn lại (<em>Slide 73</em>):<br>
+          <code>Initial Plan → Runtime Statistics (collected at Shuffle Stage boundaries) → Adjusted Plan</code>.</p>
+
+          <x-figure id="spark-4-4-fig" key="4.4" title="Sơ đồ 4.4 — Bộ Tối Ưu Hóa Nội Sinh #3: Adaptive Query Execution (AQE — Điều Chỉnh Lúc Chạy)">Vòng lặp phản hồi thống kê thực tế tại ranh giới Shuffle và 3 phép tối ưu động của AQE.</x-figure>
+
+          <h3>Ba Phép Hiệu chỉnh Động Lúc Runtime của AQE (Slide 74)</h3>
+          <p>Dựa trên số liệu thống kê thực tế thu được sau mỗi bước <code>Shuffle</code>, <strong>Adaptive Query Execution (AQE)</strong> tự động kích hoạt <strong>3 phép tối ưu hóa động (Three AQE Runtime Optimizations)</strong> giải quyết trực tiếp các căn bệnh ở Trạm 4.1 mà không cần kỹ sư sửa code (<em>Slide 74</em>):</p>
+
+          <ol>
+            <li><strong>Tự động chuyển đổi chiến lược kết nối (<code>Switch Join Strategy</code> — <code>Sort-Merge Join → Broadcast Hash Join</code>):</strong>
+              <ul>
+                <li><em>Kịch bản thực tế:</em> Bảng <code>orders</code> (<code>500 GB</code>) kết nối với bảng <code>promotions</code> (<code>50 GB</code> trên đĩa). Trước khi chạy, vì cả hai bảng đều lớn hơn ngưỡng phát sóng mặc định (<code>10 MB</code>), Catalyst bắt buộc phải lên kế hoạch dùng thuật toán nặng nề <strong><code>Sort-Merge Join</code></strong> (phải <code>Shuffle</code> và sắp xếp cả 2 bảng qua mạng). Tuy nhiên, trong câu truy vấn có điều kiện lọc <code>WHERE promotions.active_date = '2026-10-18'</code> khiến nhánh <code>promotions</code> sau khi lọc và ghi ra tệp <code>Shuffle</code> thực tế chỉ còn nặng đúng <strong><code>4 MB</code></strong>!</li>
+                <li><em>Hành động của AQE:</em> Ngay khi <code>Shuffle Stage</code> của nhánh <code>promotions</code> vừa chạy xong, AQE đọc thống kê runtime thấy <code>4 MB &lt;= spark.sql.adaptive.autoBroadcastJoinThreshold (10MB)</code>. Lập tức, AQE hủy bỏ kế hoạch <code>Sort-Merge Join</code> ban đầu và <strong>chuyển đổi động thành <code>Broadcast Hash Join</code> ngay lúc runtime</strong> — phát sóng <code>4 MB</code> đó tới các <code>Executor</code> và hủy luôn bước <code>Shuffle</code> đắt đỏ của bảng <code>orders</code> (<code>500 GB</code>)!</li>
+              </ul>
+            </li>
+            <li><strong>Tự động gộp các phân vùng Shuffle nhỏ (<code>Coalesce Shuffle Partitions</code>):</strong>
+              <ul>
+                <li><em>Kịch bản thực tế:</em> Theo mặc định, tham số <code>spark.sql.shuffle.partitions</code> được đặt cứng là <code>200</code> (hoặc được quản trị viên tăng lên <code>2000</code> để chạy các bảng lớn). Nếu một bước trung gian chỉ sinh ra <code>50 MB</code> dữ liệu <code>Shuffle</code> nhưng vẫn bị băm cứng thành <code>200 Partitions</code>, mỗi <code>Partition</code> chỉ nặng vỏn vẹn <code>250 KB</code> — làm phát sinh 200 <code>Task</code> siêu nhỏ gây lãng phí chi phí lập lịch (Task Scheduling Overhead) và tạo ra hàng trăm tệp nhỏ (Small Files) khi ghi xuống đĩa.</li>
+                <li><em>Hành động của AQE:</em> Khi bật <code>spark.sql.adaptive.coalescePartitions.enabled = true</code>, AQE kiểm tra kích thước thực của từng <code>Shuffle Partition</code> và <strong>tự động gộp (coalesce) các phân vùng nhỏ liền kề nhau thành một số ít phân vùng có kích thước vừa vặn</strong> (hướng tới kích thước mục tiêu <code>spark.sql.adaptive.advisoryPartitionSizeInBytes</code>, mặc định <code>64MB</code>), ví dụ gom từ <code>200 Partitions</code> xuống chỉ còn <code>1</code> hoặc <code>2 Partitions</code>.</li>
+              </ul>
+            </li>
+            <li><strong>Tự động bẻ nhỏ phân vùng lệch khi Join (<code>Handle Skewed Joins</code>):</strong>
+              <ul>
+                <li><em>Kịch bản thực tế:</em> Khi thực hiện phép <code>Sort-Merge Join</code> giữa hai bảng lớn, hiện tượng <code>Data Skew</code> (như khóa <code>US = 700M rows</code> ở Trạm 4.1) làm cho <code>Partition 1</code> phình lên tới <code>15 GB</code> trong khi các <code>Partition</code> còn lại chỉ nặng trung bình <code>50 MB</code>.</li>
+                <li><em>Hành động của AQE:</em> Khi bật <code>spark.sql.adaptive.skewJoin.enabled = true</code>, AQE đối chiếu thống kê kích thước các phân vùng sau bước <code>Shuffle</code>. Một phân vùng bị tuyên bố là <strong>Lệch (Skewed)</strong> nếu kích thước của nó vừa lớn hơn <code>med * spark.sql.adaptive.skewJoin.skewedPartitionFactor</code> (mặc định gấp <code>5 lần</code> trung vị <code>median</code>) vừa lớn hơn ngưỡng <code>spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes</code> (mặc định <code>256MB</code>). Khi phát hiện <code>Partition 1 (15 GB)</code> bị lệch, AQE <strong>tự động chẻ nhỏ (split) phân vùng <code>15 GB</code> đó thành hàng chục phân vùng con (Sub-partitions, mỗi phần khoảng <code>64MB–256MB</code>)</strong> và nhân bản phần dữ liệu tương ứng ở bảng bên kia để cho hàng chục <code>Task</code> cùng xúm vào xử lý song song, xóa sổ hoàn toàn hiện tượng 1 <code>Straggler Task</code> làm treo cả cụm!</li>
+              </ul>
+            </li>
+          </ol>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Cơ chế Tối ưu của AQE (Slide 74)</th>
+                  <th>Tham số Cấu hình Spark SQL</th>
+                  <th>Ngưỡng Kích hoạt Mặc định</th>
+                  <th>Bài toán Vật lý được Giải quyết</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Kích hoạt tổng thể AQE</strong></td>
+                  <td><code>spark.sql.adaptive.enabled</code></td>
+                  <td><code>true</code> (Mặc định từ Spark 3.2+)</td>
+                  <td>Bật vòng lặp thu thập thống kê thực tế tại mọi ranh giới <code>Shuffle Stage</code> để tái tối ưu hóa cây kế hoạch vật lý (<code>AdaptiveSparkPlan</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>1. <code>Switch Join Strategy</code></strong></td>
+                  <td><code>spark.sql.adaptive.autoBroadcastJoinThreshold</code></td>
+                  <td><code>10MB</code> (<code>10485760b</code>)</td>
+                  <td>Chuyển đổi động <code>SortMergeJoin</code> thành <code>BroadcastHashJoin</code> khi một nhánh sau bước lọc/<code>Shuffle</code> co nhỏ xuống dưới ngưỡng phát sóng.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. <code>Coalesce Shuffle Partitions</code></strong></td>
+                  <td><code>spark.sql.adaptive.coalescePartitions.enabled</code><br><code>spark.sql.adaptive.advisoryPartitionSizeInBytes</code></td>
+                  <td><code>true</code><br>Kích thước mục tiêu: <code>64MB</code></td>
+                  <td>Tự động gộp hàng trăm phân vùng <code>Shuffle</code> nhỏ li ti thành các phân vùng ~<code>64MB</code>, giảm chi phí khởi tạo <code>Task</code> và chống sinh <code>Small Files</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. <code>Handle Skewed Joins</code></strong></td>
+                  <td><code>spark.sql.adaptive.skewJoin.enabled</code><br><code>spark.sql.adaptive.skewJoin.skewedPartitionFactor</code><br><code>spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes</code></td>
+                  <td><code>true</code><br>Hệ số lệch: <code>5.0</code> (&times; median)<br>Ngưỡng tối thiểu: <code>256MB</code></td>
+                  <td>Phát hiện phân vùng bị lệch (<code>Data Skew</code>) trong phép <code>Join</code> và tự động cắt nhỏ thành nhiều <code>Sub-tasks</code> chạy song song trên nhiều lõi <code>CPU</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <pre><code># Cấu hình chuẩn Production cho Adaptive Query Execution (AQE) trên Spark 3.x
+spark.conf.set("spark.sql.adaptive.enabled", "true")
+
+# 1. Tự động gộp các Shuffle Partitions nhỏ về kích thước mục tiêu 64MB
+spark.conf.set("spark.sql.adaptive.coalescePartitions.enabled", "true")
+spark.conf.set("spark.sql.adaptive.advisoryPartitionSizeInBytes", "64MB")
+
+# 2. Tự động chuyển Sort-Merge Join sang Broadcast Hash Join nếu nhánh sau lọc &lt;= 20MB
+spark.conf.set("spark.sql.adaptive.autoBroadcastJoinThreshold", "20MB")
+
+# 3. Tự động chẻ nhỏ Partition bị lệch (Skewed Join) khi lớn hơn 5x median và &gt;= 256MB
+spark.conf.set("spark.sql.adaptive.skewJoin.enabled", "true")
+spark.conf.set("spark.sql.adaptive.skewJoin.skewedPartitionFactor", "5")
+spark.conf.set("spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes", "256MB")</code></pre>
+        </section>
+
+        <section class="summary-section" id="spark-4-summary">
+          <h2 id="spark-4-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 4 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <p><strong>Checklist 5 câu hỏi bản chất kiểm tra độ hiểu sâu Chặng 4 (Thách thức xử lý lô &amp; Bộ ba tối ưu hóa nội sinh):</strong></p>
+          <ol>
+            <li><strong>Bản chất của <code>Data Skew</code> vs. Mở rộng ngang:</strong> Trong kịch bản <code>Partition 1 (US) = 700M rows</code> còn <code>VN/SG/JP = 8M–12M rows</code>, tại sao việc nhân đôi số lượng máy chủ trong cụm vẫn không làm Job chạy nhanh hơn?
+              <br><em>Đáp án:</em> Vì trong Spark, mỗi <code>Partition</code> chỉ được xử lý bởi duy nhất <strong>1 <code>Task</code> trên 1 lõi <code>CPU</code></strong>. Toàn bộ <code>700M rows</code> có cùng khóa <code>US</code> bị băm vào chung một <code>Partition</code>, khiến 1 <code>Straggler Task</code> phải gánh toàn bộ khối lượng đó và tràn đĩa (<code>Disk Spill</code>), trong khi hàng trăm lõi <code>CPU</code> mới thêm vào chỉ ngồi chờ cho tới khi <code>Task</code> chậm nhất đó kết thúc.</li>
+            <li><strong>Cơ chế của <code>Shuffle Explosion</code>, <code>High Cardinality</code>, <code>Wide Schema</code> &amp; <code>Schema Evolution</code>:</strong> Tại sao một tập dữ liệu đầu vào chỉ nặng <code>100 GB</code> lại có thể sinh ra tới <code>600 GB shuffle data</code> làm sập cụm?
+              <br><em>Đáp án:</em> Phép <code>Wide Join</code> trên các khóa bị lặp nhiều lần (quan hệ M:N) làm nhân bản tổ hợp các dòng, kết hợp với việc kéo theo hàng trăm cột dư thừa (<code>Wide Schema</code> khi dùng <code>SELECT *</code> trên bảng <code>1,000 columns</code>) hoặc phải duy trì bảng băm cho hàng chục triệu khóa duy nhất (<code>High Cardinality</code> như <code>user_id</code>), khiến dung lượng trung gian phình gấp 6 lần dữ liệu gốc, gây cạn kiệt <code>Execution Memory</code> và tràn đĩa. Trong khi đó, <code>Schema Evolution</code> (thêm cột <code>country, platform</code> ở <code>Day 30</code> so với <code>Day 1</code>) làm gãy các pipeline hạ nguồn phụ thuộc vào cấu trúc cột cố định.</li>
+            <li><strong>Phẫu thuật kế hoạch của <code>Catalyst Optimizer</code>:</strong> Với câu truy vấn <code>SELECT sum(v) FROM (SELECT t1.id, 1 + 2 + t1.value AS v FROM t1 JOIN t2 ON t1.id = t2.id) tmp WHERE t2.id &gt; 50 * 1000</code>, Catalyst đã áp dụng những quy tắc nào để cứu cụm máy chủ?
+              <br><em>Đáp án:</em> Trải qua 4 pha (<code>Analysis → Logical Optimization → Physical Planning → Code Generation</code>), Catalyst áp dụng: (1) <strong><code>Constant Folding</code></strong> tính sẵn hằng số <code>1 + 2 → 3</code> và <code>50 * 1000 → 50000</code> lúc biên dịch; (2) <strong><code>Predicate Pushdown</code></strong> đẩy bộ lọc <code>Filter(id &gt; 50000)</code> xuống <em>bên dưới</em> nút <code>Join</code> để loại bỏ ngay 95% số dòng không thỏa mãn trước khi phải <code>Shuffle</code> và kết nối; và (3) <strong><code>Column Pruning</code></strong> chỉ đọc đúng các cột <code>t1.id, t1.value, t2.id</code>.</li>
+            <li><strong>Ba trụ cột của <code>Project Tungsten</code>:</strong> Sự phân vai giữa Catalyst và Tungsten là gì, và làm thế nào 3 kỹ thuật của Tungsten giải quyết điểm nghẽn của <code>JVM</code> cùng độ trễ <code>RAM (~100 ns)</code>?
+              <br><em>Đáp án:</em> Catalyst quyết định <em>làm cái gì</em> (tối ưu kế hoạch), còn Tungsten quyết định <em>làm như thế nào trên phần cứng</em> thông qua: (1) <strong><code>Off-Heap Memory Management (UnsafeRow)</code></strong> lưu dữ liệu dưới dạng mảng nhị phân phẳng ngoài <code>JVM Heap</code> để giảm kích thước bộ nhớ và triệt tiêu <code>GC Pause</code>; (2) <strong><code>Cache-Aware Computation</code></strong> xếp các bản ghi và con trỏ tiền tố khóa nằm liền kề tuần tự để tận dụng tốc độ <code>L1/L2/L3 CPU Cache (~1 ns)</code> nhanh gấp 100 lần so với <code>RAM (~100 ns)</code>; và (3) <strong><code>Whole-Stage Code Generation</code></strong> biên dịch gộp chuỗi toán tử <code>Scan → Filter → Project → Aggregate</code> thành một vòng lặp <code>Java Bytecode</code> phẳng duy nhất, loại bỏ hoàn toàn lời gọi hàm ảo của mô hình <code>Volcano Iterator</code>.</li>
+            <li><strong>Vòng lặp phản hồi và 3 phép tối ưu động của <code>Adaptive Query Execution (AQE)</code>:</strong> Tại sao đã có Catalyst mà vẫn cần AQE, và AQE can thiệp vào thời điểm nào của Job?
+              <br><em>Đáp án:</em> Catalyst lập kế hoạch tĩnh trước khi chạy nên dễ ước lượng sai kích thước dữ liệu sau các bộ lọc phức tạp hoặc <code>UDF</code>. AQE thu thập <strong><code>Runtime Statistics</code></strong> thực tế ngay tại ranh giới kết thúc mỗi <code>Shuffle Stage</code> để thực hiện 3 phép hiệu chỉnh động: (1) <strong><code>Switch Join Strategy</code></strong> chuyển <code>Sort-Merge Join</code> thành <code>Broadcast Hash Join</code> nếu một nhánh sau lọc nhỏ hơn ngưỡng broadcast; (2) <strong><code>Coalesce Shuffle Partitions</code></strong> gộp các phân vùng <code>Shuffle</code> nhỏ thành các phân vùng vừa vặn (~<code>64MB</code>); và (3) <strong><code>Handle Skewed Joins</code></strong> tự động cắt nhỏ phân vùng bị lệch (<code>Data Skew</code>) thành nhiều phân vùng con để xử lý song song.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/D03/5" onclick="selectStorageStage(5);return false;">Sang Chặng 5: Sáu Kỹ Thuật Tinh Chỉnh Hiệu Năng Thủ Công (Shuffle, Join, Key Salting, High Cardinality &amp; Wide Schema) →</a></p>
+        </section>
+      </div>

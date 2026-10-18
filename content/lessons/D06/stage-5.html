@@ -1,0 +1,488 @@
+      <div class="prose">
+        <x-spine id="orchestration-5-spine" badge="TRONG BÀI HỌC NÀY · D06" title="Chặng 5: Kiểm Định Chất Lượng Dữ Liệu (GX, Deequ), Cầu Dao Tự Ngắt (Circuit Breaker), Hợp Đồng Dữ Liệu &amp; Quản Trị DataHub" subtitle="Trạm 5.1 → 5.4">Khép kín vòng lặp tin cậy cho <strong>daily_sales_pipeline</strong> và <strong>Order #8888</strong>: đo lường <strong>6 Chiều Chất lượng Dữ liệu (Six Data Quality Dimensions)</strong>, chặn đứng dữ liệu bẩn bằng mẫu <strong>Circuit Breaker Pattern</strong> trong Airflow, khóa giao diện thượng nguồn bằng <strong>Data Contracts</strong>, thực thi kiểm định với <strong>Great Expectations (GX) / Apache Spark Deequ</strong> và truy vết phả hệ toàn cục trên <strong>DataHub</strong>.</x-spine>
+
+        <p>Ở <strong>Chặng 3</strong> và <strong>Chặng 4</strong>, chúng ta đã dựng nên một động cơ điều phối <strong>Apache Airflow</strong> có khả năng lập lịch chuẩn xác từng phút, mở rộng quy mô linh hoạt qua <code>KubernetesExecutor</code>, truyền tải siêu dữ liệu nhẹ nhàng bằng <code>XCom</code> và tự động phục hồi (Self-Healing) trước các sự cố đứt cáp mạng hay quá tải API tạm thời. Nhưng hãy đặt một câu hỏi phản biện sắc lạnh của kỹ sư dữ liệu cấp cao: <em>Điều gì xảy ra nếu mọi tác vụ trong <code>daily_sales_pipeline</code> đều báo màu xanh lá cây (<code>State: SUCCESS</code>, <code>Exit Code = 0</code>), nhưng bản ghi <strong>Order #8888</strong> vừa chảy qua đường ống lại mang giá trị âm <code>amount = -450000</code>, thiếu trường <code>user_id = NULL</code>, hoặc bị nhân bản thành 3 dòng trùng lặp do lỗi phía ứng dụng nguồn?</em> Một đường ống tự động hóa tốc độ cao mà không có chốt chặn kiểm định chất lượng chẳng khác nào một dây chuyền bơm rác vào thẳng báo cáo tài chính CEO và mô hình học máy với tốc độ ánh sáng. <strong>Chặng 5</strong> giải quyết bài toán cốt tử này theo giáo trình <em>D06 · Orchestration &amp; Governance</em> (Slide 39–62) và <em>Fundamentals of Data Observability</em> (Andy Petrella, Ch. 1–7): định lượng hóa chất lượng qua <strong>6 Chiều Đo lường</strong>, cài đặt <strong>Cầu dao Tự ngắt (Circuit Breaker Pattern)</strong> ngay trong đồ thị Airflow, ký kết <strong>Hợp đồng Dữ liệu (Data Contracts)</strong> với đội thượng nguồn, triển khai <strong>Great Expectations (GX) / Spark Deequ</strong> và quản trị phả hệ đầu-cuối trên <strong>DataHub</strong>.</p>
+
+        <section class="lesson-section" id="orchestration-5-1">
+          <h2 id="orchestration-5-1-h2" tabindex="-1">Trạm 5.1: Cái Giá $11.8M Của Dữ Liệu Bẩn, 6 Chiều Chất Lượng Dữ Liệu (Six Data Quality Dimensions) &amp; Chu Trình Cải Tiến 5 Bước</h2>
+
+          <p>Trong kỹ thuật phần mềm truyền thống, khi chương trình gặp lỗi cú pháp hoặc truy cập bộ nhớ bất hợp lệ, tiến trình lập tức dừng lại và văng ngoại lệ (Crash Fast). Ngược lại, trong kỹ thuật dữ liệu, <strong>Dữ liệu Bẩn (Bad Data — dữ liệu không đáp ứng được mục đích sử dụng dự kiến)</strong> nguy hiểm hơn gấp bội vì nó thường xuyên <strong>thất bại trong im lặng (Silent Failure)</strong>: câu lệnh SQL <code>INSERT</code> và <code>SUM(amount)</code> vẫn chạy trơn tru trên các dòng bị thiếu giá trị bắt buộc, sai kiểu dữ liệu, lệch định dạng, nhân bản bản ghi, lỗi thời hoặc thay đổi lược đồ bất ngờ (Slide 40–41). Theo thống kê của <strong>Gartner</strong> (Slide 40), chất lượng dữ liệu kém gây thiệt hại trung bình <strong><code>$11.8M mỗi năm</code></strong> cho mỗi tổ chức. Lịch sử ngành công nghiệp đã chứng kiến những thảm họa khốc liệt do thiếu chốt chặn kiểm định dữ liệu:</p>
+          <ul>
+            <li><strong>Thảm họa Y tế Công cộng tại Anh (Public Health England — PHE, Slide 40):</strong> Một đường ống dữ liệu tự động xuất tệp CSV sang định dạng bảng tính Excel <code>.xls</code> cũ (giới hạn cứng <code>65.536 dòng</code>) mà không có bước kiểm tra đối soát số lượng bản ghi (Completeness / Row Count Validation). Hậu quả là <strong><code>16.000 kết quả xét nghiệm dương tính COVID-19</code></strong> bị cắt cụt âm thầm mà không một cảnh báo nào nổ ra, làm tê liệt công tác truy vết F1 ngay đỉnh dịch.</li>
+            <li><strong>Thảm họa Học máy tại Unity Software (Slide 40):</strong> Hệ thống thu thập dữ liệu của Unity nuốt phải một luồng dữ liệu huấn luyện bị hỏng (corrupted training data) từ một khách hàng lớn đưa thẳng vào mô hình quảng cáo cốt lõi <em>Audience Pinpointer ML</em>. Vì không có cầu dao kiểm định phân phối dữ liệu đầu vào, mô hình học máy bị đầu độc hoàn toàn, buộc công ty phải xóa bỏ và huấn luyện lại từ đầu, gây thiệt hại doanh thu trực tiếp <strong><code>$110M</code></strong> và thổi bay <strong><code>$5 tỷ USD</code> giá trị vốn hóa thị trường</strong>.</li>
+          </ul>
+
+          <x-figure id="orchestration-5-1-fig" key="5.1" title="Sơ đồ 5.1 — Sáu Chiều Đo Lường Chất Lượng Dữ Liệu (Six Data Quality Dimensions), Ánh Xạ Sang Quy Tắc Thực Thi &amp; Vòng Lặp Cải Tiến 5 Bước">Từ định nghĩa chất lượng trừu tượng sang các hàm kiểm tra tự động (PASS/FAIL) và chu trình khép kín Discovery → Rules → Monitor → Correction.</x-figure>
+
+          <h3 id="orchestration-5-1-dimensions">Lượng hóa Chất lượng: 6 Chiều Chất lượng Dữ liệu (Six Data Quality Dimensions) &amp; Quy tắc Thực thi (Slide 42–43)</h3>
+          <p>Chúng ta không thể bảo vệ thứ mà chúng ta không thể đo lường bằng toán học và mã lệnh. Thay vì nói chung chung rằng <em>"bảng <code>prod.orders</code> hôm nay có vẻ đáng ngờ"</em>, kỹ sư dữ liệu phân rã chất lượng của giao dịch <strong>Order #8888</strong> (<code>order_id="ORD-8888"</code>, <code>user_id="USR-104"</code>, <code>amount=450000</code>) và hệ thống CRM bán lẻ thành <strong>6 chiều đo lường độc lập (Six Data Quality Dimensions)</strong>, trong đó mỗi chiều ánh xạ trực tiếp sang các quy tắc kiểm định thực thi được (Executable Validation Rules trả về <code>PASS</code> hoặc <code>FAIL</code>):</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chiều Chất lượng (Dimension)</th>
+                  <th>Định nghĩa Cơ học (Slide 42)</th>
+                  <th>Ví dụ Thực tế trên <code>Order #8888</code> &amp; CRM Bán lẻ (Slide 42–46)</th>
+                  <th>Quy tắc Kiểm định Thực thi (Executable Validation Rules — Slide 43)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Accuracy (Độ chính xác)</strong></td>
+                  <td>Dữ liệu phản ánh đúng sự thật khách quan của sự kiện ngoài đời thực.</td>
+                  <td>Giá trị <code>amount = 450000</code> của <strong>Order #8888</strong> khớp 100% với hóa đơn thanh toán thực tế; không xuất hiện đơn hàng có giá âm <code>-450000</code> hay thời gian đặt hàng nằm ở năm <code>2099</code>.</td>
+                  <td>• <code>amount &gt; 0</code> (Giá trị đơn hàng phải dương).<br>• <code>event_time &lt;= CURRENT_TIMESTAMP</code> (Thời gian sự kiện không được nằm trong tương lai).</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Completeness (Độ đầy đủ)</strong></td>
+                  <td>Toàn bộ các trường và bản ghi bắt buộc đều hiện diện, không bị khuyết thiếu.</td>
+                  <td>Bản ghi <strong>Order #8888</strong> phải có đủ <code>user_id="USR-104"</code> và địa chỉ giao hàng; trong bài toán <strong>Retail CRM (Slide 45)</strong>, phát hiện <code>15%</code> hồ sơ khách hàng bị trống trường <code>email</code>.</td>
+                  <td>• <code>user_id IS NOT NULL</code> &amp; <code>order_id IS NOT NULL</code>.<br>• Tỷ lệ <code>Completeness(email) &gt;= 0.95</code> (Tối đa 5% bản ghi được phép thiếu email).</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Consistency (Tính nhất quán)</strong></td>
+                  <td>Cùng một thực thể dữ liệu phải khớp nhau và giữ chung quy ước biểu diễn xuyên suốt các hệ thống khác nhau.</td>
+                  <td>Mã khách hàng <code>USR-104</code> trên PostgreSQL khớp với <code>USR-104</code> trên kho dữ liệu Snowflake; số điện thoại trong CRM không bị trộn lẫn giữa <code>+84-555-1234</code> và <code>05551234</code> (Slide 45–46).</td>
+                  <td>• Chuẩn hóa định dạng E.164: <code>phone LIKE '+84-%'</code> trên mọi bảng.<br>• Khóa ngoại <code>orders.user_id</code> phải tồn tại trong bảng chiều <code>dim_users.user_id</code> (Referential Integrity).</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Timeliness (Tính kịp thời / Freshness)</strong></td>
+                  <td>Dữ liệu sẵn sàng đúng vào thời điểm nghiệp vụ cần sử dụng (đáp ứng SLA).</td>
+                  <td>Dữ liệu <code>daily_sales_pipeline</code> ngày <code>2026-05-15</code> phải cập bến tầng Gold trước <code>06:00 UTC</code> để ban giám đốc họp giao ban; luồng CDC không được trễ quá 5 phút.</td>
+                  <td>• <code>NOW() - MAX(updated_at) &lt; INTERVAL '5 minutes'</code>.<br>• Sản lượng dòng theo ngày (Daily Row Count) không được sụt giảm quá <code>30%</code> so với trung bình động 7 ngày trước.</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Validity (Tính hợp lệ)</strong></td>
+                  <td>Dữ liệu tuân thủ chặt chẽ quy tắc định dạng (format), kiểu dữ liệu và miền giá trị (domain constraints).</td>
+                  <td>Trong hệ thống CRM (Slide 45), có tới <code>10%</code> địa chỉ email lưu sai cú pháp (như <code>nguyenvana@@gmail..com</code>); mã trạng thái đơn hàng chỉ được nằm trong tập hợp cho phép.</td>
+                  <td>• <code>email ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'</code>.<br>• <code>LENGTH(phone_digits) = 10</code>.<br>• <code>status IN ('PENDING', 'PAID', 'SHIPPED', 'CANCELLED')</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>6. Uniqueness (Tính duy nhất)</strong></td>
+                  <td>Mỗi thực thể thực tế chỉ xuất hiện duy nhất một lần, không có bản ghi nhân bản (duplicates).</td>
+                  <td>Khóa chính <code>order_id = "ORD-8888"</code> chỉ được phép xuất hiện đúng 1 dòng trong bảng <code>prod.orders</code>; một khách hàng trong CRM không bị tạo thành 2 mã <code>customer_id</code> trùng số căn cước.</td>
+                  <td>• <code>COUNT(*) - COUNT(DISTINCT order_id) = 0</code>.<br>• <code>expect_column_values_to_be_unique("order_id")</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 id="orchestration-5-1-lifecycle">Vòng lặp Cải tiến Chất lượng 5 Bước (Data Quality Improvement Lifecycle) &amp; 4 Cấp độ Phát hiện (Slide 44–48)</h3>
+          <p>Chất lượng dữ liệu không phải là một dự án làm một lần rồi cất vào ngăn kéo, mà là một <strong>chu trình vận hành liên tục gồm 5 bước (Slide 44)</strong> được minh họa rõ nét qua <strong>Nghiên cứu Tình huống Hệ thống CRM Bán lẻ (Retail CRM Case Study — Slide 45–46)</strong>:</p>
+          <ol>
+            <li><strong>Bước 1 — Data Discovery (Khám phá &amp; Hồ sơ hóa dữ liệu):</strong> Chạy Data Profiling quét toàn bộ bảng khách hàng CRM hiện hành. Kết quả phơi bày bức tranh thực trạng: <code>15%</code> bản ghi bị khuyết địa chỉ email, <code>10%</code> email sai định dạng, hàng nghìn bản ghi khách hàng bị trùng lặp và cột số điện thoại lưu hỗn độn nhiều kiểu (<code>+1-555-1234</code> lẫn <code>05551234</code>).</li>
+            <li><strong>Bước 2 — Define Data Quality Rules (Định nghĩa Quy tắc Chất lượng):</strong> Chuyển hóa các vấn đề vừa phát hiện thành bộ tiêu chuẩn kỹ thuật cứng: bắt buộc kiểm tra cú pháp email bằng biểu thức chính quy (Regex), ép chuẩn định dạng số điện thoại về <code>+CountryCode-Number</code>, và đặt ràng buộc duy nhất trên khóa định danh khách hàng.</li>
+            <li><strong>Bước 3 — Data Monitoring (Giám sát Tự động Liên tục):</strong> Đưa các quy tắc ở Bước 2 vào đường ống chạy hằng ngày để theo dõi tỷ lệ lỗi theo thời gian và tự động bắn cảnh báo ngay khi tỷ lệ email không hợp lệ vượt ngưỡng <code>&gt; 5%</code>.</li>
+            <li><strong>Bước 4 — Data Correction / Remediation (Làm sạch &amp; Khắc phục):</strong> Thực thi kịch bản khử trùng lặp (Deduplication) các hồ sơ khách hàng bị nhân đôi, chuẩn hóa lại cột số điện thoại lịch sử và yêu cầu đội phát triển ứng dụng sửa lại biểu mẫu đăng ký (Input Form Validation) ở phía giao diện người dùng.</li>
+            <li><strong>Bước 5 — Continuous Cycle (Lặp lại Chu trình Liên tục):</strong> Khi doanh nghiệp tung ra sản phẩm mới hoặc tích hợp nguồn dữ liệu mới, vòng lặp quay trở lại Bước 1 để khám phá các điểm mù mới phát sinh.</li>
+          </ol>
+
+          <p>Để vận hành Bước 3 (Data Monitoring) ở quy mô doanh nghiệp, hệ thống giám sát phải đáp ứng <strong>4 Yêu cầu Cốt lõi (4 Monitoring Requirements — Slide 47)</strong>: (1) <strong>Detect</strong> — phát hiện lỗi ở cả cấp độ Bảng (Table level), Dòng (Row level) và Cột (Column level); (2) <strong>Alert</strong> — thông báo đúng người chịu trách nhiệm kèm ngữ cảnh đầy đủ để chẩn đoán; (3) <strong>Solve</strong> — hỗ trợ khoanh vùng và xử lý sự cố nhanh chóng; và (4) <strong>Scale</strong> — mở rộng quy mô kiểm tra trên hàng nghìn bảng toàn tổ chức mà không cần viết tay từng câu lệnh rời rạc. Theo <strong>Slide 48</strong> và <em>Fundamentals of Data Observability</em> (Ch. 2), có <strong>4 Phương pháp Phát hiện Lỗi Dữ liệu (4 Detection Approaches)</strong> tiến hóa từ bị động sang chủ động:</p>
+          <ul>
+            <li><strong>Cấp độ 0 — Manual by Accident (Phát hiện Tình cờ Thủ công):</strong> Không có kiểm định tự động; lỗi chỉ lộ ra khi Giám đốc Tài chính mở báo cáo thấy doanh thu tụt về 0 rồi gọi điện chất vấn đội dữ liệu. Đây là trạng thái bị động nguy hiểm nhất.</li>
+            <li><strong>Cấp độ 1 — Rule-Based Checks (Kiểm tra Dựa trên Quy tắc Tường minh — Điểm khởi đầu tốt nhất!):</strong> Kỹ sư chủ động viết các điều kiện kiểm định rõ ràng (như <code>amount &gt; 0</code>, <code>order_id IS NOT NULL</code>). Phương pháp này dễ hiểu, không có cảnh báo giả (zero false positives) và bắt được toàn bộ các lỗi đã biết trước (Known Unknowns).</li>
+            <li><strong>Cấp độ 2 — Metrics Monitoring (Giám sát Xu hướng &amp; Phân phối Chỉ số):</strong> Theo dõi chuỗi thời gian của các chỉ số thống kê (như tổng số dòng mỗi ngày, tỷ lệ <code>NULL</code>, giá trị trung bình <code>AVG(amount)</code>, độ lệch chuẩn) để phát hiện sự trôi dạt dữ liệu (Data Drift).</li>
+            <li><strong>Cấp độ 3 — Machine Learning Anomaly Detection (Phát hiện Bất thường bằng Học máy):</strong> Huấn luyện mô hình tự động học tính mùa vụ (Seasonality — ví dụ lượng đơn hàng cuối tuần luôn cao hơn ngày thường 40%) để phát hiện các điểm dị biệt chưa từng được lập trình thành quy tắc (Unknown Unknowns).</li>
+          </ul>
+
+          <p>Nắm vững 6 chiều chất lượng và các quy tắc kiểm tra là điều kiện cần, nhưng nếu bước kiểm định đó chỉ chạy như một kịch bản báo cáo độc lập bên ngoài luồng dữ liệu chính thì thảm họa vẫn tiếp diễn. Hãy bước sang <strong>Trạm 5.2</strong> để xem cách gắn chặt bộ kiểm định vào thẳng trái tim của trình điều phối Airflow.</p>
+        </section>
+
+        <section class="lesson-section" id="orchestration-5-2">
+          <h2 id="orchestration-5-2-h2" tabindex="-1">Trạm 5.2: Tại Sao Kiểm Định Phải Nằm Trong Điều Phối &amp; Mẫu Cầu Dao Tự Ngắt (Circuit Breaker Pattern Trong Airflow)</h2>
+
+          <p>Một sai lầm kiến trúc phổ biến ở các đội dữ liệu mới trưởng thành là tách rời <strong>Data Validation (Kiểm định dữ liệu)</strong> khỏi <strong>Workflow Orchestration (Điều phối luồng công việc)</strong> (Slide 49). Họ thiết lập một DAG biến đổi dữ liệu chạy lúc 01:00 sáng và một công cụ kiểm tra chất lượng chạy độc lập lúc 01:30 sáng chỉ để gửi email thông báo. Hãy nhìn vào chuỗi hiệu ứng domino trên <strong>Slide 50 (The Problem of Bad Data Flowing Downstream)</strong> khi <code>Validation Check</code> phát hiện dữ liệu lỗi (đánh dấu <code>[X]</code>) nhưng <strong>không ai ra lệnh cho đường ống dừng lại</strong>:</p>
+          <ol>
+            <li>Tác vụ <code>Ingest Data</code> kéo một mẻ dữ liệu bị lỗi (trong đó <strong>Order #8888</strong> bị lỗi nhân bản 10 lần hoặc cột <code>amount</code> bị nhân nhầm tỷ giá gấp 1.000 lần) vào tầng Staging.</li>
+            <li>Tác vụ <code>Validation Check</code> chạy song song phát hiện lỗi và ghi log cảnh báo, nhưng vì không đóng vai trò cổng chặn trên đồ thị DAG, tác vụ <code>Transform</code> ở hạ lưu vẫn cứ thế kích hoạt trên đống dữ liệu bẩn đó.</li>
+            <li>Tác vụ <code>Load to DW</code> ghi đè (<code>MERGE</code> / <code>INSERT OVERWRITE</code>) kết quả đã bị ô nhiễm vào thẳng các bảng tầng <strong>Gold / Data Warehouse</strong>.</li>
+            <li>Hệ thống <code>Dashboard / ML Model</code> ở cuối nguồn tự động làm mới bộ nhớ đệm, hiển thị con số doanh thu sai lệch nghiêm trọng lên màn hình Ban Điều hành và nạp các đặc trưng (features) rác vào mô hình dự báo.</li>
+            <li>Nhiều giờ hoặc nhiều ngày sau, khi phòng Kinh doanh phát hiện số liệu vô lý, kỹ sư mới mở log ra tìm nguyên nhân gốc (Root Cause), phải xóa bỏ phân vùng dữ liệu bẩn ở hàng chục bảng hạ lưu và chạy lại (Backfill) toàn bộ hệ thống trong sự hỗn loạn.</li>
+          </ol>
+
+          <x-figure id="orchestration-5-2-fig" key="5.2" title="Sơ đồ 5.2 — Thảm Họa Dữ Liệu Bẩn Chảy Xuống Hạ Nguồn vs. Mẫu Cầu Dao Tự Ngắt (Circuit Breaker Pattern) Trong Airflow DAG">Cơ chế biến bước kiểm định thành cổng quyết định (Execution Gate) tự động ngắt nhánh Transform/Load và bắn cảnh báo ngay khi phát hiện vi phạm.</x-figure>
+
+          <h3 id="orchestration-5-2-circuitbreaker">Giải phẫu Mẫu Cầu Dao Tự Ngắt (The Circuit Breaker Pattern) &amp; Mô hình Write-Audit-Publish (WAP)</h3>
+          <p>Để chấm dứt thảm họa dữ liệu bẩn chảy tràn xuống hạ lưu, <strong>Slide 49 &amp; 51–52</strong> cùng sách <em>Fundamentals of Data Observability</em> (Ch. 6: <em>Fail Fast and Fail Safe</em>) đưa ra nguyên lý cốt lõi: <strong>Kiểm định không phải là sự kiểm tra thụ động đứng ngoài cuộc; kiểm định phải là một Điểm Quyết định (Execution Gate / Decision Point) nằm ngay bên trong đồ thị điều phối!</strong></p>
+          <p>Mẫu thiết kế <strong>Cầu dao Tự ngắt (Circuit Breaker Pattern)</strong> được mượn trực tiếp từ kỹ thuật điện dân dụng: khi phát hiện dòng điện bị đoản mạch (chập điện), aptomat lập tức nhảy sang trạng thái <strong>Ngắt mạch (Tripped / Open)</strong> trong tích tắc để cắt nguồn điện trước khi dây dẫn bốc cháy thiêu rụi cả ngôi nhà. Khi áp dụng vào <code>daily_sales_pipeline</code> trên Apache Airflow kết hợp với quy trình <strong>Write-Audit-Publish (WAP — Ghi vào vùng đệm → Kiểm toán → Công bố)</strong>, luồng dữ liệu của <strong>Order #8888</strong> được bảo vệ qua 4 thành phần cơ học chặt chẽ (Slide 52):</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Thành phần Cầu dao trong Airflow (Slide 52)</th>
+                  <th>Toán tử Airflow (Operator / Decorator)</th>
+                  <th>Hành vi Cơ học đối với <code>Order #8888</code> trên <code>daily_sales_pipeline</code></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Ingest Data (Pha Write — Ghi vào vùng cách ly)</strong></td>
+                  <td><code>PythonOperator</code> / <code>PostgresToS3Operator</code></td>
+                  <td>Tuyệt đối không ghi thẳng dữ liệu mới thu thập vào bảng chính <code>prod.gold_daily_sales</code>. Dữ liệu chứa <strong>Order #8888</strong> được nạp vào bảng tạm hoặc nhánh cách ly <code>staging.orders_20260515</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Validation Task (Pha Audit — Tác vụ Kiểm định)</strong></td>
+                  <td><code>GreatExpectationsOperator</code> hoặc <code>@task</code> thực thi bộ quy tắc SQL / PyDeequ</td>
+                  <td>Quét bảng <code>staging.orders_20260515</code> để kiểm tra 6 chiều chất lượng (<code>order_id</code> duy nhất, <code>amount &gt; 0</code>, không có <code>user_id IS NULL</code>). Đẩy kết quả boole (<code>validation_passed = True/False</code>) cùng bản tóm tắt lỗi vào <code>XCom</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Branch Decision (Cầu dao Phân nhánh)</strong></td>
+                  <td><code>BranchPythonOperator</code> (<code>@task.branch</code>) hoặc <code>ShortCircuitOperator</code></td>
+                  <td>Đọc kết quả từ <code>Validation Task</code>: nếu <strong><code>PASS</code></strong>, cầu dao đóng mạch trả về nhánh <code>"transform_and_publish"</code>; nếu <strong><code>FAIL</code></strong>, cầu dao lập tức nhảy ngắt mạch, trả về nhánh <code>"quarantine_and_alert_slack"</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Downstream vs. Alert Path (Pha Publish hoặc Cô lập Cảnh báo)</strong></td>
+                  <td><code>SparkSubmitOperator</code> (nhánh PASS) vs. <code>SlackWebhookOperator</code> (nhánh FAIL)</td>
+                  <td>• <strong>Khi PASS:</strong> Chạy biến đổi, công bố (Publish) dữ liệu sạch sang bảng Gold và cập nhật Dashboard.<br>• <strong>Khi FAIL:</strong> Toàn bộ nhánh <code>Transform → Load → Dashboard</code> bị Airflow chuyển sang trạng thái <code>skipped</code> (bảo toàn 100% dữ liệu sạch của ngày hôm qua trên Dashboard!), đồng thời giữ mẻ lỗi lại vùng Quarantine và bắn cảnh báo khẩn cấp qua Slack/PagerDuty.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 id="orchestration-5-2-code">Triển khai Thực chiến: Mã nguồn Airflow DAG Tích hợp Cầu dao Tự ngắt (Circuit Breaker)</h3>
+          <p>Đoạn mã chuẩn Production dưới đây minh họa cách lập trình mẫu <strong>Circuit Breaker Pattern</strong> trong Airflow cho <code>daily_sales_pipeline</code> (phiên chạy <code>manual__2026-05-15</code>) bằng <code>@task.branch</code> kết hợp cơ chế cô lập dữ liệu bẩn:</p>
+
+          <pre><code>from datetime import datetime
+from airflow.decorators import dag, task
+from airflow.operators.empty import EmptyOperator
+
+@dag(
+    dag_id="daily_sales_pipeline_circuit_breaker",
+    start_date=datetime(2026, 5, 1),
+    schedule="0 1 * * *",
+    catchup=False,
+    tags=["d06", "circuit-breaker", "data-quality"],
+)
+def daily_sales_circuit_breaker_dag():
+
+    @task
+    def ingest_to_staging(ds: str = None) -&gt; str:
+        staging_table = f"staging.orders_{ds.replace('-', '')}"
+        # Pha Write (WAP): Nạp lô dữ liệu có Order #8888 vào bảng Staging cách ly
+        return staging_table
+
+    @task
+    def validate_staging_batch(staging_table: str) -&gt; dict:
+        # Pha Audit: Kiểm tra 6 chiều chất lượng trên bảng Staging
+        metrics = {
+            "table": staging_table,
+            "total_rows": 125400,
+            "duplicate_order_ids": 0,          # Uniqueness: ORD-8888 là duy nhất
+            "null_user_id_ratio": 0.001,       # Completeness: &lt; ngưỡng 1%
+            "negative_amount_count": 0,        # Accuracy: amount = 450000 (&gt; 0)
+            "invalid_email_ratio": 0.012,      # Validity: &lt; ngưỡng 5% (Slide 46)
+        }
+        passed = (
+            metrics["duplicate_order_ids"] == 0
+            and metrics["null_user_id_ratio"] &lt;= 0.01
+            and metrics["negative_amount_count"] == 0
+            and metrics["invalid_email_ratio"] &lt;= 0.05
+        )
+        return {"passed": passed, "metrics": metrics}
+
+    @task.branch
+    def circuit_breaker_gate(audit_result: dict) -&gt; str:
+        # Cầu dao Quyết định (Branch Decision — Slide 52)
+        if audit_result["passed"]:
+            return "transform_and_publish_gold"
+        return "quarantine_and_alert_slack"
+
+    @task
+    def transform_and_publish_gold(staging_table: str) -&gt; None:
+        # Pha Publish: Chỉ thực thi khi cầu dao PASS
+        print(f"[PUBLISH] MERGE {staging_table} (Order #8888) -&gt; prod.gold_daily_sales")
+
+    @task
+    def quarantine_and_alert_slack(audit_result: dict) -&gt; None:
+        # Nhánh Ngắt mạch: Cô lập bảng lỗi và bắn cảnh báo kèm ngữ cảnh cho Data Engineer
+        m = audit_result["metrics"]
+        raise RuntimeError(
+            f"[CIRCUIT BREAKER TRIPPED] Đã chặn đứng nhánh Transform/Load! "
+            f"Bảng {m['table']} vi phạm ngưỡng chất lượng: {m}"
+        )
+
+    refresh_executive_dashboard = EmptyOperator(task_id="refresh_executive_dashboard")
+
+    # Kết nối đồ thị phụ thuộc (DAG Wiring)
+    stg = ingest_to_staging()
+    audit = validate_staging_batch(stg)
+    gate = circuit_breaker_gate(audit)
+
+    publish = transform_and_publish_gold(stg)
+    alert = quarantine_and_alert_slack(audit)
+
+    gate &gt;&gt; [publish, alert]
+    publish &gt;&gt; refresh_executive_dashboard
+
+daily_sales_circuit_breaker_dag()</code></pre>
+
+          <p>Mẫu <strong>Circuit Breaker</strong> đã cứu nguy cho bảng <code>prod.gold_daily_sales</code> và Dashboard của CEO khỏi bị nhiễm bẩn. Nhưng hãy nhìn sâu hơn vào bản chất vấn đề (Slide 53): khi cầu dao nhảy lúc 02:00 sáng, <em>đường ống dữ liệu vẫn bị dừng lại và kỹ sư trực ca vẫn bị dựng dậy giữa đêm để dọn dẹp hậu quả do đội phần mềm thượng nguồn gây ra!</em> Làm thế nào để ngăn chặn dữ liệu bẩn ngay từ trước khi nó kịp sinh ra? Đó chính là sứ mệnh của <strong>Hợp đồng Dữ liệu (Data Contracts)</strong> tại <strong>Trạm 5.3</strong>.</p>
+        </section>
+
+        <section class="lesson-section" id="orchestration-5-3">
+          <h2 id="orchestration-5-3-h2" tabindex="-1">Trạm 5.3: Phòng Bệnh Từ Thượng Nguồn Với Hợp Đồng Dữ Liệu (Data Contracts — Giao Diện Cam Kết Giữa Producer &amp; Consumer)</h2>
+
+          <p>Trong hầu hết các doanh nghiệp, nguyên nhân số một làm gãy các đường ống dữ liệu ở hạ lưu không phải do lỗi của Apache Spark hay Airflow, mà do <strong>sự đứt gãy giao tiếp giữa Đội Sản xuất Dữ liệu (Producer Team — các kỹ sư Backend/Microservices vận hành cơ sở dữ liệu giao dịch) và Đội Tiêu thụ Dữ liệu (Consumer Team — các kỹ sư Data/Analytics/ML)</strong> (Slide 53). Đội Backend coi cơ sở dữ liệu PostgreSQL <code>prod.orders</code> là tài sản nội bộ của riêng ứng dụng đặt hàng; họ thoải mái sửa đổi lược đồ để ra mắt tính năng mới trên ứng dụng di động mà không hề biết rằng có 15 đường ống Airflow và 4 mô hình AI ở hạ lưu đang phụ thuộc sống còn vào bảng đó. <strong>Slide 53</strong> chỉ rõ 4 kịch bản thay đổi thượng nguồn làm sập toàn bộ hạ lưu chỉ sau một lần triển khai code (Deployment):</p>
+          <ul>
+            <li><strong>Đổi tên cột (Column Renamed):</strong> Kỹ sư Backend đổi tên cột <code>user_id</code> thành <code>userId</code> (theo chuẩn camelCase của JavaScript) → Câu lệnh SQL biến đổi ở hạ lưu chết ngay lập tức với lỗi <code>Column 'user_id' does not exist</code>.</li>
+            <li><strong>Xóa cột không báo trước (Column Removed):</strong> Cột <code>purchase_date</code> bị gỡ bỏ khi tối ưu bảng → Đường ống trích xuất đặc trưng (Feature Pipeline) của mô hình dự đoán rời bỏ (Churn ML Model) bị sập hoàn toàn.</li>
+            <li><strong>Thay đổi kiểu dữ liệu (Column Type Changed):</strong> Đổi kiểu cột từ số nguyên <code>INT</code> sang chuỗi <code>VARCHAR</code> (hoặc đổi đơn vị tiền tệ từ VNĐ sang USD) → Bộ kiểm định hoặc thuật toán huấn luyện mô hình tính toán sai lệch.</li>
+            <li><strong>Thay đổi ràng buộc Nullability (Required Field Becomes Nullable):</strong> Một trường vốn bắt buộc phải có giá trị bỗng nhiên cho phép ghi <code>NULL</code> khi người dùng thanh toán nhanh (Guest Checkout) → Báo cáo doanh thu theo phân khúc khách hàng bị sai lệch nghiêm trọng.</li>
+          </ul>
+
+          <x-figure id="orchestration-5-3-fig" key="5.3" title="Sơ đồ 5.3 — Cơ Chế Hợp Đồng Dữ Liệu (Data Contract) Giữa Producer Team &amp; Consumer Team Với Bộ Kiểm Định Tự Động 5 Thuộc Tính">Chuyển dịch kiểm soát chất lượng về phía thượng nguồn (Shift-Left): khóa chặt Schema, Nullability, Value Range, Freshness và Uniqueness tại ranh giới giao tiếp liên đội ngũ.</x-figure>
+
+          <h3 id="orchestration-5-3-definition">Hợp đồng Dữ liệu (Data Contract) là gì &amp; 5 Thuộc tính Cốt lõi (Slide 54–55)</h3>
+          <p>Theo <strong>Slide 54</strong> và triết lý <em>Shift-Left Data Quality</em> trong sách của Andy Petrella (Ch. 3 &amp; Ch. 6), nguyên nhân gốc rễ của mọi sự cố trên là <strong>Producer và Consumer chưa từng ký kết một thỏa thuận chính thức về giao diện dữ liệu (Data Interface)</strong>. Cũng giống như trong kiến trúc Microservices, không một kỹ sư Backend nào dám tự ý đổi tên trường JSON của một REST API công khai mà không thông báo hay đánh phiên bản (API Versioning), dữ liệu đi qua ranh giới giữa các đội ngũ cũng phải được đối xử như một <strong>API Sản phẩm có cam kết chặt chẽ</strong>.</p>
+          <p><strong>Data Contract (Hợp đồng Dữ liệu)</strong> là một thỏa thuận chính thức, <strong>đọc hiểu và thực thi được bằng máy (machine-readable YAML/JSON specification)</strong> giữa <strong>Producer Team</strong> và <strong>Consumer Team</strong> nhằm định nghĩa và cưỡng chế <strong>5 thuộc tính cốt lõi của tài sản dữ liệu (5 Core Properties — Slide 55)</strong>:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Thuộc tính Hợp đồng (Contract Property — Slide 55)</th>
+                  <th>Cam kết Giữa Producer &amp; Consumer (Slide 55)</th>
+                  <th>Quy tắc Áp dụng trên Tài sản <code>prod.orders</code> (<code>Order #8888</code>)</th>
+                  <th>Cơ chế Cưỡng chế Tự động (Contract Validator tại CI/CD &amp; Runtime)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Schema (Cấu trúc Lược đồ)</strong></td>
+                  <td>Các cột cam kết bắt buộc phải tồn tại và giữ nguyên tên gọi cùng kiểu dữ liệu vật lý.</td>
+                  <td>Cột <code>order_id</code> (<code>VARCHAR</code>), <code>user_id</code> (<code>VARCHAR</code>), <code>amount</code> (<code>DECIMAL(12,2)</code>), <code>purchase_date</code> (<code>TIMESTAMP</code>) không được tự ý xóa hoặc đổi kiểu.</td>
+                  <td>Trong luồng <strong>GitHub Actions CI/CD</strong> của đội Backend: nếu có Pull Request chứa tệp migration <code>ALTER TABLE prod.orders DROP COLUMN purchase_date</code> hoặc đổi tên <code>user_id</code>, <code>Contract Validator</code> lập tức đánh trượt bản build (Block PR) và yêu cầu chữ ký duyệt của Consumer Team.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Nullability (Ràng buộc Khuyết thiếu)</strong></td>
+                  <td>Xác định rõ cột nào bắt buộc phải có giá trị, tuyệt đối không được phép phát sinh <code>NULL</code>.</td>
+                  <td><code>order_id</code>, <code>user_id</code> và <code>purchase_date</code> là các trường bắt buộc (<code>required: true</code> / <code>NOT NULL</code>).</td>
+                  <td>Kiểm tra ngay tại Schema Registry / Outbox hoặc cổng kiểm định đầu vào; từ chối nhận bản ghi nếu <code>purchase_date IS NULL</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Value Range (Miền Giá trị Hợp lệ)</strong></td>
+                  <td>Giới hạn biên dưới, biên trên hoặc tập giá trị hợp lệ của trường dữ liệu nghiệp vụ.</td>
+                  <td>Tuổi khách hàng <code>age</code> phải nằm trong đoạn <code>[0, 120]</code>; tổng tiền đơn hàng <code>amount</code> của <strong>Order #8888</strong> phải thuộc khoảng <code>(0, 5000000000]</code> VNĐ.</td>
+                  <td>Thực thi qua hàm kiểm định miền giá trị (<code>expect_column_values_to_be_between</code>); chặn đứng các bản ghi lỗi tràn số hoặc âm.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Freshness (Độ tươi mới / SLA)</strong></td>
+                  <td>Cam kết tần suất cập nhật và độ trễ tối đa của dữ liệu được cung cấp.</td>
+                  <td>Bảng <code>prod.orders</code> phải được đồng bộ sang vùng Landing/Bronze chậm nhất trong vòng <code>24 giờ</code> đối với luồng Batch (hoặc <code>&lt; 5 phút</code> với luồng CDC).</td>
+                  <td>Giám sát viên thời gian (Freshness Sensor / SLA Monitor trên Airflow &amp; DataHub) đo khoảng cách từ <code>MAX(purchase_date)</code> đến thời điểm hiện tại.</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Uniqueness (Cam kết Duy nhất)</strong></td>
+                  <td>Đảm bảo khóa định danh thực thể hoặc giao dịch không bao giờ bị trùng lặp.</td>
+                  <td>Mỗi mã giao dịch <code>order_id</code> (như <code>"ORD-8888"</code>) là duy nhất trên toàn tập dữ liệu.</td>
+                  <td>Kiểm tra ràng buộc khóa chính và đối soát <code>Uniqueness("order_id") == 1.0</code> trước khi cho phép hợp nhất xuống tầng Silver/Gold.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 id="orchestration-5-3-yaml">Đặc tả Hợp đồng Dữ liệu Đọc được bằng Máy (Machine-Readable Data Contract YAML)</h3>
+          <p>Thay vì viết tài liệu Word hay trang Wiki để rồi không ai đọc và nhanh chóng lỗi thời, một <strong>Data Contract</strong> hiện đại (theo chuẩn <em>Open Data Contract Standard — ODCS / DataHub Contract Spec</em>) được lưu trữ trực tiếp trong Git repository dưới dạng tệp cấu hình YAML để <code>Contract Validator</code> tự động đọc và kiểm tra ở cả bước kiểm thử phần mềm (CI/CD) lẫn bước điều phối đường ống (Airflow Runtime):</p>
+
+          <pre><code>apiVersion: v1
+kind: DataContract
+id: urn:li:dataContract:prod.orders.v1
+dataset: urn:li:dataset:(urn:li:dataPlatform:postgres,prod.orders,PROD)
+owners:
+  producer_team: "checkout-backend-engineering@company.vn"
+  consumer_teams:
+    - "data-platform-engineering@company.vn"
+    - "ml-revenue-forecasting@company.vn"
+
+# 1. Cam kết Lược đồ &amp; 2. Ràng buộc Nullability (Slide 55)
+schema:
+  primary_key: ["order_id"]
+  fields:
+    - name: order_id
+      type: VARCHAR(32)
+      nullable: false
+      description: "Mã định danh duy nhất của đơn hàng (VD: ORD-8888)"
+    - name: user_id
+      type: VARCHAR(32)
+      nullable: false
+      description: "Mã khách hàng đặt đơn (VD: USR-104) — cấm đổi tên sang userId"
+    - name: amount
+      type: DECIMAL(12,2)
+      nullable: false
+      description: "Giá trị thanh toán thực tế bằng VNĐ (VD: 450000.00)"
+    - name: purchase_date
+      type: TIMESTAMP_UTC
+      nullable: false
+      description: "Thời điểm phát sinh giao dịch — bắt buộc phục vụ ML Feature Pipeline"
+
+# 3. Miền giá trị (Value Range), 4. Độ tươi mới (Freshness) &amp; 5. Tính duy nhất (Uniqueness)
+quality_assertions:
+  - type: uniqueness
+    column: order_id
+    must_equal: 1.0
+  - type: value_range
+    column: amount
+    min_value: 1.00
+    max_value: 5000000000.00
+  - type: value_range
+    column: customer_age
+    min_value: 0
+    max_value: 120
+  - type: freshness_sla
+    max_staleness_hours: 24
+    cron_checkpoint: "0 1 * * *"</code></pre>
+
+          <p>Khi đã có bản thiết kế <strong>Circuit Breaker</strong> (Trạm 5.2) và bản cam kết <strong>Data Contract</strong> (Trạm 5.3), câu hỏi thực thi tiếp theo là: <em>Chúng ta dùng công cụ phần mềm cụ thể nào để biến các dòng YAML và quy tắc kiểm định kia thành mã lệnh chạy trên hàng triệu đến hàng tỷ dòng dữ liệu, và làm sao để quản lý phả hệ của hàng nghìn bảng dữ liệu liên kết chằng chịt với nhau?</em> Hãy tiến vào trạm cuối cùng — <strong>Trạm 5.4</strong>.</p>
+        </section>
+
+        <section class="lesson-section" id="orchestration-5-4">
+          <h2 id="orchestration-5-4-h2" tabindex="-1">Trạm 5.4: Hệ Sinh Thái Công Cụ Kiểm Định (Great Expectations, Spark Deequ, dbt, Soda) &amp; Quản Trị Siêu Dữ Liệu / Phả Hệ Với DataHub</h2>
+
+          <p>Trong hệ sinh thái Kỹ thuật Dữ liệu hiện đại, không một công cụ đơn lẻ nào giải quyết được mọi quy mô dữ liệu và mọi tầng kiến trúc. Theo <strong>Slide 56–60</strong>, kỹ sư dữ liệu cần nắm vững <strong>4 khung công cụ kiểm định chất lượng hàng đầu (Great Expectations, Apache Spark Deequ, dbt tests, Soda Core)</strong> để lựa chọn đúng vũ khí cho từng bài toán, đồng thời kết nối chúng vào mặt phẳng quản trị siêu dữ liệu và phả hệ <strong>DataHub</strong> (Slide 61).</p>
+
+          <x-figure id="orchestration-5-4-fig" key="5.4" title="Sơ đồ 5.4 — Kiến Trúc Tích Hợp Great Expectations (GX), Spark Deequ &amp; Đồ Thị Phả Hệ DataHub (OpenLineage / MCP / MCL)">Sự kết hợp giữa cổng kiểm định nội tuyến (GX/Deequ) trong Airflow và mặt phẳng quản trị siêu dữ liệu DataHub để khoanh vùng bán kính ảnh hưởng (Blast Radius) tức thì.</x-figure>
+
+          <h3 id="orchestration-5-4-gx">1. Great Expectations (GX) — Kiểm định Dựa trên Bộ Kỳ vọng (Expectation Suites) &amp; Tích hợp Airflow (Slide 57–58)</h3>
+          <p><strong>Great Expectations (GX)</strong> là khung kiểm định chất lượng dữ liệu mã nguồn mở bằng Python phổ biến nhất hiện nay. Triết lý của GX là biến các giả định ngầm của con người về dữ liệu thành các <strong>Kỳ vọng tường minh có thể kiểm thử tự động (Expectations — tương đương với Unit Tests cho dữ liệu)</strong> và gom chúng lại thành các <strong>Expectation Suites</strong> (Slide 57):</p>
+          <ul>
+            <li><strong>Cú pháp Kỳ vọng mang tính tự mô tả cao (Declarative Python API):</strong> Thay vì viết các truy vấn SQL phức tạp khó bảo trì, kỹ sư khai báo trực tiếp:
+              <ul>
+                <li><code>expect_column_values_to_not_be_null("user_id")</code> → Kiểm tra tính Đầy đủ (Completeness).</li>
+                <li><code>expect_column_values_to_be_unique("order_id")</code> → Kiểm tra tính Duy nhất (Uniqueness cho <code>ORD-8888</code>).</li>
+                <li><code>expect_column_values_to_be_between("amount", min_value=1, max_value=5000000000)</code> → Kiểm tra Độ chính xác / Miền giá trị (Accuracy / Value Range).</li>
+                <li><code>expect_column_values_to_match_regex("email", regex=r"^[\w\.-]+@[\w\.-]+\.\w+$")</code> → Kiểm tra tính Hợp lệ (Validity).</li>
+              </ul>
+            </li>
+            <li><strong>Đa nền tảng thực thi (Multi-Backend Execution Engines):</strong> Cùng một bộ Expectation Suite có thể chạy trực tiếp trên tệp phẳng (Pandas DataFrame / CSV / Parquet), đẩy xuống thực thi bằng SQL trong cơ sở dữ liệu / Data Warehouse (PostgreSQL, Snowflake, BigQuery, Redshift) hoặc chạy trên Apache Spark, đồng thời tự động sinh báo cáo HTML trực quan gọi là <strong>Data Docs</strong>.</li>
+            <li><strong>Phối hợp GX bên trong Airflow DAG (Slide 58):</strong> Trong <code>daily_sales_pipeline</code>, GX được gắn trực tiếp làm nút gác cổng thông qua <code>GreatExpectationsOperator</code> đứng ngay sau bước <code>Ingest Data</code> và đứng trước <code>BranchPythonOperator</code>: nếu Checkpoint của GX trả về <code>success: True</code>, nhánh <code>Transform</code> và <code>Load</code> được phép chạy; nếu trả về <code>success: False</code>, cầu dao tự ngắt kích hoạt nhánh <code>Alert + Stop Pipeline</code>.</li>
+          </ul>
+
+          <h3 id="orchestration-5-4-deequ">2. Deequ (by AWS trên Apache Spark) — Kiểm định Phân tán Quy mô Tỷ dòng, Phát hiện Bất thường &amp; Tính toán Tăng trưởng (Slide 59–60)</h3>
+          <p>Khi tập dữ liệu của bạn phình to lên quy mô <strong>hàng chục tỷ bản ghi (Multi-Terabyte / Petabyte Lakehouse)</strong> nằm trên S3/HDFS, việc kéo dữ liệu về một nút Python đơn lẻ là bất khả thi. <strong>Deequ</strong> (và thư viện giao tiếp Python <strong>PyDeequ</strong>) do đội ngũ <strong>Amazon Web Services (AWS)</strong> phát triển được xây dựng <strong>nguyên bản bên trên động cơ phân tán Apache Spark</strong> (Slide 59): nó dịch toàn bộ các quy tắc chất lượng thành các phép tổng hợp phân tán tối ưu (distributed Spark SQL aggregations) thực thi trong một lần quét dữ liệu duy nhất trên cụm máy chủ.</p>
+          <p>Theo <strong>Slide 59</strong>, quy trình hoạt động của Deequ gồm <strong>3 bước cốt lõi</strong>:</p>
+          <ol>
+            <li><strong>Bước 1 — Profiling (Lập hồ sơ dữ liệu tự động):</strong> Dùng <code>ColumnProfilerRunner</code> quét qua Spark DataFrame để tự động khám phá kiểu dữ liệu, giá trị nhỏ nhất/lớn nhất, phân vị và gợi ý các ràng buộc chất lượng ban đầu.</li>
+            <li><strong>Bước 2 — Analyzing (Phân tích và Tính toán Chỉ số):</strong> Sử dụng các bộ phân tích (Analyzers) để tính toán các đại lượng toán học cấp tập dữ liệu như kích thước bảng (<code>Size()</code>), độ đầy đủ (<code>Completeness("email")</code>), độ duy nhất (<code>Uniqueness("order_id")</code>), số lượng giá trị phân biệt (<code>ApproxCountDistinct("user_id")</code>).</li>
+            <li><strong>Bước 3 — Verification Suite (Thực thi Bộ Kiểm chứng):</strong> Áp đặt các điều kiện ràng buộc (Constraints) lên các chỉ số vừa tính (ví dụ: <code>.hasCompleteness("email", lambda x: x &gt;= 0.99)</code> — yêu cầu ít nhất <code>99%</code> dòng phải có email) và xuất báo cáo đạt/trượt.</li>
+          </ol>
+          <p>Đặc biệt, <strong>Slide 60</strong> nhấn mạnh <strong>2 Vũ khí Nâng cao Độc quyền của Deequ (Advanced Features)</strong> giúp nó thống trị các bài toán Big Data:</p>
+          <ul>
+            <li><strong>Phát hiện Bất thường theo Chuỗi thời gian (Anomaly Detection với <code>MetricsRepository</code>):</strong> Deequ lưu trữ toàn bộ lịch sử các chỉ số chất lượng của những ngày chạy trước vào một kho lưu trữ gọi là <code>MetricsRepository</code> (trên S3 hoặc JDBC). Nhờ đó, kỹ sư không cần đoán mò ngưỡng cố định mà có thể cài đặt các thuật toán phát hiện dị biệt tự động (như <code>RelativeRateOfChangeStrategy</code> hoặc <code>OnlineNormalStrategy</code>) để bắt ngay hiện tượng <strong>sụt giảm đột ngột số lượng dòng (sudden drops in row count)</strong> hoặc sụt giảm tỷ lệ điền đầy so với xu hướng lịch sử.</li>
+            <li><strong>Tính toán Chỉ số Tăng trưởng (Incremental Metric Computation — Không cần quét lại toàn bộ dữ liệu cũ!):</strong> Giả sử bảng <code>prod.orders</code> đã có sẵn <strong>10 tỷ dòng</strong> của 364 ngày trước và hôm nay (<code>2026-05-15</code>) mới nạp thêm <strong>20 triệu dòng mới</strong> (trong đó có <strong>Order #8888</strong>). Thay vì phải đọc lại toàn bộ <code>10,02 tỷ dòng</code> để tính lại độ đầy đủ và trung bình cộng của cả bảng, Deequ lưu trạng thái trung gian (Algebraic State / State Provider) của 10 tỷ dòng cũ, chỉ đọc đúng <strong>20 triệu dòng mới</strong> rồi cộng gộp trạng thái toán học trong vài giây!</li>
+          </ul>
+
+          <pre><code># Minh họa PyDeequ (Apache Spark) kết hợp Verification Suite &amp; MetricsRepository (Slide 59-60)
+from pydeequ.checks import Check, CheckLevel
+from pydeequ.verification import VerificationSuite
+from pydeequ.repository import FileSystemMetricsRepository, ResultKey
+from pydeequ.anomaly_detection import RelativeRateOfChangeStrategy
+
+metrics_repo = FileSystemMetricsRepository(spark, "s3a://fsds-governance/deequ-metrics-repo.json")
+key_tags = {"dag_id": "daily_sales_pipeline", "table": "prod.orders", "run_id": "manual__2026-05-15"}
+result_key = ResultKey(spark, ResultKey.current_milli_time(), key_tags)
+
+check = (
+    Check(spark, CheckLevel.Error, "Orders_Data_Contract_Check")
+    .hasSize(lambda sz: sz &gt; 0)
+    .isUnique("order_id")                                  # Uniqueness: ORD-8888 không trùng lặp
+    .isComplete("user_id")                                 # Completeness: 100% có user_id
+    .hasCompleteness("email", lambda c: c &gt;= 0.99)         # Slide 59: &gt;= 99% dòng có email
+    .isNonNegative("amount")                               # Accuracy: amount = 450000 &gt; 0
+)
+
+verification_result = (
+    VerificationSuite(spark)
+    .onData(orders_df)
+    .useRepository(metrics_repo)
+    .saveOrAppendResult(result_key)
+    # Slide 60: Phát hiện bất thường nếu số lượng dòng hôm nay sụt giảm quá 30% so với hôm qua
+    .addAnomalyCheck(RelativeRateOfChangeStrategy(maxRateDecrease=0.70), Size())
+    .addCheck(check)
+    .run()
+)</code></pre>
+
+          <h3 id="orchestration-5-4-datahub">3. Quản trị Siêu dữ liệu &amp; Phả hệ Toàn cục với DataHub: "Validation Tells Us What Failed. Lineage Helps Us Understand Impact." (Slide 61)</h3>
+          <p>Bên cạnh <strong>Great Expectations</strong> (mạnh về kiểm định đa nguồn bằng Python) và <strong>Spark Deequ</strong> (mạnh về dữ liệu lớn phân tán), hệ sinh thái còn có <strong>dbt tests</strong> (kiểm định <code>unique</code>, <code>not_null</code>, <code>accepted_values</code>, <code>relationships</code> ngay trên các mô hình biến đổi SQL trong Data Warehouse) và <strong>Soda Core</strong> (kiểm định khai báo nhanh bằng ngôn ngữ YAML <code>SodaCL</code> — Slide 56). Tuy nhiên, hãy đặt mình vào bối cảnh một tập đoàn sở hữu <strong>5.000 bảng dữ liệu, 800 đường ống Airflow và 300 Dashboard</strong> (Slide 61): khi cầu dao tự ngắt của GX hoặc Deequ báo động rằng bảng <code>prod.orders</code> vừa bị lỗi kiểm định lúc 02:00 sáng, <strong>hai câu hỏi sinh tử lập tức xuất hiện mà bản thân GX hay Deequ không thể tự trả lời được</strong>:</p>
+          <ol>
+            <li><em>Dữ liệu của bảng <code>prod.orders</code> này bắt nguồn từ dịch vụ thượng nguồn nào, và ai là chủ sở hữu (Owner) để chúng ta liên hệ sửa lỗi?</em></li>
+            <li><em>Những bảng dữ liệu trung gian, mô hình học máy và báo cáo Dashboard cấp cao nào ở hạ lưu đang phụ thuộc vào <code>prod.orders</code> sẽ bị ảnh hưởng (Blast Radius / Impact Analysis) bởi sự cố này?</em></li>
+          </ol>
+
+          <p>Đó chính là lý do kiến trúc dữ liệu hiện đại bắt buộc phải có mặt phẳng <strong>Quản trị Siêu dữ liệu và Phả hệ (Metadata &amp; Lineage Management)</strong> mà đại diện tiêu biểu nhất là <strong>DataHub</strong> (khởi nguồn từ LinkedIn — Slide 61). Thay vì quản lý danh mục dữ liệu tĩnh thủ công, DataHub hoạt động theo kiến trúc hướng sự kiện thời gian thực: mỗi thực thể dữ liệu được định danh bằng một chuỗi chuẩn toàn cục <strong>URN (Uniform Resource Name)</strong> — ví dụ bảng đơn hàng chứa <strong>Order #8888</strong> mang mã <code>urn:li:dataset:(urn:li:dataPlatform:postgres,prod.orders,PROD)</code>. Khi <code>daily_sales_pipeline</code> chạy trên Airflow (tích hợp plugin <strong>OpenLineage</strong>), Airflow và GX tự động bắn các bản tin <strong>MCP (Metadata Change Proposal)</strong> qua Kafka vào DataHub; tầng lưu trữ của DataHub ghi nhận thay đổi và phát ra luồng <strong>MCL (Metadata Change Log)</strong> để cập nhật tức thì <strong>6 khía cạnh siêu dữ liệu cốt lõi (6 Core Metadata Facets — Slide 61)</strong>:</p>
+          <ul>
+            <li><strong>1. Datasets (Tập dữ liệu):</strong> Danh mục toàn bộ bảng, luồng Kafka, thư mục S3/Lakehouse trên toàn doanh nghiệp.</li>
+            <li><strong>2. Schemas (Lược đồ &amp; Lịch sử Tiến hóa):</strong> Cấu trúc cột, kiểu dữ liệu, mô tả nghiệp vụ và lịch sử thay đổi phiên bản lược đồ (Schema Evolution Audit Trail).</li>
+            <li><strong>3. Owners (Quyền sở hữu &amp; Trách nhiệm):</strong> Gắn kết rõ ràng mỗi Dataset với Technical Owner (kỹ sư trực vận hành) và Business Steward (chủ sở hữu nghiệp vụ).</li>
+            <li><strong>4. Pipelines (Đường ống &amp; Tác vụ):</strong> Đồ thị các DAG Airflow, công việc Spark và mô hình dbt cùng lịch sử các phiên chạy (<code>manual__2026-05-15</code>).</li>
+            <li><strong>5. Lineage (Đồ thị Phả hệ Đầu-Cuối — Table-Level &amp; Column-Level Lineage):</strong> Bản đồ kết nối có hướng chỉ rõ cột <code>prod.orders.amount</code> chảy qua tác vụ Spark nào để cộng tổng thành cột <code>gold.executive_revenue.total_gmv_vnd</code>.</li>
+            <li><strong>6. Quality Metrics &amp; Assertions (Chỉ số Chất lượng &amp; Trạng thái Hợp đồng):</strong> Hiển thị trực tiếp kết quả <code>PASS/FAIL</code> của Great Expectations, Deequ, dbt tests và Data Contract ngay trên trang thông tin của bảng <code>prod.orders</code> (kèm huy hiệu cảnh báo <em>Incident / Failing Assertions</em>).</li>
+          </ul>
+
+          <p>Nhờ đồ thị phả hệ <strong>DataHub Lineage</strong>, ngay khoảnh khắc <strong>Order #8888</strong> hoặc bảng <code>prod.orders</code> gặp sự cố chất lượng, kỹ sư trả lời được <strong>4 Câu hỏi Phả hệ Cốt lõi (4 Questions Lineage Answers — Slide 61)</strong> chỉ trong 3 giây nhìn lên giao diện đồ thị: <strong>(1) Dữ liệu này đến từ đâu?</strong> (từ dịch vụ <code>checkout-service</code> qua Kafka topic <code>prod.public.orders</code>); <strong>(2) Đường ống nào đã tạo ra nó?</strong> (<code>daily_sales_pipeline</code>); <strong>(3) Những Dashboard hay mô hình ML nào phụ thuộc vào nó?</strong> (Báo cáo <em>CEO Daily Revenue</em> trên Superset và mô hình <em>LTV Prediction</em>); và <strong>(4) Ai là người bị ảnh hưởng khi chất lượng thất bại?</strong> (tự động gửi thông báo tới kênh Slack của đội Tài chính và gắn nhãn cảnh báo <em>"Dữ liệu đang được bảo trì"</em> trực tiếp lên Dashboard của CEO để không ai ra quyết định sai lầm). Đúng như đúc kết kinh điển trên <strong>Slide 61</strong>: <strong>"Validation tells us what failed. Lineage helps us understand impact."</strong> <em>(Kiểm định cho ta biết cái gì vừa hỏng; Phả hệ giúp ta thấu suốt toàn bộ bán kính ảnh hưởng của sự cố đó).</em></p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Công cụ / Nền tảng (Slide 56–61)</th>
+                  <th>Vai trò &amp; Động cơ Thực thi Cốt lõi</th>
+                  <th>Điểm mạnh Tuyệt đối (Sweet Spot)</th>
+                  <th>Vị trí Phối hợp trong <code>daily_sales_pipeline</code></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Great Expectations (GX)</strong></td>
+                  <td>Khung kiểm định dựa trên <strong>Expectation Suites</strong> (Python API) hỗ trợ Pandas, SQL Databases/Warehouses và Spark; tự sinh báo cáo <strong>Data Docs</strong>.</td>
+                  <td>Thư viện quy tắc dựng sẵn cực kỳ phong phú; tích hợp nguyên bản với Airflow qua <code>GreatExpectationsOperator</code> làm cổng ngắt mạch.</td>
+                  <td>Kiểm định lô dữ liệu <code>staging.orders</code> vừa nạp từ nguồn và thực thi các điều khoản trong <strong>Data Contract</strong>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Apache Spark Deequ (PyDeequ)</strong></td>
+                  <td>Thư viện kiểm định do AWS phát triển chạy nguyên bản trên <strong>Apache Spark</strong> (<code>Profiling → Analyzing → Verification Suite</code>).</td>
+                  <td>Xử lý hàng tỷ dòng tốc độ cao; có <strong>Anomaly Detection</strong> theo chuỗi thời gian và <strong>Incremental Metric Computation</strong> (cộng dồn chỉ số trên lô mới không cần quét lại dữ liệu lịch sử).</td>
+                  <td>Gắn bên trong các công việc biến đổi dữ liệu lớn (Spark Jobs) ở tầng Lakehouse Bronze/Silver để kiểm soát hàng trăm triệu giao dịch.</td>
+                </tr>
+                <tr>
+                  <td><strong>dbt Tests</strong></td>
+                  <td>Kiểm định chất lượng cấp độ mô hình biến đổi SQL (<code>unique</code>, <code>not_null</code>, <code>accepted_values</code>, <code>relationships</code>) ngay bên trong Data Warehouse.</td>
+                  <td>Viết bằng SQL/YAML cực gọn ngay cạnh mã nguồn biến đổi mô hình; tích hợp chặt chẽ vào luồng <code>dbt build</code> (nếu test bảng cha lỗi thì tự động dừng chạy bảng con).</td>
+                  <td>Kiểm định tính toàn vẹn khóa ngoại và quy tắc nghiệp vụ khi tổng hợp từ tầng Silver lên các bảng chiều/bảng sự kiện tầng Gold.</td>
+                </tr>
+                <tr>
+                  <td><strong>Soda Core (SodaCL)</strong></td>
+                  <td>Công cụ kiểm định khai báo (Declarative YAML) sử dụng ngôn ngữ chuyên biệt <code>SodaCL</code> nhẹ và dễ đọc.</td>
+                  <td>Cú pháp YAML thân thiện với cả Data Analyst lẫn Data Engineer; triển khai nhanh các kiểm tra độ tươi mới (Freshness) và số lượng dòng.</td>
+                  <td>Kiểm tra nhanh hợp đồng dữ liệu tại ranh giới bàn giao giữa các nhóm phân tích.</td>
+                </tr>
+                <tr>
+                  <td><strong>DataHub (Metadata &amp; Lineage Platform)</strong></td>
+                  <td>Nền tảng quản trị siêu dữ liệu hướng sự kiện (kiến trúc <code>MCP / MCL</code> qua Kafka + chuẩn <strong>OpenLineage</strong>) quản lý <code>datasets</code>, <code>schemas</code>, <code>owners</code>, <code>pipelines</code>, <code>lineage</code>, <code>quality metrics</code>.</td>
+                  <td>Cung cấp tầm nhìn toàn cục (360-degree visibility), truy vết phả hệ tới tận cấp độ cột (Column-level Lineage) và phân tích bán kính ảnh hưởng (Blast Radius / Impact Analysis).</td>
+                  <td>Nhận kết quả kiểm định từ GX/Deequ/dbt và phả hệ từ Airflow để hiển thị trạng thái sức khỏe của <code>prod.orders</code> (<code>Order #8888</code>) và cảnh báo tự động cho các bên liên quan ở hạ lưu.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Khi mảnh ghép <strong>DataHub</strong> kết hợp cùng <strong>Great Expectations / Spark Deequ</strong>, <strong>Data Contracts</strong> và <strong>Circuit Breaker Pattern</strong> trên nền tảng điều phối <strong>Apache Airflow</strong>, đường ống <code>daily_sales_pipeline</code> của chúng ta đã đạt tới trạng thái trưởng thành cao nhất của Kỹ thuật Dữ liệu hiện đại: không chỉ tự động hóa việc vận chuyển dữ liệu, mà còn tự động bảo vệ sự thật của dữ liệu từ khoảnh khắc sinh ra ở thượng nguồn cho tới tận màn hình ra quyết định của ban lãnh đạo.</p>
+        </section>
+
+        <section class="summary-section" id="orchestration-5-summary">
+          <h2 id="orchestration-5-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 5 &amp; Khép kín Toàn bộ Học phần D06 · Orchestration &amp; Governance</h2>
+
+          <p><strong>Khép kín hành trình 5 Chặng của <code>daily_sales_pipeline</code> và <code>Order #8888</code> tại Học phần D06 · Orchestration &amp; Governance:</strong> Khởi đầu từ <strong>Chặng 1</strong> và <strong>Chặng 2</strong>, chúng ta đã chứng minh tại sao việc điều phối đường ống bằng <code>cron</code> và kịch bản rời rạc tất yếu dẫn tới thảm họa dữ liệu âm thầm khi quy mô tăng trưởng, từ đó nắm vững mô hình toán học <strong>Đồ thị Có hướng Không Chu trình (DAG)</strong> cùng kiến trúc phân tán của <strong>Apache Airflow</strong> (Webserver, Scheduler, Metadata DB, Executor, Workers) và sự tiến hóa từ điều phối xoay quanh tác vụ (Task-Centric) sang xoay quanh tài sản dữ liệu (Asset-Centric / Dagster). Bước sang <strong>Chặng 3</strong> và <strong>Chặng 4</strong>, chúng ta đã giải phẫu vòng đời trạng thái tác vụ, cơ chế truyền siêu dữ liệu <code>XCom</code>, lịch chạy xác định theo <code>logical_date</code>, chiến lược <strong>Retries với Exponential Backoff</strong> và nguyên lý vàng <strong>Tính Luỹ đẳng (Idempotency)</strong> để chạy lại (Backfill) phiên <code>manual__2026-05-15</code> bao nhiêu lần cũng không bao giờ nhân đôi doanh thu của <strong>Order #8888</strong> (<code>order_id="ORD-8888"</code>, <code>user_id="USR-104"</code>, <code>amount=450000</code>). Cuối cùng, tại <strong>Chặng 5</strong> này, chúng ta hoàn thiện lớp giáp bảo vệ chất lượng và quản trị: định lượng hóa sức khỏe dữ liệu qua <strong>6 Chiều Chất lượng (Accuracy, Completeness, Consistency, Timeliness, Validity, Uniqueness)</strong>, khóa chặt cam kết giao diện với đội phần mềm thượng nguồn bằng <strong>Hợp đồng Dữ liệu (Data Contracts)</strong>, dựng <strong>Cầu dao Tự ngắt (Circuit Breaker Pattern)</strong> bằng <strong>Great Expectations (GX) / Apache Spark Deequ</strong> ngay bên trong Airflow DAG để chặn đứng dữ liệu bẩn trước khi chạm tới tầng Gold, và kết nối toàn bộ siêu dữ liệu cùng phả hệ đầu-cuối lên <strong>DataHub</strong> (<code>urn:li:dataset:(urn:li:dataPlatform:postgres,prod.orders,PROD)</code>) để làm chủ hoàn toàn bán kính ảnh hưởng trên toàn doanh nghiệp.</p>
+
+          <ol>
+            <li><strong>Tại sao dữ liệu bẩn (Bad Data) lại gây thiệt hại trung bình $11.8M/năm (Gartner) và nguy hiểm hơn lỗi sập phần mềm thông thường? Hãy nêu 6 Chiều Chất lượng Dữ liệu (Six Data Quality Dimensions).</strong> → Khác với lỗi phần mềm làm tiến trình dừng ngay lập tức, dữ liệu bẩn thường <em>thất bại trong im lặng (Silent Failure)</em>: các tác vụ SQL/Spark vẫn báo thành công (<code>Exit Code = 0</code>) nhưng âm thầm làm sai lệch báo cáo chiến lược hoặc đầu độc mô hình học máy (như vụ mất 16.000 ca xét nghiệm COVID-19 tại PHE hay vụ Unity mất $5 tỷ vốn hóa). Sáu chiều đo lường bắt buộc gồm: (1) <strong>Accuracy</strong> (phản ánh đúng giá trị thực tế, ví dụ <code>amount &gt; 0</code>); (2) <strong>Completeness</strong> (đầy đủ trường bắt buộc, <code>user_id IS NOT NULL</code>); (3) <strong>Consistency</strong> (nhất quán định dạng giữa các hệ thống); (4) <strong>Timeliness</strong> (cập nhật đúng hạn SLA); (5) <strong>Validity</strong> (đúng cú pháp/miền giá trị như Regex email); và (6) <strong>Uniqueness</strong> (không trùng lặp khóa chính <code>order_id="ORD-8888"</code>).</li>
+            <li><strong>Tại sao kiểm định chất lượng dữ liệu bắt buộc phải nằm bên trong luồng điều phối dưới dạng Mẫu Cầu dao Tự ngắt (Circuit Breaker Pattern) thay vì chạy như một kịch bản báo cáo tách rời?</strong> → Nếu tác vụ kiểm định chạy tách rời hoặc không có quyền ngắt luồng, khi kiểm định thất bại (<code>[X]</code>), các tác vụ <code>Transform</code> và <code>Load to DW</code> ở hạ lưu vẫn tiếp tục thực thi trên dữ liệu hỏng, đẩy rác vào thẳng bảng Gold và Dashboard trước khi con người kịp đọc cảnh báo. Mẫu <strong>Circuit Breaker Pattern</strong> (kết hợp quy trình <strong>Write-Audit-Publish</strong>) biến bước kiểm định thành một <strong>Cổng Quyết định (Execution Gate)</strong> bằng <code>BranchPythonOperator</code> / <code>ShortCircuitOperator</code>: chỉ khi dữ liệu tại bảng Staging đạt chuẩn (<code>PASS</code>) thì mới mở mạch cho nhánh <code>Transform → Load → Dashboard</code>; nếu vi phạm (<code>FAIL</code>), cầu dao lập tức ngắt nhánh hạ lưu (chuyển sang <code>skipped</code> để bảo vệ dữ liệu sạch hiện hành) và định tuyến sang nhánh cô lập kèm cảnh báo Slack/PagerDuty.</li>
+            <li><strong>Hợp đồng Dữ liệu (Data Contract) giải quyết vấn đề gì mà một mình Cầu dao Tự ngắt (Circuit Breaker) chưa làm được, và 5 thuộc tính cốt lõi của một Data Contract là gì?</strong> → Circuit Breaker ngăn không cho dữ liệu bẩn lọt xuống Dashboard nhưng đường ống vẫn bị gãy lúc nửa đêm sau khi đội phần mềm thượng nguồn (Producer) tự ý đổi tên cột (<code>user_id → userId</code>), xóa cột (<code>purchase_date</code>) hoặc đổi kiểu dữ liệu. <strong>Data Contract</strong> dịch chuyển việc phòng vệ về phía thượng nguồn (<em>Shift-Left</em>) thông qua một đặc tả đọc hiểu bằng máy (YAML/JSON) ký kết giữa <strong>Producer Team</strong> và <strong>Consumer Team</strong>, khóa chặt <strong>5 thuộc tính cốt lõi</strong>: (1) <strong>Schema</strong> (tên cột và kiểu dữ liệu cam kết); (2) <strong>Nullability</strong> (các trường cấm <code>NULL</code>); (3) <strong>Value Range</strong> (miền giá trị hợp lệ như <code>0 &lt;= age &lt;= 120</code>); (4) <strong>Freshness</strong> (độ trễ cập nhật tối đa, ví dụ <code>&lt; 24 giờ</code>); và (5) <strong>Uniqueness</strong> (tính duy nhất của khóa giao dịch), được cưỡng chế tự động ngay từ bước kiểm duyệt code CI/CD của đội Backend.</li>
+            <li><strong>Khi nào nên chọn Great Expectations (GX) và khi nào nên chọn Apache Spark Deequ để kiểm định chất lượng dữ liệu? Hai tính năng nâng cao đắt giá nhất của Deequ là gì?</strong> → Chọn <strong>Great Expectations (GX)</strong> khi cần kiểm định linh hoạt bằng Python qua các <strong>Expectation Suites</strong> trên tệp tin, cơ sở dữ liệu SQL hoặc Data Warehouse, tận dụng báo cáo <strong>Data Docs</strong> trực quan và tích hợp nhanh với Airflow qua <code>GreatExpectationsOperator</code>. Chọn <strong>Deequ (PyDeequ)</strong> khi dữ liệu có quy mô cực lớn (hàng trăm triệu đến hàng tỷ dòng trên Data Lakehouse) đang được xử lý bằng <strong>Apache Spark</strong>. Hai tính năng nâng cao đắt giá nhất của Deequ là: (1) <strong>Anomaly Detection</strong> (lưu lịch sử chỉ số vào <code>MetricsRepository</code> để tự động phát hiện sự sụt giảm đột ngột số lượng dòng hoặc độ đầy đủ theo thời gian) và (2) <strong>Incremental Metric Computation</strong> (tính toán cộng dồn chỉ số chất lượng trên các lô dữ liệu mới phát sinh mà không cần quét lại toàn bộ dữ liệu lịch sử khổng lồ).</li>
+            <li><strong>Giải thích mệnh đề "Validation tells us what failed. Lineage helps us understand impact" và 6 khía cạnh siêu dữ liệu mà DataHub quản lý.</strong> → Khi một quy tắc kiểm định của GX hoặc Deequ báo lỗi trên bảng <code>prod.orders</code>, công cụ kiểm định chỉ cho biết <em>quy tắc nào vừa bị vi phạm trên bảng đó</em>, nhưng không thể cho biết ai là chủ sở hữu dịch vụ nguồn để gọi sửa lỗi, hay những báo cáo CEO và mô hình AI nào ở cách đó 5 bước biến đổi đang bị đe dọa. <strong>DataHub</strong> lấp đầy khoảng trống này bằng cách thu thập sự kiện siêu dữ liệu thời gian thực (qua giao thức <code>MCP/MCL</code> và <code>OpenLineage</code>) để quản lý <strong>6 khía cạnh</strong>: <code>datasets</code>, <code>schemas</code>, <code>owners</code>, <code>pipelines</code>, <code>lineage</code> (đồ thị phả hệ thượng nguồn – hạ nguồn tới cấp độ cột) và <code>quality metrics</code> — giúp kỹ sư khoanh vùng bán kính ảnh hưởng (Blast Radius) và thông báo chính xác cho những bên bị tác động chỉ trong vài giây.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/D06/1" onclick="selectStorageStage(1);return false;">← Quay lại Chặng 1: Bản Đồ Toàn Khóa D06 &amp; Phòng Thí Nghiệm Mô Phỏng 2D</a></p>
+        </section>
+      </div>

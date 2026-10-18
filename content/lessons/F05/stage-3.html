@@ -1,0 +1,180 @@
+      <div class="prose">
+        <x-spine id="validation-3-spine" badge="TRONG BÀI HỌC NÀY · F05 · CHẶNG 3" title="Chặng 3: Thực Chiến Framework pytest — Discovery, Fixtures (yield, conftest.py), Markers &amp; Parametrize" subtitle="Trạm 3.1 → 3.2">Làm chủ 3 trụ cột cốt lõi của <strong>pytest</strong>: cơ chế tự động dò tìm hàm/lớp kiểm thử và quản lý vòng đời tài nguyên bằng <strong>Fixtures (<code>@pytest.fixture</code>, <code>yield</code>, <code>conftest.py</code>)</strong>, phân luồng thực thi bằng <strong>Markers (<code>pytest -m</code>)</strong>, và nhân bản kịch bản kiểm thử bằng <strong>Parametrize (<code>@pytest.mark.parametrize</code>)</strong>.</x-spine>
+
+        <section class="lesson-section" id="validation-3-1">
+          <h2 id="validation-3-1-h2" tabindex="-1">Trạm 3.1: Cơ chế Tự động Dò tìm (test_*.py, Test*) &amp; Vòng đời Tài nguyên với @pytest.fixture (yield &amp; conftest.py)</h2>
+
+          <p>Khác với <code>unittest.TestCase</code> bắt buộc phải kế thừa lớp cơ sở và học thuộc hàng chục hàm kiểm tra rườm rà, <strong>pytest</strong> vận hành theo quy ước tự động dò tìm (<strong>Test Discovery</strong> — <em>Slide 39–41</em>): khi gõ lệnh <code>pytest</code> trên Terminal, framework tự động quét đệ quy toàn bộ thư mục để tìm các tệp có tiền tố <code>test_*.py</code> (hoặc hậu tố <code>*_test.py</code>), thực thi mọi hàm bắt đầu bằng <code>def test_*()</code> và mọi phương thức <code>def test_*(self)</code> nằm bên trong lớp <code>class Test*:</code> (không có hàm <code>__init__</code>). Việc gom các hàm kiểm thử liên quan vào cùng một <strong>Test Class</strong> như <code>class TestMath:</code> hay <code>class TestCheckout:</code> giúp tổ chức bộ test theo đúng từng tính năng/module và chia sẻ chung <strong>Fixtures</strong> trong phạm vi lớp. Đặc biệt, bạn chỉ cần dùng từ khóa <code>assert</code> thuần của Python (ví dụ <code>assert add(2, 3) == 5</code>): khi điều kiện sai, cơ chế <strong>Assertion Introspection</strong> của <code>pytest</code> tự động phân tích giá trị biến nội tại và chỉ ra chính xác dòng lệnh cùng biểu thức gây lỗi.</p>
+
+          <p>Để loại bỏ việc lặp đi lặp lại đoạn mã khởi tạo dữ liệu mẫu hoặc mở kết nối cơ sở dữ liệu ở đầu mỗi hàm test, <strong>Fixtures (<code>@pytest.fixture</code>)</strong> cung cấp cơ chế <strong>Dependency Injection (Tiêm phụ thuộc)</strong> tự động theo tên tham số hàm (<em>Slide 42–44</em>). Khi hàm kiểm thử <code>def test_sum(sample_data):</code> khai báo tham số trùng tên với hàm <code>sample_data()</code> được gắn <code>@pytest.fixture</code>, <code>pytest</code> sẽ tự động chạy fixture trước để thiết lập môi trường (<strong>Setup</strong>) rồi truyền giá trị trả về vào bài test. Nếu dùng <code>return</code>, fixture kết thúc ngay sau khi trao dữ liệu; nhưng nếu thay <code>return</code> bằng từ khóa <code>yield</code>, <code>pytest</code> tách vòng đời fixture thành 2 nửa: toàn bộ lệnh <strong>trước <code>yield</code></strong> chạy trước bài test (<strong>Setup</strong>), giá trị sau <code>yield</code> được bơm vào bài test, và toàn bộ lệnh <strong>sau <code>yield</code></strong> tự động thực thi ngay khi bài test kết thúc để dọn dẹp tài nguyên (<strong>Teardown</strong> — đóng kết nối DB, xóa tệp tạm) bất kể bài test Pass hay Fail. Khi cần chia sẻ các fixture như <code>shared_data()</code> hay <code>resource()</code> cho nhiều tệp <code>test_one.py</code>, <code>test_two.py</code> mà <strong>không cần viết lệnh <code>import</code></strong>, bạn chỉ cần đặt chúng vào tệp đặc biệt <code>tests/conftest.py</code> — <code>pytest</code> sẽ tự động phát hiện và cung cấp cho toàn bộ tệp kiểm thử trong cùng thư mục và các thư mục con.</p>
+
+          <x-figure id="validation-3-1-fig" key="3.1" title="Sơ đồ 3.1 — Vòng đời @pytest.fixture với yield (Setup → Inject → Test → Teardown) &amp; Phạm vi conftest.py">Luồng 4 bước tiêm phụ thuộc của Fixture: tạm dừng tại điểm neo yield để chạy hàm kiểm thử rồi quay lại thực thi nhánh Teardown, kết hợp cơ chế tự động chia sẻ qua conftest.py.</x-figure>
+
+          <pre><code># 1. Tệp cấu hình dùng chung: tests/conftest.py (Slide 42–44)
+# pytest tự động nạp conftest.py; test_one.py và test_two.py dùng trực tiếp mà KHÔNG cần import
+import pytest
+
+@pytest.fixture
+def sample_data():
+    print("\nSetting up sample data")
+    data = [1, 2, 3, 4, 5]
+    return data  # Chỉ Setup, không có bước Teardown sau test
+
+@pytest.fixture
+def resource():
+    # --- NỬA 1: SETUP (Chạy TRƯỚC hàm test) ---
+    print("\nSetting up resource")
+    r = {"name": "database connection", "active": True}
+    yield r  # Tạm dừng, bơm đối tượng r vào hàm test đang yêu cầu
+    # --- NỬA 2: TEARDOWN (Luôn chạy SAU khi hàm test kết thúc dù Pass hay Fail) ---
+    print("\nTearing down resource")
+    r["active"] = False
+
+# 2. Tệp kiểm thử: tests/test_checkout.py (Slide 40–44)
+def add(a, b):
+    return a + b
+
+def test_add():
+    assert add(2, 3) == 5
+
+class TestCheckout:
+    def test_sum_with_fixture(self, sample_data):
+        assert sum(sample_data) == 15
+
+    def test_db_connection_lifecycle(self, resource):
+        assert resource["name"] == "database connection"
+        assert resource["active"] is True</code></pre>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Cơ chế / Thành phần trong <code>pytest</code></th>
+                  <th>Cú pháp &amp; Quy ước Nhận diện</th>
+                  <th>Cơ chế Vận hành Cốt lõi (Slide 40–44)</th>
+                  <th>Tình huống Áp dụng Thực tế</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Test Discovery &amp; Test Class</strong></td>
+                  <td>Tệp <code>test_*.py</code>, hàm <code>def test_*()</code>, lớp <code>class Test*:</code> chứa phương thức <code>def test_*(self)</code>.</td>
+                  <td>Tự động quét và thu thập (Collect) mọi hàm/phương thức khớp tiền tố; phân tích biểu thức <code>assert</code> để báo cáo chi tiết giá trị lệch khi thất bại.</td>
+                  <td>Tổ chức các bài Unit Test cùng một module (như <code>class TestMath:</code>, <code>class TestCheckout:</code>) để gom nhóm logic và dùng chung fixtures.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. <code>@pytest.fixture</code> (dùng <code>return</code>)</strong></td>
+                  <td>Hàm gắn decorator <code>@pytest.fixture</code> kết thúc bằng lệnh <code>return data</code>.</td>
+                  <td>Thực hiện 4 bước: (1) Phát hiện tên tham số hàm test trùng tên fixture → (2) Chạy hàm fixture trước → (3) Trao giá trị <code>return</code> cho hàm test → (4) Chạy hàm test.</td>
+                  <td>Khởi tạo dữ liệu tĩnh trong bộ nhớ (List, Dict, DataFrame mẫu, cấu hình đơn hàng <code>checkout_order</code>) không cần dọn dẹp sau khi chạy.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. <code>@pytest.fixture</code> (dùng <code>yield</code>)</strong></td>
+                  <td>Hàm gắn decorator <code>@pytest.fixture</code> tạm dừng bằng <code>yield r</code> ở giữa hàm.</td>
+                  <td>Mã lệnh trước <code>yield</code> chạy ở pha <strong>Setup</strong>; giá trị sau <code>yield</code> được tiêm vào bài test; mã lệnh sau <code>yield</code> chạy ở pha <strong>Teardown</strong> ngay sau khi bài test hoàn tất.</td>
+                  <td>Quản lý tài nguyên ngoại vi cần giải phóng an toàn: mở/đóng kết nối Database, khởi tạo giao dịch rồi Rollback, tạo và xóa tệp/thư mục tạm.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Tệp chia sẻ <code>tests/conftest.py</code></strong></td>
+                  <td>Đặt tên tệp chính xác là <code>conftest.py</code> tại thư mục gốc <code>tests/</code> hoặc thư mục con.</td>
+                  <td><code>pytest</code> tự động khám phá và đăng ký mọi fixture trong <code>conftest.py</code>; toàn bộ tệp <code>test_*.py</code> cùng cấp và cấp con sử dụng trực tiếp qua tên tham số mà không cần <code>import</code>.</td>
+                  <td>Chia sẻ các fixture dùng chung toàn dự án (<code>shared_data()</code>, <code>db_session()</code>, <code>api_client()</code>) giúp mã kiểm thử gọn sạch, không trùng lặp.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Nhờ <code>@pytest.fixture</code> kết hợp <code>yield</code> và <code>conftest.py</code>, môi trường kiểm thử luôn được khởi tạo và thu dọn sạch sẽ. Tuy nhiên, khi dự án phình lên hàng trăm hàm kiểm thử — có hàm tính toán trên RAM chỉ mất <code>1ms</code>, nhưng có hàm gọi Database/API mất <code>5s</code> — làm thế nào để chỉ lọc chạy đúng nhóm test mong muốn và kiểm thử 10 bộ dữ liệu đầu vào mà không phải copy-paste thành 10 hàm rời rạc? Chúng ta bước sang <strong>Trạm 3.2</strong>.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="validation-3-2">
+          <h2 id="validation-3-2-h2" tabindex="-1">Trạm 3.2: Phân luồng Kiểm thử bằng Markers (-m, pyproject.toml) &amp; Nhân bản Kịch bản Biên với @pytest.mark.parametrize</h2>
+
+          <p><strong>Markers (<code>@pytest.mark.&lt;name&gt;</code>)</strong> là các nhãn phân loại (labels/tags) gắn trực tiếp lên hàm kiểm thử để gom nhóm theo mục đích (như <code>@pytest.mark.slow</code>, <code>@pytest.mark.api</code>, <code>@pytest.mark.db</code>), kiểm soát điều kiện môi trường và chọn lọc tập con thực thi qua cờ lệnh <code>pytest -m</code> (<em>Slide 45–49</em>). Một hàm kiểm thử có thể gắn đồng thời nhiều nhãn (ví dụ vừa <code>@pytest.mark.api</code> vừa <code>@pytest.mark.slow</code>), cho phép kỹ sư lọc linh hoạt trên CLI bằng các toán tử logic: <code>pytest -m "api or db"</code> (chạy mọi bài test thuộc nhóm API hoặc Database) hay <code>pytest -m "slow and not db"</code> (chạy bài test chậm nhưng loại trừ Database). Lưu ý thực chiến (<em>Slide 47</em>): nếu tự đặt marker tùy chỉnh mà chưa khai báo, <code>pytest</code> sẽ phát cảnh báo <code>PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?</code> nhằm ngăn lỗi gõ nhầm tên nhãn; cách khắc phục chuẩn trong dự án Python hiện đại là đăng ký danh sách <code>markers</code> trong tệp <code>pyproject.toml</code> dưới mục <code>[tool.pytest.ini_options]</code> (hoặc trong <code>pytest.ini</code>). Bên cạnh các nhãn tự định nghĩa, <code>pytest</code> tích hợp sẵn 4 marker cốt lõi: <code>skip</code> (luôn bỏ qua), <code>skipif(condition, reason="...")</code> (bỏ qua nếu điều kiện đúng), <code>xfail</code> (kỳ vọng thất bại do lỗi đã biết nhưng không làm đỏ pipeline), và <code>parametrize</code>.</p>
+
+          <p>Trong đó, <strong>Parametrize (<code>@pytest.mark.parametrize</code>)</strong> là công cụ mạnh nhất để thực hiện kiểm thử hướng dữ liệu (<strong>Data-Driven Testing</strong> — <em>Slide 50–51</em>), giúp viết một hàm kiểm thử duy nhất nhưng tự động chạy lặp lại qua nhiều bộ đầu vào và kết quả kỳ vọng khác nhau. Decorator này nhận 2 đối số bắt buộc: (1) Chuỗi tên các tham số phân cách bằng dấu phẩy <code>"input, expected"</code> (khớp chính xác với tên tham số của hàm <code>def test_add_one(input, expected):</code>), và (2) Danh sách các bộ giá trị <code>[(1, 2), (2, 3), (3, 4)]</code>. Khi thực thi, <code>pytest</code> tách mỗi tuple thành một ca kiểm thử độc lập có định danh rõ ràng trên báo cáo (<code>test_add_one[1-2] PASSED</code>, <code>test_add_one[2-3] PASSED</code>, <code>test_add_one[3-4] PASSED</code>), giúp quét toàn bộ các giá trị biên của hàm nghiệp vụ như <code>checkout_order</code> và phát hiện chính xác bộ dữ liệu nào gây lỗi mà không làm phình mã nguồn.</p>
+
+          <x-figure id="validation-3-2-fig" key="3.2" title="Sơ đồ 3.2 — Bộ lọc Biểu thức Marker (pytest -m) &amp; Cơ chế Mở rộng Kịch bản bằng @pytest.mark.parametrize">Cơ chế lọc tập con kiểm thử bằng toán tử logic (and / or / not) trên CLI và nhân bản 1 hàm kiểm thử thành N ca thực thi độc lập qua danh sách Tuple của Parametrize.</x-figure>
+
+          <pre><code># 1. Khai báo Custom Markers trong pyproject.toml để triệt tiêu PytestUnknownMarkWarning (Slide 47)
+[tool.pytest.ini_options]
+markers = [
+    "api: marks tests as API related",
+    "db: marks tests as database related",
+    "slow: marks tests as slow",
+]
+
+# 2. Gắn nhiều Markers &amp; Nhân bản kịch bản với @pytest.mark.parametrize (Slide 48–51)
+import pytest
+
+@pytest.mark.api
+@pytest.mark.slow
+def test_api_response():
+    assert True  # Lọc chạy bằng: pytest -m "slow" | pytest -m "api or db" | pytest -m "slow and not db"
+
+def add_one(x):
+    return x + 1
+
+@pytest.mark.parametrize("input, expected", [(1, 2), (2, 3), (3, 4)])
+def test_add_one(input, expected):
+    assert add_one(input) == expected
+# Kết quả: test_add_one[1-2] PASSED, test_add_one[2-3] PASSED, test_add_one[3-4] PASSED</code></pre>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Marker / Lệnh Lọc CLI</th>
+                  <th>Ý nghĩa Cơ học (Slide 46–51)</th>
+                  <th>Kịch bản Vận hành Thực chiến</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong><code>@pytest.mark.skip</code></strong></td>
+                  <td>Luôn luôn bỏ qua (Always skip) hàm kiểm thử này, hiển thị trạng thái <code>SKIPPED (s)</code> trên Terminal.</td>
+                  <td>Tạm ngưng một bài test của tính năng đang tái cấu trúc (Refactor) hoặc chưa triển khai xong ở nhánh hiện tại.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>@pytest.mark.skipif(condition, reason="...")</code></strong></td>
+                  <td>Chỉ bỏ qua hàm kiểm thử nếu biểu thức điều kiện <code>condition</code> nhận giá trị <code>True</code>, kèm lý do giải thích rõ ràng.</td>
+                  <td>Bỏ qua bài test phụ thuộc hệ điều hành (<code>sys.platform == "win32"</code>), phiên bản Python (<code>sys.version_info &lt; (3, 12)</code>) hoặc khi thiếu biến môi trường GPU.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>@pytest.mark.xfail</code></strong></td>
+                  <td>Kỳ vọng bài test sẽ thất bại (Expected to fail); nếu thất bại thật thì ghi nhận <code>XFAIL (x)</code> chứ không tính là lỗi làm gãy CI/CD.</td>
+                  <td>Đánh dấu bài test tái hiện một bug đã biết của thư viện bên thứ ba đang chờ bản vá mới mà không phải xóa bài test đó.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>@pytest.mark.parametrize("a, b", [...])</code></strong></td>
+                  <td>Nhân bản và thực thi cùng một hàm kiểm thử nhiều lần tương ứng với từng tuple dữ liệu trong danh sách.</td>
+                  <td>Kiểm tra hàng loạt trường hợp biên (Boundary Cases: số âm, <code>0</code>, mã giảm giá hết hạn, đơn hàng <code>checkout_order</code>) chỉ bằng một hàm duy nhất.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>pytest -m "slow and not db"</code></strong></td>
+                  <td>Kết hợp các Custom Markers (đã khai báo trong <code>pyproject.toml</code>) bằng toán tử <code>and</code>, <code>or</code>, <code>not</code>.</td>
+                  <td>Tách luồng chạy trên CI/CD: chạy <code>pytest -m "not slow"</code> ở mỗi lần lưu code (Pull Request) để phản hồi trong vài giây, và chạy <code>pytest -m "slow or db"</code> vào ban đêm.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="callout">
+            <strong>Điểm nối sang Chặng 4 (Mocking &amp; Testcontainers — Slide 51):</strong> <code>@pytest.mark.parametrize</code> giúp chúng ta bơm hàng chục bộ dữ liệu đầu vào khác nhau vào hàm kiểm thử một cách gọn gàng. Nhưng điều gì xảy ra nếu bên trong hàm <code>checkout_order</code> lại gọi trực tiếp tới một API ngân hàng bên ngoài hoặc truy vấn một cơ sở dữ liệu thật đang trống rỗng? <strong>Chặng 4</strong> sẽ giải quyết triệt để bài toán phụ thuộc ngoại vi này bằng hai vũ khí đối lập mà bổ trợ: <strong>Mocking (<code>pytest-mock</code> / <code>mocker.patch</code> / <code>MagicMock</code>)</strong> để cô lập hoàn toàn trong Unit Test, và <strong>Testcontainers</strong> cùng <strong>Tox / Code Coverage</strong> để kiểm thử tích hợp trên Docker container thật.
+          </div>
+        </section>
+
+        <section class="lesson-section summary-section" id="validation-3-summary">
+          <h2 id="validation-3-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 3 &amp; Checklist 5 câu hỏi bản chất</h2>
+          <ol>
+            <li><strong>Quy ước Test Discovery của <code>pytest</code> nhận diện các tệp, hàm và lớp kiểm thử theo nguyên tắc nào?</strong><br/><code>pytest</code> tự động quét các tệp có tên khớp mẫu <code>test_*.py</code> hoặc <code>*_test.py</code>, thu thập mọi hàm có tiền tố <code>def test_*()</code> và các phương thức <code>def test_*(self)</code> bên trong các lớp bắt đầu bằng <code>class Test*:</code> mà không yêu cầu kế thừa bất kỳ lớp cơ sở nào.</li>
+            <li><strong>Sự khác biệt cốt lõi giữa việc dùng <code>return</code> và dùng <code>yield</code> bên trong một hàm <code>@pytest.fixture</code> là gì?</strong><br/>Lệnh <code>return</code> chỉ thực hiện pha khởi tạo (<strong>Setup</strong>) rồi kết thúc fixture ngay khi trao dữ liệu cho bài test; ngược lại, <code>yield</code> chia fixture thành 2 nửa: phần trước <code>yield</code> chạy trước bài test (<strong>Setup</strong>), giá trị sau <code>yield</code> được tiêm vào bài test, và phần sau <code>yield</code> tự động chạy sau khi bài test kết thúc để dọn dẹp tài nguyên (<strong>Teardown</strong>) bất kể bài test Pass hay Fail.</li>
+            <li><strong>Làm thế nào để nhiều tệp kiểm thử (<code>test_one.py</code>, <code>test_two.py</code>) cùng sử dụng chung một fixture mà không cần viết câu lệnh <code>import</code>?</strong><br/>Đặt định nghĩa fixture đó vào trong tệp đặc biệt <code>conftest.py</code>; <code>pytest</code> sẽ tự động phát hiện và tiêm fixture thông qua tên tham số cho mọi tệp kiểm thử nằm trong cùng thư mục và các thư mục con.</li>
+            <li><strong>Tại sao <code>pytest</code> lại phát cảnh báo <code>PytestUnknownMarkWarning</code> khi bạn gắn một nhãn tùy chỉnh như <code>@pytest.mark.slow</code>, và cách xử lý chuẩn trong dự án hiện đại là gì?</strong><br/>Cảnh báo này giúp ngăn ngừa lỗi gõ nhầm tên marker khiến bài test bị bỏ sót khi lọc bằng <code>pytest -m</code>; để khắc phục chuẩn xác, cần khai báo danh sách <code>markers = ["api: ...", "db: ...", "slow: ..."]</code> dưới mục <code>[tool.pytest.ini_options]</code> trong tệp <code>pyproject.toml</code> (hoặc trong <code>pytest.ini</code>).</li>
+            <li><strong>Hai đối số của <code>@pytest.mark.parametrize("input, expected", [(1, 2), (2, 3)])</code> hoạt động như thế nào khi chạy kiểm thử?</strong><br/>Đối số thứ nhất định nghĩa tên các tham số sẽ truyền vào hàm kiểm thử, còn đối số thứ hai là danh sách các tuple giá trị; <code>pytest</code> sẽ tự động nhân bản và thực thi hàm kiểm thử độc lập một lần cho mỗi tuple (<code>[1-2]</code>, <code>[2-3]</code>), báo cáo kết quả Pass/Fail riêng biệt cho từng ca.</li>
+          </ol>
+          <p style="margin-top:14px;"><a href="#/F05/4" onclick="selectStorageStage(4);return false;">Sang Chặng 4: Giả lập Phụ thuộc với Mocking (pytest-mock), Kiểm thử Hạ tầng Thật bằng Testcontainers, Đa môi trường Tox &amp; TDD →</a></p>
+        </section>
+      </div>

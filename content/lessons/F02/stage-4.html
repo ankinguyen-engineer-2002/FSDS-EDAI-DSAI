@@ -1,0 +1,224 @@
+      <div class="prose">
+        <x-spine id="python-4-spine" badge="TRONG BÀI HỌC NÀY · F02" title="Chặng 4: Cơ Học Lập Trình Đồng Bộ (Sync) vs. Bất Đồng Bộ (Async) &amp; Hệ Sinh Thái Framework (WSGI / ASGI)" subtitle="Trạm 4.1 → 4.2">Khép lại hành trình tối ưu tiến trình <code>crawler.py</code>: Giải phẫu điểm nghẽn vật lý của tác vụ chờ mạng (I/O-bound) qua bài toán đại kiện tướng Judit Polgár (CPU bị bỏ không <code>92%</code> thời gian trong mô hình <code>Synchronous Blocking</code>), cơ chế nhường quyền chủ động của vòng lặp sự kiện <code>asyncio</code> (<code>async def</code>, <code>await</code>, <code>asyncio.gather()</code> kết hợp <code>epoll</code>/<code>kqueue</code>), và bản đồ phân nhánh hệ sinh thái <code>Sync WSGI</code> (<code>Flask</code>, <code>Django</code>, <code>Requests</code>) đối đầu <code>Async ASGI</code> (<code>FastAPI</code>, <code>Uvicorn</code>, <code>httpx</code>/<code>aiohttp</code>).</x-spine>
+
+        <section class="lesson-section" id="python-4-1">
+          <h2 id="python-4-1-h2" tabindex="-1">Trạm 4.1: Bản chất Blocking vs. Non-Blocking I/O — Bài toán Đại kiện tướng Judit Polgár &amp; Căn bệnh Chết Đói CPU (92% Idle)</h2>
+
+          <p>Ở ba chặng trước, chúng ta đã tối ưu tiến trình <code>crawler.py</code> xử lý hàng triệu bản ghi trên bộ nhớ RAM chỉ trong vài mili-giây nhờ <code>dict</code> băm $O(1)$ và đường ống <code>Generator</code> ($O(1)$ RAM). Thế nhưng ngay khi đưa <code>crawler.py</code> ra môi trường thực tế để tải dữ liệu từ <code>1,000</code> đường dẫn URL qua mạng Internet, toàn bộ chương trình bỗng nhiên chậm lại như rùa bò dù quạt tản nhiệt CPU hoàn toàn im lặng. Nguyên nhân nằm ở sự chênh lệch tốc độ vật lý khổng lồ của các tác vụ phụ thuộc vào/ra (<strong>I/O-bound Tasks</strong> — gọi API mạng, truy vấn cơ sở dữ liệu qua socket, đọc/ghi đĩa): CPU chỉ mất vài micro-giây đến vài mili-giây để đóng gói yêu cầu HTTP, nhưng phải ngồi chờ hàng trăm mili-giây để tín hiệu ánh sáng đi qua cáp quang tới máy chủ từ xa và phản hồi trở về (<em>Slide 68–70</em>). Nếu dùng mô hình lập trình mặc định, luồng thực thi sẽ rơi vào trạng thái <strong>Chết đói CPU (CPU Starvation / Idle Waiting)</strong> — nhân xử lý đắt giá bị khóa cứng chỉ để đứng đợi gói tin mạng.</p>
+
+          <p>Để định lượng chính xác sự lãng phí này, <em>Slide 68–69</em> mô hình hóa CPU như đại kiện tướng cờ vua <strong>Judit Polgár</strong> thi đấu đồng loạt với <strong>24 kỳ thủ nghiệp dư (tương ứng 24 tác vụ I/O mạng)</strong>, trong đó mỗi ván cờ kéo dài <strong>30 cặp nước đi</strong>: bộ não của Judit (CPU) chỉ mất đúng <strong><code>5 giây</code></strong> để tính xong một nước đi, trong khi mỗi đối thủ (tác vụ chờ mạng/DB phản hồi) phải mất tới <strong><code>55 giây</code></strong> suy nghĩ mới đánh trả. Trong mô hình <strong>Đồng bộ chặn (Synchronous / Blocking Mode)</strong>, Judit đi <code>5 giây</code> ở Bàn 1 rồi đứng khoanh tay chờ đối thủ nghĩ suốt <code>55 giây</code>, đánh xong trọn vẹn 30 nước ở Bàn 1 (<code>(5s + 55s) × 30 = 1,800 giây</code>) mới bước sang Bàn 2: tổng thời gian hoàn tất 24 bàn lên tới $\text{Time}_{\text{Sync}} = (5\text{s} + 55\text{s}) \times 30 \times 24 = 43,200\text{ giây}$ (tức <strong><code>12 giờ</code></strong>), trong đó Judit thực sự động não chỉ $5\text{s} \times 30 \times 24 = 3,600\text{ giây}$ (<code>1 giờ</code>) và đứng chơi không tới <strong><code>92%</code></strong> thời gian (<code>39,600 giây</code>). Ngược lại, trong mô hình <strong>Bất đồng bộ không chặn (Asynchronous / Non-Blocking Mode)</strong>, vừa đi xong <code>5 giây</code> ở Bàn 1, Judit lập tức bước sang Bàn 2 đi <code>5 giây</code>, rồi sang Bàn 3... Khi đi hết một vòng 24 bàn (<code>24 × 5s = 120 giây</code>), đối thủ ở Bàn 1 đã suy nghĩ xong từ lâu (<code>55s &lt; 115s</code> thời gian Judit đi 23 bàn kia) và sẵn sàng cho nước tiếp theo; kết quả là khoảng chờ <code>55 giây</code> được lấp đầy bởi công việc có ích, rút ngắn tổng thời gian 30 vòng xuống chỉ còn $\text{Time}_{\text{Async}} = (24 \times 5\text{s} + 55\text{s}) \times 30 = 5,250\text{ giây}$ (tức <strong><code>~1.5 giờ</code></strong> theo công thức Slide 69) — <strong>tăng tốc gấp <code>8.2 lần</code></strong> dù vẫn chỉ có duy nhất một đại kiện tướng (1 luồng CPU đơn lẻ) làm việc!</p>
+
+          <x-figure id="python-4-1-fig" key="4.1" title="Sơ đồ 4.1 — Giải phẫu Định lượng Bài toán Judit Polgár (CPU vs. 24 I/O Tasks): Synchronous Blocking (12 Giờ, 92% CPU Idle) vs. Asynchronous Non-Blocking (1.5 Giờ)">Đối sánh trực quan dòng thời gian thực thi giữa mô hình Synchronous Blocking (CPU xử lý 5s rồi bị khóa cứng chờ I/O 55s tuần tự từng bàn cờ, tốn 43,200s = 12 giờ với 92% thời gian CPU ngồi chơi) và mô hình Asynchronous Non-Blocking (CPU đi nước cờ 5s rồi chuyển ngay sang bàn kế tiếp trong lúc đối thủ suy nghĩ, tận dụng thời gian chờ I/O để rút ngắn tổng thời gian xuống 5,250s = 1.5 giờ).</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Giải phẫu</th>
+                  <th>Mô hình Đồng bộ (<code>Synchronous / Blocking Mode</code>)</th>
+                  <th>Mô hình Bất đồng bộ (<code>Asynchronous / Non-Blocking Mode</code>)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <strong>Bản chất Cơ học Vận hành</strong>
+                  </td>
+                  <td>
+                    Thực thi tuần tự từng tác vụ từ trên xuống dưới (<em>Sequential Execution</em>). Khi gặp lệnh chờ mạng hoặc đĩa, luồng thực thi bị <strong>khóa cứng (Blocked)</strong> cho đến khi tác vụ đó trả kết quả về mới được chạy dòng code tiếp theo.
+                  </td>
+                  <td>
+                    Thực thi xen kẽ có hợp tác trên một luồng duy nhất (<em>Single-threaded Cooperative Concurrency</em>). Khi tác vụ A bắt đầu chờ I/O, CPU <strong>không đứng đợi</strong> mà lập tức chuyển sang chạy tác vụ B, C; khi I/O của A hoàn tất, CPU quay lại xử lý tiếp kết quả của A.
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Toán học Bài toán Judit Polgár</strong><br>
+                    <em>(Slide 68–69: 24 bàn × 30 nước, CPU <code>5s</code>, I/O <code>55s</code>)</em>
+                  </td>
+                  <td>
+                    • Thời gian 1 bàn: $(5\text{s} + 55\text{s}) \times 30 = 1,800\text{s}$ (<code>30 phút</code>).<br>
+                    • Tổng 24 bàn: $1,800\text{s} \times 24 = \mathbf{43,200\text{ giây}}$ (<strong><code>12 giờ</code></strong>).<br>
+                    • <strong>Tỷ lệ lãng phí CPU:</strong> $\frac{55}{5+55} \approx \mathbf{91.7\% \text{ (92\% Idle)}}$.
+                  </td>
+                  <td>
+                    • Thời gian CPU đi 1 vòng 24 bàn: $24 \times 5\text{s} = 120\text{s}$ (lấp kín thời gian đối thủ nghĩ <code>55s</code>).<br>
+                    • Tổng 30 vòng (theo Slide 69): $(24 \times 5\text{s} + 55\text{s}) \times 30 = \mathbf{5,250\text{ giây}}$ (<strong><code>~1.5 giờ</code></strong>).<br>
+                    • <strong>Tốc độ cải thiện:</strong> Nhanh gấp <strong><code>8.2 lần</code></strong> trên cùng 1 luồng duy nhất.
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Bài toán Nấu Cơm &amp; Nhắn Tin</strong><br>
+                    <em>(Slide 72: <code>cook_rice(3s)</code> + <code>text_friends(1s)</code>)</em>
+                  </td>
+                  <td>
+                    Dùng <code>time.sleep(3)</code> và <code>time.sleep(1)</code>: Bấm nồi cơm chờ đúng <code>3.00s</code> cho cơm chín xong mới cầm điện thoại nhắn tin mất thêm <code>1.00s</code> → Tổng thời gian: $\mathbf{3\text{s} + 1\text{s} = 4.00\text{ giây}}$.
+                  </td>
+                  <td>
+                    Dùng <code>await asyncio.sleep(3)</code> và <code>await asyncio.sleep(1)</code> qua <code>asyncio.gather()</code>: Vừa bấm nồi cơm (bắt đầu chờ <code>3s</code>) lập tức quay sang nhắn tin (<code>1s</code>) trong lúc nồi cơm đang tự nấu → Tổng thời gian: $\mathbf{\max(3\text{s}, 1\text{s}) = 3.00\text{ giây}}$.
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Đánh đổi Kỹ thuật (Trade-offs)</strong>
+                  </td>
+                  <td>
+                    • <strong>Ưu điểm:</strong> Luồng tư duy tuyến tính, dễ đọc, dễ viết, Stack Trace khi lỗi rõ ràng.<br>
+                    • <strong>Nhược điểm:</strong> Thông lượng (Throughput) cực thấp khi gặp hàng trăm kết nối I/O; nếu đẻ hàng nghìn OS Threads để bù lại sẽ tốn hàng GB RAM và nghẽn phí chuyển ngữ cảnh (<em>Context Switching</em>).
+                  </td>
+                  <td>
+                    • <strong>Ưu điểm:</strong> Chịu tải hàng chục nghìn kết nối mạng đồng thời (<em>C10K+ Problem</em>) chỉ với vài chục MB RAM trên 1 tiến trình.<br>
+                    • <strong>Nhược điểm:</strong> Đòi hỏi toàn bộ chuỗi thư viện gọi I/O phải hỗ trợ Non-Blocking; một hàm Blocking lọt vào sẽ làm tê liệt cả vòng lặp.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Quy luật vật lý từ bài toán Judit Polgár chỉ ra chân lý cốt lõi: <strong>Bất đồng bộ (Async) không làm cho CPU tính toán nhanh hơn (Judit vẫn mất đúng <code>5 giây</code> mỗi nước cờ) và cũng không làm mạng Internet truyền nhanh hơn (đối thủ vẫn nghĩ mất <code>55 giây</code>), mà nó triệt tiêu thời gian chết bằng cách chồng lấp (Overlap) khoảng chờ I/O của tác vụ này lên thời gian rảnh của CPU để xử lý tác vụ khác.</strong> Nhưng làm thế nào một luồng Python đơn lẻ — vốn bị khóa bởi <code>GIL</code> (Global Interpreter Lock) — lại biết chính xác thời điểm gói tin mạng của Bàn cờ số 1 vừa về tới card mạng để quay lại xử lý mà không cần đứng canh? Chúng ta bước sang <strong>Trạm 4.2</strong> để giải phẫu cơ chế <strong>Event Loop</strong> và hệ sinh thái Framework thực chiến.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="python-4-2">
+          <h2 id="python-4-2-h2" tabindex="-1">Trạm 4.2: Giải phẫu Vòng lặp Sự kiện (asyncio Event Loop, Coroutines) &amp; Đối chiếu Hệ sinh thái Framework (Flask/Django/Requests vs. FastAPI/httpx)</h2>
+
+          <p>Trái tim của lập trình bất đồng bộ trong Python là thư viện chuẩn <strong><code>asyncio</code></strong> vận hành dựa trên sự phối hợp nhịp nhàng giữa 3 thành phần: <strong>Coroutines (<code>async def</code>)</strong>, cơ chế nhường quyền chủ động (<strong>Cooperative Multitasking qua từ khóa <code>await</code></strong>), và bộ ghép kênh sự kiện I/O của nhân hệ điều hành (<strong>OS Kernel I/O Multiplexing: <code>epoll</code> trên Linux / <code>kqueue</code> trên macOS / <code>IOCP</code> trên Windows</strong>) (<em>Slide 70–72</em>). Khác với hàm thông thường (<code>def</code>) một khi đã chạy là chiếm giữ CPU từ đầu đến cuối, một hàm khai báo bằng <code>async def</code> khi được gọi sẽ trả về một đối tượng <strong>Coroutine</strong> có khả năng <em>tạm dừng (Suspend) và khôi phục (Resume) trạng thái thực thi tại bất kỳ điểm chờ nào</em>. Khi tiến trình khởi chạy vòng lặp sự kiện bằng <code>asyncio.run(main())</code> và nạp một danh sách tác vụ đồng thời qua <code>await asyncio.gather(task1, task2, ...)</code>, <strong>Event Loop</strong> sẽ lấy từng Coroutine ra chạy trên luồng chính. Ngay khi Coroutine gặp lệnh <code>await client.get(url)</code> (hoặc <code>await asyncio.sleep(3)</code>), thay vì gọi <code>time.sleep()</code> khóa chết luồng hệ điều hành, Coroutine đó gửi yêu cầu đăng ký mã định danh kết nối mạng (Socket File Descriptor) với bảng theo dõi <code>epoll</code>/<code>kqueue</code> của Kernel, lưu lại con trỏ lệnh hiện tại rồi <strong>chủ động nhường quyền điều khiển (Yield control) trả về cho Event Loop</strong>. Lập tức, Event Loop bốc Coroutine kế tiếp trong hàng đợi <code>Ready Queue</code> ra chạy; ở tầng dưới, nhân hệ điều hành âm thầm lắng nghe hàng nghìn kết nối mạng cùng lúc và ngay khi socket nào nhận đủ dữ liệu, <code>epoll</code>/<code>kqueue</code> phát tín hiệu báo cho Event Loop đẩy Coroutine tương ứng quay lại hàng đợi để chạy tiếp dòng lệnh ngay sau <code>await</code>.</p>
+
+          <p>Sự khác biệt cơ học giữa <strong>Blocking Thread-per-Request</strong> và <strong>Non-Blocking Event Loop</strong> đã chia hệ sinh thái Web và Thu thập dữ liệu (Data Ingestion) của Python thành hai thế hệ giao thức tách biệt: <strong>nhánh Đồng bộ chuẩn <code>WSGI</code> (Web Server Gateway Interface)</strong> với các đại diện kinh điển như <code>Flask</code>, <code>Django</code> (mặc định), kết hợp cùng thư viện HTTP <code>Requests</code> và trình điều khiển DB đồng bộ <code>psycopg2</code>; đối lập với <strong>nhánh Bất đồng bộ chuẩn <code>ASGI</code> (Asynchronous Server Gateway Interface)</strong> dẫn đầu bởi <code>FastAPI</code> (chạy trên máy chủ <code>Uvicorn</code>/<code>uvloop</code>), kết hợp cùng thư viện HTTP bất đồng bộ <code>httpx</code> / <code>aiohttp</code> và trình điều khiển DB <code>asyncpg</code>. Trong kiến trúc <code>WSGI</code> (<code>Flask</code>), mỗi yêu cầu từ người dùng chiếm trọn 1 luồng hệ điều hành (Worker Thread): nếu <code>200</code> người dùng cùng gọi API mà máy chủ chỉ có <code>8</code> Worker Threads, <code>192</code> người dùng phải xếp hàng chờ ngoài cổng dù CPU đang rảnh <code>92%</code> vì đợi Database. Ngược lại, một tiến trình <code>FastAPI</code> (<code>ASGI</code>) duy nhất dùng Event Loop có thể tiếp nhận đồng thời hàng nghìn kết nối chờ I/O mạng hay gọi LLM API mà không cần đẻ thêm luồng. Tuy nhiên, kiến trúc <code>Async</code> đi kèm một <strong>kỷ luật sắt trên Production</strong>: bên trong hàm <code>async def</code>, bạn <strong>tuyệt đối cấm gọi trực tiếp các hàm Blocking</strong> như <code>time.sleep()</code>, <code>requests.get()</code> hay chạy vòng lặp tính toán ma trận nặng (<strong>CPU-bound</strong>), bởi vì không có điểm <code>await</code> nào nhường quyền, hàm đó sẽ <em>khóa chết duy nhất luồng Event Loop</em>, làm đóng băng toàn bộ hàng nghìn người dùng khác đang kết nối vào máy chủ! Đối với các tác vụ nặng về tính toán CPU (bị giới hạn bởi khóa <code>GIL</code> trong 1 tiến trình), giải pháp chuẩn là đẩy sang <code>ProcessPoolExecutor</code> (đa tiến trình — <code>multiprocessing</code>) hoặc hàng đợi tác vụ nền (<code>Celery</code> / <code>Ray</code>).</p>
+
+          <x-figure id="python-4-2-fig" key="4.2" title="Sơ đồ 4.2 — Cơ chế Vận hành asyncio Event Loop (epoll/kqueue, async/await, asyncio.gather) và Bản đồ Đối chiếu Sync Frameworks (WSGI) vs. Async Frameworks (ASGI)">Giải phẫu vòng tuần hoàn khép kín bên trong asyncio Event Loop (Ready Queue → chạy Coroutine → gặp await nhường quyền và đăng ký Socket FD xuống OS Kernel epoll/kqueue → đánh thức Resume khi I/O hoàn tất) đặt cạnh bảng phân tầng kiến trúc giữa Sync Stack (WSGI: Flask, Django, Requests, psycopg2) và Async Stack (ASGI: FastAPI, Uvicorn, httpx, aiohttp, asyncpg).</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Kỹ thuật &amp; Kiến trúc</th>
+                  <th>Hệ sinh thái Đồng bộ (<code>Sync Stack — Chuẩn WSGI</code>)</th>
+                  <th>Hệ sinh thái Bất đồng bộ (<code>Async Stack — Chuẩn ASGI</code>)</th>
+                  <th>Đa tiến trình (<code>Multiprocessing — CPU-bound</code>)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <strong>Framework &amp; Thư viện Đại diện</strong>
+                  </td>
+                  <td>
+                    • Web API: <code>Flask</code>, <code>Django</code> (<code>WSGI</code>), <code>Gunicorn</code> (Sync workers).<br>
+                    • HTTP Client / Crawler: <code>Requests</code>, <code>urllib3</code>.<br>
+                    • Database / Sleep: <code>psycopg2</code>, <code>PyMySQL</code>, <code>time.sleep()</code>.
+                  </td>
+                  <td>
+                    • Web API: <code>FastAPI</code>, <code>Starlette</code>, <code>Uvicorn</code> (<code>uvloop</code>).<br>
+                    • HTTP Client / Crawler: <code>httpx.AsyncClient</code>, <code>aiohttp</code>.<br>
+                    • Database / Sleep: <code>asyncpg</code>, <code>motor</code>, <code>asyncio.sleep()</code>.
+                  </td>
+                  <td>
+                    • Thư viện chuẩn: <code>concurrent.futures.ProcessPoolExecutor</code>, <code>multiprocessing</code>.<br>
+                    • Phân tán: <code>Celery</code>, <code>Ray</code>, <code>Dask</code>.
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Cơ chế Chịu tải Đồng thời</strong>
+                  </td>
+                  <td>
+                    <strong>1 Request = 1 OS Thread</strong> (<code>ThreadPoolExecutor</code>). Số lượng kết nối đồng thời bị giới hạn cứng bởi số lượng Worker Threads đã cấp phát.
+                  </td>
+                  <td>
+                    <strong>Hàng nghìn Coroutines = 1 OS Thread</strong> (<code>Event Loop</code> + <code>epoll</code>/<code>kqueue</code>). Chuyển ngữ cảnh ở tầng ứng dụng (User-space) chỉ tốn vài nano-giây.
+                  </td>
+                  <td>
+                    <strong>1 Tác vụ = 1 OS Process độc lập</strong> có trình thông dịch Python và khóa <code>GIL</code> riêng trên từng nhân CPU vật lý (Multi-core).
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Bài toán Phù hợp Nhất</strong>
+                  </td>
+                  <td>
+                    Ứng dụng nghiệp vụ CRUD truyền thống có lưu lượng vừa phải, script tự động hóa tuần tự, hoặc hệ thống phụ thuộc sâu vào các thư viện C/Python cũ chưa hỗ trợ Async.
+                  </td>
+                  <td>
+                    <strong>I/O-bound cường độ cao:</strong> Tiến trình <code>crawler.py</code> quét hàng nghìn trang web, cổng API Gateway, ứng dụng gọi LLM / Vector DB, WebSockets, Streaming thời gian thực.
+                  </td>
+                  <td>
+                    <strong>CPU-bound thuần túy:</strong> Giải nén tệp lớn, băm mật khẩu (<code>bcrypt</code>), biến đổi ma trận dữ liệu nặng, huấn luyện mô hình ML cục bộ.
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Cạm bẫy Chết người trên Production</strong>
+                  </td>
+                  <td>
+                    <strong>Cạn kiệt Thread Pool (Thread Exhaustion):</strong> Khi dịch vụ đích (DB/API ngoài) phản hồi chậm, toàn bộ Worker Threads bị khóa cứng chờ I/O, gây lỗi <code>504 Gateway Timeout</code> dây chuyền.
+                  </td>
+                  <td>
+                    <strong>Gọi nhầm hàm Blocking trong <code>async def</code>:</strong> Dùng <code>time.sleep(5)</code> hoặc <code>requests.get()</code> bên trong <code>async def</code> sẽ làm <strong>đóng băng toàn bộ Event Loop</strong> của mọi khách hàng khác suốt 5 giây!
+                  </td>
+                  <td>
+                    <strong>Chi phí RAM &amp; IPC (Inter-Process Communication):</strong> Khởi tạo Process mới rất nặng RAM; truyền dữ liệu lớn giữa các Process phải <code>pickle</code>/<code>unpickle</code> tốn CPU.
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Ứng dụng trong <code>crawler.py</code> &amp; Lộ trình FSDS</strong>
+                  </td>
+                  <td>
+                    Dùng <code>requests.get()</code> khi viết script thử nghiệm nhanh tải vài trang đơn lẻ; dễ dàng debug từng dòng trên Terminal.
+                  </td>
+                  <td>
+                    Trụ cột của <code>crawler.py</code> bản Production (<code>httpx</code> + <code>asyncio.gather()</code>) và là nền tảng cốt lõi của học phần <strong>F04 · Web API với FastAPI</strong>.
+                  </td>
+                  <td>
+                    Kết hợp với <code>FastAPI</code> / <code>asyncio</code> qua <code>loop.run_in_executor()</code> khi cần bóc tách HTML/JSON khổng lồ sau khi đã tải xong qua mạng.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <pre><code>import asyncio, time, httpx
+
+# 1. Minh họa trực tiếp Slide 72: Chồng lấp thời gian chờ I/O bằng async/await &amp; asyncio.gather()
+async def cook_rice() -&gt; str:
+    await asyncio.sleep(3)                  # Nhường CPU cho Event Loop trong 3s chờ cơm chín (KHÔNG dùng time.sleep!)
+    return "Cơm đã chín"
+
+async def text_friends() -&gt; str:
+    await asyncio.sleep(1)                  # Tranh thủ chạy ngay trong lúc đang chờ nồi cơm
+    return "Đã nhắn tin xong"
+
+# 2. Ứng dụng thực chiến trong crawler.py: Tải đồng thời hàng loạt URL bằng httpx.AsyncClient (ASGI/Async Stack)
+async def fetch_order_batch(urls: list[str]) -&gt; list[int]:
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        tasks = [client.get(url) for url in urls]
+        responses = await asyncio.gather(*tasks)   # Event Loop + epoll/kqueue bắn đồng thời toàn bộ HTTP requests
+        return [resp.status_code for resp in responses]
+
+async def main() -&gt; None:
+    t0 = time.perf_counter()
+    results = await asyncio.gather(cook_rice(), text_friends())
+    print(f"{results} -&gt; Hoàn tất trong {time.perf_counter() - t0:.2f}s (Nhanh hơn Sync 4.00s!)")
+
+asyncio.run(main())                         # Khởi tạo Event Loop: Tổng thời gian chỉ mất ~3.00s thay vì 4.00s</code></pre>
+
+          <p>Đoạn mã trên khép lại mảnh ghép cuối cùng của tiến trình <code>crawler.py</code>: khi kết hợp <strong><code>httpx.AsyncClient</code> + <code>asyncio.gather()</code></strong> (Trạm 4.2) để thu thập hàng nghìn phản hồi JSON qua mạng mà không để CPU chết đói, đẩy luồng dữ liệu qua <strong>đường ống <code>Generator</code> (<code>yield</code>)</strong> chảy từng bản ghi với bộ nhớ phẳng $O(1)$ (Chặng 3), kiểm soát kiểu chặt chẽ bằng <strong>Type Hints &amp; OOP</strong> (Chặng 2) và đối chiếu khóa qua <strong>bảng băm <code>dict</code>/<code>set</code> $O(1)$</strong> trên vùng nhớ <code>PyObject</code> (Chặng 1), bạn đã sở hữu tư duy cơ học của một kỹ sư Python thực thụ. Nhưng sau khi <code>crawler.py</code> đã thu thập và làm sạch hàng triệu đơn hàng với tốc độ tối đa trên RAM, làm thế nào để lưu trữ chúng xuống đĩa cứng bền vững, đảm bảo không mất một xu nào khi sập nguồn điện và truy vấn trong vài mili-giây? Đó chính là lúc chúng ta bước sang học phần tiếp theo: <strong>F03 · Database Fundamentals</strong> (và gặp lại trực tiếp <code>async def</code> / <code>ASGI</code> tại <strong>F04 · Web API với FastAPI</strong>).</p>
+        </section>
+
+        <section class="summary-section" id="python-4-summary">
+          <h2 id="python-4-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 4 &amp; Khép kín Toàn bộ Học phần F02 · Python Fundamentals</h2>
+
+          <ol>
+            <li><strong>Điểm nghẽn vật lý của I/O-bound &amp; Bài toán Judit Polgár (Slide 68–69):</strong> Trong các tác vụ chờ mạng/cơ sở dữ liệu, CPU chỉ mất <code>5 giây</code> tính toán nhưng phải đợi I/O phản hồi tới <code>55 giây</code>. Chạy đồng bộ chặn (<code>Synchronous Blocking</code>) qua 24 bàn × 30 nước tốn tới <code>43,200 giây (12 giờ)</code> vì CPU bị bỏ không (<code>Idle</code>) tới <strong><code>92%</code></strong> thời gian; chuyển sang bất đồng bộ không chặn (<code>Asynchronous Non-Blocking</code>) giúp CPU luân chuyển liên tục qua 24 bàn trong lúc đối thủ suy nghĩ, rút ngắn tổng thời gian xuống <code>5,250 giây (~1.5 giờ)</code> — tăng tốc gấp <strong><code>8.2 lần</code></strong> trên cùng một luồng duy nhất.</li>
+            <li><strong>Cơ học <code>asyncio</code> Event Loop, Coroutines &amp; OS Kernel Multiplexing (Slide 70–72):</strong> Một hàm <code>async def</code> tạo ra đối tượng Coroutine có thể tạm dừng và khôi phục trạng thái. Khi gặp từ khóa <code>await</code> (như <code>await asyncio.sleep(3)</code> hay <code>await client.get(url)</code>), Coroutine đăng ký Socket với cơ chế <code>epoll</code> (Linux) / <code>kqueue</code> (macOS) của nhân hệ điều hành rồi <strong>nhường quyền điều khiển (Yield)</strong> về cho <code>Event Loop</code> (<code>asyncio.run()</code>) chạy tác vụ khác trong nhóm <code>asyncio.gather()</code>, giúp bài toán <code>cook_rice(3s) + text_friends(1s)</code> hoàn tất trong <code>3.00s</code> thay vì <code>4.00s</code>.</li>
+            <li><strong>Hệ sinh thái Sync Framework (<code>WSGI</code>) vs. Async Framework (<code>ASGI</code>):</strong> Nhánh <code>Sync / WSGI</code> (<code>Flask</code>, <code>Django</code> mặc định, thư viện <code>Requests</code>, <code>psycopg2</code>) khóa cứng 1 luồng hệ điều hành cho mỗi yêu cầu chờ mạng; trong khi nhánh <code>Async / ASGI</code> (<code>FastAPI</code>, <code>Uvicorn</code>, <code>httpx</code>, <code>aiohttp</code>, <code>asyncpg</code>) xử lý đồng thời hàng chục nghìn kết nối I/O trên một vòng lặp sự kiện duy nhất với chi phí bộ nhớ tối thiểu.</li>
+            <li><strong>Quy tắc Sinh tử trên Production (Cấm Blocking trong Event Loop):</strong> Tuyệt đối không gọi hàm đồng bộ chặn (<code>time.sleep()</code>, <code>requests.get()</code>) hoặc chạy vòng lặp tính toán nặng (<code>CPU-bound</code>) trực tiếp bên trong hàm <code>async def</code>, vì nó sẽ làm đóng băng toàn bộ Event Loop của mọi người dùng khác. Với tác vụ <code>CPU-bound</code>, bắt buộc phải tách sang đa tiến trình (<code>ProcessPoolExecutor</code>) để vượt qua khóa <code>GIL</code>.</li>
+            <li><strong>Mạch Nhân – Quả Khép Kín 4 Chặng Học Phần F02 (Python Fundamentals):</strong> [Chặng 1] Quản trị vùng nhớ <code>Stack</code>/<code>Heap</code> (<code>PyObject</code> <code>28 bytes</code>, <code>RefCount + Cyclic GC</code>) và chọn cấu trúc <code>dict</code>/<code>set</code> băm $O(1)$ thay vì quét <code>list</code> $O(N)$ → [Chặng 2] Đóng gói logic nghiệp vụ bằng Hàm (<code>LEGB</code>, <code>*args</code>/<code>**kwargs</code>), <code>Type Hints</code>, <code>OOP</code> &amp; <code>Exceptions</code> → [Chặng 3] Chuyển từ nạp toàn bộ vào <code>list</code> gây tràn RAM (<code>OOM</code>) sang dòng chảy lười <code>Iterator</code> / <code>Generator</code> (<code>yield</code>) tiêu thụ $O(1)$ RAM → [Chặng 4] Giải phóng CPU khỏi <code>92%</code> thời gian chết chờ mạng bằng <code>asyncio</code> Event Loop và hệ sinh thái <code>ASGI</code> (<code>FastAPI</code> / <code>httpx</code>).</li>
+          </ol>
+
+          <p><strong>Câu hỏi tự kiểm tra trước khi sang học phần F03:</strong> <em>Nếu một lập trình viên viết endpoint <code>async def crawl_endpoint()</code> trong <code>FastAPI</code> nhưng bên trong lại dùng thư viện <code>requests.get(url)</code> (mất <code>2 giây</code> chờ phản hồi) thay vì <code>await httpx_client.get(url)</code>, điều gì sẽ xảy ra khi có <code>100</code> người dùng gọi vào endpoint đó cùng một lúc trên một tiến trình <code>Uvicorn</code> worker duy nhất?</em> (Gợi ý: Hãy nhớ lại sự khác biệt giữa việc đại kiện tướng Judit Polgár bước ngay sang bàn kế tiếp khi gặp từ khóa <code>await</code> và việc bị trói chân tại Bàn 1 bởi một lời gọi Blocking không nhường quyền cho Event Loop).</p>
+        </section>
+      </div>

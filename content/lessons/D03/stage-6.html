@@ -1,0 +1,334 @@
+      <div class="prose">
+        <x-spine id="spark-6-spine" badge="CHẶNG 6 · SPARK OPERATIONAL TECHNIQUES" title="Chặng 6: Kỹ Thuật Vận Hành Thực Chiến — Giải Phẫu Spark UI, Dynamic Allocation &amp; Data Compaction" subtitle="Trạm 6.1 → 6.3">Khép kín hành trình của tác vụ <strong>daily_revenue_attribution.py</strong> trên môi trường Production: đọc vị điểm nghẽn qua bảng điều khiển <strong>Spark UI Dashboard</strong>, tự động co giãn tài nguyên theo tải bằng <strong>Dynamic Allocation</strong>, và nén gộp hàng triệu tệp nhỏ bằng <strong>Data Compaction</strong> (<code>coalesce</code>, <code>repartition</code>, <code>OPTIMIZE</code>) trước khi bàn giao sang tầng Streaming (<code>D04</code>) và Consumption (<code>D05</code>).</x-spine>
+
+        <p>Ở <strong>Chặng 5</strong>, chúng ta đã vũ trang cho tác vụ <code>daily_revenue_attribution.py</code> bằng 5 kỹ thuật tối ưu hóa cấp độ mã nguồn và trình biên dịch (<code>cache()</code>/<code>persist()</code>, <code>BroadcastHashJoin</code>, <strong>Key Salting</strong>, <strong>Partition Pruning</strong> và <strong>Adaptive Query Execution — AQE</strong>). Tuy nhiên, khi đưa đường ống xử lý 2 tỷ dòng (bao gồm <strong>Order #8888</strong>) lên cụm máy chủ Production chạy tự động lúc 01:00 sáng mỗi ngày, kỹ sư dữ liệu phải đối mặt với bài toán <strong>Vận hành Thực chiến (Spark Operational Techniques)</strong>: làm sao chẩn đoán chính xác vì sao một Stage bị treo ở Task thứ <code>199/200</code> suốt 16 phút, làm sao tránh đốt hàng nghìn USD tiền thuê máy chủ rảnh rỗi khi lưu lượng dữ liệu biến thiên theo giờ, và làm sao ngăn chặn thảm họa hàng triệu tệp Parquet siêu nhỏ (<code>~1 MB</code>) làm tê liệt kho dữ liệu Gold. <strong>Chặng 6</strong> giải quyết trọn vẹn ba trụ cột vận hành này thông qua <strong>Spark UI Dashboard</strong>, <strong>Dynamic Allocation</strong> và <strong>Data Compaction</strong>.</p>
+
+        <section class="lesson-section" id="spark-6-1">
+          <h2 id="spark-6-1-h2" tabindex="-1">Trạm 6.1: Giải phẫu Spark UI Dashboard — Chẩn đoán Stages, Tiến độ Task, Shuffle Cost, Disk Spill &amp; OOM</h2>
+
+          <p><strong>Spark UI Dashboard</strong> (mặc định lắng nghe tại cổng <code>4040</code> của Driver khi ứng dụng đang chạy và được lưu trữ hậu kiểm trên <strong>Spark History Server</strong> tại cổng <code>18080</code> thông qua nhật ký sự kiện <code>spark.eventLog.enabled = true</code>) là buồng lái chẩn đoán quan trọng nhất của kỹ sư dữ liệu. Thay vì phỏng đoán mù quáng khi tác vụ <code>daily_revenue_attribution.py</code> chạy chậm hoặc sập giữa chừng, kỹ sư sử dụng 6 thẻ chức năng trên thanh điều hướng của Spark Web UI (<code>Jobs</code>, <code>Stages</code>, <code>Storage</code>, <code>Environment</code>, <code>Executors</code>, và <code>SQL / DataFrame</code>) để định vị chính xác điểm nghẽn theo 3 chiều đo cốt lõi: <strong>Thời gian thực thi (Execution Time)</strong>, <strong>Tiến độ từng tác vụ con (Task Progress)</strong>, và <strong>Chi phí xáo trộn dữ liệu qua mạng (Shuffle Cost)</strong>.</p>
+
+          <x-figure id="spark-6-1-fig" key="6.1" title="Sơ đồ 6.1 — Vận Hành Thực Chiến #1: Giải Phẫu Spark UI Dashboard &amp; Chẩn Đoán Điểm Nghẽn">Cách đọc bảng Active/Completed Stages trên Spark Web UI để phát hiện ngay lập tức Straggler Task, Shuffle Explosion và Disk Spill.</x-figure>
+
+          <h3 id="spark-6-1-stages">Giải phẫu Bảng Điều khiển Stages (Active, Pending &amp; Completed Stages)</h3>
+          <p>Khi đi sâu vào thẻ <strong>Stages</strong> trên Spark UI (như minh họa tại <strong>Sơ đồ 6.1</strong>), toàn bộ tiến trình vật lý của một Spark Job được phân tách thành 3 nhóm trạng thái: <code>Active Stages</code> (các Stage đang thực thi trên cụm Executor), <code>Pending Stages</code> (các Stage đang xếp hàng chờ Stage cha hoàn tất ghi Shuffle), và <code>Completed Stages</code> (các Stage đã hoàn thành). Mỗi dòng trong bảng cung cấp một bức ảnh chụp X-quang về luồng di chuyển của dữ liệu:</p>
+          <ul>
+            <li><strong><code>Stage Id</code> &amp; <code>Description</code>:</strong> Định danh duy nhất của Stage kèm theo toán tử Action hoặc câu lệnh gốc trong mã nguồn đã kích hoạt Stage đó (ví dụ <code>Stage Id 3</code> ứng với <code>takeOrdered at head.scala:145</code> hoặc <code>save at daily_revenue_attribution.py:112</code>). Nhấp vào liên kết này sẽ mở ra biểu đồ DAG chi tiết và bảng <strong>Summary Metrics</strong> của toàn bộ các Task bên trong Stage.</li>
+            <li><strong><code>Submitted</code> &amp; <code>Duration</code>:</strong> Thời điểm Stage được <code>DAGScheduler</code> gửi xuống <code>TaskScheduler</code> và tổng thời gian trôi qua (Wall-clock Time). Trong ví dụ thực tế trên <strong>Sơ đồ 6.1</strong>, trong khi <code>Stage Id 0, 1, 2</code> chỉ mất từ <code>2 s</code> đến <code>44 s</code>, <code>Stage Id 3</code> lại kéo dài tới <strong><code>16 min</code></strong> — dấu hiệu báo động đỏ đầu tiên yêu cầu kỹ sư phải mổ xẻ ngay lập tức.</li>
+            <li><strong><code>Tasks: Succeeded/Total</code>:</strong> Thanh tiến trình hiển thị số lượng Task đã hoàn thành trên tổng số Partition của Stage đó. Quan sát <code>Stage Id 3</code> đang chạy ở mức <code>99/200</code> (99 Task đã xong, 101 Task đang chạy hoặc chờ) hoặc kịch bản kinh điển <code>199/200</code> treo suốt 15 phút giúp kỹ sư phân biệt ngay giữa tình trạng thiếu hụt tài nguyên toàn cục và hiện tượng lệch dữ liệu cục bộ (<strong>Straggler Task</strong>).</li>
+            <li><strong><code>Input</code> &amp; <code>Output</code>:</strong> Tổng dung lượng dữ liệu đọc vào từ hệ thống lưu trữ ngoài (như <code>32.5 GB</code> đọc từ bảng Parquet tầng Silver trên S3 ở <code>Stage Id 3</code>) và dung lượng ghi ra đích cuối cùng.</li>
+            <li><strong><code>Shuffle Read</code> &amp; <code>Shuffle Write</code>:</strong> Tổng số byte mà Stage hiện tại phải kéo qua mạng từ Stage trước (<code>Shuffle Read</code>) và tổng số byte mà Stage hiện tại phải tuần tự hóa, sắp xếp rồi ghi xuống đĩa tạm cục bộ để chuẩn bị cho Stage kế tiếp (<code>Shuffle Write</code>). Tại <code>Stage Id 3</code>, dữ liệu đầu vào chỉ có <code>32.5 GB</code> nhưng cột <code>Shuffle Write</code> phình to gấp đôi lên tới <strong><code>66.9 GB</code></strong> — bằng chứng không thể chối cãi của hiện tượng bùng nổ dữ liệu sau phép nối hoặc gom nhóm sai khóa.</li>
+          </ul>
+
+          <h3 id="spark-6-1-runbook">Sổ tay Chẩn đoán Thực chiến từ Learning Spark, 2nd Edition (Ch. 7): 3 Triệu chứng Sinh tử trên Spark UI</h3>
+          <p>Theo <em>Learning Spark, 2nd Edition</em> (Ch. 7 — Optimizing and Tuning Spark Applications), một kỹ sư vận hành lành nghề không bao giờ tăng cấu hình RAM hay CPU một cách cảm tính. Khi mở trang chi tiết của một Stage (bằng cách nhấp vào <code>Stage Id</code>) kết hợp với thẻ <code>Executors</code> và <code>SQL / DataFrame</code>, kỹ sư chẩn đoán căn nguyên vật lý theo 3 phác đồ chuẩn mực sau:</p>
+
+          <ol>
+            <li>
+              <strong>Phác đồ 1 — Bắt bệnh Lệch dữ liệu (Data Skew &amp; Straggler Tasks):</strong>
+              <p><strong>Hiện tượng trên UI:</strong> Thanh tiến trình <code>Tasks: Succeeded/Total</code> dừng ở mức <code>199/200</code> (199 Task hoàn thành trong <code>5 giây</code>, nhưng chỉ riêng 1 Task cuối cùng chạy suốt <code>16 phút</code> không xong). Khi cuộn xuống bảng <strong>Summary Metrics for Completed Tasks</strong> bên trong Stage, đối chiếu các cột phân vị (<code>Min</code>, <code>25th percentile</code>, <code>Median</code>, <code>75th percentile</code>, <code>Max</code>) sẽ thấy sự chênh lệch dị thường: <code>Median Duration = 3.2 s</code> và <code>Median Shuffle Read Size / Records = 150 MB / 1.2M records</code>, nhưng cột <strong><code>Max Duration = 16 min</code></strong> và <strong><code>Max Shuffle Read Size / Records = 18.4 GB / 145M records</code></strong> (lớn gấp hơn 50–100 lần mức trung vị!). Trên biểu đồ <strong>Event Timeline</strong>, một thanh màu xanh lá cây (<code>Executor Computing Time</code>) của đúng 1 Task kéo dài lê thê trong khi tất cả các core khác đã trống việc.</p>
+              <p><strong>Cơ chế gốc &amp; Phác đồ xử lý:</strong> Một khóa phân vùng như <code>customer_id IS NULL</code>, tài khoản khách vãng lai <code>guest_000</code> hoặc kho hàng trung tâm chiếm tỷ trọng áp đảo đã bị hàm băm <code>hash(key) % num_partitions</code> gom toàn bộ vào 1 Partition duy nhất. Giải pháp: lọc bỏ hoặc tách luồng xử lý riêng các khóa <code>NULL</code> trước khi <code>JOIN</code>, bật <code>spark.sql.adaptive.skewJoin.enabled = true</code> (AQE tự động chẻ Partition lớn hơn <code>skewedPartitionFactor = 5</code> và <code>skewedPartitionThresholdInBytes = 256MB</code>), hoặc áp dụng kỹ thuật <strong>Key Salting</strong> đã học ở Chặng 5.</p>
+            </li>
+            <li>
+              <strong>Phác đồ 2 — Bắt bệnh Bùng nổ Shuffle, Tràn Đĩa &amp; Nghẽn Rác JVM (Shuffle Explosion, Disk Spill &amp; GC Pressure):</strong>
+              <p><strong>Hiện tượng trên UI:</strong> Trong bảng Stages, cột <code>Shuffle Write</code> phình to bất thường so với <code>Input</code> (như <code>32.5 GB Input</code> sinh ra <code>66.9 GB Shuffle Write</code> ở <code>Stage Id 3</code>), đồng thời xuất hiện thêm hai cột cảnh báo mà bình thường bị ẩn đi khi bằng 0: <strong><code>Spill (Memory)</code></strong> và <strong><code>Spill (Disk)</code></strong>. Bên trong biểu đồ <strong>Event Timeline</strong> của Task hoặc tại thẻ <code>Executors</code>, cột <code>GC Time</code> (thời gian JVM dừng mọi luồng để dọn rác — Stop-the-World Garbage Collection) chuyển sang <strong>màu đỏ rực</strong> (chiếm <code>&gt; 10%</code> tổng <code>Task Time</code>).</p>
+              <p><strong>Cơ chế gốc &amp; Phác đồ xử lý:</strong> (a) Khi thực hiện phép <code>JOIN</code> nhiều-nhiều (Many-to-Many) do khóa nối bị trùng lặp ở bảng Dimension, hoặc dùng <code>explode()</code> mảng lớn trước khi lọc, số lượng dòng nhân bản làm nổ <code>Shuffle Write</code>; (b) Khi vùng nhớ thực thi <code>Execution Memory</code> trên RAM của Executor không đủ chứa bảng băm/sắp xếp của một Partition, Tungsten buộc phải xả dữ liệu tạm xuống ổ cứng cục bộ: <code>Spill (Memory)</code> là kích thước dữ liệu trong bộ nhớ trước khi bị đẩy ra ngoài, còn <code>Spill (Disk)</code> là kích thước sau khi đã tuần tự hóa và nén trên đĩa — khiến tốc độ xử lý tụt dốc hàng chục lần do nghẽn Disk I/O; (c) Khi lạm dụng <code>RDD</code> hoặc <code>groupByKey()</code> tạo hàng triệu đối tượng Java trên Heap thay vì dùng <code>DataFrame</code> off-heap Tungsten, bộ thu gom rác JVM bị quá tải. Giải pháp: khử trùng khóa bảng chiều trước khi <code>JOIN</code>, thay <code>groupByKey</code> bằng <code>reduceByKey</code>/DataFrame <code>groupBy().agg()</code>, đẩy bộ lọc <code>WHERE</code> lên sớm nhất, và tăng <code>spark.sql.shuffle.partitions</code> (hoặc bật <code>spark.sql.adaptive.coalescePartitions.enabled = true</code>) để giảm kích thước mỗi Partition xuống ngưỡng lý tưởng <code>128 MB – 200 MB</code>.</p>
+            </li>
+            <li>
+              <strong>Phác đồ 3 — Phân biệt rạch ròi Sập Trình điều khiển (Driver OOM) và Sập Công nhân (Executor OOM):</strong>
+              <p>Khi tác vụ chết bởi lỗi <code>java.lang.OutOfMemoryError</code>, việc đọc đúng nơi phát sinh lỗi trên thẻ <code>Executors</code> (dòng <code>driver</code> so với các dòng <code>executor 1..N</code>) quyết định hoàn toàn hướng sửa code:</p>
+              <ul>
+                <li><strong>Driver OOM (Sập não bộ điều phối):</strong> Xảy ra khi mã nguồn gọi các lệnh kéo toàn bộ dữ liệu phân tán về RAM của một máy Driver duy nhất như <code>df.collect()</code>, <code>df.toPandas()</code> trên bảng hàng chục triệu dòng, hoặc khi ép <code>broadcast(large_df)</code> đối với một bảng có kích thước vượt quá dung lượng bộ nhớ của Driver (vì Driver phải thu thập toàn bộ bảng về xây dựng cấu trúc <code>HashedRelation</code> trong RAM của chính nó trước khi phát tán xuống các Executor!). <em>Cách trị:</em> Tuyệt đối cấm dùng <code>.collect()</code>/<code>.toPandas()</code> trên tập dữ liệu lớn (thay bằng <code>.take(20)</code>, <code>.limit(1000).toPandas()</code> hoặc ghi thẳng xuống S3 qua <code>df.write.parquet()</code>), giữ ngưỡng <code>spark.sql.autoBroadcastJoinThreshold</code> ở mức an toàn (<code>10MB – 100MB</code>), và chỉ tăng <code>spark.driver.memory</code> khi thực sự cần quản lý DAG siêu lớn.</li>
+                <li><strong>Executor OOM (Sập công nhân thực thi / Container killed by YARN/K8s for exceeding memory limits — Exit Code 137):</strong> Xảy ra tại một hoặc nhiều Executor cụ thể do 3 thủ phạm: (1) Một Partition bị lệch tải nặng (Data Skew) vượt quá khả năng chứa của <code>Execution Memory</code>; (2) Có quá nhiều luồng (<code>spark.executor.cores</code> quá cao, ví dụ <code>&gt; 5 cores</code>) cùng tranh giành một vùng nhớ chung trên 1 Executor; hoặc (3) Tiến trình Python con chạy PySpark UDF / Pandas UDF hoặc bộ đệm mạng Netty vượt quá phần bộ nhớ ngoài JVM (<code>spark.executor.memoryOverhead</code>), khiến Kubernetes OOMKiller hoặc YARN NodeManager bắn tín hiệu <code>SIGKILL (Exit Code 137)</code> tiêu diệt cả container. <em>Cách trị:</em> Xử lý triệt để Data Skew, giới hạn chuẩn vàng <code>spark.executor.cores = 4</code> hoặc <code>5</code>, thay Python UDF bằng hàm Spark SQL nội tại (Built-in Functions), hoặc tăng <code>spark.executor.memoryOverhead</code> (từ mặc định <code>10%</code> lên <code>20% – 25%</code> khi dùng PySpark/Arrow nặng).</li>
+              </ul>
+            </li>
+          </ol>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Triệu chứng trên Spark UI Dashboard</th>
+                  <th>Vị trí Quan sát Cụ thể trên Web UI</th>
+                  <th>Căn nguyên Vật lý Gốc (Root Cause)</th>
+                  <th>Phác đồ Xử lý Triệt để (Code &amp; Config)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Treo ở Task cuối cùng (Straggler Task: <code>199/200</code>)</strong></td>
+                  <td>• Thẻ <code>Stages</code>: <code>Duration</code> kéo dài hàng chục phút ở <code>199/200</code>.<br>• Bảng <code>Summary Metrics</code>: <code>Max</code> lớn gấp <code>10x – 100x</code> so với <code>Median</code> / <code>75th percentile</code>.</td>
+                  <td><strong>Data Skew:</strong> Một khóa phân vùng (như <code>NULL</code> hoặc cửa hàng lớn) hút hàng chục GB dữ liệu vào đúng 1 Task duy nhất, các Executor khác ngồi chờ.</td>
+                  <td>• Lọc/tách luồng khóa <code>NULL</code> trước khi <code>JOIN</code>.<br>• Bật <code>spark.sql.adaptive.skewJoin.enabled = true</code>.<br>• Dùng <code>broadcast()</code> nếu bảng chiều đủ nhỏ, hoặc áp dụng <strong>Key Salting</strong> (<code>salt_0..N</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Phình to <code>Shuffle Write</code> &amp; Xuất hiện cột <code>Spill (Memory/Disk)</code></strong></td>
+                  <td>• Thẻ <code>Stages</code>: <code>Shuffle Write</code> lớn gấp nhiều lần <code>Input</code> (ví dụ <code>32.5 GB → 66.9 GB</code>).<br>• Xuất hiện cột <code>Spill (Memory)</code> và <code>Spill (Disk)</code> khác <code>0</code>.</td>
+                  <td><strong>Shuffle Explosion &amp; Memory Pressure:</strong> Khóa <code>JOIN</code> bị trùng gây nhân bản dòng (Many-to-Many), hoặc số Partition quá ít khiến mỗi Partition vượt quá vùng <code>Execution Memory</code> và phải xả tạm xuống đĩa cứng.</td>
+                  <td>• Kiểm tra tính duy nhất của khóa <code>JOIN</code>; lọc dữ liệu (<code>WHERE</code>) và cắt cột (<code>SELECT</code>) trước khi Shuffle.<br>• Tăng <code>spark.sql.shuffle.partitions</code> hoặc bật AQE Coalesce để giữ kích thước mỗi Partition ở mức <code>128 MB – 200 MB</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Thanh <code>GC Time</code> báo đỏ rực (<code>&gt; 10%</code> thời gian Task)</strong></td>
+                  <td>• Thẻ <code>Stages</code> (Event Timeline) và thẻ <code>Executors</code>: cột <code>GC Time</code> chuyển màu đỏ.</td>
+                  <td><strong>JVM Garbage Collection Thrashing:</strong> Tạo quá nhiều đối tượng Java ngắn hạn trên vùng nhớ Heap (do dùng <code>RDD</code>, <code>groupByKey</code>, hoặc <code>cache(MEMORY_ONLY)</code> bảng quá lớn chèn ép vùng thực thi).</td>
+                  <td>• Chuyển toàn bộ sang <code>DataFrame/Dataset</code> để tận dụng bộ nhớ Off-Heap của <strong>Tungsten</strong>.<br>• Đổi <code>groupByKey</code> sang <code>reduceByKey</code> / <code>groupBy().agg()</code>.<br>• Dùng <code>MEMORY_AND_DISK_SER</code> hoặc giảm <code>spark.memory.storageFraction</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Sập <code>Driver OOM</code> (<code>java.lang.OutOfMemoryError</code> tại Driver)</strong></td>
+                  <td>• Thẻ <code>Executors</code> (dòng <code>driver</code>) hoặc Driver stderr log văng lỗi <code>Java heap space</code> / <code>GC overhead limit exceeded</code>.</td>
+                  <td>Gọi lệnh <code>.collect()</code>, <code>.toPandas()</code> kéo hàng triệu dòng về máy Driver, hoặc ép <code>broadcast()</code> một bảng có dung lượng vượt quá RAM của Driver.</td>
+                  <td>• Xóa ngay <code>.collect()</code> / <code>.toPandas()</code> trên bảng lớn; ghi kết quả trực tiếp ra Object Storage.<br>• Hạ <code>spark.sql.autoBroadcastJoinThreshold</code> hoặc chuyển về <code>SortMergeJoin</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Sập <code>Executor OOM</code> / <code>Container Killed (Exit Code 137)</code></strong></td>
+                  <td>• Thẻ <code>Stages</code>: cột <code>Tasks: Failed</code> tăng, thông báo <code>ExecutorLostFailure (Exit code 137 / OOMKilled)</code>.</td>
+                  <td>Partition bị Skew làm tràn Heap của Executor, hoặc tiến trình Python worker (PySpark UDF / Arrow) vượt ngưỡng <code>spark.executor.memoryOverhead</code>.</td>
+                  <td>• Giữ <code>spark.executor.cores = 4</code> hoặc <code>5</code>.<br>• Thay Python UDF bằng Spark SQL Built-in Functions.<br>• Tăng <code>spark.executor.memoryOverhead</code> lên <code>20% – 25%</code> tổng RAM Executor.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="lesson-section" id="spark-6-2">
+          <h2 id="spark-6-2-h2" tabindex="-1">Trạm 6.2: Cơ học Dynamic Allocation — Tự động Co giãn Executors Theo Tải Thực Tế</h2>
+
+          <p>Một tác vụ xử lý dữ liệu lớn như <code>daily_revenue_attribution.py</code> không tiêu thụ tài nguyên đồng đều từ đầu đến cuối: giai đoạn đọc lọc và nối bảng (Stage 1–2) có thể cần tới hàng chục Executor chạy hết công suất, nhưng giai đoạn tổng hợp cuối cùng hoặc chờ phản hồi từ hệ thống bên ngoài lại chỉ cần 1–2 Executor. Nếu sử dụng phương thức <strong>Cấp phát Tĩnh (Static Allocation — Không bật Dynamic Allocation)</strong>, việc giữ cố định một lượng lớn máy chủ cho toàn bộ thời gian chạy Job sẽ dẫn đến sự lãng phí tài nguyên đám mây khổng lồ.</p>
+
+          <x-figure id="spark-6-2-fig" key="6.2" title="Sơ đồ 6.2 — Vận Hành Thực Chiến #2: Dynamic Allocation (Tự Động Co Giãn Executors Theo Tải)">Đối chiếu cấp phát tĩnh lãng phí 15 Executors và cơ chế co giãn đàn hồi (2 → 10 → 1 Executors) theo ngưỡng thời gian chờ.</x-figure>
+
+          <h3 id="spark-6-2-comparison">Đối chiếu Cấp phát Tĩnh (Static Allocation) và Cấp phát Động (Dynamic Allocation)</h3>
+          <p>Quan sát sự tương phản trực diện trên <strong>Sơ đồ 6.2</strong> giữa hai chế độ vận hành cụm tính toán:</p>
+          <ul>
+            <li><strong>Khi KHÔNG bật Dynamic Allocation (Without Dynamic Allocation):</strong> Giả sử kỹ sư xin cấp phát tĩnh <code>--num-executors 20</code> (20 Executors cố định) để đề phòng lúc cao điểm, nhưng khối lượng công việc thực tế của tác vụ tại phần lớn thời gian chỉ cần <code>5 Executors</code> (đang ở trạng thái <code>Active</code>). Kết quả là <strong><code>15 Executors</code> còn lại rơi vào trạng thái ngồi không (<code>Wasted — 15 Executors wasted</code>)</strong> nhưng vẫn chiếm giữ cứng CPU và RAM của cụm YARN/Kubernetes, vừa đốt tiền Cloud vô ích vừa chặn các đường ống của phòng ban khác không thể xin được tài nguyên.</li>
+            <li><strong>Khi BẬT Dynamic Allocation (With Dynamic Allocation):</strong> Spark không giữ khư khư một số lượng Executor cố định mà co giãn đàn hồi (elastic scaling) theo đúng nhịp thở của khối lượng công việc thông qua một vòng lặp phản hồi 3 pha:
+              <ol>
+                <li><strong>Pha Khởi động (Start):</strong> Ngay khi tác vụ khởi chạy, Spark chỉ yêu cầu một số lượng công nhân khởi đầu tối thiểu, ví dụ <strong><code>Start: 2 Executors</code></strong> (điều khiển bởi <code>spark.dynamicAllocation.initialExecutors</code> / <code>minExecutors</code>).</li>
+                <li><strong>Pha Mở rộng Nóng khi tải tăng (Scale Up):</strong> Khi bước vào Stage đọc và nối 2 tỷ dòng đơn hàng, hàng trăm Task được đẩy vào hàng đợi chờ thực thi (pending tasks backlog). Ngay khi có các Task phải nằm chờ trong hàng đợi lâu hơn ngưỡng <strong><code>spark.dynamicAllocation.schedulerBacklogTimeout</code> (mặc định: <code>1s</code> — 1 giây)</strong>, trình điều phối của Spark lập tức gửi yêu cầu lên Cluster Manager để xin cấp thêm Executor theo cấp số nhân (<code>1 → 2 → 4 → 8...</code> mỗi nhịp <code>sustainedSchedulerBacklogTimeout</code>) cho tới khi mở rộng lên <strong><code>Scale Up: 10 Executors</code></strong> (hoặc chạm trần <code>maxExecutors</code>) để giải quyết nhanh toàn bộ hàng đợi.</li>
+                <li><strong>Pha Thu hẹp khi hết việc (Scale Down):</strong> Ngay khi Stage nặng kết thúc và chuyển sang bước tổng hợp nhẹ cuối cùng, phần lớn Executor không còn Task nào để chạy. Khi một Executor rơi vào trạng thái rảnh rỗi (idle — không có Task nào đang chạy trên nó) liên tục vượt quá ngưỡng <strong><code>spark.dynamicAllocation.executorIdleTimeout</code> (mặc định: <code>60s</code> — 60 giây)</strong>, Spark tự động thu hồi và trả các Executor rảnh đó về lại cho cụm, thu gọn quy mô xuống chỉ còn <strong><code>Scale Down: 1 Executor</code></strong>.</li>
+              </ol>
+            </li>
+          </ul>
+
+          <h3 id="spark-6-2-shuffle-service">Điều kiện Tiên quyết Sống còn: Tại sao Dynamic Allocation Bắt buộc Phải Đi kèm External Shuffle Service (hoặc Shuffle Tracking)?</h3>
+          <p>Một câu hỏi kiến trúc kinh điển trong các kỳ phỏng vấn Senior Data Engineer là: <em>Tại sao nếu chỉ bật một mình cờ <code>spark.dynamicAllocation.enabled = true</code> mà không cấu hình cơ chế bảo vệ dữ liệu Shuffle, ứng dụng Spark sẽ bị lỗi mất dữ liệu hoặc phải tính toán lại toàn bộ Stage trước mỗi khi Scale Down?</em></p>
+          <p>Hãy nhớ lại cơ học vật lý của phép <strong>Shuffle</strong> ở Chặng 3 và Chặng 4: trong <code>Stage 1</code> (Shuffle Map Stage), <code>Executor 5</code> xử lý dữ liệu và ghi các tệp trung gian <code>Shuffle Write</code> xuống <strong>ổ cứng cục bộ (local disk)</strong> của máy chủ chứa <code>Executor 5</code>. Sang <code>Stage 2</code> (Reduce Stage), nếu <code>Executor 5</code> đã hoàn thành xong Task của mình và ngồi rảnh rỗi quá <code>60 giây</code> (<code>executorIdleTimeout</code>), cơ chế <strong>Dynamic Allocation sẽ tiêu diệt tiến trình JVM của <code>Executor 5</code></strong> để trả lại RAM/CPU. Nếu chính tiến trình JVM của <code>Executor 5</code> là người duy nhất chịu trách nhiệm phục vụ các tệp Shuffle trên đĩa đó, thì khi <code>Executor 1</code> ở <code>Stage 2</code> kết nối sang để kéo dữ liệu (<code>Shuffle Read</code>), nó sẽ gặp lỗi <code>FetchFailedException</code> vì <code>Executor 5</code> đã biến mất! Để giải quyết bài toán sinh tử này, Spark cung cấp 2 cơ chế kiến trúc tùy theo môi trường triển khai:</p>
+          <ul>
+            <li><strong>1. External Shuffle Service (<code>spark.shuffle.service.enabled = true</code> — Chuẩn mực trên YARN / Standalone / EMR / Dataproc):</strong> Trên mỗi máy chủ vật lý (Worker Node / NodeManager), hệ thống chạy một tiến trình nền độc lập gọi là <strong>External Shuffle Service</strong> (mặc định lắng nghe ở cổng <code>7337</code>), hoàn toàn tách rời khỏi vòng đời của các container Executor. Khi <code>Executor 5</code> khởi tạo, nó đăng ký thư mục chứa tệp Shuffle của mình với External Shuffle Service trên cùng máy chủ đó. Nhờ vậy, khi <code>Executor 5</code> rảnh quá <code>60s</code> và bị Dynamic Allocation thu hồi (giải phóng toàn bộ RAM và CPU của JVM), <strong>tiến trình External Shuffle Service vẫn sống trên Node và tiếp tục đọc các tệp Shuffle trên đĩa cứng để gửi qua mạng cho các Executor còn lại ở Stage 2</strong> mà không làm gián đoạn đường ống.</li>
+            <li><strong>2. Shuffle Tracking (<code>spark.dynamicAllocation.shuffleTracking.enabled = true</code> — Chuẩn mực trên Kubernetes từ Spark 3.0+):</strong> Trong môi trường <strong>Kubernetes (K8s)</strong>, mỗi Executor chạy trong một Pod độc lập có gắn ổ đĩa tạm <code>emptyDir</code>; khi Pod bị xóa, toàn bộ ổ đĩa tạm đi kèm Pod đó cũng bị Kubernetes xóa sạch và việc triển khai DaemonSet External Shuffle Service dùng chung đĩa trên K8s rất phức tạp. Do đó, từ Spark 3.0+, kỹ sư bật <code>spark.dynamicAllocation.shuffleTracking.enabled = true</code>: Driver sẽ chủ động theo dõi xem Executor nào đang nắm giữ các tệp Shuffle còn cần dùng cho các Stage tiếp theo, và <strong>tạm thời giữ lại (không Scale Down) các Executor đang giữ dữ liệu Shuffle còn hiệu lực (active shuffle blocks)</strong> cho đến khi Stage tiêu thụ đọc xong hoặc vượt ngưỡng <code>spark.dynamicAllocation.shuffleTracking.timeout</code>.</li>
+          </ul>
+
+          <h3 id="spark-6-2-config">Cấu hình Chuẩn mực cho Tác vụ daily_revenue_attribution.py trên Production</h3>
+          <p>Dưới đây là khối cấu hình khởi tạo <code>SparkSession</code> kích hoạt <strong>Dynamic Allocation</strong> kèm đầy đủ các ngưỡng thời gian chờ và cơ chế bảo vệ dữ liệu Shuffle cho môi trường Production:</p>
+
+          <pre><code>from pyspark.sql import SparkSession
+
+spark = (
+    SparkSession.builder
+    .appName("D03-Daily-Revenue-Attribution-Production")
+    # 1. Bật cơ chế tự động co giãn Executors theo tải thực tế
+    .config("spark.dynamicAllocation.enabled", "true")
+    # 2. Bảo toàn tệp Shuffle khi Executor bị thu hồi (bật External Shuffle Service trên YARN
+    #    hoặc bật Shuffle Tracking khi chạy trên Kubernetes)
+    .config("spark.shuffle.service.enabled", "true")
+    .config("spark.dynamicAllocation.shuffleTracking.enabled", "true")
+    # 3. Định nghĩa biên độ co giãn: khởi đầu 2, tối thiểu 1, tối đa 10 Executors
+    .config("spark.dynamicAllocation.initialExecutors", "2")
+    .config("spark.dynamicAllocation.minExecutors", "1")
+    .config("spark.dynamicAllocation.maxExecutors", "10")
+    # 4. Ngưỡng thời gian kích hoạt Scale Up (1s) và Scale Down (60s)
+    .config("spark.dynamicAllocation.schedulerBacklogTimeout", "1s")
+    .config("spark.dynamicAllocation.sustainedSchedulerBacklogTimeout", "1s")
+    .config("spark.dynamicAllocation.executorIdleTimeout", "60s")
+    .config("spark.dynamicAllocation.cachedExecutorIdleTimeout", "1800s")
+    .getOrCreate()
+)</code></pre>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tham số Cấu hình (Configuration Flag)</th>
+                  <th>Giá trị Mặc định / Khuyến nghị</th>
+                  <th>Vai trò Cơ học trong Chu trình Co giãn (Scale Up / Scale Down)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>spark.dynamicAllocation.enabled</code></td>
+                  <td><code>false</code> (Khuyến nghị bật <code>true</code>)</td>
+                  <td>Công tắc tổng kích hoạt chế độ tự động tăng/giảm số lượng Executor theo hàng đợi Task thực tế thay vì giữ cố định suốt vòng đời ứng dụng.</td>
+                </tr>
+                <tr>
+                  <td><code>spark.dynamicAllocation.minExecutors</code> &amp; <code>maxExecutors</code></td>
+                  <td>Ví dụ: <code>min = 1</code>, <code>initial = 2</code>, <code>max = 10</code></td>
+                  <td>Thiết lập sàn tối thiểu (<code>minExecutors</code>) để giữ ứng dụng luôn sẵn sàng phản hồi và trần tối đa (<code>maxExecutors</code>) để ngăn một Job bị lỗi nuốt trọn toàn bộ tài nguyên của cụm dùng chung.</td>
+                </tr>
+                <tr>
+                  <td><code>spark.dynamicAllocation.schedulerBacklogTimeout</code></td>
+                  <td>Mặc định: <code>1s</code> (1 giây)</td>
+                  <td><strong>Ngưỡng kích hoạt Scale Up:</strong> Khi có các Task nằm chờ trong hàng đợi (pending tasks) vượt quá <code>1s</code> mà chưa được cấp core thực thi, Spark lập tức xin thêm Executor mới từ Cluster Manager (tăng theo cấp số nhân <code>1, 2, 4, 8...</code> sau mỗi <code>sustainedSchedulerBacklogTimeout</code>).</td>
+                </tr>
+                <tr>
+                  <td><code>spark.dynamicAllocation.executorIdleTimeout</code></td>
+                  <td>Mặc định: <code>60s</code> (60 giây)</td>
+                  <td><strong>Ngưỡng kích hoạt Scale Down:</strong> Khi một Executor không có bất kỳ Task nào đang chạy liên tục trong <code>60s</code>, Spark chủ động hủy Executor đó để giải phóng RAM và CPU về lại cho cụm.</td>
+                </tr>
+                <tr>
+                  <td><code>spark.shuffle.service.enabled</code> / <code>spark.dynamicAllocation.shuffleTracking.enabled</code></td>
+                  <td><code>true</code> (Bắt buộc đi kèm Dynamic Allocation)</td>
+                  <td>Đảm bảo khi một Executor rảnh bị thu hồi sau Stage 1, các tệp <code>Shuffle Write</code> mà nó đã ghi xuống đĩa cục bộ vẫn được phục vụ an toàn cho các Executor ở Stage 2 mà không gây lỗi <code>FetchFailedException</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="lesson-section" id="spark-6-3">
+          <h2 id="spark-6-3-h2" tabindex="-1">Trạm 6.3: Giải cứu Bài toán Triệu File Nhỏ Với Data Compaction (coalesce, repartition &amp; OPTIMIZE)</h2>
+
+          <p>Sau khi tác vụ <code>daily_revenue_attribution.py</code> đã chạy mượt mà qua các phép biến đổi nhờ Spark UI và Dynamic Allocation, chướng ngại vật cuối cùng nằm ở bước <strong>ghi dữ liệu thành phẩm xuống Data Lakehouse (Write Phase)</strong>. Trong kiến trúc của Apache Spark, quy tắc vật lý mặc định khi ghi dữ liệu là: <strong>1 Partition trong RAM (1 Task thực thi) ở Stage cuối cùng sẽ sinh ra tối thiểu 1 tệp vật lý (<code>part-xxxx.snappy.parquet</code>) trên đĩa</strong> (hoặc thậm chí sinh ra <code>N × M</code> tệp nếu kết hợp với lệnh phân vùng thư mục <code>partitionBy("order_date")</code> có <code>M</code> giá trị ngày khác nhau). Nếu các luồng nạp dữ liệu liên tục hoặc các Job có hàng nghìn Partition ghi xuống S3/HDFS suốt nhiều tháng mà không được kiểm soát, hệ thống sẽ rơi vào <strong>Thảm họa Triệu File Nhỏ (The Small Files Problem)</strong>.</p>
+
+          <x-figure id="spark-6-3-fig" key="6.3" title="Sơ đồ 6.3 — Vận Hành Thực Chiến #3: Data Compaction (Nén Gộp File Nhỏ Trên Data Lakehouse)">Gộp 1.000.000 file nhỏ thành 200 file Parquet/Iceberg kích thước chuẩn để triệt tiêu chi phí mở file và tăng tốc đọc hạ nguồn.</x-figure>
+
+          <h3 id="spark-6-3-smallfiles">Giải phẫu Cơ học: Tại sao 1.000.000 Tệp 1 MB lại Làm Tê liệt Spark Dù Tổng Dung lượng Vẫn Chỉ Là 1 TB?</h3>
+          <p>Hãy đối chiếu hai kịch bản lưu trữ cùng một tập dữ liệu <strong><code>1 TB dataset</code></strong> trên <strong>Sơ đồ 6.3</strong>:</p>
+          <ul>
+            <li><strong>Kịch bản Chưa Nén gộp (Without Data Compaction — 1.000.000 small files):</strong> Cùng một lượng dữ liệu <code>1 TB</code> nhưng bị băm vụn thành <strong><code>1,000,000 small files</code></strong>, mỗi tệp chỉ nặng xấp xỉ <strong><code>~1 MB</code></strong> (ví dụ: một đường ống Streaming ghi 100 tệp nhỏ mỗi 5 phút, hoặc một Job Batch có <code>20,000 small files</code> sinh ra từ 200 Partition × 100 ngày). Khi một truy vấn BI ở tầng Gold hoặc một Job Spark hạ lưu đọc bảng này, nó phải gánh chịu 3 đòn chí mạng:
+              <ol>
+                <li><strong>Bão Liệt kê Siêu dữ liệu và Mở/Đóng Tệp (File Open &amp; Metadata Listing Overhead):</strong> Để đọc <code>1,000,000</code> tệp, Spark phải gửi hàng nghìn lời gọi HTTP <code>LIST</code> và <code>HEAD/GET</code> lên Cloud Object Storage (S3/GCS/ADLS) hoặc làm nghẽn bộ nhớ RAM của <code>NameNode</code> trên HDFS. Mỗi tệp Parquet đòi hỏi một chuỗi thao tác mạng độc lập: mở kết nối → nhảy xuống cuối tệp đọc <code>Footer Metadata</code> → giải mã lược đồ → đọc một mẩu dữ liệu <code>1 MB</code> → đóng kết nối. Thời gian chờ mạng (Network Round-Trip Latency ~<code>5–20 ms</code> mỗi lần mở tệp) lớn gấp hàng chục lần thời gian thực sự đọc <code>1 MB</code> dữ liệu!</li>
+                <li><strong>Bùng nổ Chi phí Lập lịch Task trên Driver (Task Scheduling Overhead):</strong> Nếu Spark tạo ra hàng trăm nghìn Task nhỏ để đọc hàng triệu tệp <code>1 MB</code>, CPU của Driver và Executor sẽ dành tới 90% thời gian chỉ để khởi tạo, tuần tự hóa, gửi và thu hồi Task (mỗi Task mất vài chục mili-giây overhead) thay vì thực hiện tính toán vector hóa (Vectorized Parquet Reader).</li>
+                <li><strong>Vô hiệu hóa Hiệu quả Nén Cột của Parquet:</strong> Định dạng cột Apache Parquet (đã học ở Học phần <code>D02</code>) đạt tỷ lệ nén <code>RLE</code> và <code>Dictionary Encoding</code> tối ưu nhất khi một <code>Row Group</code> đủ lớn (<code>128 MB – 512 MB</code>). Khi tệp chỉ nặng <code>1 MB</code>, phần Header/Footer lặp lại chiếm tỷ trọng lớn và các khối cột quá ngắn không thể phát huy sức mạnh quét tuần tự (Sequential Scan).</li>
+              </ol>
+            </li>
+            <li><strong>Kịch bản Đã Nén gộp (With Data Compaction — 200 larger files):</strong> Bằng kỹ thuật <strong>Data Compaction</strong>, kỹ sư gộp <code>20,000 small files</code> (hoặc <code>1,000,000 small files</code>) thành <strong><code>200 larger files</code></strong> (mỗi tệp đạt kích thước chuẩn vàng từ <strong><code>128 MB</code> đến <code>1 GB</code></strong>) mà <strong>không hề làm thay đổi tổng dung lượng hay nội dung nghiệp vụ của dữ liệu</strong>. Số lượng thao tác mở tệp và đọc Footer giảm đi từ <code>100</code> đến <code>5,000</code> lần, giúp tốc độ đọc của các báo cáo BI và mô hình AI ở hạ nguồn tăng vọt từ hàng chục phút xuống chỉ còn vài giây.</li>
+          </ul>
+
+          <h3 id="spark-6-3-weapons">Ba Vũ khí Thực thi Data Compaction: coalesce(n) vs. repartition(n) vs. OPTIMIZE</h3>
+          <p>Để kiểm soát số lượng và kích thước tệp đầu ra cho bảng <code>gold.daily_revenue</code> (bao gồm bản ghi tổng hợp của <strong>Order #8888</strong>), kỹ sư dữ liệu có trong tay 3 công cụ với cơ chế vật lý và sự đánh đổi (trade-off) hoàn toàn khác nhau:</p>
+
+          <ol>
+            <li>
+              <strong>Vũ khí 1 — <code>df.coalesce(n)</code> (Gộp Phân vùng Nội bộ Không qua Shuffle — Zero-Shuffle Narrow Transformation):</strong>
+              <p><strong>Cơ chế vật lý:</strong> Khi gọi <code>df.coalesce(200)</code> để giảm số lượng Partition từ <code>20,000</code> xuống <code>200</code>, Spark <strong>tuyệt đối không thực hiện phép Shuffle qua mạng</strong>. Thay vào đó, nó thực hiện một phép biến đổi hẹp (Narrow Transformation): các Partition đang nằm sẵn trên cùng một Executor (hoặc các Executor gần nhau) được nối gộp trực tiếp với nhau thành một Partition lớn hơn ngay tại chỗ. Nhờ bỏ qua hoàn toàn bước ghi đĩa tạm và truyền mạng của Shuffle, <code>coalesce(n)</code> chạy <strong>nhanh vượt trội và tiết kiệm I/O tối đa</strong> — đặc biệt lý tưởng khi bạn vừa chạy lệnh lọc <code>.filter()</code> loại bỏ 95% dữ liệu khiến các Partition hiện tại bị rỗng hoặc quá nhỏ.</p>
+              <p><strong>Giới hạn &amp; Cạm bẫy kỹ thuật cần tránh:</strong> (a) <code>coalesce(n)</code> chỉ có thể <strong>giảm</strong> số lượng Partition chứ không thể tăng số lượng Partition (nếu gọi <code>coalesce(500)</code> trên DataFrame đang có <code>200</code> Partition, số Partition vẫn giữ nguyên là <code>200</code> trừ khi bật <code>shuffle=True</code>); (b) Vì chỉ gộp cơ học các Partition sẵn có mà không chia lại dữ liệu theo hàm băm, nếu các Partition đầu vào vốn đã bị lệch kích thước (ví dụ một Partition nặng <code>2 GB</code> còn các Partition khác nặng <code>5 MB</code>), các tệp Parquet đầu ra sau <code>coalesce</code> vẫn sẽ <strong>không đồng đều hoàn toàn</strong>; (c) <em>Cạm bẫy kinh điển của <code>coalesce(1)</code>:</em> Nếu viết <code>df.coalesce(1).write.parquet(...)</code> ở cuối một Stage có nhiều phép tính nặng, trình tối ưu hóa của Spark sẽ ép <strong>toàn bộ các phép tính của cả Stage đó chỉ chạy trên đúng 1 Task duy nhất (mức độ song song giảm về 1 core!)</strong>, làm treo toàn bộ Job.</p>
+            </li>
+            <li>
+              <strong>Vũ khí 2 — <code>df.repartition(n, *cols)</code> (Chia lại Phân vùng Đồng đều Tuyệt đối qua Full Shuffle — Wide Transformation):</strong>
+              <p><strong>Cơ chế vật lý:</strong> Khi gọi <code>df.repartition(200)</code> (hoặc <code>df.repartition(200, "order_date")</code>), Spark chèn thêm một ranh giới Stage mới và thực hiện <strong>Full Network Shuffle</strong> (sử dụng thuật toán chia vòng tròn <code>RoundRobinPartitioning</code> nếu không truyền tên cột, hoặc <code>HashPartitioning</code> nếu truyền cột khóa). Toàn bộ dữ liệu được băm và phân phối lại từ đầu trên khắp cụm máy chủ.</p>
+              <p><strong>Khi nào chọn <code>repartition</code> thay vì <code>coalesce</code>?</strong> Dù tốn thêm chi phí mạng và đĩa tạm của một pha Shuffle, <code>repartition(200)</code> đảm bảo hai lợi thế quyết định: (1) Tạo ra <strong><code>200</code> tệp Parquet có kích thước đồng đều tuyệt đối</strong> (loại bỏ hoàn toàn hiện tượng tệp to tệp nhỏ do Skew ở bước trước), và không làm bóp nghẹt độ song song của Stage tính toán phía trên; (2) Khi ghi bảng có phân vùng thư mục <code>.partitionBy("order_date")</code>, việc gọi <code>df.repartition("order_date").write.partitionBy("order_date")</code> đảm bảo toàn bộ dữ liệu của cùng một ngày được gom về đúng một Task duy nhất trước khi ghi, nhờ đó mỗi thư mục ngày chỉ sinh ra đúng 1 tệp Parquet lớn thay vì hàng trăm tệp nhỏ! Kỹ sư cũng có thể kết hợp thêm cầu chì <code>.option("maxRecordsPerFile", 5000000)</code> để chặn trần kích thước mỗi tệp.</p>
+            </li>
+            <li>
+              <strong>Vũ khí 3 — Lệnh <code>OPTIMIZE</code> trên Delta Lake / <code>rewrite_data_files</code> trên Apache Iceberg (Nén gộp Bất đồng bộ có Bảo vệ ACID ở Tầng Bảng):</strong>
+              <p><strong>Cơ chế vật lý:</strong> Trong các đường ống Streaming hoặc Micro-batch cần ghi dữ liệu xuống Lakehouse mỗi vài phút (SLA thấp), việc bắt luồng ghi phải dừng lại để gộp tệp lớn ngay trên đường bay là bất khả thi. Thay vào đó, các định dạng bảng mở hiện đại (đã học ở Học phần <code>D02</code>) tách rời việc ghi nhanh (Fast Append) khỏi việc nén gộp nền (Background Compaction): kỹ sư lên lịch chạy câu lệnh bảo trì <code>OPTIMIZE gold.daily_revenue</code> (trên Delta Lake) hoặc <code>CALL prod.system.rewrite_data_files(table =&gt; 'gold.daily_revenue')</code> (trên Apache Iceberg). Hệ thống sử dụng thuật toán đóng thùng <strong>Bin-Packing</strong> để tự động quét các tệp Parquet nhỏ dưới ngưỡng, gộp chúng lại thành các tệp chuẩn <strong><code>512 MB – 1 GB</code></strong> (có thể kết hợp sắp xếp đa chiều <code>ZORDER BY (customer_id, merchant_id)</code> hoặc <code>Liquid Clustering</code>), rồi ghi nhận bản commit nguyên tử vào <code>_delta_log</code> / Iceberg Snapshot.</p>
+              <p><strong>Ưu thế vượt trội trên Production:</strong> Nhờ cơ chế cô lập ảnh chụp <strong>MVCC / Snapshot Isolation</strong>, trong suốt lúc lệnh <code>OPTIMIZE</code> đang gộp hàng vạn tệp nhỏ ở dưới nền, các báo cáo BI và truy vấn SQL đang chạy đồng thời vẫn đọc mượt mà trên Snapshot cũ mà không hề bị khóa bảng hay nhìn thấy dữ liệu ghi dở dang.</p>
+            </li>
+          </ol>
+
+          <pre><code># -------------------------------------------------------------------------
+# 1. Dùng coalesce(200) khi muốn giảm nhanh số Partition sau khi lọc mạnh
+#    mà KHÔNG tốn chi phí Shuffle qua mạng (Zero-Shuffle Narrow Transformation)
+# -------------------------------------------------------------------------
+(
+    filtered_revenue_df
+    .coalesce(200)
+    .write
+    .mode("overwrite")
+    .parquet("s3a://fsds-lakehouse-gold/daily_revenue_coalesced/")
+)
+
+# -------------------------------------------------------------------------
+# 2. Dùng repartition(200, "order_date") khi cần chia đều kích thước tệp tuyệt đối
+#    hoặc gom đúng khóa phân vùng thư mục trước khi ghi (Full Shuffle)
+# -------------------------------------------------------------------------
+(
+    daily_revenue_df
+    .repartition(200, "order_date")
+    .write
+    .option("maxRecordsPerFile", 5_000_000)
+    .partitionBy("order_date")
+    .mode("append")
+    .format("delta")
+    .save("s3a://fsds-lakehouse-gold/daily_revenue/")
+)
+
+# -------------------------------------------------------------------------
+# 3. Chạy lệnh OPTIMIZE (Delta Lake) hoặc rewrite_data_files (Apache Iceberg)
+#    để Bin-Pack hàng vạn file nhỏ thành các file chuẩn 512MB - 1GB có bảo vệ ACID
+# -------------------------------------------------------------------------
+spark.sql("""
+    OPTIMIZE gold.daily_revenue
+    WHERE order_date &gt;= current_date() - INTERVAL 7 DAYS
+    ZORDER BY (customer_id, province)
+""")
+
+# Tương đương trên Apache Iceberg:
+spark.sql("""
+    CALL prod.system.rewrite_data_files(
+        table =&gt; 'gold.daily_revenue',
+        options =&gt; map('target-file-size-bytes', '536870912')
+    )
+""")</code></pre>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Đối chiếu</th>
+                  <th>1. <code>df.coalesce(n)</code></th>
+                  <th>2. <code>df.repartition(n, *cols)</code></th>
+                  <th>3. <code>OPTIMIZE</code> (Delta Lake / Iceberg)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Loại phép biến đổi &amp; Cơ chế mạng</strong></td>
+                  <td><strong>Narrow Transformation (0 Shuffle):</strong> Gộp các Partition nằm trên cùng Executor ngay tại chỗ, không truyền dữ liệu qua mạng.</td>
+                  <td><strong>Wide Transformation (Full Shuffle):</strong> Băm và phân phối lại toàn bộ dữ liệu qua mạng giữa các Executor ở một Stage mới.</td>
+                  <td><strong>ACID Table Maintenance Job:</strong> Thuật toán <strong>Bin-Packing</strong> đọc các tệp nhỏ dưới ngưỡng trên S3 và viết lại thành tệp lớn trong một Snapshot mới.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chi phí thực thi lúc ghi (Write Cost)</strong></td>
+                  <td><strong>Rất thấp (Nhanh nhất):</strong> Không phát sinh đĩa tạm hay nghẽn mạng Shuffle.</td>
+                  <td><strong>Trung bình – Cao:</strong> Tốn thêm 1 pha <code>Shuffle Write</code> + <code>Shuffle Read</code> trước khi ghi xuống đích.</td>
+                  <td><strong>Tách rời khỏi luồng ghi chính:</strong> Luồng ghi cứ ghi nhanh; tác vụ <code>OPTIMIZE</code> chạy nền định kỳ (Out-of-band) nên không làm chậm SLA ghi.</td>
+                </tr>
+                <tr>
+                  <td><strong>Độ đồng đều của kích thước tệp đầu ra</strong></td>
+                  <td><strong>Không đảm bảo đồng đều:</strong> Nếu các Partition gốc bị lệch (Skew), tệp đầu ra vẫn có tệp rất to và tệp rất nhỏ.</td>
+                  <td><strong>Đồng đều tuyệt đối:</strong> <code>RoundRobin</code> hoặc <code>Hash</code> chia các tệp đầu ra có dung lượng gần như bằng hệt nhau (ví dụ <code>~256 MB/file</code>).</td>
+                  <td><strong>Tối ưu chuẩn công nghiệp:</strong> Tự động gom chính xác tới kích thước đích (mặc định <code>512 MB – 1 GB</code>) và hỗ trợ sắp xếp <code>Z-Order</code> / <code>Liquid Clustering</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Khả năng thay đổi số Partition</strong></td>
+                  <td>Chỉ có thể <strong>giảm</strong> số lượng Partition (không thể tăng nếu không bật <code>shuffle=True</code>).</td>
+                  <td>Có thể <strong>vừa giảm vừa tăng</strong> số lượng Partition tùy ý, hoặc gom theo cột phân vùng thư mục.</td>
+                  <td>Tự động tính toán số lượng tệp đầu ra tối ưu dựa trên tổng dung lượng dữ liệu thực tế trên đĩa.</td>
+                </tr>
+                <tr>
+                  <td><strong>Kịch bản sử dụng chuẩn mực (When to use)</strong></td>
+                  <td>Ngay sau khi chạy lệnh <code>.filter()</code> làm giảm mạnh lượng dữ liệu và các Partition còn lại vốn đã tương đối đều nhau.</td>
+                  <td>Khi dữ liệu đầu vào bị lệch (Skew), khi cần tăng độ song song, hoặc trước khi gọi <code>.write.partitionBy("col")</code>.</td>
+                  <td>Khi vận hành bảng <strong>Delta Lake / Apache Iceberg / Hudi</strong> có nhiều luồng Batch/Streaming ghi nối đuôi liên tục trong ngày.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="summary-section" id="spark-6-summary">
+          <h2 id="spark-6-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 6 &amp; Khép kín Toàn bộ Học phần D03 · Batch Transformation (Apache Spark)</h2>
+
+          <p><strong>Khép kín hành trình 6 Chặng (20 Trạm) của tác vụ <code>daily_revenue_attribution.py</code> và Đơn hàng #8888 tại Tầng Biến đổi Theo Lô (D03 · Transformation Layer I — Apache Spark):</strong> Khởi đầu từ bài toán nhận bàn giao 2 tỷ dòng dữ liệu thô (cùng bản ghi <strong>Order #8888</strong> trị giá <code>15.000.000 VNĐ</code> của khách hàng Nguyễn Văn A tại Bình Dương) từ kho <strong>Data Lakehouse (D02)</strong> ở <strong>Chặng 1</strong>, chúng ta đã chứng minh vì sao mô hình xử lý trên bộ nhớ (In-Memory DAG Engine) của <strong>Apache Spark</strong> thay thế hoàn toàn kiến trúc MapReduce ghi đĩa cứng chậm chạp của thế hệ cũ. Đi sâu vào giải phẫu cụm máy chủ ở <strong>Chặng 2</strong> và <strong>Chặng 3</strong>, tác vụ <code>daily_revenue_attribution.py</code> được <strong>Driver Program</strong> biên dịch chuỗi phép biến đổi lười biếng (<strong>Lazy Evaluation: Narrow vs. Wide Transformations</strong>) thành cây kế hoạch <strong>DAG Stages &amp; Tasks</strong> mỗi khi gặp lệnh <strong>Action</strong>, rồi phân bổ xuống các <strong>Executors</strong>. Tại <strong>Chặng 4</strong>, ba bộ đại bác tăng tốc nội tại của Spark 3.x — trình tối ưu hóa truy vấn <strong>Catalyst Optimizer</strong> (Predicate Pushdown, Column Pruning), động cơ quản lý bộ nhớ nhị phân Off-Heap <strong>Project Tungsten</strong> (Whole-Stage CodeGen), và bộ thực thi thích ứng thời gian chạy <strong>Adaptive Query Execution (AQE)</strong> — đã tự động gộp phân vùng sau Shuffle, chuyển đổi sang <code>BroadcastHashJoin</code> và chẻ nhỏ các Partition bị lệch. Tiếp nối ở <strong>Chặng 5</strong> và <strong>Chặng 6</strong>, kỹ sư trực tiếp cầm lái trên môi trường Production: dùng <code>cache()</code>/<code>persist()</code> đúng chỗ, rải muối <strong>Key Salting</strong> để hóa giải Straggler Task, đọc vị điểm nghẽn qua <strong>Spark UI Dashboard</strong>, bật <strong>Dynamic Allocation</strong> kèm <strong>External Shuffle Service</strong> để co giãn Executor đàn hồi theo tải, và nén gộp hàng triệu tệp nhỏ bằng <strong>Data Compaction</strong> (<code>coalesce</code>, <code>repartition</code>, <code>OPTIMIZE</code>) trước khi ghi xuống bảng <code>gold.daily_revenue</code> sạch bóng phục vụ tầng <strong>Consumption (D05)</strong>. Tuy nhiên, một câu hỏi chiến lược mới lập tức đặt ra: <em>Nếu bài toán kinh doanh không thể chờ tác vụ Batch của Spark chạy theo mỗi giờ hay mỗi đêm, mà đòi hỏi phải chấm điểm rủi ro gian lận thẻ tín dụng hoặc phát hiện bất thường cho <strong>Order #8888</strong> ngay trong tích tắc <strong>dưới 50 mili-giây (<code>&lt; 50 ms</code>)</strong> kể từ lúc khách hàng bấm nút thanh toán thì sao?</em> Đó chính là lý do chúng ta bước tiếp sang <strong>Học phần D04: Data Engineering — Transformation Layer II (Stream Processing với Apache Flink)</strong>.</p>
+
+          <ol>
+            <li><strong>Trên Spark UI Dashboard, làm thế nào để phân biệt ngay lập tức một Stage đang bị chậm do Lệch dữ liệu (Data Skew) với một Stage đang bị Bùng nổ Shuffle &amp; Tràn đĩa (Shuffle Explosion &amp; Disk Spill)?</strong> → Nếu bị <strong>Data Skew</strong>, thanh tiến trình <code>Tasks: Succeeded/Total</code> sẽ kẹt lâu ở những Task cuối cùng (ví dụ <code>199/200</code>) và trong bảng <strong>Summary Metrics</strong>, chỉ số <code>Max Duration</code> / <code>Max Shuffle Read Size</code> sẽ lớn gấp hàng chục đến hàng trăm lần so với mức trung vị (<code>Median</code> / <code>75th percentile</code>). Ngược lại, nếu bị <strong>Shuffle Explosion &amp; Disk Spill</strong>, cột <code>Shuffle Write</code> trên bảng Stages sẽ phình to bất thường so với <code>Input</code> (ví dụ <code>32.5 GB Input</code> sinh ra <code>66.9 GB Shuffle Write</code> do nhân bản dòng khi <code>JOIN</code> trùng khóa) và xuất hiện hai cột <code>Spill (Memory)</code>, <code>Spill (Disk)</code> khác <code>0</code> do bộ nhớ <code>Execution Memory</code> bị tràn phải xả dữ liệu tạm xuống ổ cứng.</li>
+            <li><strong>Sự khác biệt bản chất về nguyên nhân và cách khắc phục giữa lỗi <code>Driver OOM</code> và <code>Executor OOM</code> trong ứng dụng Spark là gì?</strong> → <strong>Driver OOM</strong> xảy ra tại bộ não điều phối do mã nguồn gọi lệnh <code>.collect()</code>, <code>.toPandas()</code> kéo bảng lớn về một máy Driver duy nhất hoặc ép <code>broadcast()</code> một bảng vượt quá RAM của Driver (cách khắc phục: bỏ <code>.collect()</code>/<code>.toPandas()</code>, ghi thẳng xuống S3 và hạ ngưỡng <code>autoBroadcastJoinThreshold</code>). Trong khi đó, <strong>Executor OOM (hoặc Container Killed Exit Code 137)</strong> xảy ra tại các máy công nhân do một Partition bị Skew nặng, cấu hình quá nhiều <code>spark.executor.cores</code> tranh giành chung vùng nhớ, hoặc tiến trình Python UDF vượt quá <code>spark.executor.memoryOverhead</code> (cách khắc phục: xử lý Skew bằng AQE/Salting, giữ <code>4–5 cores/executor</code>, dùng Spark SQL Built-in Functions và tăng <code>memoryOverhead</code>).</li>
+            <li><strong>Cơ chế Dynamic Allocation vận hành dựa trên hai ngưỡng thời gian nào, và tại sao bắt buộc phải bật <code>spark.shuffle.service.enabled = true</code> (hoặc Shuffle Tracking trên Kubernetes) đi kèm?</strong> → Dynamic Allocation tự động <strong>Scale Up</strong> (xin thêm Executor theo cấp số nhân cho tới <code>maxExecutors</code>) khi có các Task nằm chờ trong hàng đợi vượt quá ngưỡng <code>spark.dynamicAllocation.schedulerBacklogTimeout</code> (mặc định <code>1s</code>), và tự động <strong>Scale Down</strong> (thu hồi Executor về mức <code>minExecutors</code>) khi một Executor ngồi rảnh rỗi vượt quá ngưỡng <code>spark.dynamicAllocation.executorIdleTimeout</code> (mặc định <code>60s</code>). Bắt buộc phải bật <strong>External Shuffle Service</strong> (hoặc <code>shuffleTracking.enabled = true</code> trên K8s) vì nếu một Executor bị thu hồi sau khi vừa ghi tệp <code>Shuffle Write</code> ở Stage 1, tiến trình nền độc lập đó vẫn tiếp tục phục vụ các tệp Shuffle trên đĩa cục bộ cho các Executor còn lại ở Stage 2 mà không gây lỗi mất dữ liệu <code>FetchFailedException</code>.</li>
+            <li><strong>Tại sao một tập dữ liệu <code>1 TB</code> bị chia nhỏ thành <code>1.000.000</code> tệp <code>1 MB</code> lại làm tê liệt hiệu năng đọc của Spark, và khi nào nên chọn <code>coalesce(n)</code>, <code>repartition(n)</code> hay <code>OPTIMIZE</code> để thực hiện Data Compaction?</strong> → Vì <code>1.000.000</code> tệp nhỏ buộc Spark phải thực hiện hàng triệu lời gọi mở tệp, liệt kê metadata S3/NameNode và giải mã Footer riêng lẻ, khiến chi phí chờ mạng và lập lịch Task nuốt chửng thời gian đọc dữ liệu thực tế. Khi khắc phục: dùng <code>coalesce(n)</code> khi chỉ cần giảm nhanh số Partition sau bước lọc (<code>.filter()</code>) với <strong>0 Shuffle</strong>; dùng <code>repartition(n, *cols)</code> (có <strong>Full Shuffle</strong>) khi cần chia lại các tệp đầu ra đồng đều tuyệt đối hoặc gom dữ liệu theo cột trước khi <code>.partitionBy()</code>; và dùng lệnh <code>OPTIMIZE</code> (Delta Lake) / <code>rewrite_data_files</code> (Iceberg) để gom tệp nền theo thuật toán Bin-Packing (<code>512 MB – 1 GB</code>) có bảo vệ <strong>ACID Snapshot Isolation</strong> cho các bảng nhận luồng ghi liên tục.</li>
+            <li><strong>Nhìn lại toàn bộ kiến trúc Apache Spark trong Học phần D03, tại sao khi chuyển từ xử lý đơn hàng theo lô (Batch / Micro-batch) sang bài toán chống gian lận tức thì với độ trễ dưới <code>50 ms</code>, doanh nghiệp phải kết hợp thêm động cơ Stream Processing chuyên dụng ở Học phần D04?</strong> → Vì Apache Spark được thiết kế tối ưu cho <strong>Thông lượng cực đại (High Throughput)</strong> dựa trên mô hình lập lịch theo từng mẻ/Stage (ngay cả Structured Streaming mặc định cũng gom sự kiện theo các chu kỳ Micro-batch và phải đi qua chi phí lập lịch DAG/Task trên Driver), rất phù hợp để tinh chế hàng tỷ dòng dữ liệu lớn ở tầng Silver/Gold. Ngược lại, các bài toán phản ứng tức thì dưới <code>50 ms</code> trên từng sự kiện đơn lẻ kèm quản lý trạng thái phức tạp theo thời gian sự kiện (Event-Time Stateful Processing) đòi hỏi kiến trúc <strong>True Event-at-a-Time Streaming</strong> với các toán tử cắm chốt cố định của <strong>Apache Flink</strong> ở Học phần <code>D04</code>.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/D04/1" onclick="selectTopic('D04', 1);return false;">Tiếp nối sang Học phần D04: Data Engineering — Transformation Layer II (Stream Processing · Apache Flink) →</a></p>
+        </section>
+      </div>

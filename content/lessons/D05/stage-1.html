@@ -1,0 +1,268 @@
+      <div class="prose">
+        <x-spine id="consumption-1-spine" badge="TRONG BÀI HỌC NÀY · D05" title="Chặng 1: Kiến Trúc Data Warehouse, Đường Ống ETL &amp; Chuẩn Hóa ER Modeling (1NF → 2NF → 3NF)" subtitle="Trạm 0.0 → 1.3">Hành trình của sự kiện <strong>Giao dịch &amp; Đơn hàng #8888 / <code>txn_9f3a21c8</code></strong> (<code>order_id=1001</code> / <code>ORD-8888</code>, khách hàng <code>customer_id=&quot;C01&quot;</code> Anna — <code>Peter Pan</code> mã <code>123456</code> / <code>user_48291</code>, giỏ hàng <code>P01 Keyboard ($50, qty=1)</code> + <code>P02 Mouse ($20, qty=2)</code>, thanh toán thẻ <code>amount=$1,250.00</code> lúc <code>2025-01-05T14:32:10Z</code>) đi từ vùng đệm <code>Staging Area</code> vào kho trung tâm <strong>Data Warehouse</strong>, phân rã ra các <strong>Data Marts</strong> và giải phẫu giới hạn vật lý của mô hình chuẩn hóa <strong>ER Modeling (<code>1NF → 2NF → 3NF</code>)</strong> trước bài toán phân tích quy mô lớn.</x-spine>
+
+        <section class="lesson-section" id="consumption-0-map">
+          <h2 id="consumption-0-map-h2" tabindex="-1">Trạm 0.0: Nhân vật chính Giao dịch #8888 (txn_9f3a21c8) &amp; Bản đồ Kiến trúc 5 Chặng Consumption Layer</h2>
+
+          <p>Sau khi đi qua đường ống thu thập thời gian thực (<strong>D01 · Ingestion</strong>), định dạng bảng mở trên hồ dữ liệu (<strong>D02 · Storage</strong>) và hai động cơ biến đổi lô/luồng Apache Spark &amp; Apache Flink (<strong>D03 – D04 · Transformation</strong>), toàn bộ học phần <strong>D05 · Consumption Layer</strong> theo chân một thực thể kỹ thuật hợp nhất: <strong>Sự kiện Giao dịch &amp; Đơn hàng <code>#8888</code> / <code>txn_9f3a21c8</code></strong> (mã đơn <code>order_id=1001</code> / <code>ORD-8888</code> của khách hàng <code>customer_id="C01"</code> Anna — hồ sơ định danh toàn cầu <code>Peter Pan</code> mã <code>123456</code> / <code>user_48291</code>, giỏ hàng gồm <code>P01 Keyboard ($50, qty=1)</code> + <code>P02 Mouse ($20, qty=2)</code> và lệnh quẹt thẻ tổng gộp <code>amount = $1,250.00</code> lúc <code>2025-01-05T14:32:10Z</code>). Dữ liệu sau khi làm sạch trên đĩa vẫn chỉ là chi phí chìm nếu không thể trả lời câu hỏi kinh doanh hoặc kích hoạt quyết định tự động đúng thời điểm. Tại tầng <strong>Consumption Layer</strong>, sự kiện <code>#8888</code> / <code>txn_9f3a21c8</code> phải đồng thời phục vụ <strong>3 đích tiêu thụ có yêu cầu vật lý xung đột trực diện</strong>: (1) hệ thống <strong>BI Data Warehouse &amp; Data Marts</strong> đòi hỏi mô hình chiều lịch sử chuẩn xác tuyệt đối cho báo cáo quản trị; (2) động cơ <strong>Real-time OLAP (ClickHouse / Apache Pinot)</strong> quét hàng tỷ dòng với độ trễ từ vài giây xuống vài chục mili-giây cho bảng điều khiển trực tiếp; và (3) hệ thống <strong>ML Fraud Detection qua Feast Feature Store</strong> đòi hỏi tra cứu đặc trưng hành vi trong <code>&lt; 10ms</code> mà không lệch một chữ số thập phân giữa lúc huấn luyện và lúc suy luận thực tế.</p>
+
+          <x-figure id="consumption-0-1" key="0.1" title="Sơ đồ 0.1 — Bản đồ Tư duy 5 Chặng: Hành trình Sự kiện #8888 &amp; Giao dịch txn_9f3a21c8 qua Tầng Consumption">Toàn cảnh lộ trình nhân quả 5 Chặng (16 Trạm) đưa đơn hàng #8888 (order_id=1001) và giao dịch txn_9f3a21c8 từ bảng 3NF sang mô hình chiều Kimball, SCD Type 0–6, Data Vault, động cơ OLAP ClickHouse/Pinot và Feast Feature Store.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chặng &amp; Trạm</th>
+                  <th>Trọng tâm Slide 11 &amp; Giáo trình Sách</th>
+                  <th>Điểm nghẽn Khởi phát</th>
+                  <th>Cơ chế Giải quyết Vật lý</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Chặng 1</strong><br/><em>Trạm 0.0 → 1.3</em><br/>Data Warehouse, ETL &amp; Chuẩn hóa <code>3NF</code></td>
+                  <td>• Kiến trúc <strong>Data Warehouse</strong> (<code>Raw</code>, <code>Summary</code>, <code>Metadata</code>), <strong>Staging Area</strong>, <strong>Data Marts</strong> (<code>Purchasing</code>, <code>Sales</code>, <code>Inventory</code>) &amp; quy trình <strong>ETL</strong> (<em>Slide 03–05</em>).<br/>• Đối chiếu <strong>ER Modeling</strong> vs. <strong>Dimensional Modeling</strong>; lộ trình chuẩn hóa <code>1NF → 2NF → 3NF</code> trên bảng <code>Order_Detail</code> (<em>Slide 06–15</em>; <em>Kimball DWT</em> Ch. 1).</td>
+                  <td>Bảng phẳng <code>Order_Detail</code> gây dị thường cập nhật/xóa; nhưng khi tách thành 4 bảng chuẩn hóa <code>3NF</code> (<code>Customers</code>, <code>Products</code>, <code>Orders</code>, <code>OrderItems</code>), truy vấn báo cáo 12 tháng bị nghẽn bởi chuỗi phép kết <strong>Multi-Table Hash Join</strong>.</td>
+                  <td>Tách biệt hệ thống giao dịch OLTP khỏi kho phân tích qua vùng đệm <strong>Staging Area</strong>; nhận diện ranh giới đánh đổi giữa tối ưu ghi (<code>3NF</code>) và tối ưu đọc (<strong>Dimensional Modeling</strong>).</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 2</strong><br/><em>Trạm 2.1 → 2.3</em><br/>Kimball Star Schema &amp; SCD Type 0–6</td>
+                  <td>• Giải phẫu bảng <strong>Fact</strong> (<code>factSales</code>, chỉ số <code>Additive</code> / <code>Semi-additive</code>) &amp; bảng <strong>Dimension</strong> (<code>dimDate</code>, <code>dimCustomer</code>, <code>dimProduct</code>, <code>dimTerritory</code>) (<em>Slide 16–21</em>).<br/>• Đối chiếu <strong>Star Schema</strong> vs. <strong>Snowflake Schema</strong> (<em>Slide 22–24</em>).<br/>• Chiến lược bảo toàn lịch sử <strong>Slowly Changing Dimensions (SCD Type 0, 1, 2, 3, 4, 6)</strong> của khách hàng <code>Peter Pan (123456)</code> (<em>Slide 25–33</em>; <em>Kimball DWT</em> Ch. 2, 5).</td>
+                  <td>Cộng gộp nhầm số dư tồn kho <code>InventoryLevel (100+80+120=300)</code> theo thời gian; khách hàng <code>Peter Pan</code> đổi tiền tệ từ <code>GBP</code> sang <code>USD</code> làm ghi đè mất lịch sử doanh thu cũ hoặc làm phình to bảng chiều triệu dòng.</td>
+                  <td>Phi chuẩn hóa các chiều về <strong>Star Schema</strong> (1 bước nối từ Fact); cấp khóa thay thế <strong>Surrogate Key</strong> kết hợp đóng dấu thời gian <code>Date From / Date To</code> (<strong>SCD Type 2</strong>), tách bảng <strong>History Table (Type 4)</strong> hoặc lai ghép <strong>Type 6 (1+2+3)</strong>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 3</strong><br/><em>Trạm 3.1 → 3.3</em><br/>Data Vault, Inmon vs. Kimball &amp; Medallion</td>
+                  <td>• Mô hình <strong>Data Vault</strong>: giải phẫu bộ ba <strong>Hub</strong> (<code>HUB_CUSTOMER</code>, <code>HUB_ORDER</code>, <code>HUB_PRODUCT</code>), <strong>Link</strong> (<code>LINK_ORDER_CUSTOMER</code>, <code>LINK_ORDER_PRODUCT</code>), <strong>Satellite</strong> (<code>SAT_CUSTOMER</code>, <code>SAT_PRODUCT</code>, <code>SAT_ORDER</code>) (<em>Slide 34–37</em>).<br/>• Hai trường phái <strong>Inmon (Top-Down 3NF)</strong> vs. <strong>Kimball (Bottom-Up Star Schema)</strong> và hợp nhất trên <strong>Medallion Architecture (Bronze → Silver → Gold)</strong> (<em>Slide 38–41</em>).</td>
+                  <td>Khi tích hợp hàng chục nguồn ERP/CRM có lược đồ thay đổi liên tục, Star Schema quá cứng nhắc dễ gãy vỡ đường ống; trong khi xây dựng kho <code>3NF</code> toàn doanh nghiệp theo Inmon mất nhiều năm mới ra được báo cáo đầu tiên.</td>
+                  <td>Đặt <strong>3NF / Data Vault</strong> (chỉ ghi nối đuôi <code>LOAD_DATE</code> vào <code>Satellite</code> khi thêm thuộc tính) tại tầng <strong>Silver</strong> để tích hợp linh hoạt, rồi xuất các bảng <strong>Star Schema / OBT</strong> (<code>fact_sales</code>, <code>dim_customer</code>, <code>mart_finance</code>) tại tầng <strong>Gold</strong>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 4</strong><br/><em>Trạm 4.1 → 4.3</em><br/>Động cơ OLAP: ClickHouse &amp; Apache Pinot</td>
+                  <td>• Ba trụ cột của <strong>OLAP Engine</strong>: <strong>Columnar Storage</strong>, <strong>Vectorized Execution (SIMD)</strong> &amp; <strong>Distributed Query</strong>; đối chiếu <strong>OLAP vs. OLTP</strong> (<em>Slide 42–44</em>).<br/>• Kiến trúc 4 thành phần của <strong>ClickHouse</strong> (<code>ClickHouse Nodes</code>, <code>Columnar Storage</code>, <code>S3 Object Storage</code>, <code>ZooKeeper</code>) (<em>Slide 45–50</em>; <em>Up and Running with ClickHouse</em>).<br/>• Kiến trúc <strong>Apache Pinot</strong> (<code>Real-time</code>, <code>Offline</code>, <code>Hybrid Tables</code>) &amp; đặt cạnh <strong>ClickHouse vs. Pinot</strong> (<em>Slide 51–53</em>).</td>
+                  <td>Xử lý tuần tự từng phần tử tốn 4 chu kỳ lệnh CPU rời rạc cho 4 phép cộng; Data Warehouse đám mây có độ trễ vài giây đến vài phút không thể gánh hàng chục nghìn truy vấn mỗi giây từ giao diện người dùng cuối.</td>
+                  <td>Nạp véc-tơ <code>(1,2,3,4) + (5,6,7,8) = (6,8,10,12)</code> trong <strong>1 chỉ lệnh CPU SIMD</strong>; dùng <strong>ClickHouse</strong> cho phân tích lô/log thông lượng tỷ dòng/giây và dùng <strong>Apache Pinot Hybrid Table</strong> hợp nhất luồng Kafka thời gian thực với S3 lịch sử ở độ trễ mili-giây.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 5</strong><br/><em>Trạm 5.1 → 5.3</em><br/>Feature Store &amp; Thực chiến Feast cho AI/ML</td>
+                  <td>• Bài toán phát hiện gian lận giao dịch <code>txn_9f3a21c8</code> (<code>$1,250.00</code>); hai căn bệnh <strong>Training-Serving Skew</strong> (<code>45.73</code> vs. <code>46</code>) &amp; <strong>Duplicated Effort</strong> (<code>45.73</code> vs. <code>47.10</code>) (<em>Slide 54–57</em>).<br/>• Giải phẫu <strong>Feature Store</strong>: <code>Ingestion</code>, <code>Offline Store</code> (S3/BigQuery/Snowflake), <code>Online Store</code> (Redis/DynamoDB <code>&lt; 10ms</code>), tần suất cập nhật <code>Static / Contextual / Critical</code> và kiến trúc <strong>Feast</strong> (<em>Slide 58–61</em>).</td>
+                  <td>Bản ghi thô <code>txn_9f3a21c8</code> thiếu ngữ cảnh lịch sử 30 ngày; đội Khoa học Dữ liệu viết SQL lấy <code>ROUND(AVG(amount),2) = 45.73</code> khi huấn luyện nhưng đội Kỹ thuật viết lại bằng Python <code>round(sum/len) = 46</code> khi chạy thật làm tụt độ chính xác mô hình.</td>
+                  <td>Định nghĩa đặc trưng một lần duy nhất trong <strong>Feast Feature Store</strong>: đồng bộ <strong>Offline Store</strong> phục vụ huấn luyện (<code>get_historical_features</code>) và Materialize sang <strong>Online Store</strong> (Redis <code>&lt; 10ms</code>) phục vụ chấm điểm thời gian thực (<code>get_online_features</code>).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="lesson-section" id="consumption-1-0-sim">
+          <h2 id="consumption-1-0-sim-h2" tabindex="-1">Trạm 1.0 (Mô phỏng 2D): Phòng Thí Nghiệm Star Schema, SCD Type 0–6, Data Vault, SIMD OLAP &amp; Feast Feature Store</h2>
+
+          <p>Trước khi đi sâu vào giải phẫu lý thuyết từng trạm, hãy trực tiếp điều khiển sự kiện <strong>Đơn hàng #8888 (<code>order_id=1001</code>) &amp; Giao dịch <code>txn_9f3a21c8</code></strong> đi qua <strong>6 lát cắt tương tác thực tế</strong> trong Phòng Thí Nghiệm 2D dưới đây: từ phẫu thuật chi phí phép kết giữa <code>3NF (4 bảng) vs. Star Schema vs. Snowflake Schema</code>, tua thời gian kiểm chứng biến động <code>SCD Type 0 / 1 / 2 / 3 / 4 / 6</code> khi khách hàng <code>Peter Pan (123456)</code> đổi tiền tệ <code>GBP → USD</code>, lắp ghép mô hình <code>Data Vault (Hub / Link / Satellite)</code> trong kiến trúc <code>Medallion</code>, quan sát thanh ghi CPU thực thi véc-tơ <code>SIMD Vectorized Execution</code> trên <code>ClickHouse</code>, hợp nhất <code>Real-time Kafka + Offline S3</code> trên <code>Apache Pinot Hybrid Table</code>, cho tới đối chiếu lệch đặc trưng <code>Training-Serving Skew (45.73 vs 46)</code> qua <code>Feast Feature Store</code>.</p>
+
+          <x-consumption2d></x-consumption2d>
+        </section>
+
+        <section class="lesson-section" id="consumption-1-1">
+          <h2 id="consumption-1-1-h2" tabindex="-1">Trạm 1.1: Giải phẫu Data Warehouse, Vùng đệm Staging, Data Marts &amp; Quy trình ETL</h2>
+
+          <p><strong>Data Warehouse (Kho dữ liệu)</strong> là kho lưu trữ trung tâm tập hợp dữ liệu đã được làm sạch, chuẩn hóa cấu trúc và kiểm chứng độ tin cậy từ nhiều hệ thống nguồn khác nhau nhằm thiết lập một <strong>Single Source of Truth (Nguồn sự thật duy nhất)</strong> cho toàn doanh nghiệp (<em>Slide 04</em>). Khi khách hàng <code>Anna (customer_id="C01")</code> hoàn tất đơn hàng <code>order_id=1001</code> gồm bàn phím <code>P01 Keyboard ($50)</code> và chuột <code>P02 Mouse ($20)</code>, thông tin liên quan đến đơn hàng này nằm rải rác ở ba nơi: giao dịch thanh toán trong cơ sở dữ liệu ứng dụng PostgreSQL, phiếu xuất kho trong hệ thống ERP, và nhật ký vận chuyển trên tệp phẳng CSV. Nếu các chuyên viên phân tích chạy truy vấn tổng hợp trực tiếp lên cơ sở dữ liệu giao dịch hàng ngày, câu lệnh quét hàng triệu dòng sẽ lập tức chiếm dụng CPU và khóa cứng các bảng đang phục vụ khách mua hàng. Do đó, nguyên lý kiến trúc bất di bất dịch trên <em>Slide 04</em> khẳng định: <strong>Data Warehouse KHÔNG thay thế cơ sở dữ liệu giao dịch (Database)</strong> — cơ sở dữ liệu OLTP được tối ưu để ghi giao dịch tức thời, còn Data Warehouse được xây dựng chuyên biệt cho <strong>Analysis (Phân tích)</strong> và <strong>Reporting (Báo cáo)</strong>.</p>
+
+          <p>Theo <em>The Data Warehouse Toolkit, 3rd Edition</em> (Ch. 1) và <em>Slide 04–05</em>, dữ liệu không bao giờ được đổ thẳng từ hệ thống nguồn vào khu vực truy vấn của người dùng cuối mà phải đi qua chuỗi kiến trúc 5 phân khu: <code>Data Sources → Staging Area → Warehouse → Data Marts → Users</code>. Thông qua quy trình <strong>ETL (Extract – Transform – Load)</strong>, dữ liệu thô được <strong>Extract (Trích xuất)</strong> từ các CSDL và tệp nguồn để đưa vào <strong>Staging Area (Vùng đệm trung chuyển)</strong>; tại đây bước <strong>Transform (Biến đổi)</strong> thực hiện làm sạch, chuẩn hóa định dạng và kiểm tra chất lượng trước khi bước <strong>Load (Nạp)</strong> chuyển dữ liệu đã tinh chế vào <strong>Warehouse</strong> trung tâm — nơi lưu trữ đồng thời 3 lớp thông tin: <code>Raw data</code> (dữ liệu chi tiết nguyên bản), <code>Summary data</code> (dữ liệu tổng hợp sẵn) và <code>Metadata data</code> (siêu dữ liệu mô tả nguồn gốc, định nghĩa cột). Từ kho trung tâm này, dữ liệu được phân tách thành các <strong>Data Marts (Chợ dữ liệu chuyên biệt theo phòng ban)</strong> như <code>Purchasing</code> (Mua hàng), <code>Sales</code> (Bán hàng) và <code>Inventory</code> (Tồn kho) để phục vụ 3 nhóm tác vụ của <strong>Users</strong> gồm <code>Analytics</code>, <code>Reporting</code> và <code>Mining</code>.</p>
+
+          <x-figure id="consumption-1-1-fig" key="1.1" title="Sơ đồ 1.1 — Kiến trúc Data Warehouse, Phân tách Data Marts (Purchasing, Sales, Inventory) &amp; Đường ống ETL qua Vùng đệm Staging">Giải phẫu dòng chảy từ Data Sources qua quy trình ETL (Extract → Transform tại Staging Area → Load) vào kho trung tâm Warehouse (Raw, Summary, Metadata) và phân phối tới các Data Marts theo phòng ban.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Thành phần Kiến trúc &amp; Bước ETL (Slide 04–05)</th>
+                  <th>Bản chất Vật lý &amp; Vai trò trong Đường ống</th>
+                  <th>Trạng thái của Đơn hàng <code>order_id=1001</code> (Khách hàng <code>C01 Anna</code>)</th>
+                  <th>Rủi ro Hệ thống nếu Bỏ qua hoặc Thiết kế Sai</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Data Sources &amp; Bước Extract (E)</strong></td>
+                  <td>Thu thập dữ liệu thô từ các cơ sở dữ liệu vận hành (PostgreSQL, MySQL), tệp tin phẳng (CSV/JSON) và ứng dụng nghiệp vụ bên ngoài.</td>
+                  <td>Đơn hàng <code>1001</code> nằm rời rạc tại bảng giao dịch <code>orders</code>, tệp đối soát cổng thanh toán và nhật ký xuất kho cho <code>P01 Keyboard</code>, <code>P02 Mouse</code>.</td>
+                  <td>Trích xuất trực tiếp bằng truy vấn nặng vào giờ cao điểm làm cạn kiệt IOPS và gây nghẽn khóa (Lock Contention) trên DB bán hàng.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Staging Area &amp; Bước Transform (T)</strong></td>
+                  <td>Vùng đệm cách ly hoàn toàn với người dùng cuối; nơi làm sạch (Clean), chuẩn hóa kiểu dữ liệu (Standardize) và kiểm định quy tắc nghiệp vụ (Validate).</td>
+                  <td>Kiểm tra mã khách <code>C01</code> không rỗng, chuẩn hóa ngày <code>2026-05-01</code> về chuẩn ISO-8601, ép kiểu <code>product_price = 50</code> sang số thập phân chính xác và loại bỏ bản ghi trùng.</td>
+                  <td>Nếu đẩy thẳng dữ liệu chưa qua <code>Staging</code> vào kho, các bản ghi lỗi định dạng hoặc thiếu khóa ngoại sẽ làm sai lệch báo cáo doanh thu toàn công ty.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Central Warehouse &amp; Bước Load (L)</strong></td>
+                  <td>Di chuyển dữ liệu đã chuẩn bị xong vào kho trung tâm gồm 3 khối: <strong>Raw data</strong> (dữ liệu hạt mịn), <strong>Summary data</strong> (bảng tổng hợp trước) và <strong>Metadata data</strong> (siêu dữ liệu).</td>
+                  <td>Lưu trữ chi tiết từng dòng sản phẩm của đơn <code>1001</code> trong <code>Raw data</code>, cộng dồn doanh thu ngày <code>$90</code> vào <code>Summary data</code> và ghi nhận lịch sử nạp trong <code>Metadata data</code>.</td>
+                  <td>Thiếu <code>Metadata</code> khiến kỹ sư không biết cột doanh thu đã trừ thuế hay chưa; thiếu <code>Summary data</code> khiến mọi dashboard đều phải quét lại từ đầu.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Data Marts</strong><br/>(<code>Purchasing</code>, <code>Sales</code>, <code>Inventory</code>)</td>
+                  <td>Các tập dữ liệu con chuyên biệt theo từng miền nghiệp vụ (Domain-specific datasets) được trích xuất từ Warehouse cho từng phòng ban.</td>
+                  <td>Đội Bán hàng chỉ đọc <code>Sales Mart</code> (doanh thu <code>$90</code> từ <code>Anna</code>); đội Kho vận chỉ đọc <code>Inventory Mart</code> (trừ <code>1 Keyboard</code> và <code>2 Mouse</code>).</td>
+                  <td>Cho phép mọi phòng ban tự kéo dữ liệu trực tiếp từ <code>Data Sources</code> mà không qua Warehouse trung tâm sẽ tạo ra các ốc đảo số liệu mâu thuẫn nhau (Data Silos).</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Users</strong><br/>(<code>Analytics</code>, <code>Reporting</code>, <code>Mining</code>)</td>
+                  <td>Các nhà phân tích (Analysts), người dùng nghiệp vụ (Business Users) và nhà khoa học dữ liệu (Data Scientists) khai thác dữ liệu tại tầng cuối.</td>
+                  <td>Chạy báo cáo <code>Reporting</code> theo ngày, phân tích xu hướng mua kèm <code>Keyboard + Mouse</code> (<code>Analytics</code>) và khai phá cụm khách hàng tiềm năng (<code>Mining</code>).</td>
+                  <td>Cấp quyền truy cập lộn xộn không phân tách theo Data Mart làm lộ dữ liệu nhạy cảm giữa các bộ phận và gây quá tải cụm tính toán chung.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="callout">
+            <div class="callout-title">Đúc kết Cơ học Trạm 1.1 — Ranh giới Sống còn giữa Database và Data Warehouse</div>
+            <p>Việc tách <code>Data Sources → Staging Area → Warehouse → Data Marts</code> giúp giải phóng hệ thống giao dịch khỏi các truy vấn quét diện rộng. Tuy nhiên, khi dữ liệu của đơn hàng <code>order_id=1001</code> đã nằm trong kho, chúng ta nên tổ chức các bảng bên trong theo cấu trúc nào? Tại sao cách thiết kế bảng hoàn hảo cho cơ sở dữ liệu ứng dụng (PostgreSQL/MySQL) lại trở thành rào cản hiệu năng bên trong Data Warehouse? Chúng ta bước sang <strong>Trạm 1.2</strong>.</p>
+          </div>
+        </section>
+
+        <section class="lesson-section" id="consumption-1-2">
+          <h2 id="consumption-1-2-h2" tabindex="-1">Trạm 1.2: Hai Trường phái Mô hình hóa Logic (ER vs. Dimensional) &amp; Lộ trình Chuẩn hóa 1NF → 2NF → 3NF</h2>
+
+          <p>Ở cấp độ mô hình hóa logic (Logical Modeling), dữ liệu có thể được tổ chức theo nhiều cấu trúc khác nhau, và việc lựa chọn kiến trúc nào phụ thuộc vào một câu hỏi quyết định duy nhất: <strong>Cơ sở dữ liệu này sẽ được sử dụng để làm gì?</strong> (<em>Slide 07</em>). Nếu hệ thống phục vụ các hoạt động giao dịch hàng ngày (<strong>OLTP — Transactional Systems</strong> trên PostgreSQL, MySQL), kỹ sư bắt buộc phải chọn <strong>ER Modeling (Entity-Relationship Modeling — Mô hình Thực thể - Mối quan hệ)</strong> với mục tiêu tối thượng là <strong>Minimize Data Redundancy (Tối thiểu hóa dư thừa dữ liệu)</strong> để mỗi thao tác ghi chỉ chạm vào đúng một vị trí duy nhất trên đĩa. Ngược lại, nếu hệ thống phục vụ phân tích lịch sử quy mô lớn (<strong>OLAP — Analytical Systems</strong> trên BigQuery, Snowflake, ClickHouse), kỹ sư phải chuyển sang <strong>Dimensional Modeling (Mô hình hóa Đa chiều)</strong> với mục tiêu tối thượng là <strong>Maximize Query Speed (Tối đa hóa tốc độ truy vấn)</strong>. Để hiểu tại sao Dimensional Modeling được thiết kế theo cấu trúc hình sao đặc trưng, trước hết chúng ta phải giải phẫu cơ học của mô hình mà nó sinh ra để thay thế trong kho phân tích: <strong>ER Modeling và quy trình chuẩn hóa <code>1NF → 2NF → 3NF</code></strong> (<em>Slide 07–08</em>).</p>
+
+          <p><strong>ER Modeling</strong> thiết kế cơ sở dữ liệu bằng cách nhận diện 3 thành phần: <strong>Entities</strong> (các đối tượng trong hệ thống như <code>Customer</code>, <code>Order</code>, <code>Product</code>), <strong>Attributes</strong> (thuộc tính của từng thực thể như <code>customer_name</code>, <code>order_date</code>) và <strong>Relationships</strong> (mối liên kết như <code>Customer places Order</code>), tuân theo nguyên tắc thiết kế cốt lõi là <strong>Third Normal Form (<code>3NF</code> — Dạng chuẩn thứ ba)</strong> (<em>Slide 08</em>). Lộ trình đưa một bảng dữ liệu lộn xộn về chuẩn <code>3NF</code> đi qua 3 bước lọc toán học nghiêm ngặt (<em>Slide 09–11</em>):
+            <strong>(1) <code>1NF (First Normal Form — Atomic Values)</code></strong> yêu cầu mỗi ô trong bảng chỉ được chứa một giá trị đơn lẻ không thể chia nhỏ (indivisible value), cấm tuyệt đối các nhóm cột lặp như <code>Phone1 (555-1111) | Phone2 (555-222) | Phone3 (555-333)</code> của khách hàng <code>C01</code> hoặc nhồi mảng đa giá trị <code>Products = "P01, P02"</code> vào cùng một ô của đơn hàng <code>1001</code>;
+            <strong>(2) <code>2NF (Second Normal Form — No Partial Dependencies)</code></strong> áp dụng cho bảng có khóa chính ghép (Composite Key), yêu cầu mọi cột không phải khóa phải phụ thuộc vào <em>toàn bộ</em> khóa chính chứ không được chỉ phụ thuộc vào một phần khóa — ví dụ trên bảng có khóa ghép <code>(OrderID, ProductID)</code>, cột <code>CustomerName = "Anna"</code> chỉ phụ thuộc vào <code>OrderID (1001)</code> mà không liên quan gì tới <code>ProductID (P01)</code>, nên phải tách riêng ra bảng <code>Orders(OrderID, CustomerName)</code> và để lại <code>OrderItems(OrderID, ProductID, Quantity)</code>;
+            <strong>(3) <code>3NF (Third Normal Form — No Transitive Dependencies)</code></strong> yêu cầu đạt <code>2NF</code> và không có bất kỳ cột không khóa nào phụ thuộc bắc cầu qua một cột không khóa khác — trong bảng <code>Orders</code> sau bước 2NF, cả <code>CustomerName ("Anna")</code> lẫn <code>CustomerPhone ("0901")</code> thực chất phụ thuộc vào <code>CustomerID ("C01")</code> chứ không phụ thuộc trực tiếp vào <code>OrderID ("1001", "1002")</code>, buộc ta phải tách tiếp thành bảng <code>Customers(CustomerID, CustomerName, CustomerPhone)</code> và bảng <code>Orders(OrderID, CustomerID, OrderDate)</code>.</p>
+
+          <x-figure id="consumption-1-2-fig" key="1.2" title="Sơ đồ 1.2 — Lộ trình Chuẩn hóa ER Modeling từ Bảng Phẳng Vi phạm sang 1NF (Atomic), 2NF (No Partial) và 3NF (No Transitive)">Minh họa trực quan 3 bước chuẩn hóa từ dữ liệu thực trên Slide 09–11: khử cột lặp Phone1..3 &amp; mảng P01,P02 (1NF), tách phụ thuộc bộ phận CustomerName khỏi khóa ghép OrderID+ProductID (2NF), và tách phụ thuộc bắc cầu CustomerID → Anna, 0901 (3NF).</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí &amp; Cấp độ Chuẩn hóa (Slide 07–11)</th>
+                  <th>Quy tắc Toán học &amp; Mục tiêu Thiết kế</th>
+                  <th>Bằng chứng Vi phạm trên Dữ liệu <code>Order 1001 / C01 Anna</code></th>
+                  <th>Cấu trúc Bảng sau khi Chuẩn hóa / Đối chiếu</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>ER Modeling vs. Dimensional Modeling</strong><br/>(<em>Slide 07</em>)</td>
+                  <td>• <strong>ER Modeling:</strong> Dành cho hệ thống giao dịch <strong>OLTP</strong> (PostgreSQL, MySQL) nhằm <em>tối thiểu hóa dư thừa dữ liệu</em>.<br/>• <strong>Dimensional Modeling:</strong> Dành cho <strong>OLAP Data Warehouse</strong> (BigQuery, Snowflake) nhằm <em>tối đa hóa tốc độ truy vấn</em>.</td>
+                  <td>Dùng chung một mô hình cho cả hai mục đích sẽ làm chậm giao dịch ghi (nếu phi chuẩn hóa) hoặc làm treo báo cáo đọc (nếu chia nhỏ thành hàng chục bảng).</td>
+                  <td>Hệ thống nguồn OLTP áp dụng <strong>ER Modeling (<code>3NF</code>)</strong>; khi nạp sang Data Warehouse ở tầng Consumption thì chuyển đổi sang <strong>Dimensional Modeling</strong>.</td>
+                </tr>
+                <tr>
+                  <td><strong>1st Normal Form (<code>1NF</code>)</strong><br/><em>Atomic Values</em><br/>(<em>Slide 09</em>)</td>
+                  <td>Mỗi ô giao giữa dòng và cột chỉ chứa đúng <strong>1 giá trị nguyên tử (Single, indivisible value)</strong>; cấm tạo nhóm cột lặp (Repeating groups) hoặc lưu chuỗi danh sách/mảng.</td>
+                  <td>• <em>Vi phạm nhóm lặp:</em> <code>C01 | Phone1: 555-1111 | Phone2: 555-222 | Phone3: 555-333</code>.<br/>• <em>Vi phạm đa giá trị:</em> <code>OrderID=1001 | CustomerID=C01 | Products="P01, P02"</code>.</td>
+                  <td>Trải phẳng thành các dòng nguyên tử độc lập: <code>(C01, 555-1111)</code>, <code>(C01, 555-222)</code> và <code>(1001, C01, P01)</code>, <code>(1001, C01, P02)</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>2nd Normal Form (<code>2NF</code>)</strong><br/><em>No Partial Dependencies</em><br/>(<em>Slide 10</em>)</td>
+                  <td>Đạt <code>1NF</code> + mọi cột không phải khóa (Non-key column) phải phụ thuộc hàm vào <strong>toàn bộ khóa chính ghép (Composite Primary Key)</strong>, không được phụ thuộc vào một nửa khóa.</td>
+                  <td>Bảng có khóa ghép <code>(OrderID, ProductID)</code> chứa dòng <code>(1001, P01, Qty=1, CustomerName="Anna")</code>: tên <code>Anna</code> chỉ phụ thuộc vào <code>OrderID=1001</code>, không phụ thuộc <code>ProductID=P01</code>.</td>
+                  <td>Tách thành 2 bảng: <code>OrderItems(OrderID, ProductID, Quantity)</code> lưu <code>(1001, P01, 2)</code> và <code>Orders(OrderID, CustomerName)</code> lưu <code>(1001, Anna)</code>, <code>(1002, Bob)</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>3rd Normal Form (<code>3NF</code>)</strong><br/><em>No Transitive Dependencies</em><br/>(<em>Slide 11</em>)</td>
+                  <td>Đạt <code>2NF</code> + không có cột không khóa nào phụ thuộc bắc cầu (Transitive dependency) qua một cột không khóa khác (<code>PK → NonKey_A → NonKey_B</code>).</td>
+                  <td>Bảng <code>Orders</code> chứa <code>(1001, C01, Anna, 0901)</code> và <code>(1002, C01, Anna, 0901)</code>: cả <code>CustomerName="Anna"</code> và <code>CustomerPhone="0901"</code> đều phụ thuộc vào <code>CustomerID="C01"</code> chứ không phụ thuộc vào <code>OrderID</code>.</td>
+                  <td>Tách thành bảng <code>Orders(OrderID, CustomerID, OrderDate)</code> lưu <code>(1001, C01, 2026-05-01)</code> và bảng <code>Customers(CustomerID, CustomerName, CustomerPhone)</code> lưu duy nhất 1 dòng <code>(C01, Anna, 0901)</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Ba quy tắc <code>1NF → 2NF → 3NF</code> trông rất gọn gàng khi xét trên từng ví dụ nhỏ, nhưng trên thực tế các hệ thống khởi nghiệp thường bắt đầu bằng một bảng đơn hàng khổng lồ chứa tất cả mọi cột. Chuyện gì sẽ xảy ra khi chúng ta áp dụng phẫu thuật <code>3NF</code> lên bảng tổng hợp <code>Order_Detail</code> của đơn hàng <code>1001</code> và <code>1002</code>, và tại sao chính cấu trúc 4 bảng <code>3NF</code> hoàn hảo đó lại gây ra điểm nghẽn nghiêm trọng khi chạy truy vấn phân tích? Chúng ta bước sang <strong>Trạm 1.3</strong>.</p>
+        </section>
+
+        <section class="lesson-section" id="consumption-1-3">
+          <h2 id="consumption-1-3-h2" tabindex="-1">Trạm 1.3: Phẫu thuật Bảng Phẳng Order_Detail sang 4 Bảng 3NF &amp; Điểm nghẽn Phép Kết (Join Penalty) khi Phân tích</h2>
+
+          <p>Hãy đặt dưới kính hiển vi bảng phi chuẩn hóa <code>Order_Detail</code> (<em>Slide 12</em>) đang lưu 3 dòng dữ liệu của khách hàng <code>Anna (C01, SĐT 0901)</code>: hai dòng thuộc đơn <code>order_id=1001</code> ngày <code>2026-05-01</code> mua <code>P01 Keyboard ($50, qty=1)</code> cùng <code>P02 Mouse ($20, qty=2)</code>, và một dòng thuộc đơn <code>order_id=1002</code> ngày <code>2026-05-02</code> mua tiếp <code>P01 Keyboard ($50, qty=1)</code>. Vì nhồi nhét 4 thực thể nghiệp vụ khác nhau (Order, Customer, Product, Order Item) vào chung một bảng phẳng 9 cột, bảng <code>Order_Detail</code> vi phạm đồng thời cả 3 nguyên tắc chuẩn hóa: (1) không có khóa chính đơn lẻ rõ ràng vì <code>order_id=1001</code> bị lặp lại trên nhiều dòng theo số lượng mặt hàng; (2) vi phạm phụ thuộc bộ phận (<code>2NF</code>) vì thông tin khách hàng chỉ phụ thuộc vào <code>customer_id</code> và thông tin mặt hàng chỉ phụ thuộc vào <code>product_id</code> chứ không phụ thuộc vào toàn bộ dòng chi tiết đơn hàng; và (3) vi phạm phụ thuộc bắc cầu (<code>3NF</code>) do chuỗi <code>customer_id → customer_name, customer_phone</code> và <code>product_id → product_name, product_price</code>. Hệ quả trực tiếp trên hệ thống OLTP là <strong>3 dị thường dữ liệu (Data Anomalies)</strong>: khi <code>Anna</code> đổi số điện thoại từ <code>0901</code> sang số mới, máy chủ phải khóa và cập nhật toàn bộ các dòng đơn hàng lịch sử của cô (<strong>Update Anomaly</strong>); không thể thêm một mặt hàng mới vào danh mục nếu chưa có khách đặt mua (<strong>Insertion Anomaly</strong>); và nếu xóa đơn hàng duy nhất mua <code>P02 Mouse</code>, thông tin tên và giá <code>$20</code> của con chuột này cũng biến mất vĩnh viễn khỏi hệ thống (<strong>Deletion Anomaly</strong>).</p>
+
+          <p>Khi áp dụng chuẩn hóa <code>3NF</code> (<em>Slide 13–14</em>), bảng <code>Order_Detail</code> được phẫu thuật tách thành <strong>4 bảng thực thể độc lập</strong>: <code>Customers(customer_id, customer_name, customer_phone)</code> chỉ giữ đúng 1 dòng cho <code>C01 Anna</code>; <code>Products(product_id, product_name, product_price)</code> giữ 2 dòng cho <code>P01 Keyboard ($50)</code> và <code>P02 Mouse ($20)</code>; <code>Orders(order_id, order_date, customer_id)</code> giữ 2 dòng tiêu đề đơn <code>1001</code> và <code>1002</code>; và <code>OrderItems(order_item_id, order_id, product_id, quantity)</code> giữ 3 dòng chi tiết giỏ hàng. Kiến trúc 4 bảng <code>3NF</code> này đem lại tốc độ <code>INSERT / UPDATE / DELETE</code> dưới <code>10ms</code> và tính nhất quán tuyệt đối cho ứng dụng bán hàng. Thế nhưng, như <em>Slide 15</em> chỉ rõ, <strong>những gì tối ưu cho OLTP lại trở nên cực kỳ đắt đỏ cho báo cáo phân tích (What works for OLTP becomes expensive for reporting)</strong>: để trả lời một câu hỏi BI cơ bản như <em>"Tổng doanh thu theo vùng địa lý và danh mục sản phẩm trong 12 tháng qua"</em>, động cơ cơ sở dữ liệu buộc phải thực hiện chuỗi phép kết nhiều bảng lớn đã bị chia nhỏ (<strong>Multi-Table Joins</strong>) — khiến câu lệnh SQL trở nên phức tạp, bộ tối ưu hóa truy vấn (Query Optimizer) khó chọn thứ tự kết bảng tối ưu, và bảng băm trung gian (Hash Table) dễ dàng vượt ngưỡng <code>work_mem</code> gây tràn dữ liệu ra ổ đĩa (<strong>Spill-to-Disk</strong>).</p>
+
+          <x-figure id="consumption-1-3-fig" key="1.3" title="Sơ đồ 1.3 — Giải phẫu Bảng Order_Detail sang 4 Bảng 3NF và Điểm nghẽn Multi-Table Hash Join khi Truy vấn Báo cáo OLAP">Đối chiếu trực diện bảng phẳng Order_Detail (vi phạm 1NF/2NF/3NF) với hệ thống 4 bảng chuẩn hóa 3NF (Customers, Products, Orders, OrderItems) và chi phí kết nối đa bảng khi chạy truy vấn tổng hợp 12 tháng.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th> Góc nhìn Kiến trúc (Slide 12–15)</th>
+                  <th>Bảng Phẳng Phi Chuẩn hóa (<code>Order_Detail</code>)</th>
+                  <th>Mô hình 4 Bảng Chuẩn hóa <code>3NF</code> (<code>Customers</code>, <code>Products</code>, <code>Orders</code>, <code>OrderItems</code>)</th>
+                  <th>Hệ quả Cơ học đối với Tầng Tiêu thụ (Consumption Layer)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Tính toàn vẹn Khóa chính (Primary Key Clarity)</strong></td>
+                  <td><strong>Vi phạm:</strong> Cột <code>order_id=1001</code> bị lặp lại 2 lần vì một đơn hàng chứa nhiều sản phẩm (<code>P01</code>, <code>P02</code>).</td>
+                  <td><strong>Chuẩn xác:</strong> Mỗi bảng có khóa chính đơn nguyên tử: <code>customer_id</code>, <code>product_id</code>, <code>order_id</code> và khóa tự tăng <code>order_item_id (1, 2, 3)</code>.</td>
+                  <td>Trong OLTP, khóa chính rõ ràng giúp chỉ mục <code>B-Tree</code> định vị từng thực thể trong <code>O(log N)</code> mà không phải quét trùng lặp.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Phụ thuộc Bộ phận &amp; Bắc cầu (Partial &amp; Transitive Dependencies)</strong></td>
+                  <td><strong>Vi phạm kép:</strong> <code>Anna</code> và <code>0901</code> phụ thuộc vào <code>customer_id=C01</code>; <code>Keyboard</code> và giá <code>50</code> phụ thuộc vào <code>product_id=P01</code>, bị nhân bản ở mọi dòng đơn hàng.</td>
+                  <td><strong>Khử sạch dư thừa:</strong> Thông tin <code>(C01, Anna, 0901)</code> và <code>(P01, Keyboard, 50)</code> chỉ xuất hiện đúng <strong>1 lần duy nhất</strong> trong bảng thực thể gốc.</td>
+                  <td>Loại bỏ hoàn toàn dị thường cập nhật (Update Anomaly): đổi giá <code>Keyboard</code> hoặc đổi SĐT của <code>Anna</code> chỉ sửa đúng 1 dòng (<code>&lt; 5ms</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Hiệu năng Giao dịch Ghi (OLTP Write Workload)</strong></td>
+                  <td>Chậm và nguy hiểm: ghi thêm đơn hàng mới phải chép lặp lại chuỗi văn bản tên khách, SĐT, tên sản phẩm; cập nhật dễ gây khóa bảng diện rộng.</td>
+                  <td><strong>Cực nhanh &amp; Nhất quán cao (Fast insert/update/delete, High consistency):</strong> Thêm đơn mới chỉ chèn các khóa ngoại số nguyên nhỏ gọn vào <code>Orders</code> và <code>OrderItems</code>.</td>
+                  <td>Đây là lý do 100% cơ sở dữ liệu ứng dụng tuyến đầu (PostgreSQL, MySQL) chọn mô hình <strong>ER 3NF</strong> làm tiêu chuẩn vàng.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Hiệu năng Truy vấn Phân tích (OLAP Reporting Workload — Slide 15)</strong></td>
+                  <td>Không cần <code>JOIN</code> nhưng lãng phí dung lượng đĩa và không kiểm soát được lịch sử thay đổi thuộc tính theo thời gian.</td>
+                  <td><strong>Điểm yếu chí mạng cho Analytics:</strong> Để tính tổng doanh thu 12 tháng theo vùng và ngành hàng, hệ thống phải thực hiện chuỗi <code>JOIN</code> qua 4–10 bảng lớn.</td>
+                  <td>Phép kết nhiều bảng chuẩn hóa lớn (Multi-way Join) làm bùng nổ chi phí CPU/RAM và làm chậm tốc độ tải Dashboard của người dùng BI.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <pre><code>-- 1. CẤU TRÚC 4 BẢNG CHUẨN HÓA 3NF TRÊN HỆ THỐNG OLTP (Bám sát Slide 13–14)
+-- Tối ưu tuyệt đối cho giao dịch ghi: Anna (C01) đổi SĐT chỉ cập nhật đúng 1 dòng duy nhất
+UPDATE Customers SET customer_phone = '0909-888-999' WHERE customer_id = 'C01';
+
+-- 2. ĐIỂM NGHẼN PHÂN TÍCH TRÊN MÔ HÌNH 3NF (Slide 15: Why ER Modeling is Weak for Analytics)
+-- Để báo cáo doanh thu 12 tháng theo Vùng (Region) và Danh mục (Category),
+-- động cơ phải nối chuỗi 6–7 bảng chuẩn hóa lớn (Orders ⋈ OrderItems ⋈ Products ⋈ Categories ⋈ Customers ⋈ Cities ⋈ Regions):
+SELECT
+    r.region_name,
+    cat.category_name,
+    SUM(oi.quantity * p.product_price) AS total_revenue
+FROM OrderItems oi
+JOIN Orders o          ON oi.order_id = o.order_id
+JOIN Products p        ON oi.product_id = p.product_id
+JOIN Categories cat    ON p.category_id = cat.category_id
+JOIN Customers c       ON o.customer_id = c.customer_id
+JOIN Cities ct         ON c.city_id = ct.city_id
+JOIN Regions r         ON ct.region_id = r.region_id
+WHERE o.order_date &gt;= DATE '2025-05-01'
+  AND o.order_date &lt;  DATE '2026-05-01'
+GROUP BY r.region_name, cat.category_name;</code></pre>
+
+          <div class="callout warn">
+            <div class="callout-title">Đúc kết Chặng 1 &amp; Cầu nối Nhân – Quả sang Chặng 2 (Dimensional Modeling)</div>
+            <p>Phẫu thuật bảng phẳng <code>Order_Detail</code> sang 4 bảng <code>3NF</code> đã cứu cơ sở dữ liệu giao dịch khỏi thảm họa dư thừa và dị thường cập nhật, nhưng lại đẩy gánh nặng sang phía người làm phân tích: mỗi câu lệnh báo cáo phải trả giá bằng một chuỗi phép kết nối bắc cầu qua hàng loạt bảng chuẩn hóa. Làm thế nào để tái cấu trúc dữ liệu bên trong Data Warehouse sao cho các công cụ BI chỉ cần <strong>1 bước kết nối trực tiếp</strong> từ bảng sự kiện trung tâm ra các chiều ngữ cảnh, và nếu khách hàng <code>Peter Pan (123456)</code> thay đổi đơn vị tiền tệ từ <code>GBP</code> sang <code>USD</code> theo thời gian thì làm sao vừa giữ được tốc độ truy vấn vừa không làm mất lịch sử cũ? Chúng ta bước sang <strong>Chặng 2: Mô Hình Hóa Đa Chiều (Kimball): Fact, Dimension, Star vs. Snowflake Schema &amp; SCD Type 0–6</strong>.</p>
+          </div>
+        </section>
+
+        <section class="lesson-section summary-section" id="consumption-1-summary">
+          <h2 id="consumption-1-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 1 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <ol>
+            <li><strong>Tại sao Data Warehouse được gọi là Single Source of Truth nhưng tuyệt đối KHÔNG dùng để thay thế cơ sở dữ liệu OLTP hàng ngày?</strong><br/>Data Warehouse tích hợp dữ liệu đã làm sạch và chuẩn hóa từ nhiều nguồn khác nhau (gồm <code>Raw data</code>, <code>Summary data</code>, <code>Metadata data</code>) để cung cấp một nguồn sự thật thống nhất cho toàn doanh nghiệp. Tuy nhiên, nó được thiết kế chuyên biệt cho các truy vấn đọc tổng hợp quy mô lớn (<code>Analysis &amp; Reporting</code>), hoàn toàn đối lập với cơ sở dữ liệu OLTP vốn tối ưu cho hàng nghìn thao tác đọc/ghi giao dịch nhỏ lẻ ở độ trễ mili-giây.</li>
+            <li><strong>Phân biệt vai trò cơ học giữa <code>Staging Area</code>, <code>Central Warehouse</code> và các <code>Data Marts</code> (<code>Purchasing</code>, <code>Sales</code>, <code>Inventory</code>) trong quy trình ETL?</strong><br/>Sau khi <strong>Extract (E)</strong> dữ liệu thô từ nguồn, <strong>Staging Area</strong> đóng vai trò vùng đệm cách ly để thực hiện bước <strong>Transform (T)</strong> (làm sạch, chuẩn hóa, xác thực dữ liệu) mà không làm ảnh hưởng tới hệ thống nguồn hay người dùng cuối; bước <strong>Load (L)</strong> nạp dữ liệu sạch vào <strong>Warehouse</strong> trung tâm, từ đó mới trích xuất thành các <strong>Data Marts</strong> chuyên biệt theo từng phòng ban (<code>Purchasing</code>, <code>Sales</code>, <code>Inventory</code>) phục vụ <code>Analytics</code>, <code>Reporting</code> và <code>Mining</code>.</li>
+            <li><strong>Tiêu chí cốt lõi nào quyết định việc lựa chọn giữa <code>ER Modeling</code> và <code>Dimensional Modeling</code> ở cấp độ thiết kế logic?</strong><br/>Lựa chọn phụ thuộc hoàn toàn vào mục đích sử dụng của hệ thống: <strong>ER Modeling (Entity-Relationship)</strong> dành cho hệ thống giao dịch <strong>OLTP</strong> (PostgreSQL, MySQL) với mục tiêu tối thiểu hóa dư thừa dữ liệu (Minimize data redundancy) và bảo toàn tính nhất quán khi ghi; trong khi <strong>Dimensional Modeling</strong> dành cho hệ thống phân tích <strong>OLAP Data Warehouse</strong> (BigQuery, Snowflake) với mục tiêu tối đa hóa tốc độ truy vấn đọc (Maximize query speed).</li>
+            <li><strong>Giải thích sự khác biệt bản chất giữa 3 bước chuẩn hóa <code>1NF</code>, <code>2NF</code> và <code>3NF</code> qua ví dụ đơn hàng <code>1001</code> của khách hàng <code>C01 Anna</code>?</strong><br/><strong><code>1NF (Atomic Values)</code></strong> yêu cầu mỗi ô chỉ chứa một giá trị nguyên tử, khử các cột lặp (<code>Phone1, Phone2, Phone3</code>) và ô chứa mảng (<code>Products = "P01, P02"</code>); <strong><code>2NF (No Partial Dependencies)</code></strong> yêu cầu mọi cột không khóa phải phụ thuộc vào toàn bộ khóa chính ghép <code>(OrderID, ProductID)</code>, buộc tách <code>CustomerName = "Anna"</code> (chỉ phụ thuộc vào <code>OrderID</code>) sang bảng <code>Orders</code>; <strong><code>3NF (No Transitive Dependencies)</code></strong> yêu cầu không có cột không khóa nào phụ thuộc bắc cầu qua cột không khóa khác, buộc tách <code>CustomerName ("Anna")</code> và <code>CustomerPhone ("0901")</code> (phụ thuộc vào <code>CustomerID = "C01"</code>) sang bảng <code>Customers</code> riêng biệt.</li>
+            <li><strong>Tại sao việc tách bảng phẳng <code>Order_Detail</code> thành 4 bảng chuẩn hóa <code>3NF</code> (<code>Customers</code>, <code>Products</code>, <code>Orders</code>, <code>OrderItems</code>) giúp OLTP chạy cực nhanh nhưng lại gây điểm nghẽn cho truy vấn phân tích OLAP?</strong><br/>Trên OLTP, tách thành 4 bảng <code>3NF</code> giúp loại bỏ dữ liệu trùng lặp, nhờ đó các lệnh <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code> chỉ chạm vào 1 dòng đơn lẻ với độ nhất quán tuyệt đối. Ngược lại, khi chạy truy vấn phân tích tổng doanh thu 12 tháng theo vùng và danh mục sản phẩm, việc dữ liệu bị xé lẻ buộc động cơ phải thực hiện nhiều phép nối bảng lớn (<strong>Multi-Table Joins</strong>), làm phức tạp hóa câu lệnh và gây tốn kém CPU/RAM.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/D05/2" onclick="selectStorageStage(2);return false;">Sang Chặng 2: Mô Hình Hóa Đa Chiều (Kimball): Fact, Dimension, Star vs. Snowflake Schema &amp; SCD Type 0–6 →</a></p>
+        </section>
+      </div>

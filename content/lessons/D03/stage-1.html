@@ -1,0 +1,273 @@
+      <div class="prose">
+        <x-spine id="spark-1-spine" badge="TRONG BÀI HỌC NÀY · D03" title="Chặng 1: Tại Sao Phải Là Apache Spark? Kiến Trúc Cụm &amp; Phân Cấp Thực Thi (Job → Stage → Task)" subtitle="Trạm 0.0 → 1.3">Hành trình của tác vụ biến đổi lô <strong>daily_revenue_attribution.py</strong> (xử lý giao dịch <strong>Order #8888</strong> cùng 2 tỷ dòng / <code>500GB Parquet</code> từ tầng Silver Lakehouse <code>D02</code>): vượt qua trần vật lý của máy đơn và nỗi đau đọc/ghi đĩa lặp lại của Hadoop MapReduce bằng kiến trúc <strong>In-Memory DAG</strong> của Apache Spark.</x-spine>
+
+        <section class="lesson-section" id="spark-0-map">
+          <h2 id="spark-0-map-h2" tabindex="-1">Trạm 0.0: Nhân vật chính daily_revenue_attribution.py &amp; Bản đồ Kiến trúc 6 Chặng Batch Transformation</h2>
+
+          <p>Sau khi giao dịch <strong>Order #8888</strong> (<code>order_id="ORD-8888"</code>, <code>user_id="USR-104"</code>, <code>amount=450000</code>) được thu thập qua đường ống <strong>D01 · Ingestion Layer</strong> và hạ cánh an toàn xuống bảng Silver của <strong>D02 · Storage Layer (Data Lakehouse)</strong>, toàn bộ học phần <strong>D03 · Transformation Layer I (Batch Processing with Apache Spark)</strong> sẽ theo chân một nhân vật chính kỹ thuật mới: <strong>Tác vụ Biến đổi Lô <code>daily_revenue_attribution.py</code></strong>. Mỗi đêm lúc <code>01:00 UTC</code>, tác vụ này phải quét 2 tỷ bản ghi giao dịch (tương đương <code>500GB Apache Parquet</code> tại <code>s3://lakehouse/silver/orders/</code>), thực hiện lọc đơn hoàn tiền, chuẩn hóa tỷ giá, kết nối (<code>JOIN</code>) với bảng chiều <code>dim_users</code> và <code>dim_campaigns</code> để quy bổ doanh thu theo kênh tiếp thị, rồi ghi kết quả ra bảng Gold <code>fact_daily_revenue</code> phục vụ tầng truy vấn <strong>D05 · Consumption Layer</strong> trước <code>01:15 UTC</code>.</p>
+
+          <x-figure id="spark-0-1" key="0.1" title="Sơ đồ 0.1 — Bản đồ Tư duy 6 Chặng: Hành trình Job daily_revenue_attribution.py qua Tầng Batch Transformation">Toàn cảnh lộ trình nhân quả 6 Chặng (20 Trạm) từ kiến trúc cụm Spark, RDD/DataFrame, Serialization/Memory, Catalyst/Tungsten/AQE đến 6 kỹ thuật tinh chỉnh thủ công và vận hành Production.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chặng &amp; Trạm</th>
+                  <th>Trọng tâm Slide 09 &amp; Giáo trình Sách</th>
+                  <th>Điểm nghẽn Khởi phát</th>
+                  <th>Cơ chế Giải quyết Vật lý</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Chặng 1</strong><br/><em>Trạm 0.0 → 1.3</em><br/>Kiến trúc Cụm &amp; Phân cấp Thực thi</td>
+                  <td>• Vai trò <strong>Transformation Layer</strong>, giới hạn máy đơn &amp; <strong>Hadoop MapReduce vs. Spark In-Memory DAG</strong> (<em>Slide 03–08</em>; <em>Learning Spark</em> Ch. 1).<br/>• Giải phẫu <strong>Driver Program</strong>, <strong>Cluster Manager</strong>, <strong>Worker Node</strong> &amp; <strong>Executor JVM</strong> (<em>Slide 09–11</em>).<br/>• <strong>Partition vs. Task</strong>, <strong>Lazy Evaluation</strong> &amp; luồng 8 bước <code>Application → Job → Stage → Task</code> (<em>Slide 12–16</em>).</td>
+                  <td>Nạp <code>500GB Parquet</code> vào một máy chủ <code>64GB RAM</code> gây lỗi <code>MemoryError</code> và treo cứng do Swap Thrashing; dùng Hadoop MapReduce phải ghi/đọc đĩa HDFS lặp lại sau mỗi bước Map/Reduce làm mất 90% thời gian chờ I/O.</td>
+                  <td>Phân tán dữ liệu thành các <strong>Partitions</strong> xử lý song song bởi các <strong>Tasks</strong> trên nhiều <strong>Executors</strong>; giữ dữ liệu trung gian trong RAM theo đồ thị <strong>DAG</strong> và trì hoãn thực thi (<strong>Lazy Evaluation</strong>) tới khi gặp <strong>Action</strong>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 2</strong><br/><em>Trạm 2.1 → 2.3</em><br/>RDD, Lineage &amp; DataFrame</td>
+                  <td>• <strong>RDD (Resilient Distributed Dataset)</strong>, tính bất biến (<strong>Immutability</strong>) &amp; <strong>Lineage Graph</strong> tự phục hồi lỗi (<em>Slide 17–21</em>).<br/>• <strong>Narrow vs. Wide Transformations</strong> và chi phí vật lý của <strong>Shuffle</strong> (<em>Slide 22–24</em>).<br/>• Tiến hóa lên <strong>Spark DataFrame</strong> &amp; bẫy hiệu năng <strong>PySpark Python Worker IPC</strong> (<em>Slide 25–28</em>; <em>Spark Definitive Guide</em> Ch. 4, 12).</td>
+                  <td>Dùng RDD với hàm lambda Python buộc Executor JVM phải tuần tự hóa từng dòng <code>Order #8888</code> qua ống <code>socket</code> sang tiến trình Python rời; phép biến đổi rộng (<code>groupBy</code>/<code>join</code>) kích hoạt <strong>Shuffle</strong> ghi đĩa và chép mạng chéo giữa toàn bộ các node.</td>
+                  <td>Tái tính toán đúng phân vùng hỏng từ <strong>Lineage Graph</strong> mà không cần nhân bản RAM x3; chuyển sang <strong>Spark DataFrame</strong> có lược đồ tường minh để thực thi 100% bên trong JVM/Tungsten và gom chuỗi biến đổi hẹp (<strong>Narrow Pipelining</strong>) vào cùng một Stage.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 3</strong><br/><em>Trạm 3.1 → 3.3</em><br/>Serialization &amp; Unified Memory</td>
+                  <td>• Cơ chế <strong>Serialization</strong> (<code>Java Serializer</code> vs. <code>Kryo</code> vs. <code>Apache Arrow</code>) (<em>Slide 29–30</em>).<br/>• Kiến trúc bộ nhớ hợp nhất <strong>Spark Unified Memory</strong> (<code>Reserved</code>, <code>User</code>, <code>Storage</code> ↔ <code>Execution</code>) (<em>Slide 31–33</em>).<br/>• 5 chiến lược lưu trữ đệm (<strong>5 Storage Levels</strong>: <code>MEMORY_ONLY</code> → <code>OFF_HEAP</code>) (<em>Slide 34–35</em>).</td>
+                  <td>Đối tượng <code>Java Object</code> trong Heap phình kích thước gấp <code>2x–5x</code> dữ liệu gốc do Object Header và con trỏ 64-bit, gây bão <strong>Garbage Collection (GC Pause)</strong>; chia cứng vùng nhớ làm tràn đĩa (<strong>Spill-to-Disk</strong>) dù vùng nhớ bên cạnh đang bỏ trống.</td>
+                  <td>Nén nhị phân gọn nhẹ bằng <code>Kryo</code>/<code>UnsafeRow</code>; áp dụng ranh giới động (<strong>Dynamic Occupancy</strong>) cho phép <strong>Execution Memory</strong> và <strong>Storage Memory</strong> vay mượn lẫn nhau trên ngưỡng <code>spark.memory.fraction=0.6</code> và chọn đúng mức <code>MEMORY_AND_DISK</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 4</strong><br/><em>Trạm 4.1 → 4.3</em><br/>Catalyst, Tungsten &amp; AQE</td>
+                  <td>• Bộ tối ưu hóa <strong>Catalyst Optimizer</strong> qua 4 pha: <code>Analysis → Logical Optimization → Physical Planning → CodeGen</code> (<em>Slide 36–39</em>).<br/>• Động cơ <strong>Project Tungsten</strong>: Off-heap Memory, Cache-aware Layout &amp; <strong>Whole-Stage CodeGen</strong> (<em>Slide 40–42</em>).<br/>• <strong>Adaptive Query Execution (AQE)</strong> tối ưu lại kế hoạch ngay khi đang chạy (<em>Slide 43–44</em>).</td>
+                  <td>Viết câu lệnh <code>JOIN</code> toàn bảng rồi mới lọc <code>WHERE</code> khiến hệ thống đọc thừa 95% dữ liệu; mô hình <code>Volcano Iterator</code> gọi hàm ảo hàng tỷ lần làm nghẽn CPU; ước lượng tĩnh sai kích thước bảng sau khi lọc.</td>
+                  <td>Catalyst tự động đẩy bộ lọc xuống đáy (<strong>Predicate Pushdown</strong>) và cắt cột thừa (<strong>Column Pruning</strong>); Tungsten biên dịch toàn bộ Stage thành một vòng lặp <code>for</code> bytecode phẳng; <strong>AQE</strong> gộp phân vùng nhỏ, chuyển sang Broadcast Join và cắt nhỏ phân vùng lệch tại thời gian chạy.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 5</strong><br/><em>Trạm 5.1 → 5.3</em><br/>Sáu Kỹ thuật Tinh chỉnh Thủ công</td>
+                  <td>• Tinh chỉnh <strong>Partitioning</strong> (<code>repartition</code> vs. <code>coalesce</code>), <strong>Selective Caching</strong> &amp; <strong>Broadcast Hash Join</strong> (<em>Slide 45–50</em>).<br/>• Chẩn đoán <strong>Data Skew (Lệch dữ liệu)</strong> &amp; thuật toán <strong>Key Salting</strong> (<em>Slide 51–54</em>).<br/>• Tối ưu định dạng tệp <code>Parquet</code> &amp; <strong>Bucketing</strong> tiền phân vùng (<em>Slide 55–57</em>).</td>
+                  <td>Khóa khuyến mãi mặc định hoặc đại lý lớn chiếm 40% tổng số đơn hàng khiến <code>199/200 Tasks</code> xong trong 20 giây nhưng <code>Task #199</code> chạy suốt 45 phút rồi chết vì <code>OutOfMemoryError</code>.</td>
+                  <td>Phát sóng bảng nhỏ dưới <code>10MB–100MB</code> qua <strong>Broadcast Join</strong> để xóa bỏ hoàn toàn Shuffle; gắn hậu tố muối ngẫu nhiên <code>salt ∈ [0, N-1]</code> (<strong>Key Salting</strong>) để xé nhỏ khóa khổng lồ ra nhiều Executor xử lý song song và dùng <strong>Bucketing</strong> cho các phép nối bảng lớn định kỳ.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 6</strong><br/><em>Trạm 6.1 → 6.3</em><br/>Spark UI, Dynamic Allocation &amp; Production</td>
+                  <td>• Đọc vị <strong>Spark Web UI</strong> (Jobs, Stages, Skew/Spill metrics, SQL DAG, Executors) (<em>Slide 58–61</em>).<br/>• Cơ chế <strong>Dynamic Resource Allocation</strong> &amp; <strong>External Shuffle Service</strong> (<em>Slide 62–64</em>).<br/>• Bài toán <strong>Small File Problem</strong>, <strong>Data Compaction</strong> &amp; công thức tính toán cấu hình cụm Production (<em>Slide 65–68</em>).</td>
+                  <td>Cấp phát cụm cố định gây lãng phí hàng nghìn USD khi nhàn rỗi hoặc thiếu tài nguyên lúc cao điểm; ghi hàng trăm nghìn tệp Parquet <code>1KB</code> làm liệt <code>NameNode</code> / <code>S3 LIST</code> của các job hạ nguồn.</td>
+                  <td>Giám sát chênh lệch <code>Median vs. Max Task Duration</code> và <code>Shuffle Spill (Disk)</code> trên <strong>Spark UI</strong>; bật <strong>Dynamic Allocation</strong> co giãn Executor tự động theo tải kèm <strong>Data Compaction</strong> gom tệp về kích thước chuẩn <code>128MB–256MB</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="lesson-section" id="spark-1-0-sim">
+          <h2 id="spark-1-0-sim-h2" tabindex="-1">Trạm 1.0 (Mô phỏng 2D): Phòng Thí Nghiệm DAG Stage/Shuffle, RDD vs. DataFrame, Unified Memory, Catalyst/Tungsten, Key Salting &amp; Dynamic Allocation</h2>
+
+          <p>Trước khi mổ xẻ từng tầng kiến trúc lý thuyết, hãy trực tiếp điều khiển tác vụ <code>daily_revenue_attribution.py</code> (xử lý đơn hàng <strong>Order #8888</strong> cùng 2 tỷ bản ghi) đi qua <strong>6 kịch bản cơ học cốt lõi</strong> trong Phòng Thí Nghiệm Tương tác 2D dưới đây: từ cách <code>DAGScheduler</code> cắt <code>Stage</code> tại ranh giới <code>Shuffle</code>, đối chiếu tốc độ <code>RDD Python Worker IPC vs. DataFrame Tungsten</code>, ranh giới vay mượn động trong <code>Unified Memory &amp; 5 Storage Choices</code>, quy trình tối ưu <code>Catalyst Pushdown &amp; Tungsten 3 Techniques</code>, giải cứu nghẽn cổ chai bằng <code>Data Skew Key Salting &amp; AQE</code>, cho đến bảng điều khiển <code>Spark UI, Dynamic Allocation &amp; Data Compaction</code>.</p>
+
+          <x-spark2d></x-spark2d>
+        </section>
+
+        <section class="lesson-section" id="spark-1-1">
+          <h2 id="spark-1-1-h2" tabindex="-1">Trạm 1.1: Vai trò Tầng Transformation, Giới hạn Máy đơn &amp; Sự Sụp đổ Đọc/Ghi Đĩa của Hadoop MapReduce trước Spark</h2>
+
+          <p><strong>Transformation Layer (Tầng biến đổi dữ liệu)</strong> là nhà máy tinh luyện nằm giữa vùng dữ liệu thô đã thu thập và các bảng phân tích phục vụ kinh doanh, chịu trách nhiệm thực thi 5 nghiệp vụ cốt lõi trên dữ liệu của <code>Order #8888</code>: làm sạch (<strong>Cleaning</strong> — khử dòng trùng lặp, xử lý <code>NULL</code>), kiểm định (<strong>Validating</strong> — ép kiểu <code>amount &gt; 0</code>), kết nối (<strong>Joining</strong> — ghép đơn hàng với thông tin khách hàng và chiến dịch quảng cáo), làm giàu (<strong>Enriching</strong> — tính cột lợi nhuận ròng theo tỷ giá ngày), và tổng hợp (<strong>Aggregating</strong> — gom nhóm doanh thu theo vùng/ngày) (<em>Slide 03–04</em>). Khi khối lượng dữ liệu của <code>daily_revenue_attribution.py</code> chỉ ở mức vài trăm Megabyte, một kịch bản <code>pandas</code> chạy trên máy chủ đơn lẻ (<strong>Single-Machine Processing</strong>) hoàn thành công việc trong vài giây; nhưng khi quy mô chạm ngưỡng <code>500GB Parquet</code> (2 tỷ dòng), một máy chủ vật lý <code>64GB RAM</code> sẽ lập tức đụng trần phần cứng: bộ nhớ RAM bị vắt kiệt gây văng ngoại lệ <code>MemoryError</code>, hệ điều hành liên tục tráo trang nhớ xuống ổ cứng (<strong>Swap Thrashing</strong>), băng thông đọc đĩa đơn lẻ nghẽn ở mức <code>500MB/s–3GB/s</code>, và toàn bộ tiến trình biến đổi sụp đổ (<em>Slide 05</em>).</p>
+
+          <p>Để phá vỡ giới hạn của máy đơn, ngành kỹ thuật dữ liệu chuyển sang <strong>Distributed Batch Processing (Xử lý lô phân tán)</strong> — chia nhỏ tập dữ liệu <code>500GB</code> ra hàng chục <strong>Worker Nodes</strong> để tính toán song song (<em>Slide 06</em>). Thế hệ đầu tiên là <strong>Hadoop MapReduce</strong> đã giải quyết được bài toán mở rộng quy mô trên cụm đĩa cứng giá rẻ, nhưng lại mắc một khuyết tật cơ học chí mạng được chỉ rõ trong <em>Learning Spark, 2nd Edition</em> (Ch. 1): mỗi công việc phức tạp phải băm thành chuỗi nhiều tác vụ <code>Map → Reduce</code> nối tiếp nhau, và <strong>sau mỗi bước đơn lẻ, MapReduce bắt buộc phải tuần tự hóa và ghi toàn bộ kết quả trung gian xuống đĩa cứng HDFS (kèm nhân bản 3 lần qua mạng)</strong> rồi bước tiếp theo mới đọc ngược từ đĩa lên lại. Hệ quả là hơn <code>90%</code> thời gian chạy của một đường ống nhiều bước bị đốt cháy vào việc chờ I/O đĩa và mạng. <strong>Apache Spark</strong> ra đời tại UC Berkeley AMPLab (2009) đã thay thế mô hình đọc/ghi đĩa cứng nhắc đó bằng kiến trúc <strong>In-Memory DAG Execution (Thực thi đồ thị có hướng không chu trình trên RAM)</strong>: giữ dữ liệu trung gian ngay trong bộ nhớ RAM giữa các bước biến đổi và hợp nhất cả Batch, Streaming, Spark SQL, MLlib lẫn GraphX trên một động cơ tính toán duy nhất, giúp tăng tốc độ xử lý nhanh gấp <code>10x–100x</code> so với MapReduce (<em>Slide 07–08</em>).</p>
+
+          <x-figure id="spark-1-1-fig" key="1.1" title="Sơ đồ 1.1 — Vai trò Tầng Transformation: Từ Máy Đơn, Hadoop MapReduce Đĩa Cứng Đến Apache Spark In-Memory">Đối chiếu giới hạn vật lý của máy đơn, chi phí ghi đĩa trung gian lặp lại của MapReduce và đường ống DAG trong bộ nhớ của Spark.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Kỹ thuật &amp; Vận hành</th>
+                  <th>Máy đơn (Single-Machine: <code>Pandas</code> / <code>Python</code>)</th>
+                  <th>Thế hệ 1: <code>Hadoop MapReduce</code> (Disk-Centric)</th>
+                  <th>Thế hệ 2: <code>Apache Spark</code> (In-Memory DAG Engine)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Trần Quy mô Dữ liệu (Scalability Ceiling)</strong></td>
+                  <td>Giới hạn cứng bởi dung lượng RAM của 1 máy chủ (thường <code>16GB–128GB</code>); nạp <code>500GB</code> gây tràn bộ nhớ (<code>OOM / MemoryError</code>).</td>
+                  <td>Mở rộng ngang (<strong>Horizontal Scale-out</strong>) lên hàng nghìn node, xử lý từ Terabyte đến Petabyte trên HDFS.</td>
+                  <td>Mở rộng ngang từ 1 laptop đến cụm hàng nghìn node, xử lý mượt mà từ Gigabyte đến Petabyte trên cả HDFS và Cloud Object Storage (<code>S3/GCS/ADLS</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>Cơ chế Lưu trữ Trung gian (Intermediate Data Flow)</strong></td>
+                  <td>Nằm trong RAM của một tiến trình duy nhất; khi vượt ngưỡng RAM sẽ bị đẩy xuống vùng <code>OS Swap</code> làm treo máy.</td>
+                  <td><strong>Ghi đĩa bắt buộc (Disk Materialization):</strong> Kết thúc mỗi bước <code>Map/Reduce</code> đều phải ghi xuống <code>HDFS</code> (nhân bản <code>3x</code>) rồi đọc lại từ đĩa ở bước kế tiếp.</td>
+                  <td><strong>Đường ống bộ nhớ (In-Memory Pipelining):</strong> Truyền thẳng dữ liệu qua các bước trong RAM theo đồ thị <strong>DAG</strong>; chỉ chạm đĩa khi <code>Shuffle</code> hoặc tràn bộ nhớ (<code>Spill</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>Mô hình Lập trình &amp; Hệ sinh thái (Unified Stack)</strong></td>
+                  <td>Đa dạng thư viện rời rạc (<code>pandas</code>, <code>scikit-learn</code>, <code>networkx</code>) nhưng không thể chạy phân tán tự động trên cụm máy.</td>
+                  <td>Chỉ có 2 hàm nguyên thủy cấp thấp <code>map()</code> và <code>reduce()</code>; muốn chạy SQL, ML hay Graph phải ghép nhiều hệ thống rời (<code>Hive</code>, <code>Mahout</code>, <code>Giraph</code>).</td>
+                  <td><strong>Động cơ hợp nhất (Unified Engine — Slide 07):</strong> Tích hợp <code>Spark SQL / DataFrame</code>, <code>Structured Streaming</code>, <code>MLlib</code>, và <code>GraphX</code> trên cùng một lõi thực thi.</td>
+                </tr>
+                <tr>
+                  <td><strong>Cơ chế Chịu lỗi (Fault Tolerance)</strong></td>
+                  <td>Không có khả năng tự phục hồi: tiến trình sập ở phút thứ 59 buộc phải chạy lại từ đầu <code>100%</code>.</td>
+                  <td>Dựa vào bản sao vật lý <code>3x Replication</code> của các tệp trung gian đã ghi cứng xuống đĩa HDFS sau mỗi bước.</td>
+                  <td>Dựa vào đồ thị phả hệ <strong>Lineage Graph (DAG)</strong>: nếu 1 node sập, Spark chỉ tính toán lại đúng phân vùng bị mất từ nhánh cha mà không cần ghi đĩa mọi bước.</td>
+                </tr>
+                <tr>
+                  <td><strong>Hiệu năng Thực tế với <code>daily_revenue_attribution.py</code> (500GB)</strong></td>
+                  <td>Thất bại hoàn toàn (Crash với <code>MemoryError</code> ngay ở bước đọc và giải nén bảng <code>orders</code>).</td>
+                  <td>Hoàn thành sau <code>~120 phút</code> (trong đó <code>~105 phút</code> tiêu tốn cho việc đọc/ghi đĩa HDFS trung gian giữa 4 bước lọc, nối, gom nhóm).</td>
+                  <td>Hoàn thành trong <code>~4–8 phút</code> (nhanh gấp <code>15x–30x</code> trên đĩa và tới <code>100x</code> khi dữ liệu được đệm trong RAM).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Loại bỏ việc ghi đĩa trung gian lặp lại bằng đồ thị DAG trong bộ nhớ giúp Apache Spark giải quyết triệt để nút thắt I/O của Hadoop MapReduce. Nhưng khi tác vụ <code>daily_revenue_attribution.py</code> được gửi lên một cụm gồm 20 máy chủ vật lý, bộ phận nào đóng vai trò là "bộ não" phân tích mã nguồn, bộ phận nào cấp phát phần cứng, và các dòng dữ liệu của <code>Order #8888</code> thực sự nằm ở đâu bên trong từng máy trạm? Chúng ta bước sang <strong>Trạm 1.2</strong> để giải phẫu kiến trúc cụm Spark.</p>
+        </section>
+
+        <section class="lesson-section" id="spark-1-2">
+          <h2 id="spark-1-2-h2" tabindex="-1">Trạm 1.2: Giải phẫu Kiến trúc Cụm Apache Spark — Driver Program, Cluster Manager &amp; Bên trong Worker Node (Executors)</h2>
+
+          <p>Một ứng dụng Apache Spark phân tán vận hành thông qua sự phối hợp chặt chẽ của <strong>3 thành phần vật lý tách biệt</strong> (<em>Slide 09–10</em>): <strong>Driver Program (Trình điều khiển trung tâm)</strong> đóng vai trò là bộ não chạy hàm <code>main()</code> của người dùng, khởi tạo đối tượng <code>SparkSession</code>, chuyển đổi mã lệnh thành đồ thị thực thi (<code>DAGScheduler</code>) và lập lịch từng đơn vị công việc (<code>TaskScheduler</code>); <strong>Cluster Manager (Trình quản lý tài nguyên cụm — hỗ trợ <code>Spark Standalone</code>, <code>Apache YARN</code>, hoặc <code>Kubernetes</code>)</strong> đóng vai trò là ban quản lý tòa nhà chuyên cấp phát tài nguyên CPU và RAM trên các máy chủ vật lý; và hệ thống các <strong>Worker Nodes (Nút công nhân)</strong> cung cấp năng lực tính toán thực tế. Theo <em>Learning Spark, 2nd Edition</em> (Ch. 1–2), kiến trúc này tách bạch hoàn toàn <strong>Control Plane (Mặt phẳng điều khiển)</strong> và <strong>Data Plane (Mặt phẳng dữ liệu)</strong>: Cluster Manager chỉ làm nhiệm vụ cấp phát vùng chứa (Containers/Pods) ban đầu, sau đó Driver và các tiến trình trên Worker Node sẽ giao tiếp trực tiếp với nhau qua giao thức RPC để giao việc và báo cáo trạng thái.</p>
+
+          <p>Điểm cốt tử mà mọi kỹ sư dữ liệu phải khắc cốt ghi tâm khi nhìn vào bên trong một Worker Node (<em>Slide 11 — Inside a Worker Node</em>) là: <strong>Một Worker Node không trực tiếp chạy toàn bộ chương trình Spark của bạn — bản thân Worker Node chỉ là máy chủ vật lý chứa các tiến trình <code>Executors</code>, và chính các <code>Executors</code> mới là nơi trực tiếp thực thi các <code>Tasks</code> trên từng luồng CPU cũng như nắm giữ bộ nhớ đệm <code>In-Memory Cache</code></strong>. Khi tác vụ <code>daily_revenue_attribution.py</code> đọc <code>500GB Parquet</code> từ tầng Silver Lakehouse, luồng dữ liệu của <code>Order #8888</code> được các <code>Executors</code> kéo thẳng từ <code>S3/HDFS</code> vào RAM của từng Worker Node để biến đổi song song mà <strong>tuyệt đối không đi vòng qua Driver Program</strong> — ngoại trừ trường hợp lập trình viên vô tình gọi lệnh <code>df.collect()</code> kéo toàn bộ 500GB dữ liệu về gom tại bộ nhớ nhỏ hẹp của Driver, gây ra thảm họa sập toàn ứng dụng (<code>Driver OutOfMemoryError</code>).</p>
+
+          <x-figure id="spark-1-2-fig" key="1.2" title="Sơ đồ 1.2 — Giải phẫu Kiến trúc Cụm Apache Spark: Driver Program, Cluster Manager &amp; Worker Nodes (Executors)">Cơ chế phối hợp giữa bộ não điều phối Driver, trình quản lý tài nguyên Cluster Manager và các tiến trình Executor thực thi Task.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Thành phần Kiến trúc Cụm</th>
+                  <th>Trách nhiệm Cơ học trong <code>daily_revenue_attribution.py</code></th>
+                  <th>Quy trình Giao tiếp (Control Plane vs. Data Plane)</th>
+                  <th>Kịch bản Sự cố Thực chiến (Failure Modes) &amp; Cơ chế Xử lý</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Driver Program</strong><br/>(Bộ não điều phối — <code>SparkSession</code>)</td>
+                  <td>Chạy mã nguồn của người dùng; dịch chuỗi lệnh DataFrame/RDD thành kế hoạch logic &amp; vật lý (<strong>Catalyst / DAGScheduler</strong>); chia Stage thành các <strong>Tasks</strong> và điều phối thực thi.</td>
+                  <td>Gửi yêu cầu xin cấp phát Executor tới <code>Cluster Manager</code>; sau khi Executor khởi chạy, Driver mở kết nối RPC hai chiều trực tiếp tới từng Executor để gửi mã <code>Task</code> và nhận <code>Heartbeat</code>.</td>
+                  <td><strong>Điểm chết duy nhất (Single Point of Failure):</strong> Nếu Driver bị <code>OOM</code> (do gọi <code>.collect()</code> hoặc <code>Broadcast</code> bảng quá lớn), toàn bộ ứng dụng Spark chết ngay lập tức.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Cluster Manager</strong><br/>(<code>Standalone</code> / <code>YARN</code> / <code>Kubernetes</code>)</td>
+                  <td>Quản lý tổng quỹ tài nguyên phần cứng (CPU cores, RAM) của toàn bộ các máy chủ trong cụm; xét duyệt hàng đợi (Queues) và khởi tạo tiến trình <code>Executor</code> trên các Worker Nodes.</td>
+                  <td>Chỉ tham gia ở pha đàm phán tài nguyên (Resource Negotiation); <strong>không biết</strong> bên trong code Spark đang lọc đơn hàng <code>#8888</code> hay nối bảng nào.</td>
+                  <td>Khi cạn kiệt tài nguyên cụm, Job mới sẽ nằm chờ ở trạng thái <code>ACCEPTED / PENDING</code>; hỗ trợ tự động khởi động lại Driver nếu chạy ở chế độ <code>Cluster Deploy Mode</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Worker Node</strong><br/>(Máy chủ tính toán vật lý / VM)</td>
+                  <td>Máy chủ hạ tầng (EC2 Instance, K8s Node, YARN NodeManager) cung cấp nhân CPU, thanh RAM vật lý và ổ đĩa tạm (Local NVMe SSD) cho các tiến trình con.</td>
+                  <td>Chạy daemon đại diện (<code>Worker Daemon</code> / <code>NodeManager</code> / <code>Kubelet</code>) để báo cáo sức khỏe phần cứng về Cluster Manager và khởi chạy các container <code>Executor</code>.</td>
+                  <td>Nếu 1 Worker Node bị mất điện hoặc thu hồi (Spot Instance Preemption), mọi Executor và dữ liệu <code>Shuffle/Cache</code> nằm trên node đó sẽ mất, buộc Driver phải lập lịch tính lại trên node khác.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Executor JVM</strong><br/>(Tiến trình thực thi bên trong Worker)</td>
+                  <td>Tiến trình JVM độc lập được cấp phát riêng cho một <code>Spark Application</code>; trực tiếp chạy các <strong>Tasks</strong> trên các luồng CPU (<code>Task Slots</code>) và quản lý vùng nhớ <strong>Unified Memory (Cache + Execution)</strong>.</td>
+                  <td><strong>Data Plane trực tiếp:</strong> Đọc/ghi trực tiếp các khối <code>Parquet</code> từ <code>S3/HDFS</code>, trao đổi các tệp <code>Shuffle</code> ngang hàng với các Executor khác và gửi kết quả cuối hoặc số liệu thống kê về Driver.</td>
+                  <td>Nếu 1 Executor bị giết do vượt trần bộ nhớ container (<code>YARN Exit Code 137 / OOMKilled</code>), Driver chỉ cần yêu cầu Cluster Manager cấp Executor mới và chạy lại đúng các <code>Tasks</code> đang dang dở.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Sự phân tách rạch ròi giữa Driver (điều phối kế hoạch), Cluster Manager (cấp phát phần cứng) và Executors bên trong Worker Nodes (thực thi tính toán và giữ Cache) tạo nên bộ khung vật lý vững chắc cho cụm Spark. Nhưng làm thế nào Driver có thể cắt một tập dữ liệu khổng lồ <code>500GB</code> cùng một tệp kịch bản Python thành hàng nghìn đơn vị công việc nhỏ li ti để rải đều vào các khe CPU của Executors, và tại sao khi bạn gõ 10 dòng lệnh biến đổi thì Spark lại đứng im không chạy một dòng nào? Câu trả lời nằm ở cơ chế <strong>Partition, Lazy Evaluation và Phân cấp Thực thi 8 bước</strong> tại <strong>Trạm 1.3</strong>.</p>
+        </section>
+
+        <section class="lesson-section" id="spark-1-3">
+          <h2 id="spark-1-3-h2" tabindex="-1">Trạm 1.3: Giải phẫu Partition vs. Task, Lazy Evaluation &amp; Luồng 8 Bước Thực Thi (Application → Job → Stage → Task)</h2>
+
+          <p>Để các Executors có thể xử lý song song 2 tỷ dòng dữ liệu mà không giẫm chân lên nhau, Apache Spark chia tập dữ liệu lớn thành các <strong>Partitions (Phân vùng dữ liệu — các mảnh cắt logic của tập dữ liệu nằm trên RAM của các Executors)</strong> và giao mỗi phân vùng cho đúng một <strong>Task (Đơn vị công việc nhỏ nhất chạy trên 1 luồng CPU)</strong> xử lý theo tỷ lệ ánh xạ <code>1 Partition ↔ 1 Task ↔ 1 CPU Core</code> (<em>Slide 12</em>). Khi lập trình viên viết kịch bản <code>daily_revenue_attribution.py</code>, mọi thao tác trên Spark đều được phân loại nghiêm ngặt thành 2 nhóm (<em>Slide 13</em>): <strong>Transformations (Phép biến đổi — như <code>filter()</code>, <code>select()</code>, <code>join()</code>, <code>groupBy()</code>)</strong> dùng để mô tả cách tạo ra tập dữ liệu mới từ tập dữ liệu cũ, và <strong>Actions (Hành động kích hoạt — như <code>show()</code>, <code>count()</code>, <code>collect()</code>, <code>write.parquet()</code>)</strong> yêu cầu trả kết quả về Driver hoặc ghi ra hệ thống lưu trữ ngoài. Điểm đặc biệt sống còn của Spark là cơ chế <strong>Lazy Evaluation (Đánh giá lười / Trì hoãn thực thi — Slide 14)</strong>: khi gặp các phép <code>Transformation</code>, Spark <strong>không thực thi bất kỳ phép tính nào ngay lập tức</strong> mà chỉ âm thầm ghi nhận công thức vào đồ thị kế hoạch (DAG). Chỉ đến khoảnh khắc dòng lệnh <code>Action</code> đầu tiên xuất hiện, Spark mới nhìn tổng thể toàn bộ chuỗi biến đổi từ đầu đến cuối để gộp bước, đẩy bộ lọc xuống đáy và cắt bỏ các cột thừa trước khi chạm vào dữ liệu vật lý.</p>
+
+          <p>Ngay khi lệnh <code>Action</code> (ví dụ <code>.write.parquet()</code>) kích hoạt thực thi, Driver sẽ bóc tách chương trình của người dùng theo <strong>cây phân cấp 4 tầng (From Program to Execution Units — Slide 15)</strong> và vận hành theo đúng <strong>Luồng 8 bước thực thi chuẩn (8-Step Spark Execution Flow — Slide 16)</strong>: một <strong>Spark Application</strong> sinh ra một hoặc nhiều <strong>Jobs</strong> (mỗi lệnh <code>Action</code> tương ứng với 1 <code>Job</code>); bên trong mỗi Job, <code>DAGScheduler</code> quét ngược đồ thị biến đổi và cắt Job thành các <strong>Stages</strong> tại mỗi ranh giới cần <strong>Shuffle (trao đổi lại dữ liệu qua mạng như <code>join</code> hay <code>groupBy</code>)</strong>; cuối cùng, mỗi Stage được nhân bản thành hàng trăm hoặc hàng nghìn <strong>Tasks</strong> chạy song song trên các <strong>Partitions</strong> tương ứng tại các Executors.</p>
+
+          <pre><code># daily_revenue_attribution.py — Minh họa Lazy Transformations vs. Eager Action trên Order #8888
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, sum as _sum
+
+spark = SparkSession.builder.appName("daily_revenue_attribution").getOrCreate()
+
+# [Bước 1–3]: Đọc metadata &amp; ghi nhận Narrow Transformations (CHƯA chạy tính toán vật lý!)
+orders_df = spark.read.parquet("s3://lakehouse/silver/orders/")           # 500GB = 4,000 Partitions (~128MB/partition)
+valid_orders_df = (
+    orders_df
+    .filter((col("status") == "COMPLETED") &amp; (col("amount") &gt; 0))         # Narrow Transformation (lọc tại chỗ, giữ nguyên Order #8888)
+    .select("order_id", "user_id", "campaign_id", "amount", "order_date") # Narrow Transformation (chiếu 5 cột cần thiết)
+)
+
+# [Bước 4]: Ghi nhận Wide Transformation — đòi hỏi Shuffle dữ liệu qua mạng (VẪN CHƯA chạy!)
+revenue_by_campaign_df = (
+    valid_orders_df
+    .groupBy("order_date", "campaign_id")                                 # Wide Transformation (Ranh giới cắt Stage!)
+    .agg(_sum("amount").alias("total_revenue_vnd"))
+)
+
+# [Bước 5–8]: Lệnh ACTION kích hoạt toàn bộ DAG → Sinh 1 Job → Chia 2 Stages → Phóng Tasks xuống Executors!
+revenue_by_campaign_df.write.mode("overwrite").parquet("s3://lakehouse/gold/fact_daily_revenue/")</code></pre>
+
+          <x-figure id="spark-1-3-fig" key="1.3" title="Sơ đồ 1.3 — Giải phẫu Partition, Lazy Evaluation &amp; Phân cấp Application → Job → Stage (Cắt tại Shuffle) → Task">Ánh xạ 1-1 giữa Partition và Task cùng quy trình 8 bước biến mã nguồn của người dùng thành các đơn vị thực thi vật lý.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Cấp độ Thực thi / Bước Luồng 8 Bước (Slide 15–16)</th>
+                  <th>Định nghĩa Cơ học &amp; Quy tắc Ánh xạ</th>
+                  <th>Biểu hiện Cụ thể trong <code>daily_revenue_attribution.py</code></th>
+                  <th>Ý nghĩa Tối ưu hóa &amp; Chẩn đoán Hiệu năng</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Application</strong><br/>(Bước 1: <em>User submits Spark application</em>)</td>
+                  <td>Toàn bộ chương trình người dùng nộp lên cụm qua lệnh <code>spark-submit</code>, bao gồm 1 <code>Driver Program</code> và tập hợp các <code>Executors</code> được cấp phát.</td>
+                  <td>Tác vụ đêm <code>daily_revenue_attribution</code> được khởi chạy với <code>20 Executors</code> (mỗi Executor có <code>5 CPU cores</code> = tổng cộng <code>100 Task Slots</code> chạy song song).</td>
+                  <td>Ranh giới cô lập tài nguyên và bảo mật; một Application có thể chứa không giới hạn số lượng <code>Jobs</code> nối tiếp hoặc song song.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Transformations &amp; Lazy DAG</strong><br/>(Bước 2–3: <em>Driver builds logical plan / DAG</em>)</td>
+                  <td>Các hàm biến đổi (<code>filter</code>, <code>select</code>, <code>groupBy</code>) không chạy ngay mà được <code>Driver</code> xếp chồng thành đồ thị <strong>DAG (Directed Acyclic Graph)</strong> nhờ cơ chế <strong>Lazy Evaluation</strong>.</td>
+                  <td>Khi chạy qua các dòng <code>.filter(...)</code>, <code>.select(...)</code> và <code>.groupBy(...)</code>, thời gian phản hồi chỉ mất vài mili-giây vì Spark mới chỉ xây dựng bản vẽ trong bộ nhớ Driver.</td>
+                  <td>Cho phép Spark nhìn thấu toàn bộ chuỗi lệnh để gộp <code>filter + select</code> vào ngay lúc đọc tệp Parquet, giúp bỏ qua 90% dữ liệu thừa trước khi nạp lên RAM.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Action → Job</strong><br/>(Bước 4: <em>Action triggers a Job</em>)</td>
+                  <td>Mỗi khi mã nguồn gọi một <strong>Action</strong> (<code>show</code>, <code>count</code>, <code>collect</code>, <code>write</code>), Spark lập tức biên dịch đồ thị DAG tính tới thời điểm đó thành <strong>1 Spark Job</strong>.</td>
+                  <td>Dòng lệnh <code>.write.mode("overwrite").parquet(...)</code> ở cuối tệp kích hoạt <code>Job #0</code> để biến đổi toàn bộ 2 tỷ dòng (bao gồm <code>Order #8888</code>).</td>
+                  <td>Nếu trong cùng 1 kịch bản bạn gọi <code>df.count()</code> để in log rồi mới gọi <code>df.write.parquet()</code> mà không <code>cache()</code>, Spark sẽ sinh ra <strong>2 Jobs riêng biệt</strong> và quét lại <code>500GB</code> từ đầu 2 lần!</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Stage &amp; Shuffle Boundary</strong><br/>(Bước 5: <em>DAGScheduler splits Job into Stages</em>)</td>
+                  <td><code>DAGScheduler</code> cắt một Job thành các <strong>Stages</strong> dựa trên ranh giới <strong>Shuffle</strong>: mọi phép biến đổi hẹp (<strong>Narrow</strong>) không cần chuyển dữ liệu qua mạng được gom chung vào 1 Stage; gặp phép biến đổi rộng (<strong>Wide</strong>) bắt buộc phải cắt sang Stage mới.</td>
+                  <td><code>Job #0</code> bị cắt thành <strong>2 Stages</strong>: <code>Stage 0</code> thực hiện đọc Parquet + <code>filter</code> + <code>select</code> + gom tổng cục bộ rồi ghi tệp <code>Shuffle Write</code>; <code>Stage 1</code> kéo dữ liệu qua mạng (<code>Shuffle Read</code>) theo <code>campaign_id</code> để cộng tổng cuối cùng và ghi ra bảng Gold.</td>
+                  <td>Số lượng Stages tỷ lệ thuận với số lần <strong>Shuffle qua mạng và đĩa</strong> — giảm thiểu số Stage bằng cách hạn chế Shuffle không cần thiết là chìa khóa số 1 để tăng tốc Spark.</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Partition ↔ Task Execution</strong><br/>(Bước 6–8: <em>Tasks scheduled on Executors → Process Partitions → Return/Write result</em>)</td>
+                  <td><code>TaskScheduler</code> đóng gói mỗi <code>Partition</code> trong một Stage thành <strong>1 Task</strong> (<code>1 Partition = 1 Task</code>), gửi xuống các <code>Executors</code> để thực thi trên từng luồng CPU và ghi kết quả cuối cùng.</td>
+                  <td>Ở <code>Stage 0</code>, tập <code>500GB</code> gồm <code>4,000 Partitions</code> sinh ra <code>4,000 Map Tasks</code>; ở <code>Stage 1</code>, cấu hình mặc định sinh ra <code>200 Shuffle Partitions = 200 Reduce Tasks</code> ghi ra 200 tệp Parquet tại tầng Gold.</td>
+                  <td>Nếu chỉ có <code>1 Partition</code> thì dù cụm có <code>1,000 CPU cores</code> cũng chỉ có <code>1 Task</code> chạy còn <code>999 cores</code> ngồi chơi; ngược lại, chia quá nhiều Partition nhỏ li ti sẽ làm ngập cổ chai lập lịch của Driver.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Khép lại Chặng 1, chúng ta đã nắm trọn bức tranh vật lý giải thích tại sao Apache Spark đánh bại máy đơn và Hadoop MapReduce, cách bộ ba <code>Driver – Cluster Manager – Executor</code> phối hợp vận hành, cũng như luồng 8 bước biến mã nguồn của <code>daily_revenue_attribution.py</code> thành cây phân cấp <code>Application → Job → Stage → Task</code> nhờ cơ chế <strong>Lazy Evaluation</strong>. Nhưng bên dưới những dòng lệnh <code>orders_df.filter(...).groupBy(...)</code> tưởng chừng đơn giản kia, Spark đã biểu diễn dữ liệu phân tán bằng cấu trúc toán học nào để khi một máy chủ cháy nổ giữa đêm thì đơn hàng <code>Order #8888</code> vẫn tự động tái sinh mà không cần sao lưu 3 bản trên RAM, và tại sao việc chuyển từ <strong>RDD</strong> sang <strong>DataFrame</strong> lại tạo ra bước nhảy vọt hiệu năng gấp hàng chục lần cho lập trình viên Python? Chúng ta bước sang <strong>Chặng 2: Các Tầng Trừu Tượng Dữ Liệu — Spark RDD, Lineage Graph &amp; Spark DataFrame</strong>.</p>
+        </section>
+
+        <section class="summary-section" id="spark-1-summary">
+          <h2 id="spark-1-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 1 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <ol>
+            <li><strong>Tại sao xử lý tập dữ liệu <code>500GB Parquet</code> trên máy đơn thất bại và điểm nghẽn vật lý nào khiến Hadoop MapReduce thua xa Apache Spark từ <code>10x–100x</code>?</strong><br/>Máy chủ đơn lẻ bị giới hạn cứng bởi dung lượng RAM, băng thông đĩa và số nhân CPU, dẫn đến lỗi <code>MemoryError</code> hoặc treo máy do tráo bộ nhớ ảo (Swap Thrashing). Hadoop MapReduce vượt qua giới hạn máy đơn bằng cách chia tải ra nhiều máy nhưng bắt buộc phải ghi kết quả trung gian xuống đĩa cứng HDFS (nhân bản 3 lần) sau mỗi bước Map/Reduce. Ngược lại, <strong>Apache Spark</strong> giữ dữ liệu trung gian trong RAM và nối chuỗi tính toán theo đồ thị <strong>DAG (Directed Acyclic Graph)</strong>, triệt tiêu 90% thời gian chờ I/O đĩa trung gian.</li>
+            <li><strong>Phân biệt vai trò giữa Driver Program, Cluster Manager, Worker Node và Executor JVM? Tại sao nói "Worker Node không trực tiếp chạy toàn bộ chương trình Spark của bạn"?</strong><br/><strong>Driver Program</strong> là bộ não phân tích code, xây dựng DAG và lập lịch Task; <strong>Cluster Manager</strong> (<code>Standalone</code>, <code>YARN</code>, <code>Kubernetes</code>) chỉ cấp phát vùng chứa phần cứng ban đầu; còn <strong>Worker Node</strong> là máy chủ vật lý chứa các tiến trình <strong>Executors</strong>. Bản thân Worker Node chỉ cung cấp hạ tầng, còn các tiến trình <strong>Executor JVM</strong> bên trong nó mới là thực thể trực tiếp chạy các <strong>Tasks</strong> trên từng luồng CPU và lưu giữ bộ nhớ đệm <strong>In-Memory Cache</strong>.</li>
+            <li><strong>Mối quan hệ cơ học giữa Partition, Task và CPU Core trong Apache Spark là gì?</strong><br/><strong>Partition</strong> là một mảnh cắt logic của tập dữ liệu lớn nằm trong bộ nhớ của Executor, còn <strong>Task</strong> là đơn vị lệnh thực thi nhỏ nhất được Driver gửi xuống để xử lý mảnh dữ liệu đó. Trong mỗi Stage, Spark tuân thủ quy tắc ánh xạ <code>1 Partition = 1 Task = 1 luồng CPU (CPU thread/core)</code> tại một thời điểm: mức độ song song tối đa của một Stage bị quyết định trực tiếp bởi số lượng Partitions và tổng số khe CPU (Task Slots) trên toàn cụm.</li>
+            <li><strong>Sự khác biệt cốt tử giữa Transformation và Action là gì, và cơ chế Lazy Evaluation mang lại lợi ích vật lý nào cho <code>daily_revenue_attribution.py</code>?</strong><br/>Các phép <strong>Transformation</strong> (như <code>filter</code>, <code>select</code>, <code>groupBy</code>) chỉ khai báo công thức biến đổi và được Spark ghi nhận lười (<strong>Lazy Evaluation</strong>) vào đồ thị DAG mà chưa chạm vào dữ liệu thật; chỉ khi gặp một <strong>Action</strong> (như <code>count</code>, <code>show</code>, <code>write</code>), Spark mới kích hoạt thực thi. Nhờ trì hoãn tới phút chót, bộ tối ưu hóa của Spark có thể nhìn toàn cục để gộp các phép lọc và cắt cột thừa ngay tại tầng đọc đĩa, tránh nạp hàng trăm Gigabyte dữ liệu vô ích lên RAM.</li>
+            <li><strong>Trình bày chính xác cây phân cấp thực thi <code>Application → Job → Stage → Task</code> và điều kiện vật lý nào khiến một Job bị cắt thành nhiều Stages?</strong><br/>Một <strong>Application</strong> (toàn bộ chương trình Spark) sinh ra một <strong>Job</strong> mới mỗi khi gặp một lệnh <strong>Action</strong>. Bên trong mỗi Job, trình lập lịch <code>DAGScheduler</code> gom tất cả các phép biến đổi hẹp có thể chạy nối tiếp trên cùng một máy vào chung một <strong>Stage</strong>, và chỉ cắt tạo <strong>Stage mới</strong> tại ranh giới xuất hiện phép biến đổi rộng đòi hỏi <strong>Shuffle (trao đổi và phân phối lại dữ liệu qua mạng giữa các Executors, như <code>groupBy</code> hay <code>join</code>)</strong>. Cuối cùng, mỗi Stage phóng ra các <strong>Tasks</strong> chạy song song trên từng <strong>Partition</strong>.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/D03/2" onclick="selectStorageStage(2);return false;">Sang Chặng 2: Các Tầng Trừu Tượng Dữ Liệu — Spark RDD, Lineage Graph &amp; Spark DataFrame →</a></p>
+        </section>
+      </div>

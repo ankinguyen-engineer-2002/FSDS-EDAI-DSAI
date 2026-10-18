@@ -1,0 +1,275 @@
+      <div class="prose">
+        <x-spine id="flink-2-spine" badge="TRONG BÀI HỌC NÀY · D04" title="Chặng 2: Ngữ Nghĩa Thời Gian (Time Semantics), Cơ Học Watermarks &amp; Ba Chiến Lược Sinh Watermark" subtitle="Trạm 2.1 → 2.3">Giải mã bài toán lệch pha thời gian của sự kiện <strong>Order #8888</strong> (xảy ra lúc <code>10:00:30</code> nhưng đến máy chủ lúc <code>10:01:46</code>): phân định rạch ròi <code>Event Time</code>, <code>Ingestion Time</code> và <code>Processing Time</code>, nắm vững công thức đồng hồ logic <code>Watermark = max(event_time) - allowed_delay</code> và làm chủ 3 chiến lược sinh Watermark trong sản xuất.</x-spine>
+
+        <section class="lesson-section" id="flink-2-1">
+          <h2 id="flink-2-1-h2" tabindex="-1">Trạm 2.1: Ba Định nghĩa Thời gian trong Xử lý Luồng — Event Time vs. Ingestion Time vs. Processing Time</h2>
+
+          <p>Trong một hệ thống phân tán xử lý luồng liên tục, khái niệm "thời điểm xảy ra sự kiện" không phải là một giá trị tuyệt đối duy nhất mà phân tách thành ba hệ quy chiếu thời gian độc lập: <code>Event Time</code> (thời điểm sự kiện thực sự khởi phát trên thiết bị nguồn), <code>Ingestion Time</code> (thời điểm gói tin chạm cửa ngõ đường ống Flink) và <code>Processing Time</code> (thời điểm máy chủ tính toán thực sự chạy hàm xử lý). Khi khách hàng <code>user_id="USR-104"</code> bấm nút thanh toán đơn hàng <code>Order #8888</code> (<code>order_id="ORD-8888"</code>, <code>amount=450000</code>) lúc <code>10:00:30</code> ngay khi đoàn tàu điện ngầm đi vào đường hầm mất sóng 4G/5G, ứng dụng di động lập tức đóng dấu <code>event_time="10:00:30"</code> vào bên trong payload JSON và lưu tạm vào bộ đệm cục bộ trên điện thoại. Mãi đến khi tàu ra khỏi hầm, gói tin mới vượt qua trạm thu phát sóng và hàng đợi <code>Apache Kafka</code> để bước vào <code>Flink Source Operator</code> lúc <code>ingestion_time="10:01:45"</code> (trễ <code>75 giây</code>), rồi tiếp tục nằm trong bộ đệm mạng nội bộ (<code>Network Buffers</code>) trước khi được toán tử cửa sổ (<code>Window Operator</code>) trên máy chủ worker nhặt lên tính toán lúc <code>processing_time="10:01:46"</code> (tổng độ trễ đầu-cuối <code>76 giây</code> — <em>Slide 13–14</em>).</p>
+
+          <p>Sự chênh lệch <code>76 giây</code> giữa thực tại khách hàng và thực tại máy chủ phơi bày quy luật vật lý cốt lõi của hệ thống phân tán (<em>Streaming Systems</em> Ch. 1–2 &amp; <em>Stream Processing with Apache Flink</em> Ch. 2, tr. 27–31): đường truyền mạng WAN, cơ chế gửi lại gói tin (<code>TCP Retransmission / Mobile Retry Buffer</code>) và áp lực ngược (<code>Backpressure</code>) khiến khoảng cách giữa <code>Event Time</code> và <code>Processing Time</code> biến thiên liên tục từ vài mili-giây đến hàng giờ và làm đảo lộn thứ tự đến của các bản ghi (<code>Out-of-Order Arrival</code>). Giống như phòng kế toán đối soát biên lai thu tiền theo ngày giờ in trên tờ hóa đơn gốc thay vì giờ nhân viên bưu tá giao túi thư tới quầy, mọi phép tổng hợp doanh thu theo khung phút <code>[10:00:00 - 10:01:00)</code> bắt buộc phải neo vào <code>Event Time</code> (<code>10:00:30</code>); nếu dùng <code>Processing Time</code> (<code>10:01:46</code>) hay <code>Ingestion Time</code> (<code>10:01:45</code>), khoản tiền <code>450.000 VNĐ</code> của <code>Order #8888</code> sẽ bị hạch toán sai sang cửa sổ phút kế tiếp <code>[10:01:00 - 10:02:00)</code>.</p>
+
+          <x-figure id="flink-2-1-fig" key="2.1" title="Sơ đồ 2.1 — Giải phẫu Độ lệch Thời gian (Time Skew) của Order #8888: Event Time (10:00:30) → Ingestion Time (10:01:45) → Processing Time (10:01:46)">Hành trình vật lý của một sự kiện qua mạng và hàng đợi tạo ra độ trễ giữa thời điểm phát sinh thực tế và thời điểm máy chủ xử lý.</x-figure>
+
+          <h3>Phân tích Cơ chế Độ lệch Thời gian (Time Skew) &amp; Tính Tất định Khi Chạy Lại (Deterministic Reprocessing)</h3>
+          <p>Việc lựa chọn ngữ nghĩa thời gian quyết định trực tiếp đến khả năng tái tạo kết quả chính xác khi hệ thống gặp sự cố hoặc cần chạy lại dữ liệu lịch sử (<code>Backfill / Historical Replay</code>):</p>
+
+          <ul>
+            <li><strong>Bất biến kết quả trước biến động hạ tầng (Deterministic Reprocessing với <code>Event Time</code>):</strong> Vì nhãn <code>event_time="10:00:30"</code> của <code>Order #8888</code> là một trường dữ liệu bất biến nằm chết bên trong payload bản ghi (ví dụ trường <code>created_at_ms = 1760781630000</code>), kết quả tính tổng doanh thu cửa sổ <code>[10:00:00 - 10:01:00)</code> hoàn toàn độc lập với tốc độ CPU, độ trễ mạng hay thời điểm chạy Job. Dù luồng Flink xử lý trực tuyến lúc mạng đứt hay kỹ sư đọc lại (<code>replay</code>) toàn bộ dữ liệu 7 ngày trước từ <code>Apache Kafka</code> / <code>S3</code> với tốc độ tua nhanh gấp <code>100x</code>, <code>Order #8888</code> vẫn luôn rơi chính xác vào khung <code>10:00 - 10:01</code>.</li>
+            <li><strong>Sự lệch pha phi tất định của <code>Processing Time</code> (Non-deterministic Drift):</strong> Khi dùng <code>Processing Time</code>, toán tử gọi trực tiếp đồng hồ vật lý của máy chủ (<code>System.currentTimeMillis()</code>) tại thời điểm lệnh thực thi. Nếu cụm Flink bị nghẽn mạng trong <code>30 giây</code> rồi đột ngột xả hàng triệu bản ghi tồn đọng (<code>backlog</code>) từ Kafka, toàn bộ các đơn hàng phát sinh rải rác trong 30 giây trước đó sẽ bị dồn cục vào duy nhất 1 cửa sổ tại giây máy chủ xả hàng, làm méo mó hoàn toàn biểu đồ doanh thu và không bao giờ có thể tái lập lại cùng một kết quả khi chạy lần thứ hai.</li>
+            <li><strong>Vai trò trung gian của <code>Ingestion Time</code> (Cầu nối cho Dữ liệu Thiếu Nhãn Thời gian Gốc):</strong> <code>Ingestion Time</code> được <code>Flink Source Operator</code> gán một lần duy nhất ngay khi đọc bản ghi khỏi nguồn rồi truyền đi như một dạng <code>Event Time</code> nội bộ. Nhờ vậy, các toán tử phía sau không bị lệch đồng hồ giữa các máy chủ worker, nhưng nó vẫn hoàn toàn mù trước quãng thời gian <code>75 giây</code> mà <code>Order #8888</code> bị kẹt trên điện thoại trong hầm tàu điện ngầm cũng như độ trễ nằm chờ trong hàng đợi Kafka trước đó.</li>
+          </ul>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Kỹ thuật</th>
+                  <th><code>Event Time</code> (Thời gian Sự kiện)</th>
+                  <th><code>Ingestion Time</code> (Thời gian Tiếp nhận)</th>
+                  <th><code>Processing Time</code> (Thời gian Xử lý)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>Based On</code> (Hệ quy chiếu gốc)</td>
+                  <td>Thời điểm sự kiện <em>thực sự xảy ra ngoài đời thực</em> trên thiết bị nguồn (<code>when event occurred</code> — <em>Slide 13</em>).</td>
+                  <td>Thời điểm sự kiện <em>bước chân vào đường ống Flink</em> tại cửa ngõ đầu vào (<code>when event entered pipeline</code> — <em>Slide 13</em>).</td>
+                  <td>Thời điểm máy chủ worker <em>thực thi phép tính trên bản ghi</em> (<code>when Flink processes it</code> — <em>Slide 13</em>).</td>
+                </tr>
+                <tr>
+                  <td><code>Defined By</code> (Nguồn cấp phát nhãn)</td>
+                  <td>Nằm sẵn bên trong dữ liệu sự kiện (<code>the event data itself</code> — trường payload JSON/Avro do thiết bị đầu cuối sinh ra).</td>
+                  <td>Đóng dấu tự động bởi toán tử nguồn của Flink (<code>Flink source operator</code>) ngay khi đọc bản ghi từ Kafka/Kinesis.</td>
+                  <td>Đồng hồ hệ thống vật lý (<code>Flink machine clock</code> / <code>Wall-Clock</code>) của từng máy chủ TaskManager đang chạy toán tử.</td>
+                </tr>
+                <tr>
+                  <td><code>Order #8888</code> (Mốc thời gian thực tế)</td>
+                  <td><code>10:00:30</code> (Khách bấm thanh toán trên tàu điện ngầm, xếp đúng vào cửa sổ <code>[10:00 - 10:01)</code>).</td>
+                  <td><code>10:01:45</code> (Tàu có sóng lại, gói tin chạm Flink Source, bị đẩy lệch sang cửa sổ <code>[10:01 - 10:02)</code>).</td>
+                  <td><code>10:01:46</code> (Toán tử <code>Window Operator</code> nhặt lên xử lý sau <code>1s</code> chờ hàng đợi nội bộ).</td>
+                </tr>
+                <tr>
+                  <td>Tính tất định (<code>Determinism</code>)</td>
+                  <td><code>Tất định 100% (Deterministic)</code>: Chạy lại lịch sử (<code>Replay / Backfill</code>) ở bất kỳ tốc độ nào vẫn cho kết quả y hệt.</td>
+                  <td><code>Bán tất định</code>: Ổn định giữa các bước bên trong Flink nhưng phụ thuộc vào độ trễ mạng và hàng đợi trước khi vào Source.</td>
+                  <td><code>Phi tất định (Non-deterministic)</code>: Phụ thuộc vào tải CPU, tốc độ mạng, <code>GC pause</code> và <code>Backpressure</code> lúc chạy.</td>
+                </tr>
+                <tr>
+                  <td>Độ trễ &amp; Chi phí <code>State</code></td>
+                  <td>Độ trễ cao hơn (phải chờ <code>Watermark</code> vượt qua biên độ trễ); tốn RAM/<code>RocksDB State</code> để giữ đệm các cửa sổ đang mở.</td>
+                  <td>Độ trễ trung bình – thấp; tự động sinh <code>Watermark</code> đơn điệu tại Source nên không bị kẹt bởi sự kiện trễ từ thiết bị.</td>
+                  <td>Độ trễ thấp nhất (<code>Sub-millisecond</code>) và chi phí <code>State</code> nhỏ nhất (không cần <code>Watermark</code>, đóng cửa sổ ngay theo giờ máy).</td>
+                </tr>
+                <tr>
+                  <td>Trường hợp sử dụng chuẩn</td>
+                  <td>Đối soát tài chính, tính doanh thu theo khung giờ, phát hiện gian lận, phân tích hành vi người dùng, <code>CEP</code> và chạy lại lịch sử.</td>
+                  <td>Luồng log hệ thống cũ không nhúng sẵn <code>timestamp</code> trong payload nhưng vẫn cần đồng bộ thời gian thống nhất giữa các bước Flink.</td>
+                  <td>Bảng điều khiển giám sát hạ tầng thô (<code>System Metrics / Heartbeat</code>) chấp nhận sai số để đổi lấy tốc độ phản hồi tức thì.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p><strong>Đánh đổi kỹ thuật &amp; Điểm nghẽn chuyển giao:</strong> Chọn <code>Event Time</code> giúp bảo toàn 100% tính đúng đắn nghiệp vụ cho <code>Order #8888</code> (<code>10:00:30</code>), nhưng lại đẩy toán tử cửa sổ của Flink vào một nghịch lý cơ học: vì các gói tin qua mạng di động có thể đến trễ bất kỳ lúc nào (<code>10:01:46</code> mới tới máy chủ), làm sao hệ thống biết khi nào toàn bộ sự kiện thuộc khung phút <code>[10:00:00 - 10:01:00)</code> đã đến đủ để đóng cửa sổ và xuất kết quả mà không phải giam giữ bộ nhớ <code>State</code> vô thời hạn? Để giải quyết bài toán dừng chờ này, Flink thiết lập cơ chế đồng hồ logic mang tên <code>Watermark</code> tại Trạm 2.2.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="flink-2-2">
+          <h2 id="flink-2-2-h2" tabindex="-1">Trạm 2.2: Bản chất Cơ học của Watermark, Công thức Định lượng &amp; Luồng Truyền Watermark qua Pipeline</h2>
+
+          <p><code>Watermark</code> không phải là dữ liệu nghiệp vụ của khách hàng (<code>not business data</code>) mà là một bản ghi dấu mốc thời gian điều khiển đặc biệt (<code>Watermark(W)</code>) được Flink tiêm trực tiếp và chảy xen kẽ bên trong luồng sự kiện để đo lường tiến độ trôi đi của <code>Event Time</code> (<em>Slide 15</em> &amp; <em>Streaming Systems</em> Ch. 3). Khi một gói tin <code>Watermark(W)</code> đi tới một toán tử, nó phát đi lời tuyên bố cơ học: hệ thống tin rằng không còn sự kiện thông thường nào mang nhãn thời gian <code>event_time &lt;= W</code> sẽ còn xuất hiện phía sau nữa. Ngay khoảnh khắc giá trị <code>Watermark W</code> chạm hoặc vượt qua mốc kết thúc của một cửa sổ thời gian (<code>W &gt;= window_end</code>), toán tử cửa sổ lập tức khóa sổ, thực thi hàm tổng hợp và phát kết quả đầu ra (<code>closes and emits its result</code> — <em>Slide 15</em>).</p>
+
+          <p>Để tính toán tọa độ thời gian <code>W</code> trong môi trường các gói tin như <code>Order #8888</code> liên tục đến lệch thứ tự (<code>out-of-order</code>), bộ sinh <code>Watermark</code> của Flink vận hành theo công thức định lượng cốt lõi trên <em>Slide 16</em>:</p>
+
+          <pre><code>Watermark = (latest event time seen) - (allowed delay (out-of-order))</code></pre>
+
+          <p>Biểu diễn dưới dạng hàm toán học theo tiến trình quan sát luồng sự kiện $e_1, e_2, \dots, e_k$, đồng hồ logic $W(k)$ luôn là một hàm đơn điệu không giảm (<code>monotonically non-decreasing</code>) được xác định bởi hiệu số giữa nhãn thời gian sự kiện lớn nhất từng đi qua luồng và biên độ trễ cho phép $\Delta_{\text{delay}}$:</p>
+
+          $$W(k) = \max_{i \le k}\bigl(\text{event\_time}(e_i)\bigr) - \Delta_{\text{allowed\_delay}}$$
+
+          <x-figure id="flink-2-2-fig" key="2.2" title="Sơ đồ 2.2 — Cơ chế Tiến triển Đồng hồ Logic Watermark W(t) = max(event_time) - allowed_delay &amp; Luồng Chảy qua 4 Thành phần Pipeline">Ví dụ định lượng đóng cửa sổ [00:00 - 01:00] khi Watermark chạm mốc 01:00 (với độ trễ cho phép 5 giây) và đường đi qua Timestamp Extractor tới Window Operator.</x-figure>
+
+          <h3>Giải phẫu Định lượng Kịch bản Đóng Cửa sổ <code>[00:00 - 01:00]</code> với <code>allowed_delay = 5s</code> (Slide 17)</h3>
+          <p>Hãy theo dõi từng nhịp nhảy của đồng hồ <code>Watermark</code> khi một toán tử Flink đang gom nhóm dữ liệu cho cửa sổ 1 phút <code>[00:00 - 01:00]</code> (mốc kết thúc <code>window_end = 01:00</code>) với cấu hình độ trễ cho phép <code>allowed_delay = 5 seconds</code> (<em>Slide 17</em>):</p>
+
+          <ul>
+            <li><strong>Nhịp 1 — Sự kiện <code>e1, e2, e3</code> đi vào và giữ cửa sổ mở (<code>Watermark = 00:53 &lt; 01:00</code>):</strong> Luồng dữ liệu lần lượt đẩy các bản ghi <code>e1</code>, <code>e2</code>, <code>e3</code> đi qua bộ trích xuất với nhãn thời gian sự kiện cực đại đạt <code>max(event_time) = 00:58</code>. Áp dụng công thức định lượng, Flink phát đi bản ghi điều khiển <code>Watermark = 00:58 - 5s = 00:53</code>. Khi <code>Window Operator</code> nhận được <code>Watermark(00:53)</code>, nó kiểm tra điều kiện <code>00:53 &lt; 01:00</code> (<code>W &lt; window_end</code>) nên hiểu rằng các sự kiện phát sinh trong khoảng <code>00:54 .. 01:00</code> vẫn có thể đang kẹt trên đường truyền mạng; cửa sổ <code>[00:00 - 01:00]</code> tiếp tục mở và giữ trạng thái trong bộ nhớ <code>State</code>.</li>
+            <li><strong>Nhịp 2 — Sự kiện <code>e4, e5</code> đẩy mốc cực đại lên <code>01:05</code> và kích hoạt đóng cửa sổ (<code>Watermark = 01:00 &gt;= 01:00</code>):</strong> Ngay sau đó, các sự kiện mới <code>e4</code> và <code>e5</code> (thuộc phút kế tiếp) đi tới với nhãn thời gian cao nhất đạt <code>max(event_time) = 01:05</code>. Bộ sinh <code>Watermark</code> lập tức cập nhật và phát đi <code>Watermark = 01:05 - 5s = 01:00</code>. Ngay khi bản ghi <code>Watermark(01:00)</code> chạm tới <code>Window Operator</code>, điều kiện <code>W &gt;= window_end</code> (<code>01:00 &gt;= 01:00</code>) được thỏa mãn: cửa sổ <code>[00:00 - 01:00]</code> hoàn toàn tự tin rằng mọi sự kiện có <code>event_time &lt;= 01:00</code> đã đến đủ, lập tức khóa sổ, tính toán kết quả cuối cùng và đẩy xuống <code>Result Output</code>!</li>
+          </ul>
+
+          <h3>Giải phẫu Luồng 4 Chặng Truyền Watermark &amp; Quy tắc Hợp nhất Đa Phân vùng (<code>min()</code> + <code>withIdleness</code>)</h3>
+          <p>Trên kiến trúc thực thi vật lý của Apache Flink (<em>Slide 18</em> &amp; <em>Stream Processing with Apache Flink</em> Ch. 3, tr. 47–52), một sự kiện như <code>Order #8888</code> và các bản ghi <code>Watermark</code> đi qua 4 chặng xử lý chặt chẽ từ nguồn tới đích, kèm theo quy tắc đồng bộ hóa giữa nhiều phân vùng song song:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chặng trong Pipeline (Slide 18)</th>
+                  <th>Cơ chế Vận hành Nội tại trên Bản ghi <code>Order #8888</code></th>
+                  <th>Quy tắc Đa Phân vùng &amp; Cạm bẫy Thực chiến (<em>Flink Book</em> Ch. 3)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>1. Event Source</code><br><em>(Kafka Topic)</em></td>
+                  <td>Đọc tuần tự luồng byte nhị phân từ các phân vùng <code>Kafka Partition 0..N</code> của topic <code>orders-stream</code> và chuyển thành các đối tượng sự kiện thô trong bộ nhớ TaskManager.</td>
+                  <td>Mỗi <code>Kafka Partition</code> có tốc độ đẩy dữ liệu và độ trễ mạng khác nhau; Flink khuyến nghị gắn logic sinh <code>Watermark</code> ngay sát <code>Source</code> (<code>Per-Partition Watermarking</code>) để đo chính xác tiến độ từng phân vùng.</td>
+                </tr>
+                <tr>
+                  <td><code>2. Timestamp Extractor</code><br><em>(Bộ trích xuất nhãn giờ)</em></td>
+                  <td>Đọc bên trong payload của <code>Order #8888</code>, rút trích trường <code>event_time = "10:00:30"</code> (chuyển sang số nguyên <code>epoch milliseconds</code>) và đóng vào header nội bộ của phần tử <code>StreamRecord</code>.</td>
+                  <td>Nếu trường <code>event_time</code> bị <code>NULL</code> hoặc sai định dạng múi giờ (<code>Timezone Skew</code>), toàn bộ phép tính cửa sổ phía sau sẽ sai lệch hoặc ném ngoại lệ làm khởi động lại Job liên tục (<code>Crash Loop</code>).</td>
+                </tr>
+                <tr>
+                  <td><code>3. Watermark Generator</code><br><em>(Bộ phát Watermark)</em></td>
+                  <td>Theo dõi giá trị <code>max_ts</code> của luồng sự kiện đi qua, tính <code>W = max_ts - allowed_delay</code> và phát định kỳ (mặc định mỗi <code>200ms</code>) các gói tin <code>Watermark(W)</code> chảy cùng dòng với các bản ghi dữ liệu.</td>
+                  <td>Bộ phát chỉ phát <code>Watermark</code> mới khi giá trị <code>W</code> thực sự lớn hơn mốc <code>Watermark</code> đã phát trước đó, bảo đảm đồng hồ <code>Event Time</code> không bao giờ chạy lùi ngay cả khi gặp bản ghi trễ sâu như <code>Order #8888</code>.</td>
+                </tr>
+                <tr>
+                  <td><code>4. Window Operator → Result Output</code><br><em>(Toán tử Cửa sổ &amp; Hợp nhất kênh)</em></td>
+                  <td>Nhận đồng thời bản ghi dữ liệu (đưa vào <code>Window State</code> tương ứng với khung giờ <code>[start, end)</code>) và bản ghi <code>Watermark(W)</code>. Khi đồng hồ nội bộ đạt <code>W &gt;= window_end</code>, kích hoạt hàm tính toán và phát kết quả ra <code>Result Output</code>.</td>
+                  <td><strong>Quy tắc <code>min()</code> &amp; Cạm bẫy <code>Idle Partition</code>:</strong> Khi <code>Window Operator</code> nhận dữ liệu từ $P$ phân vùng phía trước, nó duy trì mảng <code>Partition Watermarks</code> $[W_0, W_1, \dots, W_{P-1}]$ và chỉ nâng đồng hồ chung theo <code>W_operator = min(W_0, ..., W_{P-1})</code>. Nếu 1 phân vùng Kafka vắng dữ liệu (<code>Idle</code>), $W_i$ đứng im sẽ làm đóng băng toàn bộ cửa sổ trên mọi phân vùng khác và gây tràn bộ nhớ <code>OOM</code> — bắt buộc phải cấu hình <code>.withIdleness(Duration)</code> để tạm loại phân vùng rỗng khỏi hàm <code>min()</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p><strong>Đánh đổi kỹ thuật &amp; Điểm nghẽn chuyển giao:</strong> Cơ chế <code>Watermark = max(event_time) - allowed_delay</code> giải quyết trọn vẹn bài toán "khi nào được phép đóng cửa sổ", nhưng lại đặt ra câu hỏi thiết kế quyết định cho kỹ sư dữ liệu: phải chọn chiến lược sinh <code>Watermark</code> nào và xác định con số <code>allowed_delay</code> ra sao để vừa không vứt bỏ oan giao dịch <code>Order #8888</code> (<code>450.000 VNĐ</code>), vừa không bắt hệ thống phải chờ đợi quá lâu? Trạm 2.3 sẽ mổ xẻ 3 chiến lược sinh <code>Watermark</code> tiêu chuẩn trong sản xuất.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="flink-2-3">
+          <h2 id="flink-2-3-h2" tabindex="-1">Trạm 2.3: Ba Chiến lược Sinh Watermark — Monotonous Timestamps, Bounded Out-of-Orderness (p95/p99) &amp; Custom WatermarkGenerator</h2>
+
+          <p>Mọi cấu hình <code>Watermark</code> trong Apache Flink đều xoay quanh sự đánh đổi cơ học bất biến giữa độ trễ phát kết quả (<code>Latency</code>) và độ đầy đủ của dữ liệu (<code>Completeness</code>): đẩy <code>Watermark</code> tiến nhanh giúp đóng cửa sổ sớm nhưng dễ bỏ rơi các sự kiện đến muộn; ngược lại, lùi <code>Watermark</code> sâu về phía sau giúp gom trọn các bản ghi trễ nhưng buộc toàn bộ cửa sổ phải chờ lâu hơn và tiêu tốn dung lượng bộ nhớ <code>State</code> lớn hơn (<em>Slide 19–22</em> &amp; <em>Stream Processing with Apache Flink</em> Ch. 6, tr. 111–116). Để kiểm soát cán cân này theo đặc thù của từng nguồn dữ liệu, Flink cung cấp 3 chiến lược sinh <code>Watermark</code> (<code>Watermark Strategies</code>) từ đơn giản đến tùy biến hoàn toàn.</p>
+
+          <x-figure id="flink-2-3-fig" key="2.3" title="Sơ đồ 2.3 — Đối chiếu 3 Chiến lược Sinh Watermark (Monotonous vs. Bounded Delay vs. Custom Generator) &amp; Đánh đổi Độ trễ – Độ đầy đủ">So sánh hành vi phát Watermark của 3 chiến lược trước luồng sự kiện đến lệch thứ tự và tam giác đánh đổi Latency vs. Completeness.</x-figure>
+
+          <h3>Giải phẫu Cơ học 3 Chiến lược Sinh Watermark trên Luồng Sự kiện Order #8888</h3>
+          <p>Dựa trên phân phối độ trễ thực tế của luồng dữ liệu đầu vào, kỹ sư dữ liệu lựa chọn một trong ba chiến lược sau (<em>Slide 20–22</em>):</p>
+
+          <ul>
+            <li><strong>Strategy 1 — <code>Monotonous Timestamps</code> (Nhãn thời gian tăng đơn điệu tuyệt đối — Slide 20):</strong> Áp dụng khi các sự kiện luôn đến đúng thứ tự thời gian phát sinh mà không bao giờ bị đảo lộn: <code>e1(10:00:01) → e2(10:00:02) → e3(10:00:03)</code>. Khi đó dung sai độ trễ bằng <code>0</code> và <code>Watermark = max(event_time)</code>: ngay khi sự kiện <code>10:01:00</code> xuất hiện, <code>Watermark</code> nhảy thẳng lên <code>10:01:00</code> và đóng cửa sổ <code>[10:00 - 10:01)</code> ngay lập tức. Rủi ro chí mạng: bất kỳ sự kiện nào đến lệch thứ tự dù chỉ <code>1 mili-giây</code> (hoặc <code>Order #8888</code> mang <code>event_time = 10:00:30</code> nhưng đến lúc <code>10:01:45</code>) đều có <code>event_time &lt; Watermark</code>, bị đóng dấu là sự kiện trễ và bị vứt bỏ âm thầm (<code>silently dropped</code>) khỏi kết quả cửa sổ mặc định.</li>
+            <li><strong>Strategy 2 — <code>Bounded Delay / Bounded Out-of-Orderness</code> (Độ trễ hữu hạn theo phân vị <code>p95 / p99</code> — Slide 21):</strong> Đây là chiến lược phổ biến nhất trên Production khi các sự kiện được phép đến lệch thứ tự trong một khoảng thời gian cố định $\Delta_{\text{delay}}$. Theo đúng ví dụ trên <em>Slide 21</em>: nếu thiết lập <code>Allowed delay = 10 seconds</code> và sự kiện mới nhất đi qua có <code>Latest event_time seen = 10:01:20</code>, Flink sẽ phát ra <code>Watermark emitted = 10:01:20 - 10s = 10:01:10</code>. <em>Slide 21</em> nhấn mạnh nguyên tắc thiết kế sống còn: bắt buộc phải thiết lập <code>allowed_delay</code> dựa trên số đo phân vị <code>p95</code> (hoặc <code>p99</code>) của độ trễ <code>ingestion_time - event_time</code> thực tế trên Production, tuyệt đối không đoán mò (<code>never guess</code>). Với bài toán ứng dụng di động có tàu điện ngầm, nếu thống kê log thực tế cho thấy <code>p95 = 10s</code> nhưng <code>p99 = 90s</code> (bao phủ trường hợp <code>Order #8888</code> trễ <code>75s</code>), kỹ sư có thể đặt <code>allowed_delay = 10s</code> để giữ báo cáo nhanh cho 95% trường hợp rồi kết hợp cơ chế bắt dữ liệu trễ ở Chặng 3 cho 5% còn lại, hoặc nâng <code>allowed_delay = 90s</code> nếu ưu tiên độ đầy đủ ngay lần phát đầu tiên.</li>
+            <li><strong>Strategy 3 — <code>Custom Watermark Generator</code> (Bộ sinh Watermark tùy chỉnh động — Slide 22 &amp; <em>Flink Book</em> Ch. 6):</strong> Khi độ trễ không cố định mà co giãn theo khung giờ (ví dụ giờ cao điểm <code>Flash Sale</code> mạng nghẽn cần <code>delay = 60s</code>, ban đêm mạng thông thoáng chỉ cần <code>delay = 5s</code>) hoặc phụ thuộc vào siêu dữ liệu bên trong gói tin (như cờ <code>network_type="SUBWAY_OFFLINE_SYNC"</code> của <code>Order #8888</code> hay bản ghi <code>Punctuated Marker</code> báo kết thúc lô), kỹ sư tự viết lớp kế thừa <code>WatermarkGenerator</code> với hai phương thức: <code>on_event(self, event, timestamp, output)</code> được kích hoạt trên từng sự kiện để cập nhật <code>self.max_ts</code> (hoặc phát <code>Punctuated Watermark</code> tức thì), và <code>on_periodic_emit(self, output)</code> được Flink gọi định kỳ theo chu kỳ <code>autoWatermarkInterval</code> (mặc định mỗi <code>200ms</code>) để phát <code>Periodic Watermark</code> xuống hạ nguồn.</li>
+          </ul>
+
+          <h3>Triển khai Code Thực chiến: Cấu hình 3 Chiến lược Watermark &amp; Lớp <code>MyWatermarkGenerator</code> trong PyFlink</h3>
+          <p>Đoạn mã dưới đây minh họa cách cài đặt trực tiếp lớp <code>MyWatermarkGenerator</code> từ <em>Slide 22</em> cùng bộ ba chiến lược <code>WatermarkStrategy</code> và chốt chặn chống đóng băng phân vùng <code>with_idleness</code> cho luồng giao dịch <code>Order #8888</code>:</p>
+
+          <pre><code>from pyflink.common import WatermarkStrategy, Duration
+from pyflink.common.watermark_strategy import (
+    WatermarkGenerator,
+    Watermark,
+    TimestampAssigner,
+)
+
+
+# 1. Bộ trích xuất nhãn thời gian Event Time từ payload của Order #8888 ("10:00:30" -&gt; epoch ms)
+class OrderTimestampAssigner(TimestampAssigner):
+    def extract_timestamp(self, value: dict, record_timestamp: int) -&gt; int:
+        # value = {"order_id": "ORD-8888", "user_id": "USR-104", "amount": 450000, "event_time_ms": 1760781630000}
+        return int(value["event_time_ms"])
+
+
+# 2. Strategy 3 (Slide 22): Custom Watermark Generator kế thừa WatermarkGenerator
+class MyWatermarkGenerator(WatermarkGenerator):
+    def __init__(self, base_delay_ms: int = 10_000, subway_delay_ms: int = 90_000):
+        self.max_ts = 0
+        self.base_delay_ms = base_delay_ms
+        self.subway_delay_ms = subway_delay_ms
+        self.allowed_delay = base_delay_ms
+
+    def on_event(self, event: dict, timestamp: int, output) -&gt; None:
+        # Cập nhật mốc Event Time lớn nhất từng quan sát được (Slide 22)
+        self.max_ts = max(self.max_ts, timestamp)
+        # Thích ứng biên độ trễ nếu phát hiện gói tin đồng bộ lại từ tàu điện ngầm như Order #8888
+        if event.get("network_mode") == "SUBWAY_OFFLINE_SYNC":
+            self.allowed_delay = self.subway_delay_ms
+        else:
+            self.allowed_delay = self.base_delay_ms
+
+    def on_periodic_emit(self, output) -&gt; None:
+        # Phát định kỳ mỗi 200ms theo công thức: Watermark = max_ts - allowed_delay (Slide 22)
+        output.emit_watermark(Watermark(self.max_ts - self.allowed_delay))
+
+
+# --- ĐỐI CHIẾU KHỞI TẠO 3 CHIẾN LƯỢC TRÊN DATASTREAM ---
+
+# [Strategy 1 - Slide 20]: Monotonous Timestamps (allowed_delay = 0s, chỉ dùng khi thứ tự tăng tuyệt đối)
+monotonous_strategy = (
+    WatermarkStrategy.for_monotonous_timestamps()
+    .with_timestamp_assigner(OrderTimestampAssigner())
+)
+
+# [Strategy 2 - Slide 21]: Bounded Out-of-Orderness (đặt theo p95/p99 thực tế = 10s, kèm chống Idle Partition 30s)
+bounded_p95_strategy = (
+    WatermarkStrategy.for_bounded_out_of_orderness(Duration.of_seconds(10))
+    .with_timestamp_assigner(OrderTimestampAssigner())
+    .with_idleness(Duration.of_seconds(30))
+)</code></pre>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Đối sánh</th>
+                  <th><code>Strategy 1: Monotonous Timestamps</code></th>
+                  <th><code>Strategy 2: Bounded Delay (p95 / p99)</code></th>
+                  <th><code>Strategy 3: Custom WatermarkGenerator</code></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Công thức tính <code>Watermark</code></td>
+                  <td><code>W = max(event_time)</code><br><em>(Dung sai trễ $\Delta = 0\text{s}$)</em></td>
+                  <td><code>W = max(event_time) - allowed_delay</code><br><em>(Hằng số $\Delta$ đo từ phân vị <code>p95 / p99</code>)</em></td>
+                  <td><code>W = f(max_ts, event_context, system_load)</code><br><em>(Hàm động qua <code>on_event</code> &amp; <code>on_periodic_emit</code>)</em></td>
+                </tr>
+                <tr>
+                  <td>Giả định dữ liệu đầu vào</td>
+                  <td>Sự kiện đến <em>đúng thứ tự 100%</em> từ một nguồn đơn luồng hoặc tệp log đã sắp xếp sẵn.</td>
+                  <td>Sự kiện đến lệch thứ tự trong một biên độ xác định do độ trễ mạng di động hoặc đọc đa phân vùng Kafka.</td>
+                  <td>Độ trễ biến thiên mạnh theo khung giờ, loại thiết bị, hoặc luồng chứa các bản ghi đánh dấu mốc (<code>Punctuated Markers</code>).</td>
+                </tr>
+                <tr>
+                  <td>Hành vi với <code>Order #8888</code> (<code>event_time = 10:00:30</code>, trễ <code>75s</code>)</td>
+                  <td>Bị vứt bỏ âm thầm (<code>silently dropped</code>): Cửa sổ <code>[10:00 - 10:01)</code> đã đóng ngay lúc <code>10:01:00</code>.</td>
+                  <td>Nếu đặt $\Delta = 10\text{s}$ (<code>p95</code>): vẫn bị coi là trễ; nếu đặt $\Delta = 90\text{s}$ (<code>p99</code>): được gom trọn vào cửa sổ <code>[10:00 - 10:01)</code>.</td>
+                  <td>Thích ứng linh hoạt: Nhận diện cờ <code>SUBWAY_OFFLINE_SYNC</code> hoặc khung giờ cao điểm để nới biên độ chờ hoặc phát tín hiệu xử lý riêng.</td>
+                </tr>
+                <tr>
+                  <td>Độ trễ cửa sổ &amp; Chi phí <code>State</code></td>
+                  <td><code>Thấp nhất</code>: Cửa sổ đóng tức thì (<code>0s</code> chờ thêm), giải phóng bộ nhớ <code>RocksDB State</code> ngay lập tức.</td>
+                  <td><code>Trung bình – Cao</code>: Mọi cửa sổ đều phải đợi thêm đúng $\Delta$ giây mới đóng; dung lượng <code>State</code> tỷ lệ thuận với $\text{Throughput} \times \Delta$.</td>
+                  <td><code>Tối ưu theo ngữ cảnh</code>: Giữ độ trễ thấp lúc mạng tốt và chỉ chấp nhận tăng <code>State</code> khi thực sự xảy ra nghẽn mạng.</td>
+                </tr>
+                <tr>
+                  <td>Trường hợp sử dụng chuẩn</td>
+                  <td>Đọc từ một <code>Kafka Partition</code> duy nhất do 1 Producer tuần tự ghi hoặc kiểm thử đơn vị (<code>Unit Test</code>).</td>
+                  <td>Mặc định cho 90% hệ thống Production: Giao dịch thương mại điện tử, thanh toán, clickstream, IoT telemetry.</td>
+                  <td>Hệ thống tài chính / viễn thông đa nguồn có biên độ trễ lệch nhau hàng chục lần hoặc đồng bộ theo lô ngắt quãng.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p><strong>Đúc kết cơ học &amp; Cầu nối sang Chặng 3:</strong> Ngay cả khi chúng ta đã đo đạc kỹ lưỡng phân vị <code>p95 = 10 giây</code> để cấu hình <code>Bounded Out-of-Orderness</code>, vẫn luôn tồn tại <code>5%</code> các sự kiện ngoại lệ đến trễ vượt quá ngưỡng 10 giây — điển hình chính là <code>Order #8888</code> bị kẹt <code>75 giây</code> dưới hầm tàu điện ngầm (<code>ingestion_time = 10:01:45</code> trong khi cửa sổ <code>[10:00 - 10:01)</code> đã đóng từ lúc <code>Watermark</code> đạt <code>10:01:00</code>). Làm thế nào để tổ chức các loại cửa sổ thời gian (<code>Tumbling</code>, <code>Sliding</code>, <code>Session</code>) và cứu sống <code>5%</code> dữ liệu trễ như <code>Order #8888</code> bằng <code>Allowed Lateness</code> cùng <code>Side Outputs</code> mà không phải nâng <code>Watermark delay</code> của toàn hệ thống lên hàng giờ? Đó là trọng tâm của Chặng 3.</p>
+        </section>
+
+        <section class="summary-section" id="flink-2-summary">
+          <h2 id="flink-2-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 2 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <ol>
+            <li><strong>Tại sao khi tính doanh thu theo phút cho <code>Order #8888</code> (khách bấm thanh toán lúc <code>10:00:30</code> trên tàu điện ngầm nhưng máy chủ Flink xử lý lúc <code>10:01:46</code>), chúng ta bắt buộc phải dùng <code>Event Time</code> thay vì <code>Processing Time</code> hay <code>Ingestion Time</code>?</strong> Vì cả <code>Ingestion Time</code> (<code>10:01:45</code>) lẫn <code>Processing Time</code> (<code>10:01:46</code>) đều phản ánh độ trễ hạ tầng mạng và hàng đợi chứ không phải thời điểm giao dịch thực sự phát sinh, khiến khoản tiền <code>450.000 VNĐ</code> bị đẩy nhầm sang cửa sổ phút kế tiếp <code>[10:01 - 10:02)</code>. Chỉ có <code>Event Time</code> (<code>10:00:30</code> nằm bất biến trong payload) mới bảo đảm tính đúng đắn tất định (<code>Deterministic Reprocessing</code>) cả khi chạy trực tuyến lẫn khi chạy lại lịch sử (<code>Replay / Backfill</code>).</li>
+            <li><strong>Bản chất cơ học của <code>Watermark</code> là gì và điều kiện chính xác để một cửa sổ thời gian trong Flink đóng lại là khi nào?</strong> <code>Watermark(W)</code> không phải là dữ liệu nghiệp vụ mà là một bản ghi dấu mốc thời gian điều khiển đặc biệt chảy xen kẽ trong luồng sự kiện để khẳng định rằng không còn sự kiện nào có <code>event_time &lt;= W</code> sẽ đến nữa. Một cửa sổ <code>[window_start, window_end)</code> sẽ lập tức đóng lại và phát kết quả ngay khi <code>Watermark W</code> chạm hoặc vượt mốc kết thúc cửa sổ (<code>W &gt;= window_end</code>).</li>
+            <li><strong>Giải thích tại sao trong ví dụ <code>allowed_delay = 5s</code> (Slide 17), khi <code>max(event_time) = 00:58</code> thì cửa sổ <code>[00:00 - 01:00]</code> vẫn mở, nhưng khi sự kiện mới đẩy <code>max(event_time) = 01:05</code> thì cửa sổ lập tức đóng?</strong> Theo công thức <code>Watermark = latest_event_time - allowed_delay</code>: tại mốc <code>00:58</code>, Flink phát <code>Watermark = 00:58 - 5s = 00:53 &lt; 01:00</code> nên cửa sổ vẫn mở chờ các sự kiện trễ; khi sự kiện mới đẩy mốc cực đại lên <code>01:05</code>, Flink phát <code>Watermark = 01:05 - 5s = 01:00</code>, thỏa mãn điều kiện <code>W &gt;= window_end</code> (<code>01:00 &gt;= 01:00</code>) nên cửa sổ <code>[00:00 - 01:00]</code> lập tức khóa sổ và phát kết quả.</li>
+            <li><strong>Thảm họa vận hành nào sẽ xảy ra khi một toán tử cửa sổ đọc từ nhiều <code>Kafka Partitions</code> mà có 1 phân vùng bị rỗng (<code>Idle Partition</code>), và cách khắc phục là gì?</strong> Vì toán tử hợp nhất tiến độ thời gian từ nhiều kênh đầu vào theo quy tắc lấy giá trị nhỏ nhất <code>W_operator = min(W_0, W_1, ..., W_n)</code>, một phân vùng không có sự kiện mới sẽ giữ mãi <code>Watermark</code> cũ và kéo đồng hồ chung của toàn bộ toán tử đứng im theo, làm không một cửa sổ nào đóng được và gây tràn bộ nhớ <code>RocksDB State (OOM)</code>. Khắc phục bằng cách cấu hình <code>.withIdleness(Duration)</code> (hoặc <code>.with_idleness(...)</code>) để Flink tạm thời loại phân vùng nhàn rỗi khỏi phép tính <code>min()</code>.</li>
+            <li><strong>Tại sao khi cấu hình <code>Strategy 2: Bounded Out-of-Orderness</code>, kỹ sư bắt buộc phải đo phân vị <code>p95 / p99</code> độ trễ thực tế trên Production thay vì dùng <code>Monotonous Timestamps</code> hay đoán mò một con số cực lớn?</strong> Dùng <code>Monotonous Timestamps</code> (<code>delay = 0s</code>) sẽ vứt bỏ âm thầm (<code>silently drop</code>) mọi sự kiện đến lệch thứ tự; đoán mò con số quá nhỏ làm rớt dữ liệu hàng loạt, còn đoán mò con số quá lớn (như <code>2 giờ</code>) làm tăng độ trễ phát kết quả của 100% cửa sổ lên 2 giờ và làm phình bộ nhớ <code>State</code> tuyến tính theo tích số $\text{Throughput} \times \text{Allowed Delay}$.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/D04/3" onclick="selectStorageStage(3);return false;">Sang Chặng 3: Cơ Học Cửa Sổ Thời Gian (Windowing), Bộ Kích Hoạt (Triggers) &amp; Chiến Lược Xử Lý Dữ Liệu Trễ →</a></p>
+        </section>
+      </div>

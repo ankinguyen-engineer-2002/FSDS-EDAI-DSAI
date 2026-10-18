@@ -1,0 +1,181 @@
+      <div class="prose">
+        <x-spine id="python-1-spine" badge="TRONG BÀI HỌC NÀY · F02" title="Chặng 1: Cơ Học CPython Runtime, Quản Lý Bộ Nhớ &amp; Hệ Sinh Thái Môi Trường Ảo (venv, Poetry, uv)" subtitle="Trạm 0.0 → 1.2">Giải phẫu cơ chế vận hành bên dưới lớp vỏ Python của tiến trình thu thập dữ liệu <strong>market-crawler</strong> (<code>crawler.py</code>): từ máy ảo ngăn xếp <strong>CPython</strong>, cấu trúc bộ nhớ <code>PyObject</code> (<code>28 bytes</code>), bộ đếm tham chiếu <code>ob_refcnt</code> và <strong>Cyclic GC</strong>, đến cách hóa giải thảm họa <strong>Dependency Hell</strong> trên thư mục <code>site-packages</code> bằng 3 thế hệ công cụ <code>venv</code>, <code>Poetry</code> và <code>uv</code> (<code>0.06s</code>).</x-spine>
+
+        <section class="lesson-section" id="python-0-map">
+          <h2 id="python-0-map-h2" tabindex="-1">Trạm 0.0: Nhân vật chính market-crawler (crawler.py) &amp; Bản đồ Kiến trúc 4 Chặng Python Engineering</h2>
+
+          <p>Thay vì học vẹt cú pháp rời rạc trên các ví dụ đồ chơi, toàn bộ học phần <strong>F02 · Python Fundamentals</strong> theo chân một nhân vật chính duy nhất: tiến trình thu thập dữ liệu <strong><code>market-crawler</code> (<code>crawler.py</code>)</strong> chạy trên máy chủ Linux Production (tiếp nối môi trường <strong>F01 · Linux, Shell &amp; Git</strong>). Nhiệm vụ của <code>crawler.py</code> là kéo <code>1,000</code> trang dữ liệu JSON từ API đối tác thương mại điện tử, khử trùng lặp mã sản phẩm (<code>product_id</code>), ghi an toàn xuống tệp nhật ký sự kiện <code>events.jsonl</code> và đẩy vào đường ống dữ liệu. Khi chạy ở quy mô lớn, một đoạn script viết theo thói quen sơ cấp sẽ lập tức bộc lộ 4 tử huyệt cơ học: xung đột phiên bản thư viện làm sập môi trường máy chủ, tràn RAM và treo CPU vì cấu trúc dữ liệu bậc $O(N^2)$, rò rỉ File Descriptor khi gặp bản ghi JSON lỗi, và nghẽn cổ chai mạng tuần tự kéo dài hàng chục phút.</p>
+
+          <x-figure id="python-0-1" key="0.1" title="Sơ đồ 0.1 — Bản đồ Kiến trúc 4 Chặng Python Engineering: Hành trình Tiến trình market-crawler (crawler.py)">Toàn cảnh lộ trình 4 Chặng (10 Trạm) nâng cấp tiến trình <code>crawler.py</code> từ một script thử nghiệm dễ vỡ thành dịch vụ Data &amp; AI chuẩn Production.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chặng &amp; Trạm</th>
+                  <th>Trọng tâm Cơ học Runtime &amp; Framework</th>
+                  <th>Điểm nghẽn Khởi phát trên <code>crawler.py</code></th>
+                  <th>Cơ chế Giải quyết Vật lý</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Chặng 1</strong><br/><em>Trạm 0.0 → 1.2</em><br/>CPython Runtime &amp; Virtual Environments</td>
+                  <td>• Giải phẫu <strong>CPython VM</strong>, cấu trúc <code>PyObject</code>, <code>ob_refcnt</code> &amp; <strong>Cyclic GC</strong> (<em>Slide 04–08</em>).<br/>• <strong>Dependency Hell</strong> trên <code>site-packages</code> &amp; 3 thế hệ công cụ: <code>venv</code>/<code>virtualenv</code>, <code>Poetry</code>, <code>uv</code> (<em>Slide 09–23</em>).</td>
+                  <td>Cài đặt gói trực tiếp bằng <code>pip</code> toàn cục gây ghi đè phiên bản (<code>serpapi==1.0.5</code> vs <code>1.1.15</code>) làm sập các dự án dùng chung máy chủ; hiểu sai chi phí bộ nhớ của đối tượng Python.</td>
+                  <td>Tự động hóa quản lý vùng nhớ Heap qua <code>ob_refcnt</code> + <strong>Generational GC</strong>; cô lập biến <code>PATH</code>/<code>sys.path</code> bằng <code>.venv</code> và khóa phụ thuộc tất định với <code>uv.lock</code> + <strong>Global Hardlink Cache</strong> (<code>0.06s</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 2</strong><br/><em>Trạm 2.1 → 2.3</em><br/>Object Reference, Hash Table &amp; Function Contracts</td>
+                  <td>• Biến là nhãn tham chiếu (<code>id()</code>), <strong>Mutability</strong> &amp; bẫy <strong>Mutable Default Argument</strong> (<em>Slide 25–30</em>).<br/>• Độ phức tạp <code>list</code> ($O(N)$) vs <code>set</code>/<code>dict</code> <strong>Hash Table</strong> ($O(1)$) &amp; <strong>Type Hints</strong> (<em>Slide 31–44</em>).</td>
+                  <td>Khử trùng lặp <code>100,000</code> mã <code>product_id</code> bằng phép dò <code>if item in seen_list</code> gây bão $5 \times 10^9$ phép so sánh làm treo CPU; tham số mặc định <code>batch=[]</code> làm rò rỉ dữ liệu giữa các lần gọi hàm.</td>
+                  <td>Băm khóa bằng hàm <code>hash(key)</code> để tra cứu trực tiếp ô nhớ trong bảng băm <code>set</code>/<code>dict</code> với chi phí $O(1)$; dùng <code>None</code> sentinel cho tham số mặc định và <strong>Generator</strong> để giữ RAM phẳng $O(1)$.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 3</strong><br/><em>Trạm 3.1 → 3.3</em><br/>Exception Hierarchy, Context Manager &amp; CLI</td>
+                  <td>• Cây phân cấp <code>BaseException</code> vs <code>Exception</code> &amp; khối <code>try / except / else / finally</code> (<em>Slide 45–53</em>).<br/>• Giao thức <strong>Context Manager</strong> (<code>__enter__</code> / <code>__exit__</code>), Streaming <code>JSONL</code> &amp; <code>argparse</code> (<em>Slide 54–70</em>).</td>
+                  <td>Bản ghi thứ 500 bị lỗi cú pháp JSON khiến tiến trình văng ngoại lệ trước khi gọi <code>f.close()</code>, làm mất dữ liệu đang nằm trong <code>BufferedWriter</code> và rò rỉ <strong>OS File Descriptor</strong> (<code>EMFILE</code>).</td>
+                  <td>Bắt đúng ngoại lệ dưới nhánh <code>Exception</code>; dùng khối <code>with open(...)</code> cưỡng chế xả đệm <code>flush()</code> và đóng File Descriptor trong mọi kịch bản lỗi; chuẩn hóa giao diện lệnh bằng <code>argparse</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 4</strong><br/><em>Trạm 4.1 → 4.2</em><br/>Async Event Loop &amp; WSGI/ASGI Frameworks</td>
+                  <td>• <strong>CPU-bound</strong> vs <strong>I/O-bound</strong>, <strong>GIL</strong> &amp; <strong>Blocking Sync</strong> vs <strong>Non-Blocking <code>asyncio</code> Event Loop</strong> (<em>Slide 71–78</em>).<br/>• Bản đồ hệ sinh thái <strong>WSGI</strong> (<code>Flask</code>, <code>Django</code>) vs <strong>ASGI</strong> (<code>FastAPI</code> + <code>Pydantic</code>) (<em>Slide 79–84</em>).</td>
+                  <td>Kéo tuần tự <code>1,000</code> trang API với độ trễ mạng <code>200ms</code>/trang khiến luồng thực thi nằm chờ I/O suốt <code>200 giây</code> (CPU rỗi <code>99%</code> thời gian).</td>
+                  <td>Dùng vòng lặp sự kiện <code>asyncio</code> + <code>aiohttp</code> chuyển đổi ngữ cảnh tại điểm neo <code>await</code> kết hợp chốt chặn <code>asyncio.Semaphore(50)</code> để hoàn tất <code>1,000</code> request trong <code>~4 giây</code> trên 1 luồng đơn.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="lesson-section" id="python-1-0-sim">
+          <h2 id="python-1-0-sim-h2" tabindex="-1">Trạm 1.0 (Mô phỏng 2D): Phòng Thí Nghiệm Cơ Học CPython, uv Hardlink Cache, Context Manager &amp; Async Event Loop</h2>
+
+          <p>Trước khi đi vào giải phẫu từng tầng cơ học, hãy trực tiếp điều khiển tiến trình <strong><code>crawler.py</code></strong> đi qua <strong>4 kịch bản vận hành thực tế</strong> trong Phòng Thí Nghiệm 2D dưới đây: từ so sánh liên kết cứng <code>uv Global Cache Hardlink (0.06s)</code> với <code>pip Global site-packages</code>, quan sát con trỏ <code>PyObject Reference &amp; Hash Table O(1) vs List O(N)</code>, kiểm nghiệm cơ chế tự đóng tệp của <code>Context Manager (__exit__)</code> khi văng lỗi, cho tới đối chiếu thông lượng giữa <code>Blocking Sync I/O</code> và <code>Asyncio Event Loop</code>.</p>
+
+          <x-python2d></x-python2d>
+        </section>
+
+        <section class="lesson-section" id="python-1-1">
+          <h2 id="python-1-1-h2" tabindex="-1">Trạm 1.1: Giải phẫu CPython Runtime — Trừu tượng hóa, Cấu trúc PyObject &amp; Bộ thu gom rác (Reference Counting + Cyclic GC)</h2>
+
+          <p><strong>CPython (trình thông dịch Python chuẩn viết bằng C)</strong> đánh đổi một phần hiệu năng thô của phần cứng để mang lại mức độ trừu tượng hóa tối đa và tự động hóa hoàn toàn quản lý bộ nhớ cho kỹ sư Data &amp; AI (<em>Slide 04–08</em>). Khi khởi chạy lệnh <code>python3 crawler.py</code>, CPython không dịch trực tiếp mã nguồn sang mã máy x86/ARM như <code>C</code> hay <code>Rust</code>, mà biên dịch tệp <code>.py</code> thành tập lệnh trung gian <strong>Bytecode (<code>.pyc</code> lưu trong thư mục <code>__pycache__/</code>)</strong> rồi thực thi từng lệnh trên <strong>CPython Virtual Machine (máy ảo dựa trên ngăn xếp — Stack-based VM)</strong>. Trong các ngôn ngữ bậc thấp như <code>C</code>, lập trình viên phải tự tính toán kích thước byte, gọi hàm <code>malloc()</code> để xin cấp phát vùng nhớ trên <strong>Heap</strong> và bắt buộc gọi <code>free()</code> đúng lúc; chỉ cần quên một lệnh <code>free()</code> trong vòng lặp thu thập dữ liệu của <code>crawler.py</code>, tiến trình sẽ bị <strong>Memory Leak (rò rỉ bộ nhớ)</strong> cho tới khi hệ điều hành kích hoạt <code>OOM Killer</code> bức tử tiến trình.</p>
+
+          <p>Để giải phóng lập trình viên khỏi gánh nặng <code>malloc()</code> / <code>free()</code>, CPython bọc mọi giá trị (từ số nguyên, chuỗi ký tự đến hàm và lớp) vào bên trong một cấu trúc <code>struct</code> của C mang tên <strong><code>PyObject</code></strong>. Một số nguyên 64-bit trong <code>C</code> chỉ chiếm đúng <code>4–8 bytes</code> thô trên RAM, nhưng trong CPython 64-bit, một đối tượng <code>int</code> tiêu tốn tối thiểu <strong><code>28 bytes</code></strong>: bao gồm <code>8 bytes</code> cho bộ đếm tham chiếu <strong><code>ob_refcnt</code> (Reference Count)</strong>, <code>8 bytes</code> cho con trỏ kiểu dữ liệu <strong><code>ob_type</code> (Type Pointer)</strong> trỏ tới cấu trúc định nghĩa kiểu, và <code>12 bytes</code> cho kích thước cùng giá trị số học thực tế. Khi thực thi <code>a = [1, 2, 3]</code> rồi gán <code>b = a</code>, CPython không hề sao chép mảng dữ liệu mà chỉ cho nhãn <code>b</code> trỏ vào cùng địa chỉ vùng nhớ <code>PyObject</code> của <code>a</code> và tăng <code>ob_refcnt</code> từ <code>1</code> lên <code>2</code>; ngay khoảnh khắc các nhãn bị hủy qua lệnh <code>del a</code> và <code>del b</code> (hoặc biến cục bộ thoát khỏi phạm vi hàm) khiến <code>ob_refcnt == 0</code>, vùng nhớ Heap lập tức được thu hồi tức thì. Đối với các cấu trúc tự trỏ vào nhau tạo thành vòng khép kín (<strong>Reference Cycles</strong> — khiến <code>ob_refcnt</code> không bao giờ tự về <code>0</code>), CPython vận hành thêm <strong>Cyclic Garbage Collector (Generational GC — Bộ thu gom rác phân thế hệ <code>G0</code>, <code>G1</code>, <code>G2</code>)</strong> định kỳ quét và phá vỡ vòng lặp. Nhờ kiến trúc lõi bằng C này, hệ sinh thái Data/AI (<code>NumPy</code>, <code>Pandas</code>, <code>PyTorch</code>, <code>Polars</code>) có thể dùng Python làm lớp vỏ điều phối (Glue Language) mỏng gọn ở bên ngoài, trong khi đẩy toàn bộ các phép nhân ma trận và xử lý mảng nặng xuống tầng <strong>C / C++ / Rust Native Extensions</strong> chạy trực tiếp trên SIMD/GPU ở bên dưới.</p>
+
+          <x-figure id="python-1-1-fig" key="1.1" title="Sơ đồ 1.1 — Cơ học Bộ nhớ CPython (PyObject, ob_refcnt &amp; Cyclic GC) Đối chiếu Cấp phát Thủ công trong C (malloc/free)">Cấu trúc <code>PyObject</code> 28 bytes trong RAM và vòng đời thu hồi bộ nhớ tự động qua <code>ob_refcnt</code> kết hợp <strong>Generational GC</strong> so với quản lý con trỏ thủ công trong C.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Cơ học Runtime</th>
+                  <th>C / C++ Native (Low-Level Manual)</th>
+                  <th>CPython Runtime (High-Level Automatic)</th>
+                  <th>Hệ quả Kỹ thuật đối với <code>crawler.py</code></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Đơn vị Lưu trữ trong RAM (Memory Layout)</strong></td>
+                  <td>Lưu trực tiếp giá trị nhị phân thô (Raw primitive): một số nguyên <code>int64</code> hoặc <code>double</code> chỉ tốn đúng <code>4–8 bytes</code> liền kề trên Stack/Heap.</td>
+                  <td>Mọi giá trị đều là một <code>PyObject</code> trên Heap: tốn tối thiểu <code>28 bytes</code> cho một số nguyên <code>int</code> (gồm <code>ob_refcnt</code> 8B + <code>ob_type</code> 8B + payload 12B).</td>
+                  <td>Tránh giữ hàng chục triệu đối tượng số/chuỗi Python rời rạc trong RAM cùng lúc; ưu tiên xử lý theo luồng (Streaming) hoặc đẩy vào mảng đặc <code>NumPy</code> / <code>Arrow</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Cơ chế Cấp phát &amp; Giải phóng Bộ nhớ</strong></td>
+                  <td>Thủ công hoàn toàn: lập trình viên trực tiếp gọi <code>malloc()</code> / <code>calloc()</code> và tự chịu trách nhiệm gọi <code>free()</code>. Quên <code>free()</code> gây <strong>Memory Leak</strong>; gọi 2 lần gây lỗi <strong>Double Free</strong>.</td>
+                  <td>Tự động hóa 2 tầng: <strong>Reference Counting (<code>ob_refcnt</code>)</strong> giải phóng tức thì ngay khi số nhãn tham chiếu về <code>0</code>, kết hợp <strong>Cyclic GC</strong> dọn dẹp các vòng tham chiếu khép kín.</td>
+                  <td>Tốc độ phát triển tính năng nhanh gấp nhiều lần và an toàn bộ nhớ; tuy nhiên gán nhầm biến vào danh sách toàn cục (Global List) sẽ giữ <code>ob_refcnt &gt; 0</code> gây rò rỉ ngầm.</td>
+                </tr>
+                <tr>
+                  <td><strong>Cơ chế Thực thi &amp; Kiểu dữ liệu (Typing Model)</strong></td>
+                  <td><strong>Static Typing &amp; AOT Compilation:</strong> Kiểm tra kiểu lúc biên dịch (Compile-time) và dịch thẳng ra mã máy (Machine Code) tối ưu cho từng tập lệnh CPU.</td>
+                  <td><strong>Dynamic Typing &amp; Bytecode VM:</strong> Biến không gắn cố định với kiểu; kiểu dữ liệu nằm trên <code>ob_type</code> của <code>PyObject</code> và được kiểm tra động ở thời điểm chạy (Runtime) qua Bytecode <code>.pyc</code>.</td>
+                  <td>Linh hoạt cao khi bóc tách JSON bán cấu trúc từ API, nhưng cần bổ sung <strong>Type Hints</strong> ở tầng hàm để tránh lỗi sai kiểu dữ liệu lúc nửa đêm trên Production.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chiến lược Tối ưu Hiệu năng Tính toán</strong></td>
+                  <td>Viết trực tiếp vòng lặp <code>for</code> và thao tác con trỏ cấp thấp; hiệu năng cực đại nhưng tốn hàng trăm dòng mã cho các tác vụ mạng hoặc xử lý chuỗi.</td>
+                  <td>Vòng lặp <code>for</code> thuần Python chậm do chi phí kiểm tra <code>ob_type</code> ở mỗi bước lặp; khắc phục bằng cách ủy quyền cho các thư viện <strong>C/Rust Extension</strong> (<code>NumPy</code>, <code>PyTorch</code>, <code>orjson</code>, <code>uv</code>).</td>
+                  <td>Trong <code>crawler.py</code>, dùng Python để điều phối luồng I/O và logic nghiệp vụ, đồng thời tận dụng các thư viện lõi C/Rust cho khâu phân tích cú pháp và tính toán.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Cơ chế <code>PyObject</code> và hệ sinh thái thư viện C-Extension giải thích vì sao một kịch bản <code>crawler.py</code> dài 50 dòng có thể triệu hồi sức mạnh của hàng vạn dòng mã C/Rust qua lệnh <code>import</code>. Nhưng khi một máy chủ Linux phải vận hành đồng thời nhiều dịch vụ dữ liệu khác nhau, các gói thư viện bên thứ ba này được lưu trữ ở đâu trên ổ đĩa, và tại sao việc cài đặt thư viện mặc định lại dẫn đến thảm họa làm sập toàn bộ hệ thống? Chúng ta bước sang <strong>Trạm 1.2</strong>.</p>
+        </section>
+
+        <section class="lesson-section" id="python-1-2">
+          <h2 id="python-1-2-h2" tabindex="-1">Trạm 1.2: Giải quyết "Dependency Hell" &amp; Cơ chế Vận hành 3 Thế hệ Công cụ Môi trường Ảo (venv, Poetry, uv)</h2>
+
+          <p><strong>"Dependency Hell" (Địa ngục phụ thuộc)</strong> xuất phát từ một giới hạn vật lý của trình cài đặt gói mặc định <code>pip</code> và cơ chế nạp module của Python: <strong>một thư mục <code>site-packages</code> duy nhất không thể chứa đồng thời hai phiên bản khác nhau của cùng một tên gói</strong> (<em>Slide 09–12</em>). Khi kỹ sư gõ <code>pip install serpapi</code> mà không có cơ chế cô lập, <code>pip</code> sẽ giải nén thư viện trực tiếp vào thư mục <code>site-packages</code> toàn cục của hệ thống (ví dụ <code>/usr/local/lib/python3.12/site-packages/serpapi/</code>). Hãy xét kịch bản thực tế trên máy chủ chạy chung: <strong>Dự án 1</strong> được viết với <code>serpapi==1.0.5</code>, <strong>Dự án 2</strong> cần <code>serpapi==1.0.8</code>, trong khi môi trường toàn cục vừa bị một tiến trình khác nâng cấp lên <code>serpapi==1.1.15</code> (đã xóa bỏ hoặc đổi tên các hàm cũ). Ngay khoảnh khắc <code>crawler.py</code> thực thi lệnh <code>import serpapi</code>, Python quét danh sách đường dẫn <code>sys.path</code>, nạp trúng bản <code>1.1.15</code> từ <code>site-packages</code> toàn cục và lập tức văng lỗi <code>AttributeError</code> / <code>ImportError</code> làm sập cả hai dự án.</p>
+
+          <p>Để triệt tiêu xung đột này mà không cần khởi tạo máy ảo nặng nề, Python sử dụng <strong>Virtual Environment (Môi trường ảo — thường đặt tại thư mục <code>.venv/</code>)</strong>. Về mặt cơ học hệ điều hành, một môi trường ảo <code>.venv</code> hoàn toàn không sao chép toàn bộ nhân hệ điều hành mà chỉ tạo một cây thư mục nhẹ chứa liên kết tượng trưng (Symlink) tới trình thông dịch <code>.venv/bin/python</code> và một thư mục <strong><code>.venv/lib/python3.x/site-packages</code></strong> trống rỗng dành riêng cho dự án đó; khi kích hoạt môi trường, biến <code>PATH</code> của Shell và mảng tìm kiếm <code>sys.path</code> của Python được bẻ lái để chỉ đọc/ghi thư viện bên trong <code>.venv</code> cục bộ (<em>Slide 13</em>). Trải qua thực tiễn vận hành, công cụ quản lý môi trường và phụ thuộc đã tiến hóa qua 3 thế hệ (<em>Slide 14–23</em>): thế hệ 1 (<strong><code>venv</code> / <code>virtualenv</code> + <code>pip</code></strong>) chỉ xuất danh sách phẳng <code>requirements.txt</code> thiếu khả năng phân giải xung đột phụ thuộc bắc cầu (Transitive Dependencies); thế hệ 2 (<strong><code>Poetry</code></strong>) chuẩn hóa tệp cấu hình <code>pyproject.toml</code>, hiển thị cây phụ thuộc <code>poetry show --tree</code> và khóa chặt mã băm bằng <code>poetry.lock</code>; và thế hệ 3 (<strong><code>uv</code></strong> do Astral viết bằng <strong>Rust</strong>) kết hợp bộ giải xung đột <strong>PubGrub</strong> với kiến trúc <strong>Global Content-Addressed Cache</strong> — tải gói một lần duy nhất vào bộ đệm toàn cục rồi gắn liên kết cứng (<strong>Hardlinks / Copy-on-Write Reflinks</strong>) sang từng thư mục <code>.venv</code> mà không tốn thời gian chép byte, rút ngắn thời gian đồng bộ môi trường xuống còn <strong><code>0.06s</code></strong> so với <code>0.99s</code> của <code>Poetry</code>, <code>1.90s</code> của <code>PDM</code> và <code>4.63s</code> của <code>pip-sync</code> (<em>Slide 21</em>).</p>
+
+          <x-figure id="python-1-2-fig" key="1.2" title="Sơ đồ 1.2 — Từ Xung đột site-packages Toàn cục (Dependency Hell) đến Cơ chế Cô lập .venv, Poetry và Kiến trúc uv Global Cache (0.06s)">Cơ chế bẻ lái <code>sys.path</code> vào <code>.venv/lib/site-packages</code> riêng biệt và cách <code>uv</code> dùng <strong>Hardlinks</strong> từ Global Cache để khởi tạo môi trường trong <code>0.06s</code>.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Đối chiếu (Slide 14–23)</th>
+                  <th>Thế hệ 1: <code>venv</code> / <code>virtualenv</code> + <code>pip</code></th>
+                  <th>Thế hệ 2: <code>Poetry</code></th>
+                  <th>Thế hệ 3: <code>uv</code> (Astral — Rust)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Bản chất &amp; Tốc độ Thực nghiệm (Slide 21)</strong></td>
+                  <td>Công cụ cơ bản viết bằng Python đi kèm sẵn (<code>venv</code>); cài đặt tuần tự chậm (<code>pip-sync</code> mất <strong><code>4.63s</code></strong> để đồng bộ bộ gói chuẩn).</td>
+                  <td>Trình quản lý dự án toàn diện viết bằng Python; tốc độ đồng bộ trung bình (<strong><code>0.99s</code></strong>), nhưng giải cây phụ thuộc lớn còn tốn nhiều thời gian.</td>
+                  <td>Trình quản lý gói và môi trường hợp nhất viết bằng <strong>Rust</strong>; đồng bộ cực nhanh trong <strong><code>0.06s</code></strong> (nhanh hơn <code>pip-sync</code> tới <code>~77 lần</code> và hơn <code>Poetry</code> <code>~16 lần</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>Tệp Cấu hình &amp; Khóa Phiên bản (Reproducibility)</strong></td>
+                  <td>Dùng tệp phẳng <code>requirements.txt</code> (sinh từ <code>pip freeze &gt; requirements.txt</code>); trộn lẫn gói cài trực tiếp với gói phụ thuộc con và thiếu kiểm tra mã băm mặc định.</td>
+                  <td>Tách bạch khai báo gói trực tiếp trong <code>pyproject.toml</code> và khóa toàn bộ cây phụ thuộc kèm mã băm SHA-256 trong <code>poetry.lock</code>.</td>
+                  <td>Chuẩn hóa hoàn toàn theo PEP hiện đại: khai báo trong <code>pyproject.toml</code>, ghim phiên bản trình thông dịch tại <code>.python-version</code> và khóa đa nền tảng trong <code>uv.lock</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Cơ chế Lưu trữ Đĩa &amp; Giải quyết Xung đột</strong></td>
+                  <td>Giải nén và chép trùng lặp toàn bộ tệp thư viện vào từng thư mục <code>.venv</code>; dễ cài đè phiên bản không tương thích nếu không cẩn thận.</td>
+                  <td>Có bộ giải xung đột phụ thuộc chặt chẽ và lệnh <code>poetry show --tree</code> để kiểm tra đồ thị phụ thuộc, nhưng vẫn chép tệp vật lý vào từng <code>.venv</code>.</td>
+                  <td>Dùng bộ giải <strong>PubGrub</strong> tốc độ cao; lưu gói tại <strong>Global Cache</strong> và tạo <strong>Hardlinks / Reflinks</strong> vào <code>.venv</code> (không nhân bản dung lượng đĩa và không tốn I/O chép tệp).</td>
+                </tr>
+                <tr>
+                  <td><strong>Quy trình Lệnh CLI Chuẩn</strong></td>
+                  <td><code>python -m venv .venv</code> → <code>source .venv/bin/activate</code> → <code>pip install requests</code> → <code>pip freeze &gt; requirements.txt</code>.</td>
+                  <td><code>poetry new project</code> → <code>poetry add requests</code> → <code>poetry install</code> → <code>poetry run python crawler.py</code>.</td>
+                  <td><code>uv init</code> → <code>uv add requests</code> → <code>uv lock</code> → <code>uv sync</code> → <code>uv run python crawler.py</code> (tự động nhận diện và đồng bộ <code>.venv</code>).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <pre><code># Quy trình khởi tạo chuẩn Production cho dịch vụ market-crawler bằng uv (Slide 22–23)
+$ uv init market-crawler &amp;&amp; cd market-crawler
+$ uv venv                          # Tạo môi trường cô lập .venv trong vài mili-giây
+$ uv add requests pydantic         # Giải xung đột PubGrub, gắn Hardlink vào .venv, cập nhật pyproject.toml &amp; uv.lock
+$ uv run python crawler.py         # Thực thi trực tiếp bằng trình thông dịch cô lập bên trong .venv
+# Cấu trúc dự án chuẩn: .venv/ | .python-version | pyproject.toml | uv.lock | crawler.py</code></pre>
+
+          <p>Khép lại Chặng 1, tiến trình <code>crawler.py</code> đã được đặt trên một bệ phóng vững chắc: vận hành trên máy ảo CPython với cơ chế thu hồi bộ nhớ tự động <code>PyObject</code> (<code>ob_refcnt</code> + Cyclic GC) và được đóng gói kín kẽ bằng <code>pyproject.toml</code> + <code>uv.lock</code> bên trong môi trường cô lập <code>.venv</code>. Nhưng ngay khi <code>crawler.py</code> bắt đầu nạp <code>100,000</code> bản ghi sản phẩm từ API vào bộ nhớ RAM để khử trùng lặp và biến đổi dữ liệu, một câu hỏi cơ học mới lập tức xuất hiện: <strong>Tại sao việc truyền danh sách vào hàm đôi khi lại làm biến dạng dữ liệu gốc ở bên ngoài, và tại sao phép kiểm tra <code>if product_id in seen_items</code> trên <code>list</code> lại làm treo cứng CPU trong khi <code>set</code> / <code>dict</code> giải quyết tức thì trong $O(1)$?</strong> Chúng ta bước sang <strong>Chặng 2: Tham chiếu Đối tượng, Độ phức tạp Bảng băm &amp; Hợp đồng Hàm</strong>.</p>
+        </section>
+
+        <section class="summary-section" id="python-1-summary">
+          <h2 id="python-1-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 1 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <ol>
+            <li><strong>Tại sao Python chấp nhận chi phí bộ nhớ tối thiểu <code>28 bytes</code> cho một số nguyên <code>PyObject</code> thay vì <code>4–8 bytes</code> thô như ngôn ngữ <code>C</code>?</strong><br/>Vì CPython đính kèm trực tiếp bộ đếm tham chiếu <code>ob_refcnt</code> (<code>8 bytes</code>) và con trỏ kiểu dữ liệu <code>ob_type</code> (<code>8 bytes</code>) vào từng đối tượng trên Heap, giúp tự động hóa hoàn toàn việc kiểm tra kiểu động lúc chạy và giải phóng bộ nhớ mà lập trình viên không cần gọi <code>malloc()</code> / <code>free()</code> thủ công.</li>
+            <li><strong>Cơ chế thu hồi bộ nhớ của CPython kết hợp <code>Reference Counting</code> và <code>Cyclic GC</code> như thế nào?</strong><br/>Mỗi khi một đối tượng được gắn thêm nhãn biến, <code>ob_refcnt</code> tăng lên <code>1</code>; khi nhãn bị xóa (<code>del</code>) hoặc ra khỏi phạm vi hàm khiến <code>ob_refcnt == 0</code>, vùng nhớ được giải phóng ngay lập tức. Với các đối tượng tự tham chiếu chéo nhau tạo thành vòng khép kín (khiến <code>ob_refcnt</code> không bao giờ tự về <code>0</code>), bộ thu gom rác phân thế hệ (<strong>Cyclic / Generational GC</strong>) sẽ định kỳ quét và thu hồi.</li>
+            <li><strong>Vì sao Python là ngôn ngữ thông dịch bậc cao nhưng vẫn đủ tốc độ để thống trị các tác vụ Data Engineering và huấn luyện AI?</strong><br/>Nhờ kiến trúc lõi CPython, các thư viện như <code>NumPy</code>, <code>Pandas</code>, <code>Polars</code> hay <code>PyTorch</code> chỉ dùng Python làm lớp giao diện điều phối bậc cao (Glue Language), còn toàn bộ các vòng lặp tính toán ma trận và xử lý mảng dữ liệu lớn đều được thực thi bên dưới bằng mã máy <code>C</code>, <code>C++</code> hoặc <code>Rust</code> đã biên dịch tối ưu.</li>
+            <li><strong>Nguyên nhân vật lý nào gây ra "Dependency Hell" và môi trường ảo <code>.venv</code> cô lập các dự án bằng cơ chế nào?</strong><br/>Mặc định <code>pip</code> cài mọi gói vào một thư mục <code>site-packages</code> toàn cục duy nhất và không thể lưu hai phiên bản khác nhau của cùng một tên thư mục gói (như <code>serpapi==1.0.5</code> và <code>1.1.15</code>). Môi trường ảo <code>.venv</code> giải quyết bằng cách bẻ lái biến <code>PATH</code> và danh sách tìm kiếm <code>sys.path</code> của trình thông dịch về thư mục <code>.venv/lib/python3.x/site-packages</code> riêng biệt của từng dự án.</li>
+            <li><strong>Nhờ cơ chế vật lý nào mà <code>uv</code> khởi tạo và đồng bộ môi trường nhanh gấp hàng chục lần so với <code>pip</code> và <code>Poetry</code> (<code>0.06s</code> vs <code>4.63s</code> / <code>0.99s</code>)?</strong><br/>Bên cạnh việc được biên dịch ra mã máy từ ngôn ngữ <strong>Rust</strong> và dùng thuật toán giải xung đột <strong>PubGrub</strong> song song, <code>uv</code> lưu trữ các gói đã tải trong một <strong>Global Content-Addressed Cache</strong> duy nhất trên máy chủ rồi tạo liên kết cứng (<strong>Hardlinks / Copy-on-Write Reflinks</strong>) sang từng thư mục <code>.venv</code>, loại bỏ hoàn toàn chi phí giải nén và sao chép tệp lặp lại trên ổ đĩa.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/F02/2" onclick="selectStorageStage(2);return false;">Sang Chặng 2: Tham chiếu Đối tượng, Độ phức tạp Bảng băm &amp; Hợp đồng Hàm →</a></p>
+        </section>
+      </div>

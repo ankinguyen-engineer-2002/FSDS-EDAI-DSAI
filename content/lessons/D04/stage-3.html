@@ -1,0 +1,262 @@
+      <div class="prose">
+        <x-spine id="flink-3-spine" badge="TRONG BÀI HỌC NÀY · D04" title="Chặng 3: Cơ Học Cửa Sổ Thời Gian (Windowing), Bộ Kích Hoạt (Triggers) &amp; Chiến Lược Xử Lý Dữ Liệu Trễ (Late Data)" subtitle="Trạm 3.1 → 3.4">Biến luồng sự kiện vô hạn thành các lát cắt hữu hạn có thể tính toán được: làm chủ 4 kiểu cửa sổ (<code>Tumbling</code>, <code>Sliding</code>, <code>Session</code>, <code>Global</code>), cơ chế điểm hỏa <code>Window Trigger</code>, máy trạng thái 3 pha của <code>Allowed Lateness</code> và luồng rẽ nhánh <code>Side Output</code> bảo toàn 100% dữ liệu đến muộn.</x-spine>
+
+        <section class="lesson-section" id="flink-3-1">
+          <h2 id="flink-3-1-h2" tabindex="-1">Trạm 3.1: Bản chất Cửa sổ (Window) &amp; Giải phẫu 4 Kiểu Cửa sổ — Tumbling, Sliding, Session &amp; Global Windows</h2>
+
+          <p>Một cửa sổ thời gian (<code>Window</code>) là <strong>một lát cắt hữu hạn trên dòng dữ liệu vô hạn</strong> (<code>finite slice of an unbounded stream</code> — Slide 24), cho phép động cơ <code>Apache Flink</code> đóng khung các sự kiện liên tục thành từng tập hợp có điểm đầu và điểm cuối rõ ràng để thực thi các phép toán tổng hợp (<code>SUM</code>, <code>COUNT</code>, <code>AVG</code>) hay nối luồng (<code>JOIN</code>). Từ Chặng 2, sự kiện thanh toán <code>Order #8888</code> và chuỗi thao tác <code>e1..e7</code> của khách hàng <code>USR-104</code> đã được gắn nhãn <code>Event Time</code> chuẩn xác và dẫn đường bởi đồng hồ <code>Watermark</code>. Thế nhưng trên một dòng suối chảy mãi không bao giờ cạn, bạn không thể chờ tới "cuối luồng" mới bắt đầu đếm doanh thu hay tính trung bình trượt. Giống như việc đếm lưu lượng xe qua trạm thu phí bằng cách khóa sổ từng khung 1 phút thay vì đợi đường cao tốc đóng cửa vĩnh viễn: <code>Flink</code> gom nhóm <code>e1, e2, e3</code> vào lát cắt <code>10:00 - 10:01</code> để phát ra <code>count = 3</code>, gom <code>e4, e5</code> vào lát cắt <code>10:01 - 10:02</code> để phát ra <code>count = 2</code>, đồng thời mở sẵn lát cắt <code>10:02 - 10:03</code> đón <code>e6, e7...</code> đang tiếp tục đổ về.</p>
+
+          <p>Theo <em>Stream Processing with Apache Flink</em> (Ch. 6, tr. 122–127) và Slide 25–30, bộ phân bổ cửa sổ (<code>Window Assigner</code>) quyết định mỗi bản ghi mang dấu thời gian $t$ sẽ được xếp vào một hay nhiều thùng chứa (<code>Window Buckets</code>) nào dựa trên 4 mô hình hình học cốt lõi: <code>Tumbling Windows</code> (cắt lát cố định không chồng lấp), <code>Sliding Windows</code> (trượt chồng lấp theo chu kỳ), <code>Session Windows</code> (co giãn động theo khoảng lặng hành vi người dùng) và <code>Global Windows</code> (gom toàn bộ sự kiện cùng khóa vào một thùng duy nhất không có biên giới thời gian tự nhiên).</p>
+
+          <x-figure id="flink-3-1-fig" key="3.1" title="Sơ đồ 3.1 — Giải phẫu Hình học 4 Kiểu Cửa sổ Thời gian: Tumbling (Cố định), Sliding (Trượt chồng lấp), Session (Theo khoảng lặng) &amp; Global Window">Đối chiếu cách phân bổ các sự kiện e1..e6 vào các khung cắt lát Tumbling, Sliding, Session và Global trên trục Event Time.</x-figure>
+
+          <h3>Giải phẫu Cơ học &amp; Phép chiếu Hình học của 4 Kiểu Cửa sổ (Slides 25–30)</h3>
+          <p>Mỗi kiểu <code>Window Assigner</code> đánh đổi trực tiếp giữa <strong>hệ số nhân bản trạng thái trong bộ nhớ</strong> (<code>State Amplification Factor</code>) và <strong>độ mịn thời gian của báo cáo đầu ra</strong>:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Kiểu Cửa sổ (Window Type)</th>
+                  <th>Cơ chế Phân bổ &amp; Công thức Ranh giới</th>
+                  <th>Số Cửa sổ / 1 Sự kiện &amp; Chi phí State</th>
+                  <th>Kịch bản Nghiệp vụ Điển hình (Slide 25 &amp; 30)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Tumbling Windows (Cửa sổ lăn cố định không chồng lấp)</strong></td>
+                  <td>Chia trục thời gian thành các đoạn có độ dài cố định $S$ nối tiếp nhau, nửa đóng nửa mở: $[0, 10)$, $[10, 20)$, $[20, 30)$ (Slide 26). Ranh giới cửa sổ chứa sự kiện lúc $t$ được xác định bởi $\text{start} = t - (t \bmod S)$ và $\text{end} = \text{start} + S$.</td>
+                  <td><strong>Đúng 1 cửa sổ duy nhất</strong> ($1\times$ State). Giải phóng bộ nhớ hoàn toàn ngay khi cửa sổ đóng; không nhân bản bản ghi.</td>
+                  <td>Báo cáo tổng doanh thu mỗi giờ (<code>Revenue per hour</code>) của <code>Order #8888</code>; đếm tổng số sự kiện hoạt động mỗi ngày (<code>Events per day</code>) không trùng lặp.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Sliding Windows (Cửa sổ trượt chồng lấp theo bước nhảy)</strong></td>
+                  <td>Khai báo hai tham số: kích thước cửa sổ cố định $S$ (<code>size = 10</code>) và bước trượt cố định $P$ (<code>slide = 5</code>), tạo ra các khung chồng lấp $[0, 10)$, $[5, 15)$, $[10, 20)$ (Slide 27).</td>
+                  <td>Khi $P &lt; S$, mỗi sự kiện được nhân bản logic vào <strong>$k = S / P$ cửa sổ đồng thời</strong>. Ví dụ <code>size = 10 min</code>, <code>slide = 1 min</code> nhân gấp $10\times$ chi phí lưu trữ và cập nhật State.</td>
+                  <td>Tính trung bình trượt 10 phút cập nhật mỗi 1 phút (<code>Rolling 10-min average, updated every 1 min</code>); giám sát tỷ lệ lỗi API mượt mà không bị đứt gãy ở biên phút.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Session Windows (Cửa sổ phiên co giãn theo khoảng lặng)</strong></td>
+                  <td>Không có độ dài cố định (<code>dynamic size</code>). Gom các sự kiện xảy ra sát nhau của cùng một người dùng (<code>USR-104</code>); phiên tự động đóng và mở phiên mới khi khoảng thời gian không hoạt động vượt ngưỡng <code>inactivity gap</code> $\Delta_{\text{gap}}$ (Slide 28).</td>
+                  <td>Ban đầu mỗi sự kiện $e_i$ tạo một cửa sổ đơn $[t_i,\; t_i + \Delta_{\text{gap}})$. Khi sự kiện mới rơi vào khoảng cách $&lt; \Delta_{\text{gap}}$, <code>Flink</code> phải thực thi phép <strong>hợp nhất trạng thái</strong> (<code>Window Merging</code>), đòi hỏi <code>ReducingState</code> hoặc <code>MergingState</code>.</td>
+                  <td>Phân tích hành trình duyệt web đến khi chốt đơn <code>Order #8888</code> của <code>USR-104</code> (phiên kết thúc sau <code>30 phút</code> rời ứng dụng); gom chuỗi thao tác xem phim hoặc chơi game.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Global Windows (Cửa sổ toàn cục không biên giới thời gian)</strong></td>
+                  <td>Gom toàn bộ sự kiện có cùng khóa phân vùng (<code>Key</code>) vào một cửa sổ logic duy nhất kéo dài tới $\text{Long.MAX\_VALUE}$ (<code>no natural time boundary</code> — Slide 29).</td>
+                  <td>Giữ trạng thái xuyên suốt vòng đời ứng dụng trên 1 thùng duy nhất cho mỗi khóa; <strong>không bao giờ tự phát kết quả</strong> nếu không cấu hình bộ kích hoạt <code>Trigger</code> tùy chỉnh.</td>
+                  <td>Quy tắc nghiệp vụ đếm theo số lượng hoặc sự kiện đặc biệt: phát cảnh báo mỗi khi tích lũy đủ <code>100</code> giao dịch của một đại lý (<code>Fire after every 100 events</code>).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p><strong>Quy tắc chọn kiểu cửa sổ trên Production (Slide 30):</strong> Nếu bài toán yêu cầu các kỳ báo cáo độc lập, tách bạch (như đối soát tài chính theo giờ/ngày), hãy chọn <code>Tumbling Window</code> để tiết kiệm bộ nhớ tối đa. Nếu cần đường biểu diễn chỉ số mượt mà cập nhật liên tục (như <code>SLA Dashboard</code>), hãy dùng <code>Sliding Window</code> nhưng phải kiểm soát tỷ số $\text{size} / \text{slide} \le 20$ để tránh bùng nổ <code>RocksDB State</code>. Nếu bài toán xoay quanh hành vi tương tác của khách hàng <code>USR-104</code> không biết trước lúc nào bắt đầu hay kết thúc, <code>Session Window</code> là lựa chọn duy nhất. Nhưng sau khi <code>Window Assigner</code> đã xếp <code>Order #8888</code> và <code>e1..e3</code> vào đúng thùng chứa, cơ chế nào ra lệnh cho thùng chứa đó chốt sổ và xuất kết quả ra hạ nguồn? Chúng ta bước sang <strong>Trạm 3.2</strong>.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="flink-3-2">
+          <h2 id="flink-3-2-h2" tabindex="-1">Trạm 3.2: Cơ học Bộ kích hoạt (Window Triggers), Trigger Mặc định &amp; Cạm bẫy Rò rỉ Bộ nhớ của Global Window</h2>
+
+          <p>Trong kiến trúc <code>Window Operator</code> của <code>Apache Flink</code>, việc cắt lát dữ liệu được tách bạch hoàn toàn thành hai quyết định độc lập (Slide 31): chọn <code>Window Assigner</code> trả lời câu hỏi <em>"Làm sao gom nhóm các sự kiện vào cùng một khung?"</em> (<code>How do I group events?</code>), còn chọn <code>Window Trigger</code> trả lời câu hỏi <em>"Khi nào tính toán hàm tổng hợp và phát kết quả ra ngoài?"</em> (<code>When do I compute and emit the result?</code>). Hãy quan sát cửa sổ 1 phút <code>[10:00 - 10:01]</code> của khách hàng <code>USR-104</code> trên Slide 31: khi <code>e1</code> đến, nó được cất vào <code>Window State</code> (<code>stored</code>); <code>e2</code> đến tiếp tục được cất vào <code>State</code> (<code>stored</code>); <code>e3</code> đến cũng nằm yên trong <code>State</code> (<code>stored</code>). Cửa sổ hoàn toàn im lặng cho tới đúng khoảnh khắc đồng hồ <code>Watermark</code> chạm mốc <code>10:01:00</code> — ngay lập tức <code>Trigger FIRES</code> (điểm hỏa), kích hoạt <code>Window Function</code> chạy qua trạng thái đã lưu và phát bản ghi kết quả <code>count = 3 -&gt; emit</code> xuống hạ nguồn.</p>
+
+          <p>Mỗi kiểu cửa sổ được <code>Flink</code> trang bị sẵn một <code>Default Trigger</code> tương ứng với bản chất hình học của nó (Slide 32 &amp; <em>Stream Processing with Apache Flink</em> Ch. 6, tr. 134–139). Tuy nhiên, cạm bẫy sinh tử nằm ở <code>Global Window</code>: vì không có điểm kết thúc thời gian tự nhiên, <code>Default Trigger</code> của <code>Global Window</code> thực chất là <code>NeverTrigger</code> (trên Slide 32 ký hiệu là <code>None</code> — không bao giờ nổ). Nếu kỹ sư gọi <code>.window(GlobalWindows.create())</code> mà quên đính kèm lệnh <code>.trigger(...)</code> tường minh, chương trình vẫn biên dịch và chạy bình thường mà không báo bất kỳ dòng lỗi nào, nhưng toàn bộ sự kiện <code>Order #8888</code> và <code>e1..e7</code> sẽ bị nhốt vĩnh viễn trong <code>Heap/RocksDB State</code> cho tới khi cụm máy chủ sập vì <code>OutOfMemoryError</code>!</p>
+
+          <x-figure id="flink-3-2-fig" key="3.2" title="Sơ đồ 3.2 — Phân vai Cơ học Window Assigner vs. Window Trigger &amp; Cạm bẫy Tích tụ Vô hạn khi Global Window Thiếu Trigger">Cơ chế phối hợp giữa bộ gom sự kiện, đồng hồ Watermark và bộ điểm hỏa Trigger, đối chiếu với kịch bản tràn bộ nhớ trên Global Window.</x-figure>
+
+          <h3>Ma trận Trigger Mặc định theo Kiểu Cửa sổ &amp; 4 Trạng thái Phản hồi (TriggerResult)</h3>
+          <p>Khi một sự kiện đi vào cửa sổ (<code>onElement</code>) hoặc khi bộ đếm giờ điểm (<code>onEventTime</code> / <code>onProcessingTime</code>), hàm <code>Trigger</code> trả về một trong 4 mã điều khiển <code>TriggerResult</code> quyết định số phận của kết quả đầu ra lẫn dữ liệu đang giữ trong <code>Window State</code>:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Kiểu Cửa sổ / Mã Điều khiển Trigger</th>
+                  <th>Bộ Kích hoạt Mặc định (Default Trigger — Slide 32)</th>
+                  <th>Điều kiện Điểm hỏa (Fires When...)</th>
+                  <th>Cơ chế Tác động lên Window State &amp; Cảnh báo Vận hành</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Tumbling &amp; Sliding Windows (Event Time)</strong></td>
+                  <td><code>EventTimeTrigger</code> / <code>ProcessingTimeTrigger</code> (Gắn tự động theo miền thời gian của cửa sổ).</td>
+                  <td>Điểm hỏa ngay khi đồng hồ <code>Watermark &gt;= window.maxTimestamp()</code> (tức chạm mốc kết thúc cửa sổ <code>window end time</code>).</td>
+                  <td>Đăng ký một bộ hẹn giờ <code>Event-Time Timer</code> tại mốc <code>window_end - 1ms</code>. Khi <code>Watermark</code> vượt qua mốc này, cửa sổ phát kết quả xuống hạ nguồn.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Session Windows (Event Time)</strong></td>
+                  <td><code>EventTimeTrigger</code> kết hợp cơ chế <code>onMerge()</code> tự động dời lịch hẹn giờ khi gộp phiên.</td>
+                  <td>Điểm hỏa khi <code>Watermark &gt;= session end time</code> (tức đã trôi qua trọn vẹn khoảng lặng <code>inactivity gap</code> mà không có sự kiện mới).</td>
+                  <td>Mỗi khi sự kiện mới của <code>USR-104</code> đến làm hai cửa sổ con gộp lại, <code>Trigger</code> hủy hẹn giờ cũ và đặt hẹn giờ mới ở cuối phiên gộp.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Global Windows (Không có biên thời gian)</strong></td>
+                  <td><strong><code>None</code> (<code>NeverTrigger</code> — Không có bộ kích hoạt mặc định!)</strong></td>
+                  <td><strong>Không bao giờ tự nổ</strong> nếu người lập trình không khai báo <code>.trigger(...)</code>.</td>
+                  <td><strong>Lỗi câm lặng (Silent Failure — Slide 32):</strong> Sự kiện tích lũy vô tận trong <code>State Backend</code>, không phát ra bất kỳ bản ghi nào và làm phình bộ nhớ tới chết (<code>OOM</code>). Bắt buộc phải gắn <code>CountTrigger.of(100)</code> hoặc <code>PurgingTrigger</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Bốn Mã Trả về của Trigger (<code>TriggerResult</code>)</strong></td>
+                  <td><code>CONTINUE</code>, <code>FIRE</code>, <code>PURGE</code>, <code>FIRE_AND_PURGE</code> (<em>Flink Book</em> Ch. 6 tr. 136).</td>
+                  <td>Quyết định tách rời giữa hành động <em>Phát kết quả</em> (<code>Emit</code>) và <em>Xóa trạng thái</em> (<code>Clear State</code>).</td>
+                  <td><code>CONTINUE</code>: tiếp tục chờ; <code>FIRE</code>: tính và phát kết quả nhưng <strong>giữ nguyên State</strong>; <code>PURGE</code>: xóa sạch State nhưng không phát kết quả; <code>FIRE_AND_PURGE</code>: phát kết quả rồi xóa sạch State ngay lập tức (dùng qua vỏ bọc <code>PurgingTrigger.of(...)</code>).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p><strong>Đánh đổi kỹ thuật giữa Phát sớm (Early Firing) và Chi phí Hạ nguồn:</strong> Nhờ tách rời <code>FIRE</code> (phát kết quả nhưng giữ State) khỏi <code>PURGE</code> (xóa State), kỹ sư có thể viết <code>Custom Trigger</code> cho cửa sổ doanh thu 1 giờ của <code>Order #8888</code> để vừa phát kết quả cập nhật sớm mỗi 1 phút (<code>Early Results</code> bằng <code>ProcessingTimeTrigger</code>), vừa phát kết quả chuẩn xác khi <code>Watermark</code> chạm mốc cuối giờ. Nhưng điều gì xảy ra nếu sau khi <code>Trigger</code> đã điểm hỏa ở mốc <code>10:01:00</code> và phát đi <code>count = 3</code>, một sự kiện bị kẹt mạng từ lúc <code>10:00:50</code> mới lững thững bò tới <code>Flink</code> lúc <code>10:04:00</code>? Chúng ta bước sang <strong>Trạm 3.3</strong>.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="flink-3-3">
+          <h2 id="flink-3-3-h2" tabindex="-1">Trạm 3.3: Giải phẫu Sự kiện Đến Muộn (Late Events) &amp; Máy Trạng thái 3 Pha của Allowed Lateness</h2>
+
+          <p>Một sự kiện chính thức bị phân loại là <strong>sự kiện đến muộn</strong> (<code>Late Event</code> — Slide 34) khi và chỉ khi nó chạm tới <code>Window Operator</code> sau khi <code>Trigger</code> của cửa sổ chứa nó đã điểm hỏa, tức là dấu thời gian của bản ghi nhỏ hơn hoặc bằng mốc <code>Watermark</code> hiện tại ($t_{\text{event}} &lt; W(t)$ đã làm đóng cửa sổ). Hãy nhìn thẳng vào kịch bản thực tế trên Slide 34: cửa sổ <code>Window [10:00 - 10:01]</code> đã nổ lúc <code>Watermark = 10:01:00</code> và xuất báo cáo <code>count = 3</code> (gồm <code>e1, e2, e3</code>). Ba phút sau theo giờ đồng hồ hệ thống (<code>processing_time = 10:04:00</code>), gói tin <code>e_late</code> của đơn hàng <code>Order #8888</code> mang nhãn <code>event_time = 10:00:50</code> mới tới nơi do điện thoại của khách hàng <code>USR-104</code> vừa đi qua hầm mất sóng. Về mặt logic thời gian sự kiện, <code>10:00:50</code> thuộc về cửa sổ <code>[10:00 - 10:01]</code>, nhưng cửa sổ đó đã phát kết quả mất rồi!</p>
+
+          <p>Đứng trước các bản ghi đến muộn này, <code>Apache Flink</code> cung cấp 3 phương án xử lý (Slide 35): <strong>Option 1 — Drop (Mặc định)</strong>: âm thầm vứt bỏ <code>e_late</code> ngay lập tức để giữ ống dẫn đơn giản nhưng chấp nhận mất dữ liệu; <strong>Option 2 — Allowed Lateness (Gia hạn thời gian chờ)</strong>: giữ cửa sổ sống thêm một khoảng thời gian $\Delta_{\text{late}}$ sau khi nổ để đón sự kiện trễ và phát kết quả đính chính (<code>Retraction / Upsert</code>); và <strong>Option 3 — Side Output (Rẽ nhánh phụ)</strong>: bẻ lái các sự kiện quá hạn sang một luồng riêng biệt. Khi kích hoạt <code>Allowed Lateness</code> (Slide 36), mỗi cửa sổ thời gian không chết ngay sau lần điểm hỏa đầu tiên mà vận hành như một <strong>máy trạng thái hữu hạn 3 pha</strong>: <code>Collecting</code> (Đang thu thập) → <code>Waiting</code> (Đang chờ sự kiện trễ để tính lại) → <code>Deleted</code> (Xóa vĩnh viễn khỏi bộ nhớ).</p>
+
+          <x-figure id="flink-3-3-fig" key="3.3" title="Sơ đồ 3.3 — Máy Trạng thái 3 Pha của Cửa sổ (Collecting → Waiting → Deleted) &amp; Trục Thời gian Thực nghiệm Allowed Lateness (Slide 37)">Giải phẫu chính xác kịch bản cửa sổ [00:30-01:30] với out-of-order 10s và allowed lateness 15s: tại sao e3 được tính lại còn e4 bị loại bỏ?</x-figure>
+
+          <h3>Giải phẫu Vòng đời 3 Pha (Slide 36) &amp; Truy vết Từng Giây Kịch bản Thực nghiệm Slide 37</h3>
+          <p>Để hiểu tận gốc cách đồng hồ <code>Watermark</code> tương tác với ngưỡng gia hạn <code>Allowed Lateness</code>, chúng ta giải phẫu chi tiết kịch bản kinh điển trên <strong>Slide 37 (<code>Allowed Lateness in Practice</code>)</strong> với cấu hình: cửa sổ mục tiêu <code>Window [00:30 - 01:30]</code>, độ trễ cho phép khi sinh Watermark <code>out-of-order bound = 10s</code> ($W = \max(t_{\text{event}}) - 10\text{s}$), và thời gian gia hạn cửa sổ <code>allowed lateness = 15s</code> (tức cửa sổ chỉ bị xóa sổ hoàn toàn khi $W \ge \text{01:30} + 15\text{s} = \text{01:45}$):</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Pha Vòng đời / Sự kiện Thực nghiệm (Slide 36–37)</th>
+                  <th>Thông số Thời gian (<code>event_time</code> &amp; <code>arrival_time</code>)</th>
+                  <th>Giá trị Đồng hồ <code>Watermark</code> &amp; Trạng thái Cửa sổ <code>[00:30 - 01:30]</code></th>
+                  <th>Hành vi Cơ học của Flink &amp; Kết quả Đầu ra</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Pha 1: <code>Collecting</code> — Thu thập sự kiện đúng hạn (<code>e1, e2</code>)</strong></td>
+                  <td><code>e1</code> và <code>e2</code> có <code>event_time</code> nằm trong khoảng <code>[00:30 - 01:30]</code> và đến trước <code>01:40</code>.</td>
+                  <td><code>Watermark &lt; 01:30</code>. Cửa sổ đang ở pha <strong><code>Collecting</code> (Window is open, collecting events)</strong>.</td>
+                  <td><code>e1</code> và <code>e2</code> được nạp vào <code>Window State</code>. Chưa phát bất kỳ kết quả nào vì <code>Watermark</code> chưa chạm mốc kết thúc cửa sổ <code>01:30</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Điểm chuyển pha 1 → 2: Sự kiện <code>e5</code> đẩy Watermark chạm mốc <code>01:30</code></strong></td>
+                  <td><code>e5</code> mang <code>event_time = 01:40</code>, đến hệ thống lúc <code>arrival_time ~ 01:42</code>.</td>
+                  <td><code>Watermark = 01:40 - 10s = 01:30 == end_of_window</code>. Cửa sổ nổ lần đầu (<code>Window fires</code>) và chuyển sang pha <strong><code>Waiting</code></strong>.</td>
+                  <td>Cửa sổ phát kết quả lần 1 xuống hạ nguồn. Nhờ cấu hình <code>allowed lateness = 15s</code>, trạng thái cửa sổ <strong>không bị xóa</strong> mà được giữ sống trong RAM/RocksDB chờ tới khi <code>Watermark = 01:45</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Pha 2: <code>Waiting</code> — Sự kiện trễ <code>e3</code> đến trong hạn ân xá <code>15s</code></strong></td>
+                  <td><code>e3</code> mang <code>event_time ~ 01:15</code> (thuộc cửa sổ <code>[00:30 - 01:30]</code>), đến trễ lúc <code>arrival_time = 01:45</code>.</td>
+                  <td>Tại thời điểm <code>e3</code> đến, <code>Watermark</code> hiện hành vẫn nằm trong vùng ân xá ($01:30 \le W \le 01:45$). Cửa sổ đang ở pha <strong><code>Waiting</code> (Alive, accepting late events)</strong>.</td>
+                  <td><strong>Cửa sổ điểm hỏa lại (<code>Window refires!</code> — Slide 37):</strong> <code>e3</code> được cộng gộp vào <code>Window State</code> hiện có, hàm tổng hợp chạy lại ngay lập tức và phát ra <strong>bản ghi đính chính kết quả</strong> (ví dụ cập nhật <code>count: 3 -&gt; 4</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>Pha 3: <code>Deleted</code> — Sự kiện <code>e4</code> đến sau khi hết hạn ân xá</strong></td>
+                  <td><code>e4</code> mang <code>event_time ~ 01:28</code> (vốn thuộc khung <code>[00:30 - 01:30]</code>), nhưng đến quá muộn lúc <code>arrival_time = 02:00</code>.</td>
+                  <td>Các sự kiện mới hơn đã đẩy <code>Watermark &gt; 01:45</code> (vượt quá <code>01:30 + 15s</code>). Cửa sổ đã chuyển sang pha <strong><code>Deleted</code> (Gone from memory)</strong>.</td>
+                  <td><strong>Bị hủy bỏ (<code>Dropped!</code> — Slide 37):</strong> Toàn bộ <code>Window State</code> của khung <code>[00:30 - 01:30]</code> đã bị dọn dẹp khỏi bộ nhớ để chống tràn RAM; nếu chỉ dùng <code>Allowed Lateness</code> đơn thuần, <code>e4</code> sẽ biến mất vĩnh viễn.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p><strong>Đánh đổi kiến trúc của Allowed Lateness:</strong> Việc bật <code>Allowed Lateness</code> bằng $\Delta_{\text{late}}$ buộc <code>Flink</code> phải giữ toàn bộ <code>Window State</code> trong bộ nhớ lâu hơn đúng một khoảng thời gian $\Delta_{\text{late}}$ (tính theo <code>Event Time</code>), đồng thời yêu cầu hệ thống đích phía hạ nguồn (như <code>PostgreSQL</code>, <code>Apache Iceberg</code>, <code>ClickHouse</code>) phải hỗ trợ cơ chế <strong>ghi đè theo khóa chính (<code>Upsert / Idempotent Update</code>)</strong> vì cùng một cửa sổ sẽ phát ra nhiều bản ghi kết quả nối tiếp nhau (<code>count = 3</code> rồi lại <code>count = 4</code>). Quan trọng hơn, đối với những giao dịch tài chính như <code>Order #8888</code> bị kẹt mạng 30 phút (như sự kiện <code>e4</code> đến sau khi cửa sổ đã chuyển sang trạng thái <code>Deleted</code>), chúng ta tuyệt đối không được phép tăng <code>Allowed Lateness</code> lên hàng giờ (vì sẽ làm nổ bộ nhớ <code>State</code>), nhưng cũng không được phép vứt bỏ dữ liệu. Làm sao để cứu 100% các bản ghi đến quá muộn như <code>e4</code>? Chúng ta tiến vào <strong>Trạm 3.4</strong>.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="flink-3-4">
+          <h2 id="flink-3-4-h2" tabindex="-1">Trạm 3.4: Rẽ nhánh Sự kiện Trễ bằng Side Output &amp; Phác đồ Kết hợp Allowed Lateness + Side Output trên Production</h2>
+
+          <p>Để giải quyết bài toán bảo toàn 100% dữ liệu mà không làm phình bộ nhớ trạng thái, <code>Apache Flink</code> cung cấp <strong>Option 3 — Side Output (Luồng rẽ nhánh phụ cho dữ liệu quá hạn)</strong> (Slides 38–39 &amp; <em>Stream Processing with Apache Flink</em> Ch. 6, tr. 148–151). Thay vì âm thầm tiêu hủy sự kiện <code>e4</code> của đơn hàng <code>Order #8888</code> khi nó chạm tới một cửa sổ đã bị xóa sổ (<code>Deleted</code>), <code>Window Operator</code> đóng vai trò một van phân luồng thông minh: toàn bộ kết quả cửa sổ hợp lệ và các bản cập nhật nằm trong hạn <code>Allowed Lateness</code> vẫn chảy thẳng ra đường ống chính (<code>Main output: normal results</code>), trong khi mọi bản ghi thô đến muộn sau khi cửa sổ đã đóng hoàn toàn sẽ được bẻ lái nguyên vẹn sang một đường ống phụ độc lập gắn nhãn <code>OutputTag</code> (<code>Side output: late events only</code>).</p>
+
+          <p>Trên hệ thống Production thực tế (Slide 39), luồng <code>Side Output</code> không bao giờ bị bỏ quên mà được nối vào 4 nhánh xử lý hạ nguồn chuyên biệt: (1) <strong>Nhật ký kiểm toán (<code>Audit log</code>)</strong> để ghi nhận chính xác sự kiện nào bị trễ và độ lệch <code>Watermark - event_time</code> là bao nhiêu giây; (2) <strong>Tái xử lý bù (<code>Reprocessing</code>)</strong> bằng cách đẩy vào luồng <code>Batch / Backfill</code> cuối ngày hoặc thực thi lệnh <code>MERGE INTO</code> trực tiếp vào bảng lịch sử trong <code>Data Warehouse / Lakehouse</code>; (3) <strong>Hệ thống cảnh báo sớm (<code>Alerting</code>)</strong> bắn tín hiệu cho đội <code>SRE</code> ngay khi tỷ lệ sự kiện rớt vào <code>Side Output</code> vượt ngưỡng bất thường (dấu hiệu đứt cáp hoặc nghẽn <code>Kafka Partition</code> ở thượng nguồn); và (4) <strong>Hàng đợi thư chết (<code>Dead letter queue — DLQ</code>)</strong> lưu trữ nguyên bản xuống <code>Amazon S3</code> hoặc <code>Database</code> để kỹ sư tra cứu và đối soát thủ công.</p>
+
+          <x-figure id="flink-3-4-fig" key="3.4" title="Sơ đồ 3.4 — Kiến trúc Phòng thủ Kép cho Dữ liệu Trễ: Allowed Lateness (Cập nhật Kết quả) + Side Output (Audit Log / Reprocessing / DLQ)">Mô hình kết hợp Allowed Lateness 30s trên luồng chính và rẽ nhánh Side Output sang kho kiểm toán S3/Lakehouse để bảo toàn 100% sự kiện.</x-figure>
+
+          <h3>Ma trận Quyết định Chọn Chiến lược Xử lý Dữ liệu Trễ trên Production (Slide 40)</h3>
+          <p>Không có một cấu hình đơn lẻ nào tối ưu cho mọi bài toán; kỹ sư dữ liệu phải đối chiếu 4 chiều <code>Use When | Latency | Memory | Downstream</code> (Slide 40) và áp dụng <strong>phác đồ phòng thủ kép</strong> cho các đường ống <code>Production</code> quan trọng:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chiến lược Xử lý (Strategy)</th>
+                  <th>Khi nào Sử dụng (Use When)</th>
+                  <th>Độ trễ Đầu ra (Latency)</th>
+                  <th>Chi phí Bộ nhớ (Memory / State)</th>
+                  <th>Yêu cầu Hệ thống Hạ nguồn (Downstream Impact)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Drop (Mặc định — Bỏ qua sự kiện trễ)</strong></td>
+                  <td>Các bài toán chấp nhận xấp xỉ, giám sát hạ tầng hoặc chỉ số vận hành không đòi hỏi đối soát tuyệt đối (<code>Approximate analytics</code>).</td>
+                  <td><strong>Thấp nhất (<code>Low</code>):</strong> Phát kết quả đúng 1 lần duy nhất khi <code>Watermark</code> chạm biên cửa sổ.</td>
+                  <td><strong>Thấp nhất (<code>Low</code>):</strong> Xóa sạch <code>Window State</code> ngay khi cửa sổ nổ lần đầu.</td>
+                  <td><strong>Đơn giản nhất (<code>Simple</code>):</strong> Hạ nguồn chỉ nhận luồng <code>Append-only</code> (mỗi cửa sổ 1 bản ghi duy nhất).</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Allowed Lateness (Gia hạn &amp; Tính lại)</strong></td>
+                  <td>Khi yêu cầu độ chính xác cao trên luồng chính và các sự kiện trễ thường chỉ chậm vài giây đến vài chục giây (<code>Accuracy matters</code>).</td>
+                  <td><strong>Phát sớm + Đính chính (<code>Re-emits updates</code>):</strong> Có kết quả ban đầu ngay, sau đó phát tiếp các bản ghi cập nhật khi có sự kiện trễ.</td>
+                  <td><strong>Cao hơn (<code>Higher</code>):</strong> Phải giữ toàn bộ trạng thái cửa sổ trong <code>RocksDB / Heap</code> cho tới hết thời gian <code>allowedLateness</code>.</td>
+                  <td><strong>Bắt buộc xử lý cập nhật (<code>Must handle updates / Upsert</code>):</strong> Đích nhận phải cập nhật đè kết quả cũ theo khóa <code>(key, window_end)</code> thay vì cộng dồn mù quáng.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Side Output (Rẽ nhánh sự kiện quá hạn)</strong></td>
+                  <td>Khi quy định kiểm toán tài chính hoặc đối soát đơn hàng <code>Order #8888</code> cấm tuyệt đối việc làm rơi bất kỳ bản ghi nào (<code>Zero data loss</code>).</td>
+                  <td><strong>Thấp trên luồng chính (<code>Low on main stream</code>):</strong> Không làm chậm hay giữ bộ nhớ của luồng tính toán chính.</td>
+                  <td><strong>Thấp (<code>Low</code>):</strong> Không cần giữ <code>Window State</code> lâu trên RAM; bản ghi trễ được đẩy thẳng ra nhánh phụ ngay khi đến.</td>
+                  <td><strong>Cần đường ống phụ (<code>Separate pipeline needed</code>):</strong> Phải xây dựng thêm nhánh <code>Sink</code> ghi vào <code>Audit Log</code>, <code>DLQ S3</code> hoặc <code>Batch Reprocessing</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Chuẩn Production: Kết hợp Allowed Lateness + Side Output</strong></td>
+                  <td>Hệ thống thanh toán, thương mại điện tử và tài chính thời gian thực (chuẩn kiến trúc khuyến nghị trên Slide 40).</td>
+                  <td>Cân bằng hoàn hảo: 99% sự kiện trễ nhẹ được sửa ngay trên luồng chính trong vòng <code>30s</code>.</td>
+                  <td>Kiểm soát chặt chẽ: chỉ giữ <code>State</code> thêm đúng <code>30s</code>, chống tràn bộ nhớ <code>RocksDB</code>.</td>
+                  <td>Luồng chính thực hiện <code>Upsert</code> nhanh; 1% sự kiện trễ sâu (như <code>e4</code> trễ hàng chục phút) chảy vào <code>Side Output</code> để đối soát 100% không mất dữ liệu.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <pre><code>// Phác đồ Phòng thủ Kép trên Production (PyFlink / Flink Java API — Slide 38 &amp; 40):
+// Kết hợp .allowedLateness(Time.seconds(30)).sideOutputLateData(late_output_tag)
+
+OutputTag&lt;OrderEvent&gt; late_output_tag = new OutputTag&lt;OrderEvent&gt;("late-orders-dlq"){};
+
+SingleOutputStreamOperator&lt;WindowRevenue&gt; mainRevenueStream = orderStream
+    .keyBy(OrderEvent::getUserId) // Phân vùng theo khách hàng USR-104
+    .window(TumblingEventTimeWindows.of(Time.minutes(1)))
+    .allowedLateness(Time.seconds(30))        // Pha Waiting: giữ cửa sổ sống thêm 30s đón sự kiện trễ nhẹ (như e3)
+    .sideOutputLateData(late_output_tag)      // Pha Deleted: sau 30s, bẻ lái sự kiện quá trễ (như e4 của Order #8888) sang luồng phụ
+    .process(new OrderRevenueWindowFunction());
+
+// 1. Luồng chính (Main Output): Ghi kết quả cửa sổ + các bản đính chính (Upsert) xuống bảng báo cáo thời gian thực
+mainRevenueStream.sinkTo(upsertPostgresOrIcebergSink);
+
+// 2. Luồng phụ (Side Output): Thu hồi 100% sự kiện đến quá muộn để ghi Audit Log, bắn Alert SRE và lưu S3 DLQ
+DataStream&lt;OrderEvent&gt; lateOrdersStream = mainRevenueStream.getSideOutput(late_output_tag);
+lateOrdersStream.sinkTo(s3DeadLetterAndAuditSink);</code></pre>
+
+          <p><strong>Cầu nối chuyển giao sang Chặng 4:</strong> Tới đây, chúng ta đã nắm trọn bộ cơ học cấp thấp của <code>Apache Flink</code>: từ mô hình thực thi luồng thực thụ, đồng hồ <code>Watermark</code>, 4 kiểu cắt lát <code>Window</code>, bộ điểm hỏa <code>Trigger</code> cho tới phác đồ phòng thủ kép <code>Allowed Lateness + Side Output</code>. Nhưng trên thực tế xây dựng nền tảng dữ liệu doanh nghiệp, không phải lúc nào kỹ sư cũng viết từng dòng <code>DataStream API</code> và tự quản lý <code>Trigger / State</code> thủ công; <code>Flink</code> cung cấp một hệ thống phân tầng APIs từ thấp lên cao — nơi một dòng câu lệnh <code>Flink SQL</code> hay <code>Table API</code> có thể tự động biên dịch xuống đúng bộ máy trạng thái mà chúng ta vừa giải phẫu. Làm sao để chuyển đổi mượt mà giữa một <strong>Dòng chảy Sự kiện (<code>Stream</code>)</strong> và một <strong>Bảng Động (<code>Dynamic Table</code>)</strong>? Chúng ta bước sang <strong>Chặng 4: Hệ Sinh Thái Flink APIs — DataStream API, Dynamic Tables, Table API &amp; Flink SQL</strong>.</p>
+        </section>
+
+        <section class="summary-section" id="flink-3-summary">
+          <h2 id="flink-3-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 3 &amp; Checklist 5 câu hỏi bản chất</h2>
+          <p><strong>Checklist tự kiểm tra Chặng 3 (5 Câu hỏi Bản chất):</strong></p>
+          <ol>
+            <li><strong>Tại sao các phép toán tổng hợp trên luồng sự kiện vô hạn bắt buộc phải dùng Window, và sự khác biệt cơ học cốt lõi giữa Tumbling, Sliding, Session và Global Window là gì?</strong><br>Vì luồng dữ liệu vô hạn không bao giờ kết thúc nên không thể đợi đọc hết toàn bộ dữ liệu mới tính tổng; <code>Window</code> cắt luồng vô hạn thành các lát cắt hữu hạn (<code>finite slices</code>) để tính toán và phát kết quả liên tục. <code>Tumbling Window</code> chia khung cố định không chồng lấp (mỗi sự kiện thuộc đúng 1 cửa sổ); <code>Sliding Window</code> trượt chồng lấp khi <code>slide &lt; size</code> (mỗi sự kiện nhân bản vào $\text{size}/\text{slide}$ cửa sổ); <code>Session Window</code> co giãn động theo hành vi và tự động gộp (<code>merge</code>) khi khoảng cách giữa các sự kiện nhỏ hơn <code>inactivity gap</code>; còn <code>Global Window</code> gom toàn bộ sự kiện cùng khóa vào 1 cửa sổ duy nhất không có biên thời gian tự nhiên.</li>
+            <li><strong>Window Assigner và Window Trigger phân chia trách nhiệm như thế nào, và tại sao việc dùng Global Window mà quên khai báo Trigger lại gây ra thảm họa "Silent Failure"?</strong><br><code>Window Assigner</code> trả lời câu hỏi <em>"Làm sao gom các sự kiện vào các khung cửa sổ?"</em>, còn <code>Window Trigger</code> trả lời câu hỏi <em>"Khi nào tính toán hàm cửa sổ và phát kết quả ra ngoài?"</em>. Khác với <code>Tumbling</code>, <code>Sliding</code> và <code>Session Window</code> có sẵn <code>EventTimeTrigger</code> nổ khi <code>Watermark</code> chạm cuối cửa sổ, <code>Global Window</code> có <code>Default Trigger = None</code> (<code>NeverTrigger</code>). Nếu quên gắn <code>Trigger</code> tường minh (như <code>CountTrigger</code>), ứng dụng không báo lỗi nhưng không bao giờ phát kết quả và giữ chặt mọi sự kiện trong <code>State</code> cho tới khi sập <code>OutOfMemoryError</code>.</li>
+            <li><strong>Khi nào một sự kiện bị coi là "Late Event" (đến muộn), và một cửa sổ bật Allowed Lateness sẽ đi qua 3 trạng thái vòng đời nào?</strong><br>Sự kiện bị coi là trễ khi nó chạm tới toán tử cửa sổ sau khi <code>Trigger</code> của cửa sổ đó đã điểm hỏa (tức <code>Watermark</code> đã vượt qua thời điểm kết thúc cửa sổ). Khi bật <code>Allowed Lateness</code>, cửa sổ đi qua 3 pha: (1) <code>Collecting</code> — cửa sổ mở và tích lũy sự kiện bình thường cho tới khi <code>Watermark</code> chạm <code>window_end</code>; (2) <code>Waiting</code> — sau lần nổ đầu tiên, cửa sổ vẫn sống trong bộ nhớ thêm một khoảng <code>Allowed Lateness</code>, mỗi sự kiện trễ lọt vào giai đoạn này sẽ làm cửa sổ nổ lại (<code>refire</code>) và phát kết quả đính chính; (3) <code>Deleted</code> — khi <code>Watermark</code> vượt mốc <code>window_end + Allowed Lateness</code>, trạng thái cửa sổ bị xóa vĩnh viễn khỏi bộ nhớ.</li>
+            <li><strong>Trong kịch bản thực nghiệm Slide 37 với cửa sổ <code>[00:30 - 01:30]</code>, <code>out-of-order = 10s</code> và <code>allowed lateness = 15s</code>, tại sao sự kiện <code>e3</code> (đến lúc <code>01:45</code>) làm cửa sổ tính lại trong khi <code>e4</code> (đến lúc <code>02:00</code>) lại bị hủy bỏ?</strong><br>Khi sự kiện <code>e5</code> (<code>event_time = 01:40</code>) đến, <code>Watermark</code> được cập nhật thành $01:40 - 10\text{s} = 01:30$, chạm đúng biên kết thúc làm cửa sổ nổ lần đầu và bước vào pha <code>Waiting</code> với hạn chót xóa sổ là $01:30 + 15\text{s} = 01:45$. Sự kiện <code>e3</code> (<code>event_time ~ 01:15</code>) đến lúc <code>01:45</code> khi cửa sổ vẫn còn trong hạn ân xá <code>15s</code> nên kích hoạt cửa sổ tính lại (<code>window refires</code>). Ngược lại, khi <code>e4</code> (<code>event_time ~ 01:28</code>) đến lúc <code>02:00</code>, đồng hồ <code>Watermark</code> đã vượt qua mốc <code>01:45</code>, cửa sổ đã chuyển sang trạng thái <code>Deleted</code> nên <code>e4</code> bị loại bỏ (<code>dropped</code>).</li>
+            <li><strong>Tại sao chuẩn kiến trúc trên Production luôn kết hợp cả Allowed Lateness lẫn Side Output thay vì chỉ dùng một trong hai?</strong><br>Nếu chỉ dùng <code>Allowed Lateness</code> với thời gian quá dài để đón các sự kiện trễ hàng giờ, bộ nhớ <code>RocksDB / Heap State</code> sẽ phình khổng lồ và gây nghẽn toàn cụm; ngược lại nếu đặt <code>Allowed Lateness</code> ngắn mà không có <code>Side Output</code>, các sự kiện trễ sâu như <code>e4</code> sẽ bị mất vĩnh viễn. Kết hợp <code>Allowed Lateness</code> ngắn (ví dụ <code>30s</code>) giúp tự động đính chính ngay 99% sự kiện trễ nhẹ trên luồng chính với chi phí RAM thấp, đồng thời gắn <code>Side Output</code> (<code>sideOutputLateData</code>) giúp hứng trọn 1% sự kiện trễ sâu còn lại đẩy vào <code>Audit Log</code>, <code>Alerting</code>, <code>Dead Letter Queue (S3)</code> và tác vụ <code>Batch Reprocessing</code> để bảo toàn 100% dữ liệu.</li>
+          </ol>
+          <p style="margin-top:14px;"><a href="#/D04/4" onclick="selectStorageStage(4);return false;">Sang Chặng 4: Hệ Sinh Thái Flink APIs — DataStream API, Dynamic Tables, Table API &amp; Flink SQL →</a></p>
+        </section>
+      </div>

@@ -1455,6 +1455,783 @@ RAW_GLOSSARY = [
         "curl -X POST -H 'Content-Type: application/json' --data @register-postgres-connector.json http://connect:8083/connectors",
         "Nếu bảng được Debezium theo dõi nằm chung Database với các bảng ghi ồ ạt nhưng bản thân nó ít phát sinh giao dịch, việc quên cấu hình `heartbeat.interval.ms` sẽ khiến `confirmed_flush_lsn` đứng im và làm đầy 100% ổ cứng PostgreSQL!"
     ),
+
+    # =========================================================================
+    # F05: VALIDATION & VERIFICATION (V-MODEL, PYTEST, MOCK, TESTCONTAINERS, TDD)
+    # =========================================================================
+    (
+        "validation.v-model-shift-left",
+        "Validation & Verification Model (V-Model) & Shift-Left Cost of Bugs (1x → 30x)",
+        "QUALITY & V-MODEL",
+        ["F05"],
+        [
+            "v-model", "verification", "validation", "shift-left", "shift-left testing",
+            "cost of bugs", "software lifecycle", "sdlc", "user acceptance testing", "uat"
+        ],
+        "Mô hình chữ V (V-Model) ghép cặp đối xứng từng pha thiết kế bên nhánh trái (Verification — làm đúng quy trình) với một pha kiểm thử bên nhánh phải (Validation — làm đúng sản phẩm), nhằm phát hiện lỗi sớm trước khi chi phí sửa lỗi nhân lên 30 lần trên Production.",
+        "Nhánh trái Verification kiểm tra tài liệu và cấu trúc thiết kế trước khi chạy code (`Requirement Gathering → Functional Design → Internal System Design → Module Design`); đáy chữ V là `< CODING >`; nhánh phải Validation thực thi phần mềm đối chiếu ngược lại (`Unit Testing → Integration Testing → Functional Testing → UAT`). Đẩy kiểm thử sang trái (Shift-Left) giúp kìm chi phí sửa lỗi ở mức 1x–5x thay vì 30x sau khi phát hành.",
+        "pytest tests/unit/   # Chặn lỗi ngay ở pha Coding (5x) trước khi lọt lên Production (30x)",
+        "Verification trả lời 'Are we building the product right?', còn Validation trả lời 'Are we building the right product?'."
+    ),
+    (
+        "validation.testing-methods-formal",
+        "Black-Box, Grey-Box, White-Box Testing & Formal Verification (Hoare Logic, Symbolic Execution, Mutation Testing)",
+        "TESTING PARADIGMS",
+        ["F05"],
+        [
+            "black-box testing", "black box testing", "grey-box testing", "gray box testing",
+            "white-box testing", "white box testing", "glass-box testing", "sdet",
+            "hoare logic", "symbolic execution", "mutation testing", "automated testing", "manual testing"
+        ],
+        "Ba phương pháp kiểm thử phân tầng theo mức độ thấu thị mã nguồn: Hộp đen (0% code, chỉ đo Input/Output), Hộp xám (biết API/DB schema) và Hộp trắng (nắm 100% nhánh rẽ nội tại kèm kiểm chứng toán học).",
+        "Ở tầng White-box nâng cao, kỹ sư và SDET kết hợp 3 kỹ thuật: Hoare Logic chứng minh tính đúng đắn qua bộ ba `{P} C {Q}` (Precondition → Command → Postcondition); Symbolic Execution thay đầu vào bằng biến ký hiệu để giải điều kiện biên; và Mutation Testing cố tình cấy lỗi giả (Mutants như đổi `>` thành `>=`) để kiểm định xem bộ test có đủ nhạy để phát hiện không.",
+        "mutmut run --paths-to-mutate=app/service.py   # Kiểm thử đột biến đánh giá chất lượng bộ test",
+        "Đạt 100% Code Coverage chưa chắc đã an toàn nếu thiếu assert chặt chẽ; Mutation Testing giúp phát hiện các bài test 'chạy qua code nhưng không kiểm tra kết quả'."
+    ),
+    (
+        "validation.functional-nonfunctional-scopes",
+        "Functional Testing (Unit, Integration, System, Alpha/Beta/UAT) vs. Non-Functional Testing (Load, Stress, Smoke, Regression)",
+        "TESTING SCOPES",
+        ["F05"],
+        [
+            "functional testing", "non-functional testing", "unit testing", "unit test",
+            "integration testing", "integration test", "system testing", "acceptance testing",
+            "alpha testing", "beta testing", "performance testing", "load testing",
+            "stress testing", "security testing", "usability testing", "compatibility testing",
+            "regression testing", "smoke testing", "recovery testing", "monkey testing"
+        ],
+        "Functional Testing kiểm tra hệ thống làm được tính năng gì (Unit → Integration → System → Alpha/Beta/UAT), còn Non-Functional Testing đo lường hệ thống vận hành tốt đến mức nào dưới tải cao (Load 500 CCU vs Stress 5000 CCU) và sự cố.",
+        "Load Testing kiểm tra độ ổn định ở mức tải kỳ vọng (ví dụ 500 người dùng đồng thời), trong khi Stress Testing ép tải vượt ngưỡng thiết kế (5000 người dùng) để tìm điểm gãy (Breaking Point) và khả năng hạ cánh an toàn. Trong vận hành CI/CD hàng ngày, Smoke Testing lọc nhanh các bản build lỗi nặng, còn Regression Testing đảm bảo code mới không làm vỡ tính năng cũ.",
+        "pytest tests/unit tests/integration && locust -f load_test.py --users 500 --spawn-rate 50",
+        "Mọi bản vá lỗi (Bugfix) bắt buộc phải đi kèm ít nhất một bài Regression Test để lỗi đó không bao giờ tái xuất hiện ở các phiên bản sau."
+    ),
+    (
+        "validation.pytest-fixtures-conftest",
+        "Pytest Framework: Test Discovery, @pytest.fixture, yield Setup/Teardown & Shared conftest.py",
+        "PYTEST CORE",
+        ["F05"],
+        [
+            "pytest", "pytest.fixture", "fixtures", "fixture", "conftest", "conftest.py",
+            "test discovery", "setup and teardown"
+        ],
+        "Fixture trong pytest là cơ chế tiêm phụ thuộc (Dependency Injection) tự động thiết lập môi trường trước khi chạy test (trước từ khóa yield) và dọn dẹp tài nguyên sạch sẽ ngay sau khi test kết thúc (sau từ khóa yield).",
+        "Pytest tự động dò các file `test_*.py`, hàm `def test_*()` và lớp `class Test*`. Khi hàm test khai báo tên fixture trong danh sách tham số, pytest sẽ thực thi phần Setup trước `yield`, trao đối tượng cho hàm test, và luôn chạy phần Teardown sau `yield` (đóng kết nối DB, xóa dữ liệu tạm). Đặt fixture trong `tests/conftest.py` giúp chia sẻ tự động cho mọi file test cùng thư mục mà không cần câu lệnh import.",
+        "@pytest.fixture\ndef db_conn():\n    conn = connect_db()\n    yield conn\n    conn.close()",
+        "Sử dụng `yield` trong `@pytest.fixture` an toàn và gọn gàng hơn viết hàm `setup_method`/`teardown_method` truyền thống vì nhánh dọn dẹp sau `yield` luôn chạy kể cả khi bài test bị Fail giữa chừng."
+    ),
+    (
+        "validation.pytest-markers-parametrize",
+        "Pytest Markers (@pytest.mark, pyproject.toml, pytest -m) & Data-Driven @pytest.mark.parametrize",
+        "PYTEST CORE",
+        ["F05"],
+        [
+            "pytest.mark", "markers", "parametrize", "pytest.mark.parametrize",
+            "pytest.mark.skip", "pytest.mark.skipif", "pytest.mark.xfail", "pyproject.toml", "pytest.ini"
+        ],
+        "Markers gắn nhãn phân loại hàm test để lọc chạy linh hoạt qua cờ `pytest -m`, trong khi `@pytest.mark.parametrize` giúp viết 1 hàm test duy nhất nhưng tự động nhân bản chạy qua hàng chục bộ dữ liệu Input/Expected.",
+        "Các custom markers (như `slow`, `api`, `db`) cần được đăng ký trong `[tool.pytest.ini_options]` của `pyproject.toml` để tránh cảnh báo `PytestUnknownMarkWarning`, cho phép lọc bằng biểu thức logic `pytest -m 'slow and not db'`. Marker dựng sẵn `@pytest.mark.parametrize('input, expected', [(1, 2), (2, 3)])` tách mỗi tuple thành một ca kiểm thử độc lập với báo cáo Pass/Fail riêng biệt.",
+        "@pytest.mark.parametrize('amount, expected', [(100, 110), (0, 0), (-5, ValueError)])",
+        "Kết hợp `@pytest.mark.parametrize` với các giá trị biên (0, số âm, chuỗi rỗng, cực đại) giúp rút ngắn 80% dung lượng code kiểm thử trùng lặp."
+    ),
+    (
+        "validation.mocking-testcontainers-tdd",
+        "Dependency Isolation (pytest-mock, mocker.patch, MagicMock, side_effect), Testcontainers, tox, pytest-cov & TDD (Red-Green-Refactor)",
+        "MOCKING, INFRA & TDD",
+        ["F05"],
+        [
+            "pytest-mock", "mocker", "mocker.patch", "magicmock", "side_effect",
+            "testcontainers", "postgrescontainer", "tox", "tox.ini",
+            "code coverage", "pytest-cov", "test-driven development", "tdd", "red-green-refactor"
+        ],
+        "Hệ sinh thái khép kín từ cô lập Unit Test bằng `mocker.patch` (luôn patch tại nơi hàm được gọi, không phải nơi định nghĩa), dựng Docker DB thật bằng Testcontainers, đo điểm mù `pytest-cov` đến quy trình viết test trước khi viết code TDD (Red → Green → Refactor).",
+        "Khi một module dùng `from myapp.api import get_data`, tham chiếu `get_data` đã gắn vào namespace `myapp.service`, nên bắt buộc phải gọi `mocker.patch('myapp.service.get_data')`. Với Integration Test cần kiểm tra SQL thật, `Testcontainers` tự bật/tắt container `postgres:16`; `tox` chạy ma trận đa phiên bản Python (`py39, py310, py311`); `pytest --cov` chỉ ra các dòng `Miss` chưa được test. Quy trình TDD xoay vòng 3 bước: RED (viết test Fail) → GREEN (viết code tối giản để Pass) → REFACTOR (làm sạch code dưới lưới bảo hiểm của bộ test).",
+        "mocker.patch('myapp.service.get_data', return_value={'value': 10})   # Patch tại nơi sử dụng!",
+        "Áp dụng TDD cực kỳ hiệu quả cho logic nghiệp vụ cốt lõi và pipeline dữ liệu dài hạn, nhưng cần lưu ý chi phí thời gian phát triển ban đầu thường tăng thêm 20–50%."
+    ),
+
+    # =========================================================================
+    # D04: TRANSFORMATION LAYER (STREAM · FLINK) — CHẶNG 1 ĐẾN CHẶNG 6
+    # =========================================================================
+    (
+        "flink.architecture-slots",
+        "Apache Flink Architecture: Master-Worker (JobManager & TaskManager), Task Slots, Sub-tasks, Parallelism & Execution Graph",
+        "FLINK RUNTIME & ARCHITECTURE",
+        ["D04"],
+        [
+            "apache flink", "flink", "jobmanager", "taskmanager", "taskmanagers",
+            "task slot", "task slots", "sub-task", "sub-tasks", "subtask", "subtasks",
+            "parallelism", "execution graph", "jobgraph", "streamgraph", "dispatcher",
+            "checkpoint coordinator", "slot sharing", "unbounded data", "bounded data"
+        ],
+        "Apache Flink là động cơ xử lý luồng có trạng thái (Stateful Stream Processor) vận hành theo kiến trúc Master-Worker: JobManager đóng vai trò bộ não điều phối và lập lịch, còn các TaskManagers là cơ bắp thực thi các Sub-tasks bên trong những lát cắt tài nguyên gọi là Task Slots.",
+        "Khi nhận chương trình từ Client, JobManager phân tích và tối ưu hóa đồ thị luồng thành Execution Graph rồi gán từng Sub-task vào các Task Slots trên TaskManagers. Mỗi Task Slot cô lập một phần cố định bộ nhớ được quản lý (Managed Memory — ví dụ 3 slots thì mỗi slot nhận 1/3 RAM) nhưng chia sẻ chung CPU của TaskManager. Độ song song (Parallelism) quyết định số lượng bản sao Sub-task chạy đồng thời trên các luồng độc lập, trong khi JobManager giám sát sức khỏe qua Heartbeats và phối hợp lưu Checkpoint định kỳ.",
+        "flink run -m yarn-cluster -p 4 -ys 2 /opt/flink/jobs/order_streaming_job.py",
+        "Một TaskManager có 3 Task Slots sẽ chia mỗi Slot đúng 1/3 Managed Memory để chống tranh chấp bộ nhớ, nhưng cả 3 Slots vẫn dùng chung các nhân CPU của tiến trình JVM đó."
+    ),
+    (
+        "flink.time-watermarks",
+        "Flink Time Semantics (Event Time, Ingestion Time, Processing Time), Watermark Clock Formula & Three Watermark Strategies",
+        "TIME SEMANTICS & WATERMARKS",
+        ["D04"],
+        [
+            "event time", "ingestion time", "processing time", "watermark", "watermarks",
+            "watermark strategy", "watermarkgenerator", "monotonous timestamps",
+            "bounded out-of-orderness", "for_bounded_out_of_orderness", "for_monotonous_timestamps",
+            "with_idleness", "timestamp extractor", "time skew"
+        ],
+        "Event Time là thời điểm sự kiện thực sự xảy ra ngoài đời thực (nằm trong payload), còn Watermark là chiếc đồng hồ logic chảy xen kẽ trong luồng sự kiện theo công thức Watermark = max(event_time) - allowed_delay để báo hiệu mọi sự kiện trước mốc đó đã đến đủ.",
+        "Trong mạng phân tán, sự kiện có thể xảy ra lúc 10:00:30 (Event Time), vào Flink lúc 10:01:45 (Ingestion Time) và được toán tử xử lý lúc 10:01:46 (Processing Time). Khi Watermark W chạm hoặc vượt mốc kết thúc của một cửa sổ (W >= window_end), Window Operator lập tức đóng cửa sổ và phát kết quả. Flink cung cấp 3 chiến lược sinh Watermark: Monotonous Timestamps (trễ = 0s, dùng cho luồng tăng đơn điệu), Bounded Out-of-Orderness (trễ cố định cấu hình theo phân vị p95/p99 thực tế trên Production), và Custom WatermarkGenerator (tùy biến on_event và on_periodic_emit).",
+        "WatermarkStrategy.for_bounded_out_of_orderness(Duration.of_seconds(10)).with_idleness(Duration.of_minutes(1))",
+        "Khi đọc từ nhiều Kafka Partitions, Watermark của toán tử hạ nguồn tiến lên theo giá trị nhỏ nhất (min) của tất cả các kênh đầu vào; do đó phải bật with_idleness() để một Partition vắng dữ liệu không làm đóng băng toàn bộ cửa sổ!"
+    ),
+    (
+        "flink.windows-triggers-lateness",
+        "Flink Windowing (Tumbling, Sliding, Session, Global), Window Triggers, Allowed Lateness 3-State Lifecycle & Side Output",
+        "WINDOWING & LATE DATA",
+        ["D04"],
+        [
+            "tumbling window", "tumbling windows", "sliding window", "sliding windows",
+            "session window", "session windows", "global window", "global windows",
+            "window assigner", "window trigger", "eventtimetrigger", "allowed lateness",
+            "allowed_lateness", "side output", "side_output_late_data", "outputtag", "late events"
+        ],
+        "Window cắt luồng sự kiện vô hạn thành các lát cắt hữu hạn để tổng hợp (Tumbling cố định, Sliding trượt chồng lấp, Session theo khoảng lặng, Global toàn cục), trong khi Trigger quyết định thời điểm tính toán và bộ đôi Allowed Lateness + Side Output bảo toàn 100% sự kiện đến muộn.",
+        "Tumbling, Sliding và Session Windows mặc định đi kèm EventTimeTrigger, riêng Global Window có Default Trigger = None nên nếu quên gắn Trigger sẽ gây rò rỉ bộ nhớ câm lặng (Silent OOM). Khi bật Allowed Lateness, vòng đời cửa sổ đi qua 3 trạng thái: Collecting (trước window_end) -> Waiting (vẫn sống trong bộ nhớ đến window_end + allowed_lateness, mỗi khi có sự kiện trễ lọt vào sẽ điểm hỏa lại / refire để phát kết quả đính chính) -> Deleted (xóa khỏi bộ nhớ). Các sự kiện đến sau khi cửa sổ đã Deleted sẽ được rẽ nhánh an toàn qua Side Output vào Audit Log / Dead Letter Queue hoặc chạy Reprocessing.",
+        "windowed_stream.allowed_lateness(Time.seconds(30)).side_output_late_data(OutputTag('late-orders', Types.ROW(...)))",
+        "Kiến trúc chuẩn Production luôn kết hợp cả hai: đặt Allowed Lateness ngắn (ví dụ 30s) để tự động đính chính các sự kiện trễ nhẹ trên luồng chính, đồng thời gắn Side Output để hứng toàn bộ sự kiện trễ sâu phục vụ đối soát."
+    ),
+    (
+        "flink.apis-dynamic-table-sql",
+        "Flink API Hierarchy: DataStream API (ProcessFunction), Stream-Table Duality (Dynamic Tables), Table API & Flink SQL (TUMBLE, HOP, SESSION)",
+        "FLINK APIS & SQL ENGINE",
+        ["D04"],
+        [
+            "datastream api", "datastream", "processfunction", "keyedprocessfunction",
+            "table api", "flink sql", "dynamic table", "dynamic tables",
+            "stream-table duality", "keyby", "from_data_stream", "to_data_stream",
+            "tumble", "hop", "session"
+        ],
+        "Tháp API 3 tầng của Flink cho phép chọn mức trừu tượng phù hợp: DataStream API kiểm soát từng sự kiện và bộ hẹn giờ ở tầng thấp, trong khi Table API và Flink SQL coi luồng dữ liệu như một Bảng động (Dynamic Table) và biên dịch ra cùng một Execution Plan vật lý tối ưu.",
+        "Trong DataStream API, phép biến đổi keyBy() băm khóa để gom các sự kiện cùng thực thể về đúng Sub-task trước khi gọi window() hoặc aggregate(). Nhờ nguyên lý Đối ngẫu Luồng - Bảng (Stream-Table Duality), mỗi sự kiện chảy vào được ánh xạ thành một bản ghi chèn/cập nhật trên Dynamic Table, cho phép viết truy vấn Flink SQL với các hàm cửa sổ dựng sẵn TUMBLE, HOP, SESSION (trải qua 5 bước: Write SQL -> Parse -> Optimize Plan -> Create Execution Plan -> Run on Flink Runtime) và chuyển đổi hai chiều mượt mà qua from_data_stream() / to_data_stream().",
+        "SELECT productId, SUM(amount) AS total_sales FROM SalesEvents GROUP BY productId, TUMBLE(event_time, INTERVAL '1' MINUTE)",
+        "Table API và DataStream API sinh ra Execution Plan vật lý hoàn toàn giống nhau: sự khác biệt nằm ở năng suất của người lập trình (buồng lái vs. buồng máy), không phải ở tốc độ thực thi!"
+    ),
+    (
+        "flink.state-rocksdb-checkpoint",
+        "Flink Stateful Processing: Keyed vs. Operator State, State Backends (JVM Heap vs. RocksDB), Checkpoint Barriers (Chandy-Lamport) & Exactly-Once",
+        "STATE & CHECKPOINTING",
+        ["D04"],
+        [
+            "stateful", "stateless", "keyed state", "operator state", "valuestate",
+            "liststate", "mapstate", "state backend", "hashmapstatebackend",
+            "embeddedrocksdbstatebackend", "rocksdb", "checkpoint", "checkpointing",
+            "checkpoint barrier", "checkpoint barriers", "chandy-lamport", "savepoint"
+        ],
+        "Mỗi sự kiện đi qua toán tử có trạng thái đều kích hoạt chu trình 5 bước đọc/ghi State cục bộ (trên JVM Heap hoặc ổ đĩa NVMe qua RocksDB), và được bảo vệ chống sập nguồn nhờ các rào chắn Checkpoint Barriers chảy dọc luồng dữ liệu theo thuật toán Chandy-Lamport.",
+        "Keyed State lưu trữ tách biệt cho từng khóa sau keyBy(), trong khi Operator State gắn với từng bản sao Sub-task (điển hình là Kafka Source lưu Partition Offsets). Khi JobManager phát lệnh chụp Checkpoint N, các Source bơm Barrier N vào luồng dữ liệu; mỗi khi Barrier N đi qua một toán tử, toán tử đó chụp ảnh trạng thái cục bộ và đẩy bất đồng bộ (asynchronously) xuống S3/HDFS mà không làm dừng luồng xử lý. Khi gặp sự cố, các TaskManagers khôi phục State từ Checkpoint N mới nhất và tua ngược (rewind) Kafka Source về đúng Offset tại mốc N để cam kết Exactly-Once.",
+        "env.enable_checkpointing(10000, CheckpointingMode.EXACTLY_ONCE); env.set_state_backend(EmbeddedRocksDBStateBackend(True))",
+        "Bước 2 (Đọc State) và Bước 4 (Ghi State) diễn ra trên TỪNG SỰ KIỆN MỘT — vì vậy State bắt buộc phải đặt cục bộ ngay trên TaskManager (RAM hoặc RocksDB) thay vì gọi qua mạng tới CSDL ngoài!"
+    ),
+    (
+        "flink.chaining-backpressure-deploy",
+        "Flink Performance & Deployment: Operator Chaining, Credit-Based Backpressure Resolution (Async I/O, RocksDB Tuning) & Application vs. Session Mode",
+        "PERFORMANCE & DEPLOYMENT",
+        ["D04"],
+        [
+            "operator chaining", "disable_chaining", "start_new_chain", "backpressure",
+            "credit-based flow control", "async i/o", "asyncdatastream", "unorderedwait",
+            "block cache", "write buffer", "session mode", "application mode",
+            "flink kubernetes operator"
+        ],
+        "Bốn trụ cột vận hành Flink ở quy mô Production: hàn gắn các toán tử tương thích vào chung 1 luồng CPU bằng Operator Chaining, chẩn đoán và xử lý nút thắt cổ chai qua tín hiệu Backpressure, và triển khai cô lập tuyệt đối theo kiến trúc Application Mode.",
+        "Operator Chaining gộp các toán tử nối tiếp (như Source + Map + Filter) vào cùng một luồng trong 1 Task Slot để truyền đối tượng trực tiếp trên RAM, loại bỏ hoàn toàn chi phí Serialization, Network Buffer và chuyển ngữ cảnh luồng. Khi một toán tử hạ nguồn bị chậm, cơ chế Credit-Based Flow Control làm đầy bộ đệm và truyền áp lực phanh (Backpressure) ngược về Source (hiển thị HIGH Red trên Flink Web UI); thứ tự xử lý chuẩn là: (1) tăng Parallelism cho toán tử chậm bằng set_parallelism(), (2) dùng Async I/O cho các lời gọi tra cứu bên ngoài, và (3) tăng Block Cache / Write Buffer cho RocksDB. Khi lên Production, luôn chọn Application Mode (1 cụm độc lập cho mỗi Job) thay vì Session Mode để tránh rủi ro Noisy Neighbor.",
+        "stream.map(heavy_fn).set_parallelism(8).start_new_chain()",
+        "Trên Flink Web UI, toán tử đầu tiên báo Backpressure HIGH (hoặc toán tử đứng ngay sau chuỗi HIGH nhưng bản thân có Busy = 100% và Backpressured = 0%) chính là thủ phạm gây nghẽn gốc!"
+    ),
+
+    # =========================================================================
+    # D06: ORCHESTRATION & GOVERNANCE (AIRFLOW, GX, DEEQU, DATA CONTRACTS, DATAHUB)
+    # =========================================================================
+    (
+        "orchestration.pipeline-five-pillars",
+        "Pipeline Orchestration, Dependency Graph, Automated Triggers, State Tracking, Failure Handling & Resource Coordination",
+        "PIPELINE ORCHESTRATION",
+        ["D06"],
+        [
+            "pipeline orchestration", "workflow orchestration", "naive scheduling",
+            "dependency management", "state tracking", "failure handling",
+            "resource coordination", "time-based trigger", "event-based trigger",
+            "data availability trigger"
+        ],
+        "Pipeline Orchestration là hệ thần kinh trung ương điều phối thứ tự phụ thuộc, trạng thái thực thi, cơ chế thử lại khi lỗi và phân bổ hạn ngạch tài nguyên giữa các tác vụ dữ liệu, thay thế hoàn toàn cách lập lịch mù theo đồng hồ (Naive Time-Based Scheduling).",
+        "Khác với bộ lập lịch theo giờ ngây thơ (chạy bước Transform đúng 03:00 AM bất chấp bước Extract thượng nguồn bị trễ tới 03:20 AM gây khuyết thiếu dữ liệu), một Orchestrator chỉ kích hoạt tác vụ khi toàn bộ các nút phụ thuộc thượng nguồn (`Upstream Dependencies`) đã báo trạng thái `SUCCESS`. Hệ thống cung cấp 5 trụ cột: quản lý phụ thuộc tuần tự/song song, kích hoạt đa phương thức (Time, Manual, Data Availability, Event), theo dõi máy trạng thái 6 nấc (`queued`, `running`, `success`, `failed`, `retrying`, `skipped`), cô lập lỗi tự động và điều tiết áp lực hạ tầng qua Pool.",
+        "extract_orders >> clean_orders >> validate_orders >> load_warehouse >> refresh_dashboard",
+        "Lập lịch (Scheduling) chỉ quyết định thời điểm khởi phát quy trình, còn Điều phối (Orchestration) kiểm soát toàn bộ sự sống còn và tính đúng đắn của quy trình sau khi nó đã bắt đầu."
+    ),
+    (
+        "orchestration.idempotency-backfill-dynamic",
+        "Idempotency (f(f(x)) = f(x)), Atomicity, Data Interval Backfill, Dynamic Task Mapping (.expand) & Asset-Aware Scheduling",
+        "IDEMPOTENCY & BACKFILL",
+        ["D06"],
+        [
+            "idempotency", "idempotent", "tính lũy đẳng", "atomicity", "tính nguyên tử",
+            "backfill", "backfilling", "data interval", "data_interval_start", "data_interval_end",
+            "logical_date", "catchup", "dynamic task mapping", "asset-aware scheduling"
+        ],
+        "Tính lũy đẳng (Idempotency) đảm bảo việc thực thi một tác vụ 1 lần hay N lần trên cùng một cửa sổ dữ liệu logic (Data Interval) đều tạo ra trạng thái đích hệt nhau, không bao giờ gây nhân đôi bản ghi khi Retry hoặc chạy bù lịch sử (Backfill).",
+        "Để đạt tính nguyên tử (`Atomicity`) và lũy đẳng (`f(f(x)) = f(x)`), kỹ sư cấm dùng lệnh `INSERT` nối đuôi mù quáng kèm hàm `NOW()`, mà phải tham số hóa khung thời gian `[data_interval_start, data_interval_end)` kết hợp mẫu `DELETE-then-INSERT` trong một Transaction, `MERGE / ON CONFLICT DO UPDATE` theo khóa chính hoặc ghi đè phân vùng (`INSERT OVERWRITE PARTITION`). Khi cần co giãn linh hoạt lúc Runtime, Airflow cung cấp `Dynamic Task Mapping` (`.partial().expand()`) và lập lịch hướng sự kiện tài sản (`Asset-Aware Scheduling`) để kích hoạt DAG hạ nguồn ngay khi Dataset URI được cập nhật.",
+        "airflow dags backfill --start-date 2026-05-01 --end-date 2026-05-15 daily_sales_pipeline",
+        "Một đường ống chỉ có thể chạy Backfill an toàn cho 30 ngày lịch sử khi mọi tác vụ bên trong nó đều tuân thủ nghiêm ngặt tính lũy đẳng và không phụ thuộc vào đồng hồ hệ thống `datetime.now()`."
+    ),
+    (
+        "orchestration.airflow-dag-architecture",
+        "Apache Airflow Architecture: Directed Acyclic Graph (DAG), DAG Run, Task Instance, Scheduler, Metadata Database & Airflow 3.0 Execution API",
+        "APACHE AIRFLOW ARCHITECTURE",
+        ["D06"],
+        [
+            "apache airflow", "workflows as code", "directed acyclic graph", "dag",
+            "dag run", "task instance", "metadata database", "dag processor",
+            "task execution api", "airflow scheduler"
+        ],
+        "Apache Airflow hiện thực hóa triết lý Workflows as Code bằng đồ thị có hướng không chu trình (DAG), đóng vai trò nhạc trưởng điều phối thông qua 6 thành phần xoay quanh nguồn sự thật duy nhất là Metadata Database.",
+        "Airflow phân biệt rõ bản thiết kế tĩnh (`DAG` và `Task`) với phiên thực thi động theo từng kỳ dữ liệu (`DAG Run` và `Task Instance`). Kiến trúc gồm `DAG Processor` (quét và tuần tự hóa tệp Python), `Scheduler` (kiểm tra phụ thuộc và xếp hàng tác vụ), `Executor` (cơ chế điều vận), `Workers` (thực thi mã lệnh), `Web/API Server` và `Metadata Database` (PostgreSQL/MySQL). Từ Airflow 3.0, các Worker không còn kết nối SQL trực tiếp vào Metadata DB mà giao tiếp qua `Task Execution API Server`, giúp tăng cường bảo mật cô lập và chịu tải quy mô lớn.",
+        "airflow dags test daily_sales_pipeline 2026-05-15",
+        "Airflow là bộ điều phối (Coordinator), KHÔNG phải công cụ xử lý dữ liệu lớn: tuyệt đối không nạp DataFrame hàng chục GB vào RAM của Airflow Worker mà phải ủy quyền cho Spark, dbt hoặc SQL Warehouse."
+    ),
+    (
+        "orchestration.operators-sensors-xcom",
+        "Airflow Operators, Deferrable Sensors (Asyncio Triggerer vs. Poke Deadlock) & Cross-Communication (XCom Pass-by-URI)",
+        "OPERATORS, SENSORS & XCOM",
+        ["D06"],
+        [
+            "pythonoperator", "bashoperator", "dockeroperator", "kubernetespodoperator",
+            "s3keysensor", "externalsensor", "deferrable operator", "triggerer",
+            "sensor deadlock", "xcom", "xcom_push", "xcom_pull", "taskflow api"
+        ],
+        "Operators định nghĩa hành động của từng nút trên DAG, Sensors chờ điều kiện ngoại vi hoàn tất (qua chế độ Poke, Reschedule hoặc bất đồng bộ Deferrable Triggerer), còn XCom truyền siêu dữ liệu phối hợp gọn nhẹ giữa các tác vụ cô lập.",
+        "Khi dùng Sensor ở chế độ mặc định `mode='poke'`, tiến trình vẫn chiếm giữ khư khư Worker Slot trong lúc ngủ chờ, dễ gây kẹt cứng toàn cụm (`Sensor Deadlock`); chuyển sang `mode='reschedule'` hoặc `deferrable=True` (ủy quyền cho tiến trình `asyncio Triggerer`) giúp giải phóng 100% Worker Slot. Vì mỗi Task Instance có thể chạy trên một máy chủ/Pod khác nhau, Airflow cung cấp `XCom` (`xcom_push`/`xcom_pull` lưu tại bảng `xcom` trong Metadata DB) để trao đổi thông tin nhỏ như đường dẫn tệp S3 (`Pass-by-Reference URI`), tuyệt đối cấm đẩy dữ liệu thô dung lượng lớn qua XCom.",
+        "S3KeySensor(task_id='wait_orders', bucket_key='s3://lake/orders/{{ ds }}.parquet', deferrable=True)",
+        "Truyền trực tiếp Pandas DataFrame qua XCom mặc định sẽ làm phình nổ bảng `xcom` trong PostgreSQL/MySQL và đánh sập bộ nhớ của cả Scheduler lẫn Web UI."
+    ),
+    (
+        "orchestration.executors-concurrency-pools",
+        "Airflow Production Operations: Variables & Fernet Connections, Executors (Local/Celery/Kubernetes) & Three-Tier Concurrency Funnel (Pools)",
+        "EXECUTORS & CONCURRENCY",
+        ["D06"],
+        [
+            "fernet key", "secrets backend", "localexecutor", "celeryexecutor",
+            "kubernetesexecutor", "max_active_runs", "max_active_tasks",
+            "airflow pool", "resource pool", "concurrency control"
+        ],
+        "Vận hành Airflow cấp độ Production đòi hỏi tách biệt mật khẩu khỏi mã nguồn qua Connections mã hóa Fernet/Vault, chọn đúng Executor (Local, Celery, Kubernetes) và siết van đồng thời 3 tầng để bảo vệ các hệ thống cơ sở dữ liệu dùng chung.",
+        "Thông số cấu hình được lưu trong `Variables` (truy xuất qua Jinja `{{ var.value.* }}` lúc chạy để tránh bắn truy vấn SQL lúc quét DAG), còn thông tin nhạy cảm lưu trong `Connections` mã hóa bằng `Fernet Key` hoặc `Secrets Backend`. Về hạ tầng thực thi, `CeleryExecutor` tối ưu cho tác vụ ngắn tần suất cao qua hàng đợi Redis/RabbitMQ, trong khi `KubernetesExecutor` cấp phát 1 Pod cô lập cho mỗi Task Instance. Phễu đồng thời 3 tầng gồm: `core.parallelism` (toàn cụm), `max_active_runs` (chống chồng lấn các phiên chạy của cùng 1 DAG) và `Pools` (giới hạn số kết nối đồng thời tới một Database cụ thể như `postgres_pool = 5 slots`).",
+        "airflow pools set postgres_pool 5 'Throttle concurrent OLTP extraction queries'",
+        "Gọi `Variable.get()` trực tiếp ở cấp độ toàn cục (top-level) của tệp Python DAG sẽ khiến DAG Processor dội hàng nghìn câu lệnh SQL vào Metadata Database mỗi phút ngay cả khi không có tác vụ nào đang chạy!"
+    ),
+    (
+        "orchestration.circuit-breaker-contracts-datahub",
+        "Data Quality Six Dimensions, Circuit Breaker Pattern, Machine-Readable Data Contracts, Great Expectations (GX), Spark Deequ & DataHub Lineage",
+        "QUALITY, CONTRACTS & DATAHUB",
+        ["D06"],
+        [
+            "six data quality dimensions", "data quality dimensions", "circuit breaker",
+            "circuit breaker pattern", "branchpythonoperator", "shortcircuitoperator",
+            "data contract", "data contracts", "great expectations", "expectation suite",
+            "deequ", "pydeequ", "datahub", "openlineage", "data lineage"
+        ],
+        "Kiến trúc tin cậy dữ liệu hiện đại kết hợp 6 chiều chất lượng, mẫu Cầu dao tự ngắt (Circuit Breaker) bằng GX/Deequ ngay trong Airflow, Hợp đồng dữ liệu (Data Contracts) ở thượng nguồn và đồ thị phả hệ toàn cục trên DataHub.",
+        "Một đường ống có thể báo trạng thái `SUCCESS` (Exit Code 0) nhưng vẫn phát tán dữ liệu rác gây thiệt hại triệu đô. Để phòng vệ đa lớp: (1) Đội ngũ Producer và Consumer ký kết `Data Contract` máy đọc được (khóa chặt `Schema`, `Nullability`, `Value Range`, `Freshness`, `Uniqueness`); (2) Trong Airflow DAG, tác vụ kiểm định (`Great Expectations` cho tập quy tắc đa nền tảng hoặc `Apache Spark Deequ` hỗ trợ tính toán lũy tiến và phát hiện bất thường trên hàng tỷ dòng) kết hợp `BranchPythonOperator` tạo thành `Circuit Breaker` tự động ngắt nhánh Load khi phát hiện lỗi; (3) Mọi siêu dữ liệu, hợp đồng và phả hệ (`OpenLineage`, `MCP/MCL`) hội tụ về `DataHub` để khoanh vùng bán kính ảnh hưởng (`Blast Radius`) tức thì.",
+        "datahub dataset upsert -f contracts/prod_orders_contract.yaml",
+        "Kiểm định chất lượng (Validation) cho chúng ta biết chính xác CÁI GÌ bị lỗi, còn Phả hệ dữ liệu (DataHub Lineage) cho biết ngay lập tức AI và BÁO CÁO NÀO ở hạ nguồn đang bị ảnh hưởng."
+    ),
+    # =========================================================================
+    # D03: TRANSFORMATION LAYER I (BATCH · APACHE SPARK) — CHẶNG 1 ĐẾN CHẶNG 6
+    # =========================================================================
+    (
+        "spark.dag_scheduler",
+        "Apache Spark Cluster Architecture (Driver, Cluster Manager, Executors), Lazy Evaluation & DAG Execution Hierarchy (Job → Stage → Task)",
+        "SPARK ARCHITECTURE & DAG",
+        ["D03"],
+        [
+            "apache spark", "spark", "sparksession", "sparkcontext", "dagscheduler",
+            "taskscheduler", "executor", "executors", "lazy evaluation", "dag",
+            "narrow transformation", "wide transformation", "shuffle boundary",
+            "stage", "stages", "mapreduce", "hadoop mapreduce"
+        ],
+        "Apache Spark thay thế mô hình đọc/ghi đĩa cứng lặp lại sau mỗi bước của Hadoop MapReduce bằng đồ thị thực thi có hướng không chu trình (In-Memory DAG): Driver đóng vai trò bộ não lập lịch, Cluster Manager cấp phát tài nguyên, còn các Executors bên trong Worker Nodes trực tiếp chạy Tasks trên các Partitions và giữ dữ liệu trong RAM.",
+        "Khi người dùng viết các phép biến đổi (Transformations như filter, select, join, groupBy), cơ chế Lazy Evaluation chưa thực thi ngay mà chỉ ghi nhận vào Logical Plan. Chỉ khi gặp một Action (show, count, write, collect), Driver mới kích hoạt Job: DAGScheduler cắt đồ thị thành các Stages tại ranh giới Wide Transformation (nơi cần Shuffle dữ liệu qua mạng), và TaskScheduler gửi từng Task (1 Task = 1 Partition = 1 luồng CPU) xuống các Executors thực thi song song.",
+        "df.filter(col('status') == 'PAID').groupBy('store_id').agg(sum('amount')).write.mode('overwrite').parquet('s3a://gold/revenue/')",
+        "Một Worker Node vật lý không chạy trực tiếp toàn bộ chương trình Spark của bạn — nó chỉ chứa các tiến trình Executor JVM, và chính Executors mới là nơi thực thi Tasks và lưu In-Memory Cache!"
+    ),
+    (
+        "spark.rdd_dataframe",
+        "Spark Data Abstractions: RDD (Resilient Distributed Dataset & Lineage Graph) vs. DataFrame (Immutable Schema Table) vs. Dataset[T]",
+        "SPARK APIS & ABSTRACTIONS",
+        ["D03"],
+        [
+            "rdd", "resilient distributed dataset", "spark rdd", "lineage", "lineage graph",
+            "parallelize", "dataframe", "spark dataframe", "dataset[t]", "structtype",
+            "structfield", "inferschema", "todf", "createdataframe", "python worker"
+        ],
+        "RDD là tập hợp các phân vùng dữ liệu phân tán cấp thấp tự phục hồi khi sập máy nhờ đồ thị huyết thống (Lineage Graph), còn DataFrame là bảng dữ liệu bất biến (Immutable) có lược đồ (Schema) tường minh chạy hoàn toàn trong JVM với bộ tối ưu Catalyst và Tungsten.",
+        "Trên PySpark, việc gọi hàm lambda trên Python RDD buộc Executor JVM phải tuần tự hóa dữ liệu qua Socket sang tiến trình con Python Worker (gây nghẽn cổ chai IPC kép). Ngược lại, mọi phép biến đổi trên DataFrame (select, filter, join, groupBy) được biểu diễn dưới dạng biểu thức cột có Schema, cho phép Spark biên dịch trực tiếp thành mã máy JVM mà không cần bật Python subprocess, đồng thời giữ tính bất biến (mỗi phép biến đổi sinh ra một DataFrame mới).",
+        "df = spark.read.schema(order_schema).parquet('s3a://silver/orders/')",
+        "Trên Production, tuyệt đối tránh bật inferSchema=True khi đọc CSV/JSON lớn vì Spark sẽ phải chạy thêm 1 Job quét toàn bộ dữ liệu chỉ để đoán kiểu cột — hãy truyền StructType tường minh!"
+    ),
+    (
+        "spark.kryo_serialization",
+        "Spark Serialization & Deserialization (Shuffle, Cache, Network) & Java Serialization vs. KryoSerializer",
+        "SERIALIZATION & MEMORY",
+        ["D03"],
+        [
+            "kryo", "kryo serialization", "kryoserializer", "java serialization",
+            "classestoregister", "spark.serializer", "deserialization"
+        ],
+        "Serialization biến đối tượng trong RAM thành dòng byte (Byte Stream) tại 3 điểm nóng của Spark (Shuffle qua mạng, lưu Cache/Persist, và gửi Task/Broadcast), trong đó KryoSerializer nén gọn dòng byte nhỏ hơn và nhanh hơn tới 10 lần so với Java Serialization mặc định.",
+        "Java Serialization mặc định viết kèm toàn bộ thông tin phả hệ lớp (Class Metadata) nên tạo ra luồng byte phình to, làm nghẽn băng thông mạng lúc Shuffle và tốn CPU giải mã. Khi cấu hình spark.serializer = org.apache.spark.serializer.KryoSerializer và đăng ký trước các lớp tùy chỉnh qua spark.kryo.classesToRegister, Spark thay thế tên lớp đầy đủ bằng mã định danh số nguyên ngắn gọn, giảm mạnh áp lực RAM, Disk Spill và GC.",
+        "SparkSession.builder.config('spark.serializer', 'org.apache.spark.serializer.KryoSerializer').config('spark.kryo.classesToRegister', 'com.fsds.OrderRecord')",
+        "Luôn cấu hình KryoSerializer và đăng ký các class dữ liệu ngay khi khởi tạo SparkSession cho mọi tác vụ RDD hoặc Shuffle quy mô lớn."
+    ),
+    (
+        "spark.unified_memory",
+        "In-Memory Computing, cache() vs. persist(), Five Storage Levels (MEMORY_ONLY..DISK_ONLY) & Unified Memory Manager",
+        "SERIALIZATION & MEMORY",
+        ["D03"],
+        [
+            "in-memory computing", "cache()", "persist()", "unpersist()", "storagelevel",
+            "memory_only", "memory_and_disk", "memory_only_ser", "memory_and_disk_ser",
+            "disk_only", "unified memory", "unified memory manager", "execution memory",
+            "storage memory"
+        ],
+        "In-Memory Computing giúp đọc dữ liệu từ đĩa đúng 1 lần rồi giữ trong RAM qua cache()/persist() để tái sử dụng cho nhiều Actions nối tiếp, được điều phối bởi Unified Memory Manager với ranh giới co giãn động giữa Storage Memory và Execution Memory.",
+        "Trong Spark, cache() là lối tắt của persist() với mức mặc định khác nhau: trên RDD là MEMORY_ONLY, còn trên DataFrame là MEMORY_AND_DISK. Năm chế độ lưu trữ chuẩn gồm: MEMORY_ONLY (nhanh nhất nhưng tràn RAM phải tính toán lại theo Lineage), MEMORY_AND_DISK (tràn RAM thì ghi phần dư xuống đĩa cục bộ), MEMORY_ONLY_SER và MEMORY_AND_DISK_SER (lưu dạng byte tuần tự hóa giúp tiết kiệm RAM nhưng tốn CPU giải mã), và DISK_ONLY. Bên trong Executor JVM, vùng Unified Memory (mặc định 60% Heap) chia đôi cho Storage và Execution: Execution Memory (Shuffle/Join/Sort) có quyền mượn vùng trống của Storage và trục xuất (evict) các khối Cache vượt ngưỡng 50% xuống đĩa, nhưng Storage không bao giờ được phép trục xuất Execution đang chạy.",
+        "df_enriched.persist(StorageLevel.MEMORY_AND_DISK); df_enriched.count(); df_enriched.unpersist()",
+        "Chỉ gọi cache()/persist() khi một DataFrame được dùng lại từ 2 Actions trở lên (hoặc vòng lặp ML), và bắt buộc gọi unpersist() ngay khi dùng xong để trả lại RAM cho cụm!"
+    ),
+    (
+        "spark.catalyst",
+        "Catalyst Optimizer: Logical-to-Physical Plan Rewriting, Constant Folding, Predicate Pushdown & Column Pruning",
+        "SPARK BUILT-IN OPTIMIZERS",
+        ["D03"],
+        [
+            "catalyst", "catalyst optimizer", "predicate pushdown", "constant folding",
+            "column pruning", "logical plan", "physical plan", "cost-based optimizer"
+        ],
+        "Catalyst Optimizer là 'bộ não lập kế hoạch' của Spark SQL/DataFrame, tự động phân tích và viết lại cây truy vấn (đẩy bộ lọc WHERE xuống sát tầng đọc đĩa trước khi chạy JOIN và gộp hằng số) trước khi sinh mã thực thi.",
+        "Một câu truy vấn DataFrame/SQL đi qua 4 pha trong Catalyst: (1) Analysis (đối chiếu tên cột/bảng với Catalog), (2) Logical Optimization (áp dụng các quy tắc đại số quan hệ như Constant Folding gộp `1 + 2 -> 3`, Predicate Pushdown đẩy bộ lọc `t2.id > 50000` xuống trước phép Join để loại bỏ 95% dòng rác sớm, và Column Pruning cắt bỏ các cột không dùng), (3) Physical Planning (chọn toán tử vật lý rẻ nhất qua Cost Model), và (4) CodeGen.",
+        "df.explain(mode='formatted')   # Kiểm tra PushedFilters và ReadSchema trong kế hoạch vật lý",
+        "Nếu viết UDF hộp đen bằng Python hoặc ép kiểu làm hỏng cấu trúc cột, Catalyst có thể không đẩy được bộ lọc (PushedFilters trống rỗng) khiến Spark phải đọc toàn bộ bảng!"
+    ),
+    (
+        "spark.tungsten",
+        "Project Tungsten: Off-Heap Binary Memory (UnsafeRow), L1/L2/L3 Cache-Aware Computation & Whole-Stage Code Generation",
+        "SPARK BUILT-IN OPTIMIZERS",
+        ["D03"],
+        [
+            "tungsten", "project tungsten", "unsaferow", "off-heap", "off-heap memory",
+            "whole-stage code generation", "wholesstagecodegen", "cache-aware computation"
+        ],
+        "Nếu Catalyst quyết định 'làm cái gì' (kế hoạch tối ưu), thì Project Tungsten quyết định 'làm như thế nào' ở tầng phần cứng thông qua 3 kỹ thuật: quản lý bộ nhớ nhị phân Off-Heap, tính toán bám sát bộ đệm L1/L2/L3 Cache của CPU (~1 ns) và hợp nhất toàn bộ Stage thành một hàm mã máy duy nhất.",
+        "Ba trụ cột kỹ thuật của Tungsten: (1) Off-Heap Memory Management lưu bản ghi dưới dạng mảng nhị phân liền kề (UnsafeRow) ngoài tầm quét của JVM Garbage Collector, xóa sổ hiện tượng Stop-the-World GC Pause; (2) Cache-Aware Computation sắp xếp con trỏ và khóa sắp xếp tuần tự trên các dòng đệm L1/L2/L3 Cache (~1 ns thay vì ~100 ns trên RAM, nhanh gấp 100 lần); (3) Whole-Stage Code Generation gộp chuỗi toán tử (Scan -> Filter -> Project -> Aggregate) thành một vòng lặp bytecode Java phẳng duy nhất thay vì gọi hàm ảo qua từng toán tử.",
+        "spark.conf.set('spark.sql.codegen.wholeStage', 'true')",
+        "Trên Spark UI (tab SQL/DataFrame), các khối có dấu hoa thị `*(1) Filter -> Project -> HashAggregate` chính là dấu hiệu Whole-Stage Code Generation của Tungsten đang hoạt động!"
+    ),
+    (
+        "spark.aqe",
+        "Adaptive Query Execution (AQE): Runtime Shuffle Statistics, Dynamic Switch Join Strategy, Coalesce Partitions & Skew Join Splitting",
+        "SPARK BUILT-IN OPTIMIZERS",
+        ["D03"],
+        [
+            "aqe", "adaptive query execution", "coalesce shuffle partitions",
+            "skewed join", "autoskip", "autobroadcastjointhreshold"
+        ],
+        "Adaptive Query Execution (AQE) khắc phục điểm mù ước lượng tĩnh trước khi chạy bằng cách thu thập thống kê thực tế (số dòng, số byte) ngay tại các trạm dừng Shuffle Stage để tự động viết lại kế hoạch cho các Stages còn lại.",
+        "Nhờ nhìn thấy kích thước dữ liệu thật sau khi lọc và Shuffle, AQE thực hiện 3 phép hiệu chỉnh động lúc Runtime: (1) Switch Join Strategy — tự động chuyển Sort-Merge Join đắt đỏ sang Broadcast Hash Join nếu một nhánh sau khi lọc nhỏ hơn ngưỡng phát sóng; (2) Coalesce Shuffle Partitions — tự động gộp hàng trăm phân vùng nhỏ sau Shuffle thành số lượng phân vùng vừa vặn (~128MB); và (3) Handle Skewed Joins — phát hiện phân vùng bị phình dị thường và tự động chẻ nhỏ thành nhiều sub-tasks chạy song song.",
+        "spark.conf.set('spark.sql.adaptive.enabled', 'true'); spark.conf.set('spark.sql.adaptive.skewJoin.enabled', 'true')",
+        "AQE được bật mặc định từ Spark 3.2+, nhưng nó chỉ có thể can thiệp sau khi đã có ít nhất một bước Shuffle hoặc Broadcast Query Stage hoàn tất."
+    ),
+    (
+        "spark.key_salting",
+        "Batch Processing Challenges (Data Skew, Shuffle Explosion, High Cardinality, Wide Schema) & Key Salting / HyperLogLog Tuning",
+        "PERFORMANCE TUNING",
+        ["D03"],
+        [
+            "data skew", "shuffle explosion", "high cardinality", "wide schema",
+            "key salting", "salting", "straggler", "straggler task", "approx_count_distinct",
+            "hyperloglog", "disk spill"
+        ],
+        "Khi một khóa nóng như VIP123 chiếm 80% dữ liệu (Data Skew) làm 1 Task chạy ì ạch kéo tụt cả cụm trong khi 99 Tasks khác ngồi chơi, kỹ thuật Key Salting gắn thêm hậu tố ngẫu nhiên (VIP123_1..N) để băm nhỏ khóa nóng ra nhiều Executors xử lý song song.",
+        "Năm thách thức lớn của xử lý lô gồm: Data Skew (lệch phân vùng), Shuffle Explosion (100GB đầu vào phình thành 600GB dữ liệu mạng gây Disk Spill), High Cardinality (hàng triệu khóa duy nhất làm nổ bảng băm), Wide Schema (bảng 1.000 cột nhưng chỉ dùng 5 cột), và Schema Evolution. Để trị Data Skew trong phép gom nhóm hoặc Join lớn, kỹ sư áp dụng Two-Phase Key Salting (tạo cột salt ngẫu nhiên từ 0..K-1, gom nhóm bước 1 theo `(key, salt)`, sau đó bỏ salt gom bước 2 theo `key`), đồng thời dùng `approx_count_distinct()` (thuật toán HyperLogLog sai số ~1-2%) cho cột High Cardinality và cắt tỉa cột sớm (Project Early) cho bảng Wide Schema.",
+        "df_salted = df.withColumn('salted_key', concat(col('user_id'), lit('_'), floor(rand() * 8)))",
+        "Nếu dùng Key Salting cho phép Join, khi gắn muối ngẫu nhiên `0..K-1` vào bảng lớn (Fact), bắt buộc phải nhân bản (explode) các dòng tương ứng ở bảng nhỏ (Dimension) đủ `K` lần để không bị rớt kết nối!"
+    ),
+    (
+        "spark.broadcast_join",
+        "Spark Join Strategies: Broadcast Hash Join (BHJ — Zero Shuffle) vs. Sort-Merge Join (SMJ) vs. Bucketed Join",
+        "PERFORMANCE TUNING",
+        ["D03"],
+        [
+            "broadcast hash join", "broadcast join", "sort-merge join", "sort merge join",
+            "bhj", "smj", "bucketed join", "bucketby"
+        ],
+        "Sort-Merge Join buộc phải xáo trộn (Shuffle) và sắp xếp cả hai bảng qua mạng, trong khi Broadcast Hash Join gửi bản sao của bảng nhỏ (< 10MB–100MB) tới RAM của mọi Executor để bảng lớn 500GB ghép nối tại chỗ với 0% Shuffle.",
+        "Khi ghép một bảng sự kiện khổng lồ (Fact) với một bảng danh mục nhỏ (Dimension), nếu dùng `broadcast(dim_df)`, Driver sẽ thu thập bảng nhỏ và phát sóng (Broadcast) tới từng Executor một lần duy nhất; mỗi Task chỉ việc tra bảng băm trong RAM mà không cần đẩy bất kỳ dòng nào của bảng Fact qua mạng. Nếu cả hai bảng đều quá lớn không vừa RAM, Spark dùng Sort-Merge Join (băm khóa Shuffle 2 bảng về cùng Partition rồi trộn), hoặc có thể tiền phân loại trên đĩa bằng Bucketing (`bucketBy(N, 'key')`) để loại bỏ bước Shuffle lặp lại.",
+        "df_joined = orders_df.join(broadcast(stores_df), on='store_id', how='inner')",
+        "Tuyệt đối không ép `broadcast()` lên bảng lớn vượt quá bộ nhớ của Driver hoặc Executor vì toàn bộ bảng đó phải đi qua RAM của Driver trước khi phát sóng, rất dễ gây sập Driver OOM!"
+    ),
+    (
+        "spark.dynamic_allocation",
+        "Spark Operational Techniques: Spark UI Diagnostics, Dynamic Resource Allocation (Backlog & Idle Timeouts) & External Shuffle Service",
+        "SPARK OPERATIONS",
+        ["D03"],
+        [
+            "spark ui", "spark web ui", "dynamic allocation", "schedulerbacklogtimeout",
+            "executoridletimeout", "external shuffle service"
+        ],
+        "Spark UI là bảng đồng hồ chẩn đoán thời gian thực (Stages, Tasks, Shuffle Read/Write, Spill, GC), còn Dynamic Allocation tự động co giãn số lượng Executors (ví dụ từ 2 lên 10 rồi hạ về 1) theo hàng đợi Task thực tế để tránh lãng phí tài nguyên cụm.",
+        "Cấp phát cố định 20 Executors cho một Job chỉ cần 5 Executors làm lãng phí 15 máy chủ. Khi bật `spark.dynamicAllocation.enabled = true`, Spark khởi đầu với số Executors tối thiểu; nếu có Tasks phải chờ trong hàng đợi lâu hơn `spark.dynamicAllocation.schedulerBacklogTimeout` (mặc định 1s), Spark xin thêm Executors theo cấp số nhân; khi một Executor ngồi rảnh lâu hơn `spark.dynamicAllocation.executorIdleTimeout` (mặc định 60s), Spark trả nó về cho Cluster Manager (đi kèm External Shuffle Service để bảo toàn các file Shuffle đã ghi trên đĩa).",
+        "spark.conf.set('spark.dynamicAllocation.enabled', 'true'); spark.conf.set('spark.dynamicAllocation.executorIdleTimeout', '60s')",
+        "Dấu hiệu kinh điển của Data Skew trên Spark UI: tiến độ Stage dừng ở `199/200 Tasks` suốt hàng chục phút và trong bảng Summary Metrics, cột `Max` lớn gấp hàng chục lần cột `Median (50th percentile)`!"
+    ),
+    (
+        "spark.data_compaction",
+        "Small File Problem (Triệu File Nhỏ) & Data Compaction Strategies: coalesce(n) vs. repartition(n) vs. Lakehouse OPTIMIZE",
+        "SPARK OPERATIONS",
+        ["D03"],
+        [
+            "data compaction", "small file problem", "coalesce", "coalesce(n)",
+            "repartition", "repartition(n)", "maxrecordsperfile"
+        ],
+        "Một tập dữ liệu 1 TB nếu bị băm vụn thành 1.000.000 file nhỏ (~1 MB/file) sẽ làm tê liệt tầng lưu trữ vì chi phí mở file và đọc Metadata; Data Compaction gộp chúng thành 200 file lớn chuẩn (~128–512 MB/file) bằng coalesce(n), repartition(n) hoặc lệnh OPTIMIZE.",
+        "Ba công cụ nén gộp file có cơ chế vật lý hoàn toàn khác nhau: (1) `coalesce(n)` chỉ giảm số lượng Partition bằng cách gộp các phân vùng ngay trên cùng Executor với 0% Shuffle qua mạng (cực nhanh nhưng kích thước file đầu ra có thể không đều nếu dữ liệu gốc bị lệch); (2) `repartition(n)` thực hiện Full Shuffle qua mạng để chia lại dữ liệu đều tăm tắp ra đúng `n` file có dung lượng bằng nhau; và (3) `OPTIMIZE` trên Delta Lake / Apache Iceberg chạy tác vụ Bin-packing ngầm gộp các file Parquet nhỏ thành file lớn mà không làm gián đoạn luồng đọc.",
+        "df_gold.coalesce(200).write.mode('overwrite').parquet('s3a://gold/daily_revenue/')",
+        "Dùng `coalesce(n)` sau khi đã lọc (Filter) làm giảm mạnh dung lượng dữ liệu để tránh tốn mạng Shuffle; dùng `repartition(n, 'date')` khi cần chia lại các file đầu ra đồng đều theo cột phân vùng!"
+    ),
+    # =========================================================================
+    # F02: PYTHON FUNDAMENTALS — CHẶNG 1..4 (CPYTHON, UV, HASH O(1), ASYNCIO)
+    # =========================================================================
+    (
+        "python.cpython-pyobject-gc",
+        "CPython Runtime, PyObject (28 Bytes Header: ob_refcnt + ob_type) & Garbage Collection (Reference Counting + Cyclic GC)",
+        "PYTHON RUNTIME & MEMORY",
+        ["F02"],
+        [
+            "cpython", "cpython runtime", "pyobject", "ob_refcnt", "ob_type",
+            "reference counting", "cyclic gc", "cyclic garbage collector",
+            "generational gc", "bytecode", "cpython vm"
+        ],
+        "Trong CPython, mọi giá trị đều là một cấu trúc PyObject trên Heap mang theo bộ đếm tham chiếu ob_refcnt và con trỏ kiểu ob_type (tốn tối thiểu 28 bytes cho một số nguyên int), tự động giải phóng bộ nhớ ngay khi ob_refcnt về 0.",
+        "Khác với C phải gọi `malloc()` và `free()` thủ công dễ gây Memory Leak, CPython biên dịch mã nguồn `.py` thành Bytecode (`.pyc`) chạy trên máy ảo ngăn xếp và quản lý bộ nhớ qua 2 tầng: (1) Reference Counting tức thì (`a = [1, 2]; b = a` tăng `ob_refcnt` lên 2; khi `ob_refcnt == 0` giải phóng ngay lập tức), và (2) Cyclic Garbage Collector (Generational GC 3 thế hệ Gen 0, 1, 2) định kỳ quét và phá vỡ các vòng tham chiếu khép kín (`a <-> b`).",
+        "import sys; x = 1000; print(sys.getsizeof(x), sys.getrefcount(x))  # -> 28 bytes",
+        "Vì mỗi PyObject có chi phí Header >= 28 bytes, khi xử lý hàng chục triệu con số trong Data/AI, kỹ sư không dùng vòng lặp `list` thuần mà ủy quyền xuống mảng C/Rust liên tục của NumPy, Pandas, Polars hoặc PyTorch."
+    ),
+    (
+        "python.venv-poetry-uv",
+        "Dependency Hell & Ba Thế hệ Môi trường Ảo Python: venv / virtualenv (4.63s) vs. Poetry (0.99s) vs. uv (Rust + Hardlink Cache · 0.06s)",
+        "PYTHON PACKAGING & ENV",
+        ["F02"],
+        [
+            "dependency hell", "site-packages", "virtual environment", "virtualenv",
+            "venv", "poetry", "pyproject.toml", "poetry.lock", "uv.lock",
+            "pubgrub", "pip-sync", "astral uv"
+        ],
+        "Môi trường ảo (.venv) cô lập biến PATH và mảng tìm kiếm sys.path cho từng dự án để tránh xung đột thư viện trên Global site-packages; trong đó uv (viết bằng Rust) kết hợp trình giải PubGrub và Global Hardlink Cache giúp đồng bộ gói chỉ trong 0.06 giây.",
+        "Cài đặt gói trực tiếp bằng `pip` vào thư mục hệ thống chỉ giữ được 1 phiên bản duy nhất cho mỗi tên gói (ví dụ `serpapi==1.1.15` đè mất `1.0.5` và `1.0.8`), gây sập dây chuyền (Dependency Hell). Thế hệ 1 (`venv`/`virtualenv` + `requirements.txt`) cô lập thư mục `.venv` nhưng copy file chậm (`4.63s`); Thế hệ 2 (`Poetry`) chuẩn hóa `pyproject.toml` và khóa cây phụ thuộc `poetry.lock` (`0.99s`); Thế hệ 3 (`uv`) dùng Rust và liên kết cứng (Hardlinks / Reflinks) từ bộ đệm toàn cục `~/.cache/uv` đạt tốc độ `0.06s` (nhanh gấp 77 lần `pip-sync`).",
+        "uv init market-crawler && uv venv && uv add requests httpx",
+        "Trên Production và CI/CD, luôn commit cả tệp `pyproject.toml` lẫn tệp khóa `uv.lock` (hoặc `poetry.lock`) để đảm bảo mọi máy chủ cài đặt chính xác 100% mã băm SHA-256 của từng thư viện."
+    ),
+    (
+        "python.name-binding-mutability",
+        "Mô hình Biến Tham chiếu (Name Binding), Định danh (is vs. ==) & Ranh giới Mutable vs. Immutable (Hashability)",
+        "PYTHON DATA MODEL",
+        ["F02"],
+        [
+            "name binding", "object identity", "value equality", "mutable",
+            "immutable", "hashable", "hashability", "aliasing", "type hints"
+        ],
+        "Biến trong Python không phải là chiếc hộp cố định địa chỉ như C mà là nhãn tên (Reference) gắn vào đối tượng trên Heap; toán tử 'is' so sánh địa chỉ con trỏ RAM O(1), còn '==' gọi __eq__() so sánh giá trị nội dung.",
+        "Các kiểu Bất biến (Immutable: `int`, `float`, `str`, `tuple`) không thể sửa tại chỗ nên có giá trị băm `hash()` cố định (Hashable), dùng làm khóa cho `dict` hoặc phần tử của `set`. Ngược lại, các kiểu Khả biến (Mutable: `list`, `dict`, `set`) cho phép sửa trực tiếp nội dung tại chỗ (in-place), gây hiệu ứng phụ Aliasing nếu nhiều nhãn cùng trỏ vào một đối tượng và không thể làm khóa bảng băm (`TypeError: unhashable type`).",
+        "def add_item(item: str, bucket: list | None = None) -> list:\\n    if bucket is None:\\n        bucket = []\\n    bucket.append(item)\\n    return bucket",
+        "Cạm bẫy kinh điển: tuyệt đối không viết `def parse(urls, seen=[])` vì danh sách mặc định `[]` chỉ được khởi tạo đúng 1 lần khi nạp hàm (`def`) và sẽ giữ lại dữ liệu rác xuyên suốt mọi lần gọi hàm sau đó!"
+    ),
+    (
+        "python.hash-table-complexity",
+        "Bộ tứ Cấu trúc Dữ liệu Cốt lõi: Mảng Con trỏ Động (list O(n) / tuple) vs. Bảng Băm Thu gọn (dict / set O(1))",
+        "PYTHON DATA STRUCTURES",
+        ["F02"],
+        [
+            "compact hash table", "dynamic array", "hash table", "time complexity",
+            "list comprehension", "dict comprehension"
+        ],
+        "Dưới nắp máy CPython, list là mảng động chứa các con trỏ tốn O(n) khi quét tìm kiếm (x in list), trong khi dict và set vận hành bằng Bảng băm thu gọn (Compact Hash Table) giúp tra cứu, khử trùng và xóa phần tử trong thời gian hằng số O(1).",
+        "Khi kiểm tra 100.000 URL có nằm trong tập đã thu thập hay không (`url in visited`), nếu dùng `list`, CPython phải duyệt tuần tự từng phần tử tốn `O(n)` (tổng cộng `10^10` phép so sánh cho 100k lượt, làm treo CPU hàng chục giây). Khi chuyển sang `set` hoặc `dict`, CPython tính `hash(url)` (64-bit) và nhảy thẳng tới ô nhớ trong `O(1)` (~12 mili-giây). `tuple` là mảng con trỏ bất biến, nhẹ hơn `list` và dùng làm bản ghi cố định hoặc khóa ghép `(domain, path)` cho `dict`.",
+        "visited_urls: set[str] = set()  # Tra cứu 'url in visited_urls' đạt chuẩn O(1)",
+        "Quy tắc vàng trong Data Engineering: luôn chuyển tập danh sách cần tra cứu lặp lại (`in`) từ `list` sang `set` hoặc `dict` trước khi bước vào vòng lặp lớn!"
+    ),
+    (
+        "python.context-manager-argparse",
+        "Giao thức Context Manager (with → __enter__ / __exit__), Streaming File I/O & Chuẩn hóa CLI với argparse",
+        "PYTHON I/O & PRODUCTION CLI",
+        ["F02"],
+        [
+            "context manager", "context managers", "stack unwinding", "specific exceptions",
+            "valueerror", "typeerror", "keyerror", "fileExistsError", "filenotfounderror",
+            "errno 24", "too many open files", "readlines", "readline", "argparse",
+            "argumentparser", "pathlib", "logging"
+        ],
+        "Khối lệnh 'with' thực thi giao thức Context Manager (__enter__ và __exit__) cam kết luôn đóng File Descriptor, Socket hoặc DB Session ngay cả khi văng ngoại lệ giữa chừng, chặn đứng lỗi cạn kiệt tài nguyên OS (Errno 24: Too many open files).",
+        "Ba trụ cột vận hành tệp và CLI chuẩn Production: (1) Bắt đúng ngoại lệ cụ thể (`ValueError`, `KeyError`, `TimeoutError`) thay vì `except Exception:` nuốt lỗi âm thầm; (2) Bọc tệp trong `with open(path, 'a', encoding='utf-8') as f:` và duyệt từng dòng bằng Streaming Iterator (`for line in f:`) tốn `O(1)` RAM thay vì gọi `f.read()` / `f.readlines()` nạp toàn bộ tệp 10GB gây tràn bộ nhớ (OOM); và (3) Dùng `argparse` (`ArgumentParser`: Create → Add → Parse) kết hợp `logging` và `pathlib` để tham số hóa script trên CI/CD & Airflow.",
+        "with open('events.jsonl', mode='a', encoding='utf-8') as f:\\n    f.write(json.dumps(record) + '\\n')",
+        "Khi đọc tệp dữ liệu lớn hàng chục GB, tuyệt đối không gọi `f.read()` hay `f.readlines()`; hãy lặp trực tiếp `for line in f:` để tận dụng bộ đệm luồng lười (Lazy Streaming Iterator)!"
+    ),
+    (
+        "python.asyncio-wsgi-asgi",
+        "Lập trình Đồng bộ (Sync Blocking) vs. Bất đồng bộ (asyncio Event Loop, async/await, epoll/kqueue) & Hệ sinh thái WSGI vs. ASGI",
+        "ASYNCIO & WEB FRAMEWORKS",
+        ["F02"],
+        [
+            "asyncio", "event loop", "async def", "await", "asyncio.gather",
+            "asyncio.run", "coroutine", "coroutines", "non-blocking i/o", "blocking i/o",
+            "judit polgar", "wsgi", "asgi", "fastapi", "flask", "django",
+            "uvicorn", "httpx", "aiohttp", "global interpreter lock", "gil", "processpoolexecutor"
+        ],
+        "Trong các tác vụ nặng chờ mạng (I/O-bound), mô hình Synchronous (WSGI: Flask/Requests) khóa cứng luồng khiến CPU ngồi không tới 92% thời gian; trong khi asyncio Event Loop (ASGI: FastAPI/httpx) dùng từ khóa await và epoll/kqueue để xoay vòng hàng nghìn kết nối đồng thời trên một luồng duy nhất.",
+        "Minh họa qua bài toán Đại kiện tướng Judit Polgár (CPU 5s/nước) đấu 24 kỳ thủ (I/O chờ 55s/nước): đánh tuần tự từng bàn (Sync Blocking) tốn `43.200s (12 giờ)` vì CPU bị chặn đứng chờ mạng; đánh xoay vòng bất đồng bộ (Async Non-Blocking) chỉ tốn `5.250s (1.5 giờ — nhanh gấp 8.2 lần)`. Khi hàm `async def` gặp `await`, Coroutine tạm dừng và đăng ký Socket với Kernel (`epoll`/`kqueue`), nhường Event Loop chạy tác vụ khác trong `asyncio.gather()`. Với tác vụ tính toán nặng CPU-bound bị khóa bởi GIL, kỹ sư phải tách sang đa tiến trình (`ProcessPoolExecutor`).",
+        "results = await asyncio.gather(*(fetch_page(client, url) for url in urls))",
+        "Cạm bẫy sinh tử trong FastAPI / asyncio: tuyệt đối không gọi hàm chặn đồng bộ (`time.sleep()`, `requests.get()`) bên trong hàm `async def` vì nó sẽ làm đóng băng toàn bộ Event Loop của máy chủ!"
+    ),
+    # =========================================================================
+    # F04: WEB API — CHẶNG 1 ĐẾN CHẶNG 5 (TCP/IP, 6 API STYLES, AAA/JWT/OAUTH, PROBES/P99, FASTAPI/LOCUST)
+    # =========================================================================
+    (
+        "api.tcp-ip-http-handshake",
+        "Mô hình 4 Tầng TCP/IP, Khung Bản tin HTTP (CRLF), Phân giải Đệ quy DNS, Bảo mật Kép TLS & Bắt tay 3 Bước TCP (SYN / SYN-ACK / ACK, NAT)",
+        "NETWORK STACK & HTTP",
+        ["F04"],
+        [
+            "web api", "tcp/ip model", "osi model", "http request", "http response",
+            "request line", "status line", "http endpoint", "query string",
+            "dns lookup", "recursive query", "authoritative nameserver",
+            "tls handshake", "symmetric encryption", "asymmetric encryption",
+            "tcp 3-way handshake", "three-way handshake", "syn-ack",
+            "network address translation", "user datagram protocol"
+        ],
+        "Mọi lời gọi Web API đều đi xuyên qua 4 tầng TCP/IP: phân giải tên miền thành IP qua DNS (UDP 53), bắt tay 3 bước TCP (SYN 1000 → SYN-ACK 5000/1001 → ACK 5001), thiết lập kênh mã hóa TLS + băm toàn vẹn SHA-256, rồi truyền khung bản tin HTTP ngăn cách bởi dòng trống CRLF.",
+        "Mô hình TCP/IP thực chiến gom 7 tầng OSI thành 4 tầng vật lý: Application (HTTP, DNS, TLS), Transport (TCP đảm bảo thứ tự và chống mất gói vs. UDP 8-byte tốc độ cao), Internet/Network (định tuyến IPv4 32-bit / IPv6 128-bit kết hợp Router NAT dịch IP nội bộ 192.168.1.10 sang Public IP 203.0.113.5), và Link (Ethernet/Wi-Fi MAC Address). Khung HTTP Request/Response luôn gồm 4 phần tách biệt metadata và body bằng vách ngăn `\\r\\n\\r\\n` (CRLF).",
+        "POST /api/order-service/v1/orders HTTP/1.1\\r\\nHost: fsds_server.com\\r\\nContent-Type: application/json\\r\\n\\r\\n{\"order_id\":\"ORD-8888\"}",
+        "Trong HTTP, `GET`, `PUT`, `DELETE` có tính lũy đẳng (Idempotent), còn `POST` mặc định không lũy đẳng nên bắt buộc phải đính kèm `Idempotency-Key` khi gọi API tạo đơn hoặc thanh toán!"
+    ),
+    (
+        "api.rest-six-principles",
+        "Kiến trúc REST API & Sáu Nguyên lý Bất biến của Roy Fielding (Client-Server, Statelessness, Uniform Interface, Caching, Layered System, Code on Demand)",
+        "API ARCHITECTURES",
+        ["F04"],
+        [
+            "rest api", "restful api", "roy fielding", "statelessness",
+            "uniform interface", "layered system", "code on demand",
+            "hateoas", "api gateway", "cache-control", "etag"
+        ],
+        "REST là phong cách kiến trúc API phổ biến nhất (93% theo Postman Report), xoay quanh Tài nguyên (Resources định danh bằng URI) và 6 nguyên lý kiến trúc giúp hệ thống mở rộng ngang vô hạn phía sau Load Balancer.",
+        "Sáu nguyên lý RESTful gồm: (1) Client-Server (tách biệt giao diện và lưu trữ), (2) Statelessness ('Không trí nhớ' — mỗi Request tự mang đủ ngữ cảnh và Token, không khóa phiên trên RAM máy chủ), (3) Uniform Interface (URI chuẩn như `/v1/orders/ORD-8888` kết hợp HTTP Verbs `GET/POST/PUT/PATCH/DELETE`), (4) Caching (`Cache-Control`, `ETag`, `304 Not Modified`), (5) Layered System (đi qua Firewall → API Gateway → Load Balancer hoàn toàn trong suốt), và (6) Code on Demand (tùy chọn).",
+        "GET /api/superhero-service/v1/superheroes/42?fields=name,origin HTTP/1.1",
+        "Năm nguyên lý đầu tiên là bắt buộc để một dịch vụ được công nhận là RESTful; vi phạm tính Statelessness (lưu Session cục bộ trên RAM của 1 Pod) sẽ phá hỏng khả năng Auto-scaling!"
+    ),
+    (
+        "api.graphql-grpc-protobuf",
+        "GraphQL (Single Endpoint Query AST, Over/Under-fetching & DataLoader) vs. gRPC (Protocol Buffers Nhị phân & Đa luồng HTTP/2 Multiplexing)",
+        "API ARCHITECTURES",
+        ["F04"],
+        [
+            "graphql", "over-fetching", "under-fetching", "dataloader",
+            "grpc", "protocol buffers", "protobuf", "http/2", "http/2 multiplexing",
+            "unary rpc", "server streaming", "bidirectional streaming", "grpc-web"
+        ],
+        "GraphQL giải quyết triệt để bệnh lấy thừa (Over-fetching) và lấy thiếu nhiều vòng (Under-fetching) của REST cho giao diện phức tạp, còn gRPC nén dữ liệu thành nhị phân Protocol Buffers chạy đa luồng trên HTTP/2 cho giao tiếp nội bộ Microservices và ML Serving.",
+        "Với GraphQL, Client gửi cây truy vấn khai báo (`Query AST`) tới duy nhất một cổng `POST /graphql` để lấy đúng các trường cần thiết trong 1 vòng mạng (kết hợp `DataLoader` ở Backend để gom nhóm chống lỗi N+1 SQL). Với gRPC, dịch vụ định nghĩa hợp đồng `.proto` nghiêm ngặt, mã hóa dữ liệu bằng `Protocol Buffers` (dùng số thứ tự Field Tags `1, 2, 3` thay vì lặp chuỗi JSON giúp giảm 3–5 lần kích thước) và truyền qua `HTTP/2 Multiplexing` trên 1 kết nối TCP duy nhất.",
+        "service ModelService { rpc Predict (FraudRequest) returns (FraudResponse); }",
+        "Trình duyệt web không thể gọi gRPC thuần trực tiếp vì thiếu quyền kiểm soát khung nhị phân HTTP/2 Trailers — hãy dùng REST/GraphQL ngoài biên (North-South) và gRPC bên trong cụm (East-West)!"
+    ),
+    (
+        "api.websocket-sse-webhook",
+        "Truyền thông Thời gian thực & Hướng Sự kiện: WebSocket (101 Switching Protocols Song công) vs. Server-Sent Events (SSE text/event-stream) vs. Webhook (Reverse API)",
+        "REAL-TIME & EVENT APIS",
+        ["F04"],
+        [
+            "websocket", "websockets", "switching protocols", "full-duplex",
+            "server-sent events", "sse", "text/event-stream", "eventsource",
+            "webhook", "webhooks", "reverse api", "short polling"
+        ],
+        "Thay vì hỏi đi hỏi lại gây lãng phí băng thông (Polling), WebSocket mở đường hầm 2 chiều liên tục (Full-Duplex), SSE đẩy luồng sự kiện 1 chiều từ Server xuống trình duyệt qua HTTP chuẩn (như stream token LLM), còn Webhook đảo chiều để Server chủ động bắn HTTP POST báo tin khi có sự kiện.",
+        "WebSocket khởi đầu bằng HTTP Handshake kèm header `Upgrade: websocket` (`HTTP 101 Switching Protocols`) để giữ kết nối TCP mở cho Chat/Game 2 chiều. Server-Sent Events (`SSE`) dùng `Content-Type: text/event-stream` đơn hướng (`Server → Client`), đi xuyên qua tường lửa dễ dàng và tự động kết nối lại qua `EventSource`. Webhook ('Don't call us, we'll call you') là lời gọi `HTTP POST` giữa Server với Server (như GitHub báo Jenkins build hoặc cổng thanh toán báo `Order #8888` thành công).",
+        "event: pipeline_update\\ndata: {\"job_id\": 123, \"status\": \"completed\"}\\n\\n",
+        "Khi viết cổng nhận Webhook trên Production, bắt buộc phải: (1) kiểm tra chữ ký `HMAC-SHA256`, (2) trả `200 OK / 202 Accepted` ngay dưới 200ms, và (3) khử trùng lặp theo `event_id`!"
+    ),
+    (
+        "api.aaa-basic-jwt-oauth",
+        "Bảo mật Web API: 6 Mối Đe dọa, Khung Quản trị AAA (AuthN / AuthZ / Accounting), Basic Auth (Base64), Chữ ký Số JWT & Ủy quyền OAuth 2.0",
+        "API SECURITY",
+        ["F04"],
+        [
+            "aaa framework", "authentication", "authorization", "accounting",
+            "basic auth", "basic authentication", "base64", "json web token",
+            "bearer token", "oauth", "oauth 2.0", "authorization code",
+            "access token", "refresh token", "prompt injection", "rbac"
+        ],
+        "Bảo mật API phòng thủ trước 6 mối đe dọa (bao gồm cả Prompt Injection cho LLM) bằng khung 3 chốt chặn AAA (Xác thực danh tính → Phân quyền RBAC → Kiểm toán Accounting) và 3 cơ chế: Basic Auth, JWT không trạng thái và ủy quyền OAuth 2.0.",
+        "Basic Auth chỉ ghép `username:password` rồi mã hóa `Base64` (ai bắt được gói tin đều giải mã được ngay nếu thiếu HTTPS). JSON Web Token (`JWT`) gồm 3 phần `Header.Payload.Signature` nối bằng dấu chấm, được ký bằng `HMAC-SHA256` hoặc `RS256` giúp Server xác thực trong RAM (`0 DB Lookup`). OAuth 2.0 dùng luồng 8 bước (`Consent Flow → Authorization Grant Code → Access Token`) giúp ứng dụng thứ ba truy cập tài nguyên trong phạm vi `Scope` mà không bao giờ biết mật khẩu gốc của người dùng.",
+        "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJVU1ItMTA0Iiwicm9sZSI6InZpZXdlciJ9.<sig>",
+        "Phân biệt rõ mã lỗi HTTP: `401 Unauthorized` nghĩa là chưa xác thực danh tính (thiếu hoặc sai Token — AuthN), còn `403 Forbidden` nghĩa là đã biết bạn là ai nhưng vai trò `viewer` không đủ quyền xóa đơn (AuthZ)!"
+    ),
+    (
+        "api.probes-p99-load-stress",
+        "Giám sát Sức khỏe Kubernetes (/liveness vs. /readiness), Phân vị Độ trễ Đuôi (p50 / p95 / p99) & Kiểm thử Chịu tải (Load vs. Stress Testing, Graceful Degradation)",
+        "API MONITORING & TESTING",
+        ["F04"],
+        [
+            "health check", "liveness probe", "readiness probe", "/liveness", "/readiness",
+            "tail latency", "p50", "p95", "p99", "requests per second",
+            "spike testing", "soak testing", "capacity testing", "volume testing",
+            "graceful degradation", "hard failure"
+        ],
+        "Trên Production, dịch vụ tách bạch /liveness (tiến trình có bị treo cứng cần Restart Pod không) với /readiness (mô hình ML và DB đã nạp xong để nhận tải từ Load Balancer chưa), đo độ trễ qua phân vị p50/p95/p99 và ép tải bằng Load/Stress Testing.",
+        "Nếu `/liveness` báo lỗi, Kubernetes giết và khởi động lại Pod; nếu `/readiness` báo lỗi (`503`), Kubernetes chỉ tạm ngắt Pod khỏi Load Balancer (cực kỳ quan trọng khi đang nạp mô hình ML nhiều GB vào RAM). Về hiệu năng, số trung bình cộng luôn che giấu trải nghiệm tệ nhất, nên kỹ sư dùng phân vị `p99` (1% yêu cầu chậm nhất). Trong 6 loại kiểm thử hiệu năng, `Load Testing` giữ tải ở ngưỡng kỳ vọng (100 CCU), còn `Stress Testing` đẩy vượt giới hạn (220 CCU suy giảm → 280 CCU gãy) để thiết kế cơ chế suy thoái êm dịu (`Graceful Degradation`) thay vì sập cứng (`Hard Failure`).",
+        "GET /readiness -> HTTP 503 Service Unavailable {\"model_loaded\": false, \"db_ready\": true}",
+        "Cấm kiểm tra kết nối Database bên trong `/liveness`! Một sự cố chập chờn DB 3 giây sẽ khiến Kubernetes tưởng nhầm toàn bộ 50 API Pods bị treo và giết đồng loạt (Cascading Restart Storm)."
+    ),
+    (
+        "api.fastapi-asgi-pydantic-locust",
+        "Kiến trúc FastAPI Thực chiến: Động cơ ASGI (Uvicorn uvloop + Starlette), Cổng Kiểm dịch Pydantic v2 (Rust), Chuỗi Middleware, Depends & Bắn tải Locust",
+        "FASTAPI & LOCUST LAB",
+        ["F04"],
+        [
+            "fastapi", "starlette", "uvicorn", "uvloop", "pydantic v2",
+            "pydantic-core", "basemodel", "dependency injection", "depends",
+            "middleware", "locust", "locustfile", "httpuser"
+        ],
+        "FastAPI kết hợp động cơ bất đồng bộ ASGI (Uvicorn uvloop + Starlette), lõi kiểm định kiểu dữ liệu viết bằng Rust của Pydantic v2 (chặn rác với HTTP 422), đồ thị tiêm phụ thuộc Depends() và công cụ bắn tải Locust (gevent).",
+        "Khác với Flask (WSGI khóa 1 luồng OS cho mỗi Request chờ I/O), FastAPI chạy trên chuẩn ASGI giúp xử lý hàng nghìn kết nối đồng thời. Mọi JSON đầu vào được `Pydantic v2` (`pydantic-core` bằng Rust) ép kiểu và kiểm tra ràng buộc trước khi chạm vào hàm xử lý; dữ liệu đầu ra được lọc qua `response_model` để chống lộ trường nhạy cảm. Khi kiểm thử hiệu năng, công cụ `Locust` dùng `gevent` greenlets nhẹ để giả lập hàng trăm `HttpUser` bắn tải và vẽ biểu đồ `RPS / p95 / p99` theo thời gian thực.",
+        "locust -f locustfile.py --headless -u 100 -r 10 --run-time 5m --host http://localhost:8000",
+        "Quy tắc sống còn trong FastAPI: chỉ khai báo `async def` khi toàn bộ lời gọi I/O bên trong đều không chặn (`await asyncpg / httpx`); nếu gọi hàm đồng bộ chặn luồng, hãy khai báo `def` thường để FastAPI tự động đẩy sang Worker Threadpool!"
+    ),
+    # =========================================================================
+    # D05: CONSUMPTION LAYER (DW, KIMBALL, SCD, DATA VAULT, OLAP, FEAST)
+    # =========================================================================
+    (
+        "consumption.dwh-etl-er",
+        "Data Warehouse Architecture (Staging Area, Data Marts), ETL Pipeline & ER Normalization (1NF → 2NF → 3NF)",
+        "DATA WAREHOUSE & ETL",
+        ["D05"],
+        [
+            "staging area", "data marts", "data mart", "er modeling",
+            "entity-relationship modeling", "partial dependency", "transitive dependency",
+            "join penalty"
+        ],
+        "Data Warehouse là kho lưu trữ phân tích trung tâm (Single Source of Truth) gom dữ liệu từ nhiều nguồn qua vùng đệm Staging Area rồi phân phối về các Data Marts theo phòng ban, tách biệt hoàn toàn tải OLAP khỏi cơ sở dữ liệu giao dịch OLTP đã chuẩn hóa 3NF.",
+        "Trong khi ER Modeling chuẩn hóa bảng phẳng qua 3 bậc (1NF tách ô đa giá trị thành nguyên tử, 2NF khử phụ thuộc hàm bộ phận vào khóa ghép, 3NF khử phụ thuộc bắc cầu giữa các cột không khóa) để giúp OLTP chống dị thường Ghi/Xóa, việc chạy báo cáo tổng hợp trên hàng chục bảng 3NF sẽ gây thắt cổ chai Multi-Way Hash Join. Do đó, quy trình ETL trích xuất dữ liệu nguồn về vùng đệm Staging Area để làm sạch và tái cấu trúc trước khi nạp vào Warehouse và các Data Marts.",
+        "SELECT c.region, SUM(oi.qty * oi.unit_price) FROM orders o JOIN order_items oi ON o.order_id = oi.order_id JOIN customers c ON o.customer_id = c.customer_id GROUP BY c.region;",
+        "Không bao giờ cho phép công cụ BI truy vấn trực tiếp vào vùng đệm Staging Area hoặc cơ sở dữ liệu OLTP đang phục vụ giao dịch trực tuyến."
+    ),
+    (
+        "consumption.kimball-star-snowflake",
+        "Dimensional Modeling (Kimball 4-Step Process), Fact vs. Dimension Tables, Role-Playing Date Dimension & Star vs. Snowflake Schema",
+        "DIMENSIONAL MODELING",
+        ["D05"],
+        [
+            "dimensional modeling", "kimball", "declare the grain", "role-playing dimension",
+            "factSales", "dimDate", "dimCustomer", "conformed dimensions"
+        ],
+        "Dimensional Modeling tổ chức dữ liệu xoay quanh bảng Fact (chứa con số đo lường tại tâm) kết nối trực tiếp 1-hop tới các bảng Dimension phẳng (chứa ngữ cảnh mô tả Who, What, Where, When) theo kiến trúc Star Schema để tối ưu tốc độ quét và gộp nhóm.",
+        "Quy trình thiết kế 4 bước của Ralph Kimball bắt buộc tuần tự: (1) Chọn quy trình nghiệp vụ, (2) Tuyên bố độ mịn nguyên tử (Declare the Grain), (3) Chọn các chiều ngữ cảnh, (4) Xác định các chỉ số đo lường. Khác với Snowflake Schema chia nhỏ bảng chiều thành chuỗi phân cấp nhiều tầng (DIM_CUSTOMER -> DIM_CITY -> DIM_STATE -> DIM_COUNTRY) làm tăng số phép Join, Star Schema chấp nhận phi chuẩn hóa nhẹ trên bảng Dimension để đạt tốc độ truy vấn OLAP nhanh nhất.",
+        "SELECT d.Year, d.Quarter, c.Country, SUM(f.SalesAmount) FROM factSales f JOIN dimDate d ON f.OrderDateKey = d.DateKey JOIN dimCustomer c ON f.CustomerKey = c.CustomerKey GROUP BY 1, 2, 3;",
+        "Một bảng chiều thời gian dimDate duy nhất với khóa nguyên thông minh YYYYMMDD (ví dụ 20260501) có thể đóng nhiều vai trò (Role-Playing Dimension) cho cả OrderDateKey, ShipDateKey và PaymentDateKey."
+    ),
+    (
+        "consumption.additive-semi-additive",
+        "Fact Measure Additivity: Additive (SalesAmount) vs. Semi-Additive (InventoryLevel Snapshot) vs. Non-Additive (UnitPrice / Ratios)",
+        "FACT MEASURES & GRAIN",
+        ["D05"],
+        [
+            "additive", "semi-additive", "non-additive", "additive measure",
+            "semi-additive measure", "non-additive measure", "inventorylevel",
+            "periodic snapshot"
+        ],
+        "Các chỉ số trong bảng Fact được phân thành 3 nhóm theo khả năng cộng gộp: Additive cộng được trên mọi chiều, Semi-Additive cộng được theo sản phẩm/kho hàng nhưng cấm cộng dọc theo chiều thời gian, còn Non-Additive tuyệt đối không được cộng trực tiếp.",
+        "Với chỉ số Additive như doanh thu (SalesAmount), hàm SUM() cho kết quả đúng trên mọi tổ hợp chiều. Ngược lại, số dư tồn kho (InventoryLevel) hoặc số dư tài khoản ngân hàng là ảnh chụp trạng thái (Periodic Snapshot): nếu lấy tồn kho ngày 1 (100) cộng ngày 2 (80) cộng ngày 3 (120) bằng SUM() sẽ ra con số ảo 300; kỹ sư bắt buộc phải dùng LAST_VALUE() cuối kỳ hoặc AVG() theo thời gian. Với chỉ số Non-Additive như đơn giá hay biên lợi nhuận (%), phải lưu riêng tử số và mẫu số rồi chia sau khi gom nhóm.",
+        "SELECT ProductKey, AVG(InventoryLevel) AS avg_stock, LAST_VALUE(InventoryLevel) OVER (PARTITION BY ProductKey ORDER BY DateKey) AS eod_stock FROM factInventory;",
+        "Cộng nhầm chỉ số Semi-Additive (như tồn kho hoặc số dư tài khoản) dọc theo chiều thời gian bằng hàm SUM() là lỗi sai lệch báo cáo tài chính kinh điển nhất trong thiết kế Data Warehouse."
+    ),
+    (
+        "consumption.scd-types",
+        "Slowly Changing Dimensions (SCD Type 0, 1, 2, 3, 4 & Hybrid Type 6), Surrogate Keys & Point-in-Time Historical Tracking",
+        "SLOWLY CHANGING DIMENSIONS",
+        ["D05"],
+        [
+            "slowly changing dimensions", "scd type 0", "scd type 1", "scd type 2",
+            "scd type 3", "scd type 4", "scd type 6", "row versioning", "history table"
+        ],
+        "Slowly Changing Dimensions (SCD Type 0–6) là tập hợp các chiến lược kiểm soát sự thay đổi thuộc tính của bảng chiều theo thời gian, trong đó SCD Type 2 tạo dòng phiên bản mới kèm Surrogate Key để bảo toàn trọn vẹn lịch sử tại đúng thời điểm giao dịch phát sinh.",
+        "Khi khách hàng đổi đơn vị tiền tệ từ GBP sang USD, SCD Type 1 ghi đè trực tiếp làm mất lịch sử cũ; SCD Type 2 đóng hiệu lực dòng cũ (Data To = 25/09/2025, Delete Flag = 1) và chèn dòng mới với Surrogate Key mới để bảng Fact neo đúng phiên bản lịch sử; SCD Type 3 thêm cột Previous Currency lưu đúng 1 giá trị liền trước; SCD Type 4 tách bảng Current nhỏ gọn khỏi bảng History; còn SCD Type 6 (1+2+3=6) kết hợp cả dòng phiên bản Type 2, cột Previous Type 3 và ghi đè cột Current trên mọi phiên bản để hỗ trợ phân tích cả As-Was lẫn As-Is.",
+        "SELECT f.OrderDateKey, d.Currency AS as_was_ccy, d.Current_Currency AS as_is_ccy, SUM(f.SalesAmount) FROM factSales f JOIN dimCustomer_SCD6 d ON f.CustomerKey = d.SurrogateKey GROUP BY 1, 2, 3;",
+        "Khi áp dụng SCD Type 2 hoặc Type 6, tuyệt đối không dùng Natural Key (như customer_id gốc) làm khóa chính của bảng Dimension mà bắt buộc phải sinh Surrogate Key độc lập cho từng phiên bản dòng."
+    ),
+    (
+        "consumption.datavault-medallion",
+        "Data Vault 2.0 (Hub, Link, Satellite) & Inmon (Top-Down) vs. Kimball (Bottom-Up) Convergence on Medallion Architecture",
+        "DATA VAULT & MEDALLION",
+        ["D05"],
+        [
+            "data vault", "hub_customer", "link_order_customer", "sat_customer",
+            "inmon vs kimball", "top-down approach", "bottom-up approach",
+            "medallion naming convention"
+        ],
+        "Data Vault tách rời khóa nghiệp vụ (Hub), mối quan hệ giao dịch (Link) và thuộc tính lịch sử biến đổi (Satellite) tại tầng Silver để hấp thụ trôi lược đồ từ hàng chục nguồn ERP/CRM, trước khi xuất bản ra tầng Gold dưới dạng Star Schema của Kimball.",
+        "Nếu trường phái Bill Inmon (Top-Down) ưu tiên xây dựng kho dữ liệu chuẩn hóa 3NF toàn doanh nghiệp trước rồi mới tách Data Marts, thì Ralph Kimball (Bottom-Up) xây dựng ngay các Star Schema Data Marts theo quy trình kinh doanh. Trên kiến trúc Medallion hiện đại, hai tư tưởng này hội tụ: tầng Bronze lưu nguyên bản dữ liệu thô (bronze_<source>_<entity>), tầng Silver làm sạch và tích hợp theo chuẩn 3NF hoặc Data Vault (hub_, lnk_, sat_ chỉ chèn thêm dòng mới khi đổi thuộc tính), và tầng Gold phục vụ BI tốc độ cao bằng Star Schema hoặc OBT (fact_, dim_, mart_).",
+        "INSERT INTO sat_customer (customer_hash_key, load_date, record_source, name, address) VALUES (MD5('123456'), CURRENT_TIMESTAMP, 'CRM_API', 'Peter Pan', 'New York, US');",
+        "Trong Data Vault, các bảng Hub và Link không bao giờ chứa thuộc tính mô tả hay bị cập nhật ghi đè: mọi thay đổi thông tin đều được ghi nối đuôi (Insert-Only) vào bảng Satellite kèm mốc thời gian LOAD_DATE."
+    ),
+    (
+        "consumption.olap-simd-clickhouse",
+        "OLAP Vectorized Execution (SIMD AVX-512) & ClickHouse Architecture (MergeTree 8,192 Granule Sparse Index, S3 & Keeper)",
+        "CLICKHOUSE & SIMD OLAP",
+        ["D05"],
+        [
+            "vectorized execution", "simd", "avx-512", "clickhouse", "mergetree",
+            "replicatedmergetree", "sparse primary index", "granule", "clickhouse keeper"
+        ],
+        "Động cơ OLAP hiện đại như ClickHouse kết hợp lưu trữ cột nén chặt, thực thi vector hóa bằng tập lệnh SIMD CPU (cộng cả mảng 4–16 số trong 1 chu kỳ lệnh) và chỉ mục thưa MergeTree (mỗi Granule 8.192 dòng) để quét hàng tỷ bản ghi trong vài chục mili-giây.",
+        "Kiến trúc ClickHouse gồm 4 thành phần: (1) ClickHouse Nodes thực thi truy vấn song song vector hóa kèm bộ đệm Mark/Page Cache; (2) Columnar Storage chia bảng MergeTree thành các Data Parts bất biến được sắp xếp theo ORDER BY và đánh dấu thưa mỗi 8.192 dòng (Sparse Primary Index nằm gọn trong RAM); (3) S3-Compatible Object Storage tách rời lưu trữ và tính toán; và (4) ZooKeeper / ClickHouse Keeper điều phối siêu dữ liệu nhân bản giữa các Node. Do mỗi lần ghi tạo một Data Part bất biến rồi gộp ngầm, ClickHouse không phù hợp cho tác vụ UPDATE/DELETE từng dòng đơn lẻ.",
+        "CREATE TABLE analytics.events (region LowCardinality(String), user_id UInt64, amount Decimal(10,2), ts DateTime) ENGINE = ReplicatedMergeTree() ORDER BY (region, ts, user_id) SETTINGS index_granularity = 8192;",
+        "Trong ClickHouse, thứ tự các cột trong mệnh đề ORDER BY quyết định trực tiếp cấu trúc vật lý của Sparse Primary Index: luôn đặt cột có độ phân biệt thấp (Low Cardinality như region, date) đứng trước cột có độ phân biệt cao (user_id)."
+    ),
+    (
+        "consumption.apache-pinot-hybrid",
+        "Apache Pinot Real-Time Distributed OLAP: Dimensions/Metrics/Time Schema, Hybrid Tables (Time Boundary) & Star-Tree Index",
+        "APACHE PINOT REAL-TIME OLAP",
+        ["D05"],
+        [
+            "apache pinot", "pinot", "hybrid table", "hybrid tables", "realtime table",
+            "offline table", "time boundary", "star-tree index", "user-facing analytics"
+        ],
+        "Apache Pinot là động cơ OLAP phân tán thời gian thực chuyên trị các ứng dụng phân tích hướng người dùng cuối (User-Facing Analytics) với hàng chục nghìn truy vấn mỗi giây và độ trễ vài mili-giây thông qua kiến trúc Hybrid Table và chỉ mục Star-Tree.",
+        "Pinot định nghĩa lược đồ cố định gồm Dimensions (lọc/nhóm), Metrics (tổng hợp số học) và Time Column. Để vừa có dữ liệu tươi từng giây vừa tiết kiệm chi phí lưu trữ lịch sử, Hybrid Table của Pinot hợp nhất một Real-time Table (hút trực tiếp từ Apache Kafka) và một Offline Table (nạp các phân đoạn nén sẵn từ S3/Data Lake) dưới một tên bảng duy nhất: Pinot Broker tự động dùng mốc ranh giới thời gian (Time Boundary) để chia truy vấn đọc lịch sử từ Offline Segments và phần mới nhất từ Real-time Segments.",
+        "SELECT user_id, COUNT(*) AS tx_cnt FROM transactions_HYBRID WHERE event_time >= ago('P7D') GROUP BY user_id HAVING tx_cnt >= 5 LIMIT 50;",
+        "Chọn ClickHouse khi ưu tiên truy vấn SQL phức tạp, phép Join lớn và phân tích nội bộ/log; chọn Apache Pinot khi xây dựng tính năng phân tích nhúng trực tiếp cho hàng triệu người dùng cuối đòi hỏi độ trễ p99 dưới 20ms."
+    ),
+    (
+        "consumption.feast-feature-store",
+        "ML Feature Store & Feast Architecture: Training-Serving Skew, Offline vs. Online Store (< 10ms Redis), Point-in-Time ASOF Join & Materialization",
+        "FEAST & FEATURE STORE",
+        ["D05"],
+        [
+            "feature store", "feast", "training-serving skew", "offline store",
+            "online store", "featureview", "feast apply", "get_historical_features",
+            "get_online_features", "materialize-incremental", "point-in-time join"
+        ],
+        "Feature Store như Feast là tầng chia sẻ đặc trưng thống nhất giữa Data Engineering và Machine Learning, xóa sổ hoàn toàn căn bệnh lệch công thức huấn luyện–phục vụ (Training-Serving Skew) và rò rỉ dữ liệu tương lai nhờ kiến trúc lưu trữ kép Offline/Online.",
+        "Khi không có Feature Store, việc viết SQL khi huấn luyện (ra avg_tx_30d = 45.73) và viết lại bằng Python lúc chạy thật (ra 46) làm suy giảm ngầm độ chính xác của mô hình phát hiện gian lận. Feast giải quyết bằng một định nghĩa FeatureView duy nhất trên Central Registry (feast apply): khi tạo tập huấn luyện, hàm get_historical_features() thực hiện phép kết lùi thời gian (Point-in-Time ASOF Join) trên Offline Store (S3/BigQuery/DuckDB) để chống rò rỉ tương lai; tiến trình feast materialize-incremental đồng bộ giá trị mới nhất sang Online Store (Redis/DynamoDB) để hàm get_online_features() trả kết quả dưới 10ms lúc chấm điểm trực tuyến.",
+        "feast apply && feast materialize-incremental $(date -u +\"%Y-%m-%dT%H:%M:%S\")",
+        "Tuyệt đối không dùng phép LEFT JOIN thông thường theo user_id để tạo dữ liệu huấn luyện ML vì nó sẽ lấy nhầm đặc trưng được tính ở tương lai sau thời điểm giao dịch phát sinh — bắt buộc dùng Point-in-Time ASOF Join qua get_historical_features()."
+    ),
 ]
 
 
@@ -1495,6 +2272,12 @@ def _resolve_station_link(tid: str, scope: list) -> str:
         "linux.gcc-compilation": "#/F01/4/linux-4-2",
         "linux.makefile": "#/F01/4/linux-4-2",
         "linux.cronjob": "#/F01/4/linux-4-3",
+        "python.cpython-pyobject-gc": "#/F02/1/python-1-1",
+        "python.venv-poetry-uv": "#/F02/1/python-1-2",
+        "python.name-binding-mutability": "#/F02/2/python-2-1",
+        "python.hash-table-complexity": "#/F02/2/python-2-2",
+        "python.context-manager-argparse": "#/F02/3/python-3-1",
+        "python.asyncio-wsgi-asgi": "#/F02/4/python-4-2",
         "db.rdbms-architecture": "#/F03/1/db-1-1",
         "db.keys-constraints": "#/F03/1/db-1-2",
         "db.normalization": "#/F03/1/db-1-3",
@@ -1507,6 +2290,19 @@ def _resolve_station_link(tid: str, scope: list) -> str:
         "db.scaling-sharding": "#/F03/4/db-4-1",
         "db.ha-replication-pgd": "#/F03/4/db-4-2",
         "db.nosql-cap-base": "#/F03/4/db-4-3",
+        "api.tcp-ip-http-handshake": "#/F04/1/api-1-4",
+        "api.rest-six-principles": "#/F04/2/api-2-1",
+        "api.graphql-grpc-protobuf": "#/F04/2/api-2-3",
+        "api.websocket-sse-webhook": "#/F04/2/api-2-4",
+        "api.aaa-basic-jwt-oauth": "#/F04/3/api-3-3",
+        "api.probes-p99-load-stress": "#/F04/4/api-4-1",
+        "api.fastapi-asgi-pydantic-locust": "#/F04/5/api-5-1",
+        "validation.v-model-shift-left": "#/F05/1/validation-1-1",
+        "validation.testing-methods-formal": "#/F05/1/validation-1-2",
+        "validation.functional-nonfunctional-scopes": "#/F05/2/validation-2-1",
+        "validation.pytest-fixtures-conftest": "#/F05/3/validation-3-1",
+        "validation.pytest-markers-parametrize": "#/F05/3/validation-3-2",
+        "validation.mocking-testcontainers-tdd": "#/F05/4/validation-4-1",
         "container.infra-vm-vs-container": "#/F06/1/container-1-1",
         "container.linux-namespaces-cgroups": "#/F06/2/container-2-1",
         "container.overlayfs-seccomp": "#/F06/2/container-2-3",
@@ -1518,6 +2314,37 @@ def _resolve_station_link(tid: str, scope: list) -> str:
         "ingestion.partition-offset-lag": "#/D01/3/ingestion-3-3",
         "ingestion.producer-consumer-isr-eos": "#/D01/4/ingestion-4-4",
         "ingestion.debezium-wal-outbox": "#/D01/5/ingestion-5-3",
+        "spark.dag_scheduler": "#/D03/1/spark-1-3",
+        "spark.rdd_dataframe": "#/D03/2/spark-2-4",
+        "spark.kryo_serialization": "#/D03/3/spark-3-2",
+        "spark.unified_memory": "#/D03/3/spark-3-4",
+        "spark.catalyst": "#/D03/4/spark-4-2",
+        "spark.tungsten": "#/D03/4/spark-4-3",
+        "spark.aqe": "#/D03/4/spark-4-4",
+        "spark.key_salting": "#/D03/5/spark-5-2",
+        "spark.broadcast_join": "#/D03/5/spark-5-1",
+        "spark.dynamic_allocation": "#/D03/6/spark-6-2",
+        "spark.data_compaction": "#/D03/6/spark-6-3",
+        "flink.architecture-slots": "#/D04/1/flink-1-2",
+        "flink.time-watermarks": "#/D04/2/flink-2-2",
+        "flink.windows-triggers-lateness": "#/D04/3/flink-3-3",
+        "flink.apis-dynamic-table-sql": "#/D04/4/flink-4-2",
+        "flink.state-rocksdb-checkpoint": "#/D04/5/flink-5-3",
+        "flink.chaining-backpressure-deploy": "#/D04/6/flink-6-2",
+        "consumption.dwh-etl-er": "#/D05/1/consumption-1-1",
+        "consumption.kimball-star-snowflake": "#/D05/2/consumption-2-1",
+        "consumption.additive-semi-additive": "#/D05/2/consumption-2-2",
+        "consumption.scd-types": "#/D05/3/consumption-3-1",
+        "consumption.datavault-medallion": "#/D05/3/consumption-3-3",
+        "consumption.olap-simd-clickhouse": "#/D05/4/consumption-4-2",
+        "consumption.apache-pinot-hybrid": "#/D05/4/consumption-4-3",
+        "consumption.feast-feature-store": "#/D05/5/consumption-5-2",
+        "orchestration.pipeline-five-pillars": "#/D06/1/orchestration-1-1",
+        "orchestration.idempotency-backfill-dynamic": "#/D06/2/orchestration-2-2",
+        "orchestration.airflow-dag-architecture": "#/D06/3/orchestration-3-2",
+        "orchestration.operators-sensors-xcom": "#/D06/3/orchestration-3-3",
+        "orchestration.executors-concurrency-pools": "#/D06/4/orchestration-4-3",
+        "orchestration.circuit-breaker-contracts-datahub": "#/D06/5/orchestration-5-2",
         "storage.memory-hierarchy": "#/D02/1/storage-1-1",
         "storage.ram-spill-to-disk": "#/D02/1/storage-1-2",
         "storage.disk-seek-vs-scan": "#/D02/1/storage-1-3",
@@ -1551,12 +2378,26 @@ def _resolve_station_link(tid: str, scope: list) -> str:
     prefix = tid.split(".")[0] if "." in tid else ""
     if prefix == "linux":
         return "#/F01/1"
+    if prefix == "python":
+        return "#/F02/1"
     if prefix == "db":
         return "#/F03/1"
+    if prefix == "api":
+        return "#/F04/1"
+    if prefix == "validation":
+        return "#/F05/1"
     if prefix == "container":
         return "#/F06/1"
     if prefix == "ingestion":
         return "#/D01/1"
+    if prefix == "spark":
+        return "#/D03/1"
+    if prefix == "flink":
+        return "#/D04/1"
+    if prefix == "consumption":
+        return "#/D05/1"
+    if prefix == "orchestration":
+        return "#/D06/1"
     if prefix == "storage":
         return "#/D02/1"
     topic = scope[0] if scope else "F01"
@@ -1615,6 +2456,12 @@ CANONICAL_SHORT_TITLES = {
     "linux.gcc-compilation": "GCC Compilation Pipeline",
     "linux.makefile": "GNU Make & Incremental Build",
     "linux.cronjob": "Cron Daemon (crond) & systemd Timers",
+    "python.cpython-pyobject-gc": "CPython PyObject & Garbage Collector",
+    "python.venv-poetry-uv": "Virtual Environments (venv / Poetry / uv)",
+    "python.name-binding-mutability": "Name Binding, is vs. == & Mutability",
+    "python.hash-table-complexity": "Compact Hash Table O(1) vs. List O(n)",
+    "python.context-manager-argparse": "Context Manager (with) & CLI argparse",
+    "python.asyncio-wsgi-asgi": "asyncio Event Loop & WSGI vs. ASGI",
     "storage.latency-hierarchy": "Memory & Storage Latency Hierarchy",
     "storage.ram-spill": "Volatile RAM & Spill-to-Disk",
     "storage.seek-vs-scan": "Random Seek (IOPS) vs. Sequential Scan",
@@ -1655,6 +2502,19 @@ CANONICAL_SHORT_TITLES = {
     "db.scaling-sharding": "Horizontal Sharding & Partitioning",
     "db.ha-replication-pgd": "Streaming Replication & High Availability",
     "db.nosql-cap-base": "NoSQL Data Models, CAP Theorem & BASE",
+    "api.tcp-ip-http-handshake": "TCP/IP 4-Layer Stack, HTTP, DNS, TLS & 3-Way Handshake",
+    "api.rest-six-principles": "REST API & Roy Fielding's 6 Principles",
+    "api.graphql-grpc-protobuf": "GraphQL (Query AST) vs. gRPC (Protobuf / HTTP/2)",
+    "api.websocket-sse-webhook": "WebSocket (Full-Duplex) vs. SSE vs. Webhook",
+    "api.aaa-basic-jwt-oauth": "API Security: AAA, Basic Auth, JWT & OAuth 2.0",
+    "api.probes-p99-load-stress": "K8s Probes (/liveness, /readiness), p99 & Load/Stress",
+    "api.fastapi-asgi-pydantic-locust": "FastAPI ASGI (uvloop), Pydantic v2 & Locust",
+    "validation.v-model-shift-left": "V-Model & Shift-Left Cost (1x → 30x)",
+    "validation.testing-methods-formal": "Black/Grey/White-Box & Formal Verification",
+    "validation.functional-nonfunctional-scopes": "Functional vs. Non-Functional Scopes",
+    "validation.pytest-fixtures-conftest": "Pytest Fixtures (yield & conftest.py)",
+    "validation.pytest-markers-parametrize": "Pytest Markers & Parametrize",
+    "validation.mocking-testcontainers-tdd": "Mocking, Testcontainers & TDD",
     "container.infra-vm-vs-container": "Hardware Virtualization (VM) vs. OS Containers",
     "container.linux-namespaces-cgroups": "Linux Namespaces & Control Groups (cgroups v2)",
     "container.overlayfs-seccomp": "OverlayFS Union Mount & Seccomp / Capabilities",
@@ -1666,6 +2526,37 @@ CANONICAL_SHORT_TITLES = {
     "ingestion.partition-offset-lag": "Kafka Partition, Offset, Lag & Zero-Copy",
     "ingestion.producer-consumer-isr-eos": "Producer murmur2, Consumer Group, ISR & EOS",
     "ingestion.debezium-wal-outbox": "Debezium CDC, WAL Bloat, DLQ & Outbox Pattern",
+    "spark.dag_scheduler": "Spark Architecture & DAG (Job → Stage → Task)",
+    "spark.rdd_dataframe": "Spark RDD & Lineage vs. DataFrame / Dataset[T]",
+    "spark.kryo_serialization": "Java Serialization vs. KryoSerializer",
+    "spark.unified_memory": "Unified Memory Manager & 5 persist() Levels",
+    "spark.catalyst": "Catalyst Optimizer (Pushdown & Constant Folding)",
+    "spark.tungsten": "Project Tungsten (Off-Heap, Cache & CodeGen)",
+    "spark.aqe": "Adaptive Query Execution (AQE Runtime Tuning)",
+    "spark.key_salting": "Batch Challenges, Data Skew & Key Salting",
+    "spark.broadcast_join": "Broadcast Hash Join (BHJ) vs. Sort-Merge Join",
+    "spark.dynamic_allocation": "Spark UI Diagnostics & Dynamic Allocation",
+    "spark.data_compaction": "Data Compaction (coalesce / repartition / OPTIMIZE)",
+    "flink.architecture-slots": "Flink Master–Worker, Task Slots & Parallelism",
+    "flink.time-watermarks": "Event Time, Watermarks & Bounded Delay",
+    "flink.windows-triggers-lateness": "Flink Windows, Triggers, Allowed Lateness & Side Output",
+    "flink.apis-dynamic-table-sql": "DataStream API, Dynamic Tables & Flink SQL",
+    "flink.state-rocksdb-checkpoint": "Keyed/Operator State, RocksDB & Checkpoint Barriers",
+    "flink.chaining-backpressure-deploy": "Operator Chaining, Backpressure & Application Mode",
+    "consumption.dwh-etl-er": "Data Warehouse, Staging ETL & ER 1NF→3NF",
+    "consumption.kimball-star-snowflake": "Kimball Dimensional Modeling & Star Schema",
+    "consumption.additive-semi-additive": "Additive vs. Semi-Additive Fact Measures",
+    "consumption.scd-types": "Slowly Changing Dimensions (SCD Type 0–6)",
+    "consumption.datavault-medallion": "Data Vault (Hub/Link/Sat) & Medallion",
+    "consumption.olap-simd-clickhouse": "ClickHouse MergeTree & SIMD Vectorized OLAP",
+    "consumption.apache-pinot-hybrid": "Apache Pinot Hybrid Tables & Star-Tree Index",
+    "consumption.feast-feature-store": "Feast Feature Store (Offline/Online & ASOF Join)",
+    "orchestration.pipeline-five-pillars": "Pipeline Orchestration & 5 Core Pillars",
+    "orchestration.idempotency-backfill-dynamic": "Idempotency, Backfill & Dynamic Mapping",
+    "orchestration.airflow-dag-architecture": "Apache Airflow DAG & 6-Component Architecture",
+    "orchestration.operators-sensors-xcom": "Operators, Deferrable Sensors & XCom",
+    "orchestration.executors-concurrency-pools": "Executors, Connections & Concurrency Pools",
+    "orchestration.circuit-breaker-contracts-datahub": "Circuit Breaker, Data Contracts & DataHub",
 }
 
 
@@ -1781,6 +2672,10 @@ def scan_build_hub(hub_path=None):
     if lessons_dir.exists():
         extra_html = [p.read_text(encoding="utf-8") for p in sorted(lessons_dir.glob("*/*.html"))]
         lesson_js = lesson_js + "\n" + "\n".join(extra_html)
+    for mod_name in ("f04_api_module.py", "f05_validation_module.py"):
+        mod_path = ROOT / "scripts" / mod_name
+        if mod_path.exists():
+            lesson_js = lesson_js + "\n" + mod_path.read_text(encoding="utf-8")
     no_pre = re.sub(r"<pre\b[^>]*>.*?</pre>", "", lesson_js, flags=re.S)
 
     strongs = [

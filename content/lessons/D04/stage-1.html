@@ -1,0 +1,300 @@
+      <div class="prose">
+        <x-spine id="flink-1-spine" badge="TRONG BÀI HỌC NÀY · D04" title="Chặng 1: Tổng Quan Apache Flink, Kiến Trúc Master–Worker, Task Slots &amp; Chu Trình Thực Thi" subtitle="Trạm 0.0 → 1.4">Hành trình của sự kiện <strong>Order #8888</strong> (<code>order_id=&quot;ORD-8888&quot;</code>, <code>user_id=&quot;USR-104&quot;</code>, <code>amount=450000</code>, <code>event_time=&quot;10:00:50&quot;</code>) bước từ trục sự kiện Kafka vào động cơ xử lý luồng <strong>Apache Flink</strong>: làm chủ sự khác biệt giữa Unbounded và Bounded Data, giải phẫu kiến trúc Master–Worker (<code>JobManager</code>, <code>TaskManager</code>), cơ chế cấp phát <code>Task Slots</code>, nhân bản <code>Sub-tasks</code> theo <code>Parallelism</code> và phục hồi tự động qua <code>Checkpoint</code>.</x-spine>
+
+        <section class="lesson-section" id="flink-0-map">
+          <h2 id="flink-0-map-h2" tabindex="-1">Trạm 0.0: Nhân vật chính Sự kiện Order #8888 &amp; Bản đồ Kiến trúc 6 Chặng Transformation Layer (Stream · Flink)</h2>
+
+          <p>Tiếp nối hành trình từ học phần <code>D01 · Ingestion Layer</code>, ngay khi giao dịch <strong>Sự kiện <code>Order #8888</code> (<code>order_id="ORD-8888"</code>, <code>user_id="USR-104"</code>, <code>product_id="PRD-99"</code>, <code>amount=450000</code>, phát sinh tại <code>event_time="10:00:50"</code>)</strong> đáp xuống phân vùng <code>prod.orders[Partition 1]</code> của cụm Apache Kafka tại vị trí <code>offset=9001</code>, bản ghi này không được phép nằm chờ các tiến trình gom lô hàng đêm. Toàn bộ học phần <code>D04 · Transformation Layer (Stream · Flink)</code> sẽ theo sát <code>Order #8888</code> đi xuyên qua động cơ xử lý luồng thực thụ <code>Apache Flink</code> để đồng thời chấm điểm gian lận trong <code>&lt; 50ms</code>, cộng dồn doanh thu cửa sổ trượt theo đúng thời điểm phát sinh sự kiện bất chấp mạng viễn thông làm trễ gói tin, và ghi kết quả xuống <code>D02 · Data Lakehouse</code> với cam kết chính xác một lần duy nhất (<code>Exactly-once</code>).</p>
+
+          <x-figure id="flink-0-1" key="0.1" title="Sơ đồ 0.1 — Bản đồ Tư duy 6 Chặng: Hành trình Sự kiện Order #8888 qua Động cơ Xử lý Luồng Apache Flink">Toàn cảnh lộ trình nhân quả 6 Chặng (20 Trạm) đưa sự kiện #8888 qua kiến trúc Flink Cluster, Watermarks, Windowing, Late Data, Flink SQL, RocksDB State, Checkpoint Barriers và Backpressure.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chặng &amp; Trạm</th>
+                  <th>Trọng tâm Slide 10 &amp; Giáo trình Sách</th>
+                  <th>Điểm nghẽn Khởi phát</th>
+                  <th>Cơ chế Giải quyết Vật lý</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Chặng 1: Tổng quan &amp; Kiến trúc Flink</strong><br/><em>Trạm 0.0 → 1.4</em></td>
+                  <td>• Bản chất <code>Unbounded vs. Bounded Data</code>, <code>Stateful</code>, <code>Exactly-once</code> &amp; vị trí tại <code>Transformation Layer</code> (<em>Slide 04–05</em>; <em>Flink Book</em> Ch. 1).<br/>• Kiến trúc <code>JobManager</code> (<code>Dispatcher</code>, <code>Scheduler</code>, <code>Checkpoint Coordinator</code>) &amp; <code>TaskManager</code> (<em>Slide 06, 10</em>).<br/>• Cơ học <code>Task Slots</code>, <code>Sub-tasks</code>, <code>Parallelism</code>, <code>Heartbeats</code>, <code>Checkpoint</code> &amp; <code>Source Rewind</code> (<em>Slide 07–09, 11–12</em>).</td>
+                  <td>Xử lý từng sự kiện <code>Order #8888</code> trên một máy đơn lẻ gây tràn bộ nhớ; khi một node tính toán sập giữa chừng, việc khởi động lại làm mất tổng doanh thu đang cộng dồn hoặc tính trùng đơn hàng.</td>
+                  <td>Chia nhỏ toán tử thành các luồng <code>Sub-tasks</code> chạy trong các <code>Task Slots</code> (cô lập <code>Managed Memory</code>, chia sẻ CPU); định kỳ chụp ảnh trạng thái xuống <code>S3/HDFS</code> và tua ngược <code>Kafka Offset</code> về mốc <code>T</code> khi gặp sự cố.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 2: Thời gian &amp; Cơ học Watermark</strong><br/><em>Trạm 2.1 → 2.3</em></td>
+                  <td>• Đối chiếu 3 ngữ nghĩa thời gian: <code>Event Time</code> vs. <code>Ingestion Time</code> vs. <code>Processing Time</code> (<em>Slide 14–16</em>; <em>Streaming Systems</em> Ch. 2).<br/>• Sự kiện đến trễ / sai thứ tự (<code>Out-of-Order Events</code>) &amp; đồng hồ tiến độ <code>Watermark W(t)</code> (<em>Slide 17–19</em>).<br/>• 3 chiến lược sinh Watermark: <code>Bounded-Out-of-Orderness</code>, <code>Monotonous</code>, <code>Custom Punctuated</code> &amp; lan truyền đa phân vùng <code>min(W_i)</code> (<em>Slide 20–21</em>; <em>Flink Book</em> Ch. 3, 6).</td>
+                  <td>Sự kiện <code>Order #8888</code> thanh toán lúc <code>10:00:50</code> nhưng kẹt mạng 3G nên tới máy chủ Flink lúc <code>10:01:05</code>; dùng đồng hồ máy chủ (<code>Processing Time</code>) khiến đơn hàng bị đẩy nhầm sang báo cáo của phút kế tiếp.</td>
+                  <td>Neo toàn bộ phép tính vào <code>event_time="10:00:50"</code> và phát tín hiệu <code>Watermark(t) = max(event_time) - d</code> làm thước đo tiến độ thời gian thực để biết khi nào không còn sự kiện sớm hơn mốc <code>t</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 3: Windowing &amp; Vòng đời Cửa sổ</strong><br/><em>Trạm 3.1 → 3.3</em></td>
+                  <td>• Giải phẫu 4 loại cửa sổ: <code>Tumbling</code>, <code>Sliding</code>, <code>Session</code>, và <code>Global Window</code> (<em>Slide 23–28</em>; <em>Flink Book</em> Ch. 6).<br/>• Vòng đời cửa sổ khi kết hợp với <code>Watermark</code> (mốc mở, gom trạng thái, kích hoạt đóng khi <code>W(t) &gt;= end_time</code>) (<em>Slide 29</em>).<br/>• Toán tử tính toán cửa sổ: <code>ReduceFunction</code> / <code>AggregateFunction</code> (cộng dồn tức thời) vs. <code>ProcessWindowFunction</code> (lưu toàn bộ bản ghi).</td>
+                  <td>Luồng dữ liệu đơn hàng là vô tận (<code>Unbounded</code>) nên không thể đợi luồng kết thúc mới chạy lệnh <code>SUM(amount)</code>; nếu giữ mọi bản ghi <code>Order #8888</code> trong bộ nhớ đệm cửa sổ sẽ gây nổ RAM (<code>OOM</code>).</td>
+                  <td>Cắt luồng vô hạn thành các lát hữu hạn (<code>Windows</code>) đóng mở tự động theo <code>Watermark</code>; dùng <code>Incremental Aggregation</code> chỉ giữ 1 giá trị tổng tạm thời trên mỗi khóa thay vì lưu cả danh sách sự kiện.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 4: Late Data &amp; Bốn Chiến lược Xử lý</strong><br/><em>Trạm 4.1 → 4.3</em></td>
+                  <td>• Bản chất <code>Late Events</code> (khi <code>event_time &lt; current_watermark</code>) &amp; đánh đổi giữa Độ trễ — Độ chính xác — Bộ nhớ (<em>Slide 31–32</em>).<br/>• 4 chiến lược xử lý dữ liệu trễ: <code>1. Drop it</code>, <code>2. Allowed Lateness</code>, <code>3. Side Output</code>, <code>4. Increase Watermark Delay</code> (<em>Slide 33–38</em>; <em>Streaming Systems</em> Ch. 3, 4).</td>
+                  <td>Sau khi <code>Watermark</code> đã vượt qua mốc <code>10:01:00</code> và đóng cửa sổ doanh thu phút 10:00, một gói tin bù của <code>Order #8888</code> mới lết tới hệ thống — nếu vứt bỏ mặc định sẽ gây lệch sổ kế toán cuối ngày.</td>
+                  <td>Mở gia hạn cửa sổ bằng <code>allowedLateness(1 min)</code> để phát bản cập nhật hiệu chỉnh (<code>Retraction / Late Firing</code>), đồng thời hứng các bản ghi quá hạn vào luồng phụ <code>Side Output</code> để ghi vết kiểm toán mà không làm chặn luồng chính.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 5: Bốn Cấp độ API &amp; Flink SQL</strong><br/><em>Trạm 5.1 → 5.3</em></td>
+                  <td>• Tháp 4 tầng API của Flink: <code>Flink SQL</code> → <code>Table API</code> → <code>DataStream API</code> → <code>Stateful Stream Processing (ProcessFunction)</code> (<em>Slide 40–42</em>; <em>Flink Book</em> Ch. 1, 5, 6).<br/>• Giải phẫu <code>Dynamic Tables</code>, <code>Changelog Stream (+I, -U, +U, -D)</code>, <code>Window TVF</code> &amp; <code>Temporal / Interval Joins</code> cho <code>Order #8888</code>.</td>
+                  <td>Viết hàng trăm dòng mã Java/Scala quản lý <code>TimerService</code> và <code>ValueState</code> cho các phép thống kê chuẩn gây tốn thời gian phát triển, trong khi SQL truyền thống không hiểu được luồng biến động liên tục.</td>
+                  <td>Ánh xạ luồng sự kiện thành <code>Dynamic Table</code> cập nhật liên tục qua dòng nhật ký thay đổi (<code>Changelog</code>) với trình tối ưu hóa <code>Apache Calcite</code>; chỉ xuống tầng <code>KeyedProcessFunction</code> khi cần điều khiển đồng hồ hẹn giờ cấp mili-giây.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 6: State, Checkpoint, Backpressure &amp; Spark vs. Flink</strong><br/><em>Trạm 6.1 → 6.4</em></td>
+                  <td>• Giải phẫu <code>Keyed State vs. Operator State</code>, <code>HashMapStateBackend (Heap)</code> vs. <code>EmbeddedRocksDBStateBackend (Disk LSM)</code>, <code>State TTL</code> (<em>Slide 44–45</em>; <em>Flink Book</em> Ch. 7, 8).<br/>• Thuật toán <code>Chandy-Lamport Checkpoint Barriers</code> (<code>Aligned vs. Unaligned</code>), <code>Savepoints</code>, và cơ chế truyền ngược <code>Credit-based Backpressure</code> (<em>Slide 46–48</em>).<br/>• Đối chiếu kiến trúc <code>Apache Spark (Micro-batch)</code> vs. <code>Apache Flink (Native Event-driven)</code> (<em>Slide 49–50</em>).</td>
+                  <td>Trạng thái lịch sử giao dịch phình lên hàng trăm Gigabyte làm treo cứng JVM vì <code>Stop-the-World GC</code>; đích ghi <code>Sink</code> bị chậm làm nghẽn toàn bộ đường ống và treo đứng tiến trình chụp <code>Checkpoint</code>.</td>
+                  <td>Đẩy trạng thái ra vùng nhớ ngoài JVM (<code>Off-heap RocksDB</code> + <code>Incremental Checkpoints</code>); truyền luồng rào chắn <code>Checkpoint Barrier</code> bất đồng bộ và điều tiết áp lực ngược từ <code>InputGate</code> về tận nguồn đọc Kafka.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="lesson-section" id="flink-1-0-sim">
+          <h2 id="flink-1-0-sim-h2" tabindex="-1">Trạm 1.0 (Mô phỏng 2D): Phòng Thí Nghiệm Động Cơ Flink — Task Slots, Watermark, Window, Late Data, Checkpoint &amp; Backpressure</h2>
+
+          <p>Trước khi đi sâu vào giải phẫu lý thuyết của từng trạm, hãy trực tiếp điều khiển sự kiện <strong>Order #8888</strong> (<code>event_time="10:00:50"</code>, <code>amount=450000</code>) đi qua <strong>6 kịch bản vận hành cốt lõi</strong> trong Phòng Thí Nghiệm Động Cơ Flink 2D dưới đây: từ cách <code>JobManager</code> phân bổ <code>Sub-tasks</code> vào các <code>Task Slots</code> theo <code>Parallelism</code>, cơ chế đồng hồ <code>Watermark(t) = max(event_time) - d</code> kích hoạt đóng cửa sổ khi gặp sự kiện đến trễ, so sánh trực quan 4 loại cửa sổ (<code>Tumbling / Sliding / Session / Global</code>), thử nghiệm 4 chiến lược ứng phó <code>Late Data</code> (<code>Drop / Allowed Lateness / Side Output / Watermark Delay</code>), cho tới dòng chảy <code>Chandy-Lamport Checkpoint Barrier</code> tua ngược <code>Kafka Offset</code> khi sập node và hiện tượng nghẽn cổ chai <code>Credit-based Backpressure</code>.</p>
+
+          <x-flink2d></x-flink2d>
+        </section>
+
+        <section class="lesson-section" id="flink-1-1">
+          <h2 id="flink-1-1-h2" tabindex="-1">Trạm 1.1: Bản chất Apache Flink (Unbounded vs. Bounded Data, Stateful, Exactly-Once) &amp; Vị trí tại Transformation Layer</h2>
+
+          <p><strong>Động cơ Xử lý Luồng có Trạng thái (Stateful Stream Processing Engine):</strong> <code>Apache Flink</code> là một hệ thống tính toán phân tán mã nguồn mở được thiết kế theo triết lý <em>luồng là bản chất gốc của dữ liệu, còn lô chỉ là một trường hợp đặc biệt của luồng</em> — có khả năng xử lý hàng triệu sự kiện mỗi giây với độ trễ chỉ từ <code>1–10 mili-giây</code> (<em>Slide 04</em>; <em>Stream Processing with Apache Flink</em>, Ch. 1, tr. 1–9). Khi sự kiện <code>Order #8888</code> (<code>amount=450000</code>) vừa được đẩy vào Kafka, doanh nghiệp không thể chờ tới <code>00:00</code> đêm hôm sau để chạy một tiến trình quét lô (Batch Job) mới phát hiện ra tài khoản <code>USR-104</code> đang bị đánh cắp thẻ tín dụng quẹt liên tiếp 20 giao dịch trong vòng 30 giây. <code>Apache Flink</code> giải quyết bài toán này nhờ hội tụ 4 trụ cột kỹ thuật cốt lõi: xử lý <code>Unbounded data</code> (luồng dữ liệu vô hạn có điểm bắt đầu nhưng không có điểm kết thúc, chảy liên tục theo thời gian thực), xử lý <code>Bounded data</code> (tập dữ liệu hữu hạn có điểm đầu và điểm cuối cố định, tức xử lý lô <code>Batch processing</code> như một tập con của luồng), cam kết <code>Exactly-once</code> (mọi sự kiện được đảm bảo tác động lên trạng thái kết quả đúng một lần duy nhất ngay cả khi máy chủ sập nguồn), và bản chất <code>Stateful</code> (cho phép các toán tử ghi nhớ ngữ cảnh từ các sự kiện quá khứ để phục vụ phép tính ở hiện tại).</p>
+
+          <p><strong>Vị trí Chiến lược tại Tầng Biến đổi (Transformation Layer Architecture):</strong> Trong sơ đồ kiến trúc dữ liệu 5 tầng tổng thể (<code>Data Sources → Ingestion Layer → Transformation Layer → Warehouse → Data Marts → Users</code> trên <em>Slide 05</em>), <code>Apache Flink</code> đóng vai trò là trái tim tính toán của <code>Transformation Layer</code>. Nếu tầng <code>Ingestion Layer</code> (như Debezium và Apache Kafka ở học phần <code>D01</code>) chỉ làm nhiệm vụ vận chuyển nguyên vẹn gói tin thô <code>Order #8888</code> từ hệ thống nguồn về, thì tầng <code>Transformation Layer</code> đứng ngay phía sau để thực thi 4 phép biến đổi cốt lõi trên đường bay: lọc bỏ bản ghi rác hoặc giao dịch thử nghiệm (<code>Filters</code>), làm giàu đơn hàng bằng thông tin hạng thành viên của <code>USR-104</code> và danh mục <code>PRD-99</code> (<code>Enriches</code>), gom nhóm cộng dồn doanh thu theo cửa sổ thời gian (<code>Aggregates</code>), và định tuyến bản ghi sang các nhánh đích khác nhau (<code>Routes events</code>). Qua chu trình đó, Flink chuyển hóa dòng sự kiện thô rời rạc (<code>Raw data</code>) thành dữ liệu tổng hợp có giá trị cao (<code>Summary data</code>) và siêu dữ liệu vận hành (<code>Metadata data</code>) nạp thẳng vào <code>Warehouse</code> và các <code>Data Marts</code> chuyên biệt (<code>Purchasing</code>, <code>Sales</code>, <code>Inventory</code>) để phục vụ người dùng cuối thực hiện phân tích (<code>Analytics</code>), báo cáo (<code>Reporting</code>) và khai phá dữ liệu (<code>Mining</code>).</p>
+
+          <x-figure id="flink-1-1-fig" key="1.1" title="Sơ đồ 1.1 — Đối chiếu Luồng Vô hạn (Unbounded) vs. Hữu hạn (Bounded) &amp; Vị trí của Flink tại Transformation Layer">Định vị động cơ Apache Flink giữa tầng Ingestion (Kafka) và tầng Warehouse/Data Marts để biến đổi sự kiện thô thành dữ liệu tổng hợp theo thời gian thực.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Trụ cột / Phân lớp Kiến trúc (Slide 04–05 &amp; Sách)</th>
+                  <th>Bản chất Cơ học &amp; Đặc tính Vật lý</th>
+                  <th>Vai trò Trực tiếp đối với Sự kiện <code>Order #8888</code></th>
+                  <th>Hệ quả Kỹ thuật nếu Thiếu hoặc Thiết kế Sai</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Unbounded Data (Luồng dữ liệu vô hạn)</strong></td>
+                  <td>Luồng sự kiện có điểm khởi đầu nhưng không bao giờ kết thúc; dữ liệu sinh ra liên tục theo từng hành động thực tế của người dùng và thiết bị (<em>Streaming Systems</em>, Ch. 1).</td>
+                  <td>Đơn hàng <code>Order #8888</code> chỉ là một mắt xích trong dòng chảy giao dịch bất tận từ topic <code>prod.orders</code>; Flink phải xử lý ngay khi gói tin vừa tới mà không chờ luồng dừng lại.</td>
+                  <td>Nếu áp tư duy quét toàn bảng (Full Scan) lên luồng vô hạn, tiến trình sẽ treo vĩnh viễn để chờ dấu kết thúc tệp (<code>EOF</code>) không bao giờ tới.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Bounded Data (Tập dữ liệu hữu hạn / Batch)</strong></td>
+                  <td>Tập dữ liệu có ranh giới đầu và cuối xác định trước (ví dụ toàn bộ đơn hàng của tháng 09 lưu trên <code>s3://lakehouse/orders/2026-09/</code>).</td>
+                  <td>Khi cần tính lại báo cáo lịch sử (Backfill) hoặc huấn luyện mô hình định kỳ, Flink dùng chung một bộ API để đọc tập tệp Parquet hữu hạn chứa <code>Order #8888</code> với tốc độ tối ưu.</td>
+                  <td>Duy trì hai hệ thống code tách biệt cho Batch và Stream (kiến trúc Lambda cũ) gây lệch số liệu giữa báo cáo thời gian thực và báo cáo cuối ngày.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Stateful Processing (Xử lý có trạng thái)</strong></td>
+                  <td>Khả năng lưu trữ và cập nhật thông tin từ các sự kiện đã đi qua ngay trong bộ nhớ cục bộ (RAM hoặc ổ đĩa NVMe <code>RocksDB</code>) của node tính toán.</td>
+                  <td>Khi xử lý <code>Order #8888</code> (<code>450,000đ</code>), Flink phải nhớ được tổng chi tiêu trước đó của <code>USR-104</code> trong 5 phút qua là <code>1,200,000đ</code> để cộng dồn lên <code>1,650,000đ</code> ngay lập tức.</td>
+                  <td>Nếu xử lý phi trạng thái (<code>Stateless</code>) và mỗi lần nhận đơn lại phải gọi truy vấn <code>SELECT SUM</code> ra cơ sở dữ liệu bên ngoài qua mạng, độ trễ sẽ vọt lên hàng trăm mili-giây và đánh sập DB ngoại vi.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Exactly-Once Semantics (Chính xác một lần)</strong></td>
+                  <td>Đảm bảo trạng thái nội bộ của Flink phản ánh sự tác động của mỗi sự kiện đúng 1 lần duy nhất, bất chấp lỗi phần cứng hay khởi động lại tiến trình.</td>
+                  <td>Nếu một máy chủ Worker bị mất điện đúng lúc vừa cộng <code>450,000đ</code> của <code>Order #8888</code>, cơ chế khôi phục đảm bảo số tiền này không bị mất đi (<code>At-most-once</code>) và không bị cộng đúp thành <code>900,000đ</code> (<code>At-least-once</code>).</td>
+                  <td>Cộng trùng hoặc bỏ sót giao dịch tài chính làm sai lệch trực tiếp bảng cân đối kế toán và kích hoạt nhầm cảnh báo khóa thẻ khách hàng.</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Transformation Layer (Lọc, Làm giàu, Tổng hợp, Định tuyến)</strong></td>
+                  <td>Đứng giữa <code>Ingestion Layer</code> và <code>Warehouse</code> (gồm <code>Summary data</code>, <code>Metadata data</code>, <code>Raw data</code>) để chuẩn hóa dữ liệu trước khi phân phối về các <code>Data Marts</code> (<code>Purchasing</code>, <code>Sales</code>, <code>Inventory</code>).</td>
+                  <td>Kiểm tra hợp lệ <code>amount &gt; 0</code> (Filter), ghép thêm vùng địa lý của <code>USR-104</code> (Enrich), cập nhật doanh số cửa sổ 1 phút (Aggregate), và tách đơn nghi ngờ gian lận sang kênh cảnh báo nóng (Route).</td>
+                  <td>Đổ thẳng sự kiện thô chưa qua làm giàu và tổng hợp vào các <code>Data Marts</code> khiến đội ngũ <code>Analytics / Reporting / Mining</code> phải tự viết truy vấn phức tạp lặp đi lặp lại.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Xác định được vị trí của <code>Apache Flink</code> tại tầng <code>Transformation Layer</code> và 4 năng lực cốt lõi giúp chúng ta hiểu rõ <em>tại sao</em> sự kiện <code>Order #8888</code> cần một động cơ xử lý luồng có trạng thái. Nhưng về mặt vật lý, khi bạn viết xong một đoạn mã biến đổi đơn hàng và bấm nút triển khai lên một cụm hàng chục máy chủ, thành phần nào sẽ đứng ra tiếp nhận mã nguồn, biên dịch thành đồ thị thực thi, và thành phần nào trực tiếp cõng các luồng dữ liệu nặng nề? Chúng ta bước vào giải phẫu nội tạng cụm Flink tại <strong>Trạm 1.2</strong>.</p>
+        </section>
+
+        <section class="lesson-section" id="flink-1-2">
+          <h2 id="flink-1-2-h2" tabindex="-1">Trạm 1.2: Giải phẫu Kiến trúc Master – Worker: Client, JobManager (Dispatcher, Scheduler, Checkpoint Coordinator) &amp; TaskManagers</h2>
+
+          <p><strong>Kiến trúc Điều phối Tập trung Master–Worker (Master–Worker Architecture):</strong> Một cụm <code>Apache Flink</code> vận hành theo sự phân vai cơ học rạch ròi giữa hai loại tiến trình: <code>JobManager</code> đóng vai trò là <em>bộ não điều phối (the brain)</em> chỉ huy toàn bộ vòng đời công việc, trong khi các <code>TaskManagers</code> đóng vai trò là <em>cơ bắp thực thi (the muscle)</em> trực tiếp đọc, tính toán và truyền tải dữ liệu (<em>Slide 06</em>; <em>Stream Processing with Apache Flink</em>, Ch. 3, tr. 37–42). Trước khi chạm tới cụm máy chủ này, đoạn mã nghiệp vụ xử lý <code>Order #8888</code> trong <code>Flink Program</code> được trình biên dịch <code>Optimizer / Graph Builder</code> tại phía <code>Client</code> chuyển hóa từ mã nguồn (<code>Program code</code>) thành một đồ thị luồng dữ liệu logic (<code>Dataflow graph</code>), sau đó <code>Client</code> mới gửi yêu cầu nộp bài toán (<code>Submit job</code>) hoặc các lệnh điều khiển (<code>Cancel / update job</code>) tới <code>JobManager</code>.</p>
+
+          <p><strong>Cơ chế Nội tại của JobManager, TaskManager và Chu trình 4 Bước Khởi tạo (Slide 06 &amp; Slide 10):</strong> Bên trong bộ não <code>JobManager</code> có 3 phân hệ phối hợp chặt chẽ: <code>Dispatcher</code> (nhận đồ thị <code>Dataflow Graph</code> từ Client và cung cấp giao diện Web UI), <code>Scheduler</code> (quản lý tài nguyên và lập lịch phân bổ các tác vụ xuống từng node), và <code>Checkpoint Coordinator</code> (nhạc trưởng điều phối việc chụp ảnh trạng thái định kỳ). Ngay khi nhận được một Job mới từ Client, <code>JobManager</code> thực hiện tuần tự <strong>4 bước khởi tạo duy nhất một lần (One-time Initialization Sequence)</strong> trước khi chuyển sang chế độ giám sát thời gian chạy: <code>(1) Receive</code> (tiếp nhận ứng dụng từ Client) → <code>(2) Parse and optimize</code> (phân tích cú pháp và tối ưu hóa chuỗi toán tử) → <code>(3) Build the Execution Graph</code> (biên dịch đồ thị logic thành đồ thị thực thi vật lý đã tách các nhánh song song) → <code>(4) Assign each task to an available slot on a TaskManager</code> (giao từng tác vụ vào một ô <code>Task Slot</code> còn trống trên các máy <code>TaskManager</code>). Ở phía dưới, mỗi máy <code>TaskManager</code> vận hành 3 khối phần cứng – phần mềm: <code>Memory &amp; I/O Manager</code> (quản lý bộ nhớ đệm và đọc/ghi đĩa), <code>Network Manager</code> (trao đổi trực tiếp các luồng <code>Data Streams</code> chứa <code>Order #8888</code> giữa các TaskManagers qua cơ chế đệm mạng Netty), và <code>Actor System</code> (duy trì kênh liên lạc RPC với JobManager để nhận lệnh <code>Deploy/Stop/Cancel Tasks</code>, <code>Trigger Checkpoints</code> đồng thời báo cáo ngược <code>Task Status / Heartbeats / Statistics</code>).</p>
+
+          <x-figure id="flink-1-2-fig" key="1.2" title="Sơ đồ 1.2 — Giải phẫu Kiến trúc Master–Worker của Apache Flink &amp; Chu trình 4 Bước Biên dịch Execution Graph">Cấu trúc nội tạng của Client, JobManager (Dispatcher, Scheduler, Checkpoint Coordinator) và các TaskManagers trao đổi Data Streams qua Network Manager.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Thành phần Kiến trúc (Slide 06 &amp; Slide 10)</th>
+                  <th>Phân hệ Nội tạng Cốt lõi</th>
+                  <th>Nhiệm vụ Cơ học đối với Ứng dụng Xử lý <code>Order #8888</code></th>
+                  <th>Giao thức Tương tác &amp; Đặc điểm Vận hành</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Flink Program &amp; Client (Trạm đệ trình ứng dụng)</strong></td>
+                  <td><code>Program code</code> → <code>Optimizer / Graph Builder</code> → <code>Dataflow graph</code> → <code>Client</code>.</td>
+                  <td>Biên dịch mã nguồn lọc và cộng dồn <code>Order #8888</code> thành đồ thị luồng dữ liệu logic (<code>Logical Dataflow Graph / StreamGraph</code>) và đóng gói thư viện JAR.</td>
+                  <td>Gửi lệnh <code>Submit job</code> hoặc <code>Cancel / update job</code> tới <code>JobManager</code>; sau khi nộp xong, Client có thể ngắt kết nối (Detached Mode) mà Job vẫn chạy.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. JobManager — The Brain (Bộ não điều phối Master)</strong></td>
+                  <td>• <code>Dispatcher</code><br/>• <code>Dataflow Graph</code> &amp; <code>Execution Graph</code><br/>• <code>Scheduler</code> (+ <code>ResourceManager</code>)<br/>• <code>Checkpoint Coordinator</code></td>
+                  <td>Thực thi 4 bước khởi tạo một lần (<code>1. Receive</code> → <code>2. Parse &amp; optimize</code> → <code>3. Build Execution Graph</code> → <code>4. Assign tasks to slots</code>), sau đó điều phối <code>Checkpoints</code> và xử lý lỗi.</td>
+                  <td>Không trực tiếp chạm vào dòng dữ liệu của <code>Order #8888</code>; chỉ gửi lệnh điều khiển (<code>Deploy/Stop/Cancel Tasks</code>, <code>Trigger Checkpoints</code>) tới các TaskManagers.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. TaskManager — The Muscle (Cơ bắp thực thi Worker)</strong></td>
+                  <td>• Các ô <code>Task Slots</code> chứa <code>Task</code><br/>• <code>Memory &amp; I/O Manager</code><br/>• <code>Network Manager</code><br/>• <code>Actor System</code></td>
+                  <td>Trực tiếp kéo bản ghi <code>Order #8888</code> từ Kafka, chạy phép tính cửa sổ trên CPU/RAM cục bộ và đẩy kết quả sang bước tiếp theo.</td>
+                  <td>Mỗi <code>TaskManager</code> là một tiến trình <code>JVM Process</code> độc lập; báo cáo liên tục <code>Task Status / Heartbeats / Statistics</code> về cho <code>JobManager</code> qua <code>Actor System</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Network Manager (Trục truyền dữ liệu giữa các Worker)</strong></td>
+                  <td>Hệ thống <code>Netty Network Buffers</code> kết nối điểm-nối-điểm giữa các <code>TaskManagers</code>.</td>
+                  <td>Khi <code>Order #8888</code> được đọc ở <code>TaskManager 1</code> nhưng khóa <code>user_id="USR-104"</code> lại thuộc quyền tính tổng của <code>TaskManager 2</code>, <code>Network Manager</code> truyền thẳng gói tin giữa hai Worker.</td>
+                  <td>Luồng <code>Data Streams</code> đi ngang trực tiếp giữa các <code>TaskManagers</code> với nhau, tuyệt đối không đi vòng qua <code>JobManager</code> để tránh nghẽn cổ chai trung tâm.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Ở bước thứ 4 trong chu trình khởi tạo của <code>JobManager</code> (<em>Assign each task to an available slot on a TaskManager</em>), chúng ta bắt gặp khái niệm <code>Task Slot</code>. Tại sao <code>Apache Flink</code> không ném thẳng hàng chục tác vụ vào chạy chung một đống hỗn độn trong tiến trình JVM của <code>TaskManager</code>, mà lại bắt buộc chia <code>TaskManager</code> thành các ngăn <code>Task Slots</code> cố định? Và làm thế nào một toán tử <code>map()</code> duy nhất trên bản vẽ lại có thể biến hình thành 4 luồng chạy song song? Chúng ta tiến vào <strong>Trạm 1.3</strong>.</p>
+        </section>
+
+        <section class="lesson-section" id="flink-1-3">
+          <h2 id="flink-1-3-h2" tabindex="-1">Trạm 1.3: Cơ học Task Slots, Chia sẻ Tài nguyên (Managed Memory vs. CPU), Sub-tasks &amp; Độ song song (Parallelism)</h2>
+
+          <p><strong>Cơ chế Cô lập Bộ nhớ của Task Slot (Task Slot Resource Isolation — Slide 07):</strong> Mỗi <code>TaskManager</code> là một tiến trình JVM chạy trên máy chủ vật lý hoặc Container, và nó chia năng lực tính toán của mình thành một hoặc nhiều <code>Task Slots</code> (trong đó mỗi slot là nơi chạy một đường ống <code>Sub-task</code>). Về bản chất vật lý, một <code>Task Slot</code> đại diện cho một <strong>phần tài nguyên bộ nhớ cố định (fixed subset of resources)</strong> của <code>TaskManager</code> đó: chẳng hạn, nếu một <code>TaskManager</code> được cấu hình có <code>3 Task Slots</code>, nó sẽ chia đều cho mỗi slot chính xác <code>1/3</code> dung lượng bộ nhớ được quản lý (<code>Managed Memory</code> — vùng nhớ dùng cho sắp xếp, bảng băm và bộ đệm <code>RocksDB</code>). Nhờ vách ngăn bộ nhớ này, một tác vụ xử lý dữ liệu nặng ở <code>Slot 1</code> không thể chiếm đoạt vùng nhớ của <code>Slot 2</code> gây lỗi tràn bộ nhớ dây chuyền. Tuy nhiên, điểm cốt lõi mà kỹ sư bắt buộc phải nắm vững từ <em>Slide 07</em> và <em>Flink Book</em> (Ch. 3, tr. 39) là: <strong>các Task Slots chỉ chia tách bộ nhớ (Memory), chứ KHÔNG cô lập CPU</strong> — toàn bộ các slots nằm trong cùng một <code>TaskManager</code> đều dùng chung (share) các nhân CPU của tiến trình JVM đó (trừ khi mỗi TaskManager chỉ cấu hình 1 slot và được khóa cứng CPU qua <code>Kubernetes cgroups</code>).</p>
+
+          <p><strong>Giải phẫu Sub-task, Độ song song Parallelism và Chia sẻ Ô nhớ Slot Sharing (Slide 08–09):</strong> Một chương trình Flink được lắp ghép từ chuỗi các toán tử (<code>Operators</code>) như <code>Source</code>, <code>map()</code>, <code>filter()</code>, <code>window</code>. Khi đưa vào thực thi, mỗi toán tử logic này được nhân bản thành nhiều đơn vị thực thi độc lập gọi là <code>Sub-tasks</code>: mỗi <code>Sub-task</code> chạy trên một luồng riêng biệt (<code>single thread</code>) và xử lý một phân mảnh dữ liệu độc lập (ví dụ <code>Sub-task 1</code> xử lý đơn <code>Order #8888</code> từ <code>Partition 1</code>, trong khi <code>Sub-task 2</code> xử lý đơn từ <code>Partition 2</code>). Tham số <code>Parallelism</code> chính là con số quyết định một toán tử được tách thành bao nhiêu bản sao <code>Sub-tasks</code> chạy đồng thời mà không hề làm thay đổi logic nghiệp vụ: như minh họa trên <em>Slide 09</em>, khi đặt <code>Parallelism = 4</code> cho toán tử <code>map()</code> trên cụm gồm <code>2 TaskManagers</code> (mỗi máy có <code>2 Task Slots</code>), Flink sẽ khởi tạo 4 bản sao <code>map()[1]</code>, <code>map()[2]</code>, <code>map()[3]</code>, <code>map()[4]</code> lấp đầy cả 4 ô <code>Task Slots</code> để tăng gấp 4 lần thông lượng xử lý. Đặc biệt, nhờ cơ chế <code>Slot Sharing</code> (chia sẻ slot mặc định của Flink), một <code>Task Slot</code> đơn lẻ không chỉ chứa 1 sub-task rời rạc mà có thể xếp chồng trọn vẹn một lát cắt dọc của cả đường ống (ví dụ <code>Source[1] → map()[1] → window()[1] → Sink[1]</code> cùng nằm chung trong <code>Slot 1</code>), giúp tối ưu hóa tối đa hiệu suất sử dụng CPU và giảm chi phí truyền mạng nội bộ.</p>
+
+          <x-figure id="flink-1-3-fig" key="1.3" title="Sơ đồ 1.3 — Giải phẫu Task Slots (Chia Managed Memory, Dùng chung CPU) &amp; Nhân bản Sub-tasks theo Parallelism">Cách Flink chia nhỏ toán tử map() với Parallelism = 4 thành 4 luồng Sub-tasks phân bổ vào các Task Slots trên 2 TaskManagers.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Khái niệm Thực thi (Slide 07–09 &amp; Sách)</th>
+                  <th>Định nghĩa Cơ học Vật lý</th>
+                  <th>Quy tắc Cấp phát Tài nguyên (RAM / CPU / Thread)</th>
+                  <th>Ví dụ Định lượng với <code>Order #8888</code> (<code>Parallelism = 4</code>)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. TaskManager (Node thực thi Worker)</strong></td>
+                  <td>Tiến trình máy ảo Java (<code>JVM Process</code>) chạy trên một máy chủ vật lý hoặc một Kubernetes Pod, cung cấp không gian chạy cho các tác vụ.</td>
+                  <td>Sở hữu tổng quỹ RAM (<code>Flink Total Memory</code> = Heap + Off-heap Managed + Network Buffers) và toàn bộ số lõi CPU được cấp cho tiến trình.</td>
+                  <td>Cụm có <code>2 TaskManagers</code>, mỗi máy sở hữu <code>12 GB Managed Memory</code> và <code>4 vCPUs</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Task Slot (Ô tài nguyên cố định)</strong></td>
+                  <td>Đơn vị chia nhỏ tài nguyên bên trong một <code>TaskManager</code>; số lượng slots xác định số lượng đường ống <code>Sub-tasks</code> tối đa mà Worker đó gánh được.</td>
+                  <td><strong>Chia cứng Managed Memory</strong> (<code>N</code> slots → mỗi slot nhận <code>1/N</code> bộ nhớ quản lý), nhưng <strong>dùng chung CPU</strong> và dùng chung vùng nhớ <code>JVM Heap</code>.</td>
+                  <td>Nếu <code>TaskManager</code> chia làm <code>3 Task Slots</code> (<em>Slide 07</em>), mỗi slot nhận đúng <code>1/3</code> bộ nhớ (<code>4 GB Managed Memory</code>) và cùng chia sẻ <code>4 vCPUs</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Operator vs. Sub-task (Toán tử vs. Nhánh thực thi)</strong></td>
+                  <td><code>Operator</code> là bước biến đổi logic trên bản vẽ (<code>map()</code>, <code>filter()</code>, <code>window</code>); <code>Sub-task</code> là một thực thể vật lý của toán tử đó đang chạy thực tế.</td>
+                  <td>Mỗi <code>Sub-task</code> được thực thi bởi một luồng xử lý riêng biệt (<code>Dedicated Thread</code>) và được gán vào một <code>Task Slot</code> cụ thể.</td>
+                  <td>Toán tử <code>map()</code> chuẩn hóa tiền tệ cho <code>Order #8888</code> là 1 <code>Operator</code>, nhưng khi chạy sẽ sinh ra các nhánh <code>map()[1]</code>, <code>map()[2]</code>...</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Parallelism (Độ song song)</strong></td>
+                  <td>Số lượng bản sao <code>Sub-tasks</code> chạy đồng thời của một toán tử tại thời điểm thực thi; có thể cấu hình ở cấp toàn Job hoặc từng Operator.</td>
+                  <td>Tổng số <code>Task Slots</code> khả dụng trên toàn cụm phải lớn hơn hoặc bằng mức <code>Max Parallelism</code> của toán tử lớn nhất trong Job (khi bật Slot Sharing).</td>
+                  <td>Với <code>Parallelism = 4</code> trên <code>2 TaskManagers x 2 Slots</code> (<em>Slide 09</em>): <code>TM1</code> gánh <code>map()[1]</code>, <code>map()[2]</code>; <code>TM2</code> gánh <code>map()[3]</code>, <code>map()[4]</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Slot Sharing &amp; Operator Chaining (Ghép chuỗi &amp; Chia sẻ ô)</strong></td>
+                  <td>Cho phép các <code>Sub-tasks</code> của các toán tử <em>khác nhau</em> cùng chỉ số thứ tự nằm chung trong 1 <code>Task Slot</code>; nếu cùng độ song song và đi thẳng (Forward) thì gộp luôn vào 1 luồng (<code>Chaining</code>).</td>
+                  <td>Giúp 1 <code>Task Slot</code> chứa trọn một đường ống hoàn chỉnh từ đầu đến cuối, tránh tình trạng ô chỉ chạy <code>Source</code> nhẹ nhàng còn ô chạy <code>Window</code> lại quá tải CPU.</td>
+                  <td>Trong <code>Slot 1</code> của <code>TM1</code>, bản ghi <code>Order #8888</code> đi một mạch từ <code>KafkaSource[1] → Filter[1] → Map[1]</code> trên cùng 1 thread mà không tốn chi phí tuần tự hóa mạng.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Nhờ cơ chế phân bổ <code>Sub-tasks</code> vào các <code>Task Slots</code> theo độ song song <code>Parallelism</code>, cụm Flink đã bắt đầu xay hàng trăm nghìn đơn hàng như <code>Order #8888</code> mỗi giây. Nhưng khi hệ thống chạy liên tục 24/7 trên luồng dữ liệu vô hạn (<code>Unbounded Data</code>), chuyện gì sẽ xảy ra nếu <code>TaskManager 1</code> đột ngột mất điện ở giây thứ 59 của phút, ngay sau khi vừa cộng <code>450,000đ</code> của <code>Order #8888</code> vào bộ nhớ RAM? Làm sao <code>JobManager</code> phát hiện ra cái chết này và khôi phục lại chính xác tổng doanh thu mà không phải tính lại từ ngày đầu tiên khởi chạy hệ thống? Chúng ta bước sang <strong>Trạm 1.4</strong>.</p>
+        </section>
+
+        <section class="lesson-section" id="flink-1-4">
+          <h2 id="flink-1-4-h2" tabindex="-1">Trạm 1.4: Giám sát Sức khỏe Thực thi (Heartbeats), Lưu Tiến độ (Checkpointing) &amp; Tua ngược Nguồn khi Phục hồi (Source Rewind)</h2>
+
+          <p><strong>Giám sát Nhịp tim và Chụp ảnh Trạng thái Định kỳ (Heartbeats &amp; Periodic Checkpointing — Slide 11):</strong> Ngay sau khi hoàn tất 4 bước phân bổ tác vụ ban đầu ở Trạm 1.2, <code>JobManager</code> chuyển sang thực thi hai nhiệm vụ canh gác sống còn suốt thời gian Job vận hành. Nhiệm vụ thứ nhất là <strong>giám sát sức khỏe tác vụ (Monitor task health)</strong>: các <code>TaskManagers</code> phải định kỳ gửi tín hiệu nhịp tim (<code>Heartbeats</code>) về cho <code>JobManager</code>; nếu một task ngừng phản hồi vượt quá ngưỡng <code>heartbeat.timeout</code> (mặc định <code>50 giây</code>), <code>JobManager</code> lập tức kết luận node đó đã gặp sự cố. Nhiệm vụ thứ hai là <strong>lưu tiến độ định kỳ mỗi <code>N</code> giây (Save progress every N seconds)</strong>: thông qua bộ phận <code>Checkpoint Coordinator</code>, cứ mỗi <code>N</code> giây, <code>JobManager</code> phát đi một tín hiệu đồng bộ <em>"hãy lưu trạng thái của bạn ngay bây giờ"</em> (<code>"save your state now"</code>). Nhận được lệnh, từng <code>Task</code> trên các <code>TaskManagers</code> sẽ chụp lại toàn bộ trạng thái tính toán hiện tại của mình — bao gồm bộ đếm đang chạy (<code>running count</code>), tổng tiền cộng dồn từng phần (<code>partial sum</code> có chứa <code>450,000đ</code> của <code>Order #8888</code>), hoặc bộ đệm các sự kiện gần nhất (<code>buffer of recent events</code>) — rồi ghi bền vững xuống hệ thống lưu trữ phân tán như <code>Amazon S3</code> hoặc <code>HDFS</code>. Khi tất cả các tasks đều gửi thông báo xác nhận (<code>confirmation</code>) về lại cho <code>JobManager</code>, bản chụp đồng nhất đó chính thức được công nhận là một <code>Checkpoint</code> hoàn chỉnh tại thời điểm <code>T</code>.</p>
+
+          <p><strong>Cơ chế Phục hồi Sự cố 3 Bước và Tua ngược Nguồn Dữ liệu (Recovering from Failure &amp; Source Rewind — Slide 12):</strong> Giá trị thực sự của <code>Checkpoint</code> tỏa sáng vào khoảnh khắc một <code>TaskManager</code> bị sập giữa chừng sau mốc thời gian <code>T</code>. Thay vì hoảng loạn khởi động lại từ con số 0 hay chấp nhận mất trắng các đơn hàng vừa xử lý sau mốc <code>T</code>, <code>Apache Flink</code> kích hoạt quy trình phục hồi tự động gồm <strong>3 bước cơ học chính xác</strong> (<em>Slide 12</em>): <code>(1) Tasks reload saved state from the latest checkpoint</code> (các tác vụ được cấp phát lại trên máy chủ lành lặn và nạp lại nguyên vẹn trạng thái <code>partial sum</code>, <code>running count</code> từ bản Checkpoint mới nhất tại thời điểm <code>T</code> trên <code>S3/HDFS</code>); <code>(2) Data source rewinds to its position at time T</code> (nguồn dữ liệu đầu vào tự động tua ngược con trỏ đọc về đúng vị trí tại thời điểm <code>T</code>); và <code>(3) Job resumes from time T</code> (toàn bộ ứng dụng tiếp tục chạy từ mốc <code>T</code> như chưa từng có sự cố). Lý do Flink có thể thực hiện phép màu <em>tua ngược nguồn (Rewinding)</em> ở Bước 2 là bởi tại thời điểm chụp Checkpoint <code>T</code>, toán tử <code>Kafka Source</code> cũng đã lưu luôn số thứ tự bản ghi (<code>Kafka Offset</code>, ví dụ <code>offset=9000</code> ngay trước <code>Order #8888</code>) vào trong chính bản Checkpoint đó. Khi khôi phục về mốc <code>T</code>, Flink chỉ cần ra lệnh cho Kafka Consumer <code>seek(Partition 1, offset=9000)</code> để đọc lại từ <code>Order #8888</code> (<code>offset=9001</code>), kết hợp với trạng thái tổng tiền tại mốc <code>T</code> để đảm bảo không một đồng doanh thu nào bị thất thoát hay cộng trùng.</p>
+
+          <x-figure id="flink-1-4-fig" key="1.4" title="Sơ đồ 1.4 — Chu trình Lưu Snapshot Định kỳ &amp; Cơ chế Tua ngược Offset Nguồn (Source Rewind) Khi Phục hồi Sự cố">Đối chiếu luồng vận hành bình thường tại mốc T và quy trình 3 bước khôi phục trạng thái kèm tua lại Kafka Offset khi Worker gặp sự cố.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Giai đoạn Vận hành (Slide 11–12 &amp; Sách)</th>
+                  <th>Hành động của <code>JobManager</code> &amp; <code>Source</code></th>
+                  <th>Hành động của <code>Tasks</code> &amp; Kho <code>S3 / HDFS</code></th>
+                  <th>Trạng thái của Sự kiện <code>Order #8888</code> (<code>offset=9001</code>)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Giám sát Sức khỏe Liên tục (Heartbeat Monitoring)</strong></td>
+                  <td><code>JobManager</code> lắng nghe tín hiệu nhịp tim (<code>Heartbeats</code>) từ mọi <code>TaskManagers</code> theo chu kỳ vài giây một lần.</td>
+                  <td>Các <code>Tasks</code> xử lý dòng sự kiện và gửi kèm số liệu thống kê (<code>Statistics / Task Status</code>) trong gói tin nhịp tim.</td>
+                  <td>Nếu <code>TaskManager</code> phản hồi đều đặn, luồng xử lý <code>Order #8888</code> diễn ra liên tục với độ trễ vài mili-giây.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Chụp Checkpoint Định kỳ tại mốc <code>T</code> (Normal Execution)</strong></td>
+                  <td>Đúng chu kỳ mỗi <code>N</code> giây (tại mốc <code>T</code>), <code>JobManager</code> phát tín hiệu <code>"save your state now"</code>; nguồn Kafka ghi nhận vị trí con trỏ hiện hành (ví dụ <code>offset=9000</code>).</td>
+                  <td>Mỗi <code>Task</code> đẩy bản chụp trạng thái cục bộ (<code>running count = 10</code>, <code>partial sum = 1,200,000đ</code>, <code>buffer</code>) xuống <code>S3 / HDFS</code> rồi gửi <code>confirmation</code> về <code>JobManager</code>.</td>
+                  <td>Bản <code>Checkpoint @ Time T</code> được khóa sổ an toàn trên <code>S3/HDFS</code>; ngay sau mốc <code>T</code>, đơn <code>Order #8888</code> (<code>offset=9001</code>, <code>450,000đ</code>) đi vào và nâng tổng trên RAM lên <code>1,650,000đ</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Sự cố Sập Node sau mốc <code>T</code> (Task Failure Detected)</strong></td>
+                  <td>Tại mốc <code>T + 4s</code> (trước kỳ Checkpoint kế tiếp), một <code>TaskManager</code> bị mất điện; <code>JobManager</code> mất tín hiệu <code>Heartbeat</code> và kích hoạt quy trình khôi phục.</td>
+                  <td>Toàn bộ trạng thái trên RAM của máy bị sập (bao gồm tổng tạm <code>1,650,000đ</code>) biến mất; nhưng bản <code>Checkpoint @ Time T</code> trên <code>S3/HDFS</code> vẫn còn nguyên vẹn.</td>
+                  <td>Đơn <code>Order #8888</code> đã được xử lý trên RAM trước khi sập nhưng chưa kịp chốt vào Checkpoint mới — cần phải được tính lại mà không làm hỏng dữ liệu trước mốc <code>T</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Khôi phục 3 Bước &amp; Tua ngược Nguồn (Failure Recovery &amp; Rewind)</strong></td>
+                  <td><strong>Bước 2 &amp; 3:</strong> Nguồn dữ liệu <code>Apache Kafka</code> tua ngược con trỏ đọc (<code>Rewind</code>) từ vị trí hiện tại lùi về đúng vị trí ở mốc <code>T</code> (<code>offset=9000</code>), và Job tiếp tục chạy từ mốc <code>T</code>.</td>
+                  <td><strong>Bước 1:</strong> Các <code>Tasks</code> nạp lại (<code>Reload</code>) trạng thái đã lưu từ bản <code>Checkpoint @ Time T</code> trên <code>S3/HDFS</code> (khôi phục <code>partial sum = 1,200,000đ</code>).</td>
+                  <td>Khi luồng chạy lại từ mốc <code>T</code>, Kafka phát lại <code>Order #8888</code> (<code>offset=9001</code>) cộng vào tổng <code>1,200,000đ</code> để ra đúng <code>1,650,000đ</code> (đạt chuẩn <code>Exactly-once</code> tuyệt đối).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Khép lại Chặng 1, chúng ta đã nắm trọn bộ khung cơ học của <code>Apache Flink</code>: từ sự khác biệt giữa <code>Unbounded</code> và <code>Bounded Data</code> tại tầng <code>Transformation Layer</code>, kiến trúc điều phối <code>JobManager – TaskManager</code>, cách chia sẻ tài nguyên qua <code>Task Slots</code> và nhân bản <code>Sub-tasks</code> theo <code>Parallelism</code>, cho tới cơ chế chụp <code>Checkpoint</code> và tua ngược nguồn (<code>Source Rewind</code>) để bảo toàn từng đồng doanh thu của <code>Order #8888</code>. Nhưng một thách thức thực tế gay gắt hơn vừa xuất hiện: sự kiện <code>Order #8888</code> được khách hàng bấm thanh toán trên điện thoại lúc <code>10:00:50</code>, nhưng do đi vào thang máy mất sóng nên tới tận <code>10:01:05</code> gói tin mới lết tới máy chủ Flink. <strong>Khi thứ tự gói tin đến máy chủ hoàn toàn hỗn loạn so với thời điểm thực tế xảy ra sự kiện, Flink dựa vào chiếc đồng hồ nào để biết phút <code>10:00</code> đã thực sự khép lại?</strong> Chúng ta bước sang <strong>Chặng 2: Ngữ Nghĩa Thời Gian (Time Semantics), Cơ Học Watermarks &amp; Ba Chiến Lược Sinh Watermark</strong>.</p>
+        </section>
+
+        <section class="summary-section" id="flink-1-summary">
+          <h2 id="flink-1-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 1 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <ol>
+            <li><strong>Sự khác biệt cơ học giữa <code>Unbounded Data</code> và <code>Bounded Data</code> là gì, và tại sao <code>Apache Flink</code> bắt buộc phải là một động cơ <code>Stateful</code> tại tầng <code>Transformation Layer</code>?</strong><br/><code>Unbounded Data</code> là luồng sự kiện vô hạn sinh ra liên tục theo thời gian thực không có điểm kết thúc, còn <code>Bounded Data</code> là tập dữ liệu hữu hạn có ranh giới cố định (xử lý lô <code>Batch</code>). Tại tầng <code>Transformation Layer</code>, để thực hiện các phép lọc, làm giàu, định tuyến và đặc biệt là cộng dồn doanh thu (<code>Aggregates</code>) cho dòng sự kiện như <code>Order #8888</code> ngay trên đường bay, Flink bắt buộc phải duy trì trạng thái (<code>Stateful</code>) ngay trong bộ nhớ cục bộ nhằm ghi nhớ kết quả từ các sự kiện quá khứ mà không cần truy vấn lặp lại ra cơ sở dữ liệu bên ngoài.</li>
+            <li><strong>Phân biệt vai trò giữa <code>JobManager</code> ("the brain") và <code>TaskManager</code> ("the muscle"), cùng 4 bước mà <code>JobManager</code> thực hiện khi vừa nhận một Job mới?</strong><br/><code>JobManager</code> là bộ não điều phối (chứa <code>Dispatcher</code>, <code>Scheduler</code>, <code>Checkpoint Coordinator</code>) còn <code>TaskManagers</code> là các tiến trình JVM thực thi trực tiếp các phép tính và truyền <code>Data Streams</code> cho nhau qua <code>Network Manager</code>. Khi nhận Job từ <code>Client</code>, <code>JobManager</code> thực hiện 4 bước khởi tạo một lần duy nhất: <code>(1) Receive</code> (nhận ứng dụng) → <code>(2) Parse and optimize</code> (phân tích và tối ưu hóa) → <code>(3) Build the Execution Graph</code> (dựng đồ thị thực thi vật lý) → <code>(4) Assign each task to an available slot on a TaskManager</code> (gán từng tác vụ vào các ô <code>Task Slots</code> trống).</li>
+            <li><strong>Một <code>Task Slot</code> cô lập tài nguyên nào và dùng chung tài nguyên nào bên trong <code>TaskManager</code>?</strong><br/>Mỗi <code>Task Slot</code> đại diện cho một phần dung lượng bộ nhớ được quản lý cố định (<code>Fixed subset of Managed Memory</code>): nếu <code>TaskManager</code> có <code>3 Task Slots</code> thì mỗi slot được chia cứng <code>1/3</code> bộ nhớ quản lý để chống tràn bộ nhớ chéo giữa các tác vụ. Tuy nhiên, các <code>Task Slots</code> trong cùng một <code>TaskManager</code> <strong>không cô lập CPU</strong> mà dùng chung (share) các nhân CPU của tiến trình JVM đó.</li>
+            <li><strong>Tham số <code>Parallelism</code> và khái niệm <code>Sub-task</code> phối hợp với nhau như thế nào khi thực thi một toán tử như <code>map()</code>?</strong><br/>Mỗi toán tử logic (<code>Operator</code> như <code>map()</code>, <code>filter()</code>, <code>window</code>) được Flink chia nhỏ thành nhiều nhánh thực thi vật lý gọi là <code>Sub-tasks</code>, mỗi <code>Sub-task</code> chạy trên một luồng (<code>single thread</code>) riêng và nằm trong một <code>Task Slot</code>. <code>Parallelism</code> quy định số lượng bản sao <code>Sub-tasks</code> chạy song song của toán tử đó (ví dụ <code>Parallelism = 4</code> sẽ nhân bản <code>map()</code> thành <code>map()[1]..map()[4]</code> phân bổ trên các <code>Task Slots</code>) giúp mở rộng thông lượng tuyến tính mà không làm thay đổi code nghiệp vụ.</li>
+            <li><strong>Trong lúc Job đang chạy, <code>JobManager</code> dùng cơ chế gì để phát hiện lỗi và 3 bước phục hồi sự cố (kèm <code>Source Rewind</code>) diễn ra như thế nào?</strong><br/>Trong lúc chạy, <code>JobManager</code> liên tục kiểm tra nhịp tim (<code>Heartbeats</code>) từ các tasks và định kỳ mỗi <code>N</code> giây phát lệnh <code>"save your state now"</code> để các tasks lưu trạng thái hiện hành (<code>running count</code>, <code>partial sum</code>, <code>buffer</code>) xuống <code>S3/HDFS</code> tạo thành một <code>Checkpoint</code> tại mốc <code>T</code>. Khi một node bị sập, Flink khôi phục qua 3 bước: <code>(1)</code> Các tasks nạp lại trạng thái từ bản <code>Checkpoint</code> mới nhất tại mốc <code>T</code>; <code>(2)</code> Nguồn dữ liệu (như <code>Apache Kafka</code>) tua ngược con trỏ đọc (<code>Rewind</code>) về đúng vị trí <code>Offset</code> đã lưu tại mốc <code>T</code>; và <code>(3)</code> Job tiếp tục chạy từ mốc <code>T</code> để xử lý lại các sự kiện như <code>Order #8888</code> với độ chính xác <code>Exactly-once</code>.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/D04/2" onclick="selectStorageStage(2);return false;">Sang Chặng 2: Ngữ Nghĩa Thời Gian (Time Semantics), Cơ Học Watermarks &amp; Ba Chiến Lược Sinh Watermark →</a></p>
+        </section>
+      </div>

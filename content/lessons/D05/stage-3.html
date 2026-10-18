@@ -1,0 +1,450 @@
+      <div class="prose">
+        <x-spine id="consumption-3-spine" badge="TRONG BÀI HỌC NÀY · D05" title="Chặng 3: Slowly Changing Dimensions (SCD Type 0–6), Data Vault &amp; Trường Phái Inmon vs. Kimball Trên Medallion" subtitle="Trạm 3.1 → 3.4">Giải quyết bài toán biến đổi thuộc tính chiều theo thời gian của khách hàng <strong>Peter Pan (<code>PK = 123456</code>)</strong> trên giao dịch <strong>Order #8888</strong> bằng 6 kỹ thuật <strong>Slowly Changing Dimensions (SCD Type 0–6)</strong>, hấp thụ trôi lược đồ đa nguồn ERP/CRM tại tầng Silver bằng mô hình <strong>Data Vault (Hub, Link, Satellite)</strong>, và hợp nhất hai trường phái <strong>Bill Inmon (Top-Down 3NF)</strong> vs. <strong>Ralph Kimball (Bottom-Up Star Schema)</strong> trên kiến trúc 3 tầng <strong>Medallion (Bronze → Silver → Gold)</strong>.</x-spine>
+
+        <section class="lesson-section" id="consumption-3-1">
+          <h2 id="consumption-3-1-h2" tabindex="-1">Trạm 3.1: Bài toán Biến đổi Chiều theo Thời gian &amp; Giải phẫu SCD Type 0, Type 1 (Overwrite) và Type 2 (Row Versioning + Surrogate Key)</h2>
+
+          <p><strong>Slowly Changing Dimensions (SCD — Chiều biến đổi chậm theo thời gian)</strong> là tập hợp các kỹ thuật mô hình hóa dùng để kiểm soát sự thay đổi của các thuộc tính trong bảng chiều (<code>dimCustomer</code>, <code>dimProduct</code>, <code>dimStore</code>) theo thời gian mà không làm sai lệch số liệu lịch sử trên bảng sự kiện (<code>factSales</code>). Khác với bảng sự kiện phát sinh hàng triệu dòng mới mỗi giờ, các bảng chiều biến đổi với tần suất thấp hơn nhưng mang tác động dây chuyền cực lớn lên tính đúng đắn của báo cáo quản trị (<em>Slide 25</em> &amp; <em>The Data Warehouse Toolkit, 3rd Ed.</em>, Ch. 5, tr. 148–154). Hãy xét nhân vật chính kỹ thuật xuyên suốt học phần: khách hàng <strong>Peter Pan</strong> mang mã định danh nghiệp vụ gốc (<strong>Natural Key</strong>) <code>PK = 123456</code>. Từ ngày <code>01/09/2025</code> đến <code>25/09/2025</code>, <strong>Peter Pan</strong> sinh sống tại Vương quốc Anh (UK) nên đơn vị tiền tệ thanh toán trong bảng chiều là <code>Currency = GBP</code>, và anh đã đặt <strong>Order #8888</strong> trong giai đoạn này. Vào ngày <code>26/09/2025</code>, <strong>Peter Pan</strong> chuyển nơi cư trú sang Mỹ làm đơn vị tiền tệ thanh toán đổi từ <code>GBP</code> sang <code>USD</code> (<em>Slide 26</em>). Nếu kho dữ liệu xử lý sự kiện cập nhật ngày <code>26/09/2025</code> này sai cơ chế, toàn bộ doanh thu lịch sử của <strong>Order #8888</strong> tại UK sẽ bị bóp méo ngay lập tức.</p>
+
+          <p>Để ứng phó với biến động thuộc tính của <strong>Peter Pan (<code>123456</code>)</strong>, Ralph Kimball định nghĩa 3 phản ứng nền tảng đầu tiên: <strong>SCD Type 0 (Retain Original)</strong> khóa cứng giá trị gốc từ lúc khởi tạo và từ chối mọi cập nhật về sau; <strong>SCD Type 1 (Overwrite)</strong> ghi đè trực tiếp giá trị mới <code>USD</code> đè lên giá trị cũ <code>GBP</code> ngay tại dòng hiện hành, chấp nhận xóa sổ hoàn toàn lịch sử trước ngày <code>26/09/2025</code>; và <strong>SCD Type 2 (Add New Row / Row Versioning — kỹ thuật phổ biến nhất trong Data Warehouse)</strong> bảo toàn lịch sử tuyệt đối bằng cách đóng hiệu lực dòng cũ (<code>Data From = 01/09/2025</code>, <code>Data To = 25/09/2025</code>, <code>Delete Flag = 1</code>) đồng thời chèn thêm một dòng phiên bản mới (<code>Currency = USD</code>, <code>Data From = 26/09/2025</code>, <code>Data To = 31/12/9999</code>, <code>Delete Flag = 0</code>) đi kèm khóa chính đại diện tự tăng <strong>Surrogate Key</strong> (<code>1</code> → <code>2</code>) (<em>Slides 27–29</em>).</p>
+
+          <x-figure id="consumption-3-1-fig" key="3.1" title="Sơ đồ 3.1 — Giải phẫu Cơ học SCD Type 0, Type 1 (Overwrite) và Type 2 (Row Versioning với Surrogate Key 1 → 2 cho Peter Pan #123456)">Đối chiếu trực diện trạng thái bảng chiều của khách hàng Peter Pan (Natural Key = 123456) khi chuyển từ UK (GBP) sang Mỹ (USD) ngày 26/09/2025 qua 3 kỹ thuật SCD Type 0, Type 1 và Type 2.</x-figure>
+
+          <h3>Tại sao SCD Type 2 bắt buộc phải phế truất Natural Key (<code>123456</code>) để dùng Surrogate Key (<code>1, 2</code>)?</h3>
+          <p>Trong hệ thống OLTP nguồn, cột <code>PK = 123456</code> là khóa chính duy nhất của <strong>Peter Pan</strong>. Tuy nhiên, ngay khoảnh khắc áp dụng <strong>SCD Type 2</strong> vào ngày <code>26/09/2025</code>, bảng chiều <code>dimCustomer</code> xuất hiện <strong>2 dòng vật lý cùng mang mã <code>PK = 123456</code></strong> (một dòng cho giai đoạn <code>GBP</code> và một dòng cho giai đoạn <code>USD</code>). Nếu vẫn dùng <code>123456</code> làm khóa chính, ràng buộc <code>PRIMARY KEY</code> sẽ lập tức gãy vỡ do trùng lặp (Duplicate Key Error); tệ hơn, nếu bảng <code>factSales</code> nối (<code>JOIN</code>) với <code>dimCustomer</code> qua khóa tự nhiên <code>123456</code>, mỗi giao dịch <strong>Order #8888</strong> sẽ bị nhân bản gấp đôi (Fan Trap / Cartesian Explosion) và không thể phân biệt giao dịch đó phát sinh lúc khách dùng <code>GBP</code> hay <code>USD</code> (<em>The Data Warehouse Toolkit, 3rd Ed.</em>, Ch. 5, tr. 153).</p>
+
+          <p>Giải pháp cơ học bắt buộc của <strong>SCD Type 2</strong> là hạ cấp mã <code>PK = 123456</code> xuống thành cột thuộc tính khóa tự nhiên bền vững (<strong>Natural Key / Durable Key</strong>) và cấp phát một cột số nguyên <code>4-byte INTEGER</code> tăng tuần tự gọi là <strong>Surrogate Key</strong> làm khóa chính vật lý duy nhất cho từng phiên bản dòng: dòng lịch sử tại UK mang <code>Surrogate Key = 1</code>, còn dòng hiện hành tại Mỹ mang <code>Surrogate Key = 2</code> (<em>Slide 29</em>). Khi <strong>Order #8888</strong> phát sinh ngày <code>15/09/2025</code>, tiến trình ETL tra cứu phiên bản đang có hiệu lực và đóng cứng khóa ngoại <code>CustomerKey = 1</code> vào bảng <code>factSales</code>; các đơn hàng mới phát sinh từ ngày <code>26/09/2025</code> trở đi sẽ nhận khóa ngoại <code>CustomerKey = 2</code>. Nhờ đó, phép nối <code>factSales.CustomerKey = dimCustomer.SurrogateKey</code> luôn bảo toàn 100% ngữ cảnh lịch sử đúng tại thời điểm giao dịch diễn ra (<strong>As-Was History</strong>).</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Giải phẫu</th>
+                  <th>SCD Type 0 (Retain Original)</th>
+                  <th>SCD Type 1 (Overwrite)</th>
+                  <th>SCD Type 2 (Add New Row / Versioning)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Hành vi cơ học khi Peter Pan (<code>123456</code>) đổi <code>GBP → USD</code> ngày <code>26/09/2025</code></strong></td>
+                  <td>Từ chối cập nhật; giữ nguyên <code>PK = 123456 | Name = Peter Pan | Currency = GBP</code> vĩnh viễn.</td>
+                  <td>Thực thi <code>UPDATE</code> ghi đè trực tiếp tại chỗ: <code>PK = 123456 | Name = Peter Pan | Currency = USD</code>.</td>
+                  <td>Đóng dòng cũ (<code>Surrogate Key = 1</code>, <code>Currency = GBP</code>, <code>01/09/2025 → 25/09/2025</code>, <code>Delete Flag = 1</code>) và <code>INSERT</code> dòng mới (<code>Surrogate Key = 2</code>, <code>Currency = USD</code>, <code>26/09/2025 → 31/12/9999</code>, <code>Delete Flag = 0</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>Cấu trúc Khóa chính (Primary Key)</strong></td>
+                  <td>Giữ 1 dòng duy nhất cho mỗi thực thể (<code>Surrogate Key</code> 1–1 với <code>Natural Key 123456</code>).</td>
+                  <td>Giữ 1 dòng duy nhất cho mỗi thực thể (<code>Surrogate Key</code> không đổi sau khi ghi đè).</td>
+                  <td><strong>Bắt buộc cấp mới <code>Surrogate Key</code> (<code>1 → 2</code>)</strong> cho mỗi phiên bản dòng; <code>Natural Key = 123456</code> lặp lại trên nhiều dòng.</td>
+                </tr>
+                <tr>
+                  <td><strong>Cột Quản trị Bổ sung (Administrative Columns)</strong></td>
+                  <td>Không cần cột theo dõi phiên bản.</td>
+                  <td>Không cần cột theo dõi lịch sử (tùy chọn cột <code>updated_at</code> để kiểm toán ETL).</td>
+                  <td>Bắt buộc có 3 cột quản trị dòng: ngày hiệu lực <code>Data From</code> (<code>01/09/2025</code>), ngày hết hạn <code>Data To</code> (<code>25/09/2025</code> hoặc mốc vô cực <code>31/12/9999</code>) và cờ <code>Delete Flag</code> (<code>1</code> = hết hạn, <code>0</code> = đang hoạt động).</td>
+                </tr>
+                <tr>
+                  <td><strong>Hệ quả lên Báo cáo Lịch sử của <code>Order #8888</code></strong></td>
+                  <td>Mọi đơn hàng cũ và mới đều bị quy về trạng thái ban đầu (<code>GBP</code>); mù trước thay đổi thực tế.</td>
+                  <td><strong>Xóa sổ lịch sử (History Destruction):</strong> các đơn hàng cũ của Peter Pan tại UK trước <code>26/09/2025</code> bị quy đổi nhầm sang <code>USD</code> khi chạy lại báo cáo.</td>
+                  <td><strong>Bảo toàn 100% lịch sử phân đoạn (As-Was):</strong> đơn hàng trước <code>26/09/2025</code> nối vào <code>Surrogate Key = 1</code> (<code>GBP</code>), đơn hàng từ <code>26/09/2025</code> nối vào <code>Surrogate Key = 2</code> (<code>USD</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>Chi phí Lưu trữ &amp; Độ phức tạp ETL</strong></td>
+                  <td>Chi phí lưu trữ <code>0%</code> phát sinh; không tốn I/O cập nhật.</td>
+                  <td>Không làm tăng số dòng bảng chiều; câu lệnh <code>UPDATE</code> đơn giản, tốc độ quét nhanh.</td>
+                  <td>Làm phình số dòng bảng chiều theo tần suất thay đổi; đường ống ETL phải thực hiện giao dịch kép (<code>UPDATE</code> đóng dòng cũ + <code>INSERT</code> chèn dòng mới) và tra cứu <code>Surrogate Key</code> theo khoảng thời gian.</td>
+                </tr>
+                <tr>
+                  <td><strong>Trường hợp áp dụng chuẩn mực (Slide 27–29 &amp; Kimball Ch. 5)</strong></td>
+                  <td>Thuộc tính bất biến theo bản chất: ngày sinh (<code>Date of Birth</code>), quốc tịch gốc, ngày mở tài khoản đầu tiên (<code>Original Signup Date</code>), bảng chiều thời gian <code>dimDate</code>.</td>
+                  <td>Sửa lỗi chính tả dữ liệu nguồn (Data Correction) hoặc thuộc tính không có nhu cầu phân tích lịch sử.</td>
+                  <td>Chuẩn mặc định cho hầu hết thuộc tính phân tích quan trọng: địa chỉ cư trú, đơn vị tiền tệ (<code>Currency</code>), hạng thành viên, phòng ban nhân sự, nhóm sản phẩm.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Thực thi SQL Thực chiến: Đường ống ETL Cắt – Nối Phiên bản SCD Type 2 cho Peter Pan (<code>123456</code>)</h3>
+          <p>Để ngăn chặn hiện tượng đứt gãy khoảng thời gian hoặc một khách hàng có hai dòng cùng mang cờ <code>Delete Flag = 0</code> khi chạy lại đường ống (Idempotency), quy trình cập nhật <strong>SCD Type 2</strong> vào ngày <code>26/09/2025</code> thực thi hai bước nguyên tử bên trong một giao dịch ACID:</p>
+
+          <pre><code>-- Trạng thái ban đầu trong bảng dim_customer (từ 01/09/2025 đến 25/09/2025):
+-- surrogate_key = 1 | pk = 123456 | name = 'Peter Pan' | currency = 'GBP'
+-- data_from = '2025-09-01' | data_to = '9999-12-31' | delete_flag = 0
+
+BEGIN TRANSACTION;
+
+-- Bước 1: Đóng hiệu lực phiên bản cũ (Surrogate Key = 1) của Peter Pan (PK = 123456)
+-- Hạ data_to từ '9999-12-31' xuống '2025-09-25' và bật cờ delete_flag = 1
+UPDATE dim_customer
+SET data_to     = DATE '2025-09-25',
+    delete_flag = 1
+WHERE pk          = 123456
+  AND delete_flag = 0
+  AND currency   &lt;&gt; 'USD';
+
+-- Bước 2: Chèn dòng phiên bản mới (Surrogate Key = 2) có hiệu lực từ 26/09/2025 đến 31/12/9999
+INSERT INTO dim_customer (
+    surrogate_key, pk, name, currency, data_from, data_to, delete_flag
+)
+VALUES (
+    2, 123456, 'Peter Pan', 'USD', DATE '2025-09-26', DATE '9999-12-31', 0
+);
+
+COMMIT;
+
+-- Bước 3: Truy vấn báo cáo doanh thu lịch sử chuẩn xác (As-Was) qua Surrogate Key
+-- Order #8888 (ngày 15/09/2025, gắn surrogate_key = 1) vẫn giữ nguyên Currency = 'GBP'
+SELECT c.pk,
+       c.name,
+       c.currency,
+       SUM(f.total_amount) AS revenue_by_historical_currency
+FROM fact_sales AS f
+INNER JOIN dim_customer AS c
+        ON f.customer_surrogate_key = c.surrogate_key
+WHERE c.pk = 123456
+GROUP BY c.pk, c.name, c.currency;</code></pre>
+
+          <div class="callout">
+            <div class="callout-title">Đánh đổi Kỹ thuật của SCD Type 2 &amp; Câu hỏi Chuyển giao sang Trạm 3.2</div>
+            <p><strong>SCD Type 2</strong> bảo toàn hoàn hảo các lát cắt lịch sử (<code>As-Was</code>), nhưng lại nảy sinh ba bài toán mới: (1) Nếu ban giám đốc chỉ cần xem <strong>1 giá trị liền trước</strong> (<code>GBP</code> ngay cạnh <code>USD</code> trên cùng 1 dòng) mà không muốn thêm dòng mới thì làm thế nào? (2) Nếu bảng khách hàng có <code>50 triệu dòng</code> và các thuộc tính biến động liên tục khiến bảng phình lên <code>500 triệu dòng</code> làm chậm mọi câu truy vấn <code>WHERE delete_flag = 0</code> thì tách cấu trúc ra sao? (3) Làm sao để vừa phân tích theo tiền tệ lịch sử (<code>GBP</code>), vừa gom toàn bộ đơn hàng cũ theo tiền tệ hiện tại (<code>USD</code>) trên cùng một bảng mà không cần <code>SELF JOIN</code>? Chúng ta bước sang <strong>Trạm 3.2</strong>.</p>
+          </div>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="consumption-3-2">
+          <h2 id="consumption-3-2-h2" tabindex="-1">Trạm 3.2: Giải phẫu SCD Type 3 (Previous Column), Type 4 (History Table), Type 6 (Hybrid 1+2+3) &amp; Ma trận Quyết định</h2>
+
+          <p>Khi bài toán phân tích đòi hỏi sự linh hoạt vượt ra ngoài cơ chế ghi đè đơn thuần (<strong>Type 1</strong>) hoặc nhân dòng tuần tự (<strong>Type 2</strong>), kiến trúc chiều mở rộng sang ba kỹ thuật chuyên biệt: <strong>SCD Type 3 (Add New Column)</strong> lưu vết thay đổi theo chiều ngang bằng cách thêm cột <code>Previous Currency</code> ngay cạnh <code>Current Currency</code>; <strong>SCD Type 4 (Maintain A History Table / Mini-Dimension)</strong> giải cứu hiệu năng truy vấn bằng cách tách vật lý trạng thái mới nhất ra bảng gọn nhẹ <code>Current table</code> và đẩy toàn bộ dòng lịch sử sang <code>History table</code>; và <strong>SCD Type 6 (Hybrid: Type 1 + Type 2 + Type 3 = 6)</strong> hợp nhất sức mạnh của cả ba kỹ thuật trên cùng một bảng chiều có <code>Surrogate Key</code> để phục vụ đồng thời cả hai góc nhìn lịch sử (<code>As-Was</code>) và hiện tại (<code>As-Is</code>) (<em>Slides 30–33</em> &amp; <em>The Data Warehouse Toolkit, 3rd Ed.</em>, Ch. 5, tr. 154–162).</p>
+
+          <x-figure id="consumption-3-2-fig" key="3.2" title="Sơ đồ 3.2 — Giải phẫu SCD Type 3 (Thêm Cột), Type 4 (Tách Bảng Lịch sử) &amp; Kiến trúc Lai SCD Type 6 (Type 1 + Type 2 + Type 3)">Cấu trúc dữ liệu của Peter Pan (PK = 123456) dưới góc nhìn mở rộng ngang SCD Type 3, tách bảng vật lý SCD Type 4 (Current Table vs. History Table) và mô hình lai SCD Type 6 (1+2+3=6).</x-figure>
+
+          <h3>Giải phẫu Cơ học SCD Type 3 (Add New Column) &amp; SCD Type 4 (Maintain A History Table)</h3>
+          <p>Trong <strong>SCD Type 3 (Add New Column — Slide 30)</strong>, thay vì chèn thêm dòng mới khi <strong>Peter Pan (<code>PK = 123456</code>)</strong> đổi đơn vị tiền tệ từ <code>GBP</code> sang <code>USD</code>, kỹ sư dữ liệu mở rộng bảng theo phương ngang bằng cách giữ nguyên 1 dòng duy nhất cho <code>PK = 123456</code>, đẩy giá trị cũ <code>GBP</code> sang cột <code>Previous Currency = GBP</code> và ghi giá trị mới vào cột <code>Current Currency = USD</code>. Theo Ralph Kimball (<em>Ch. 5, tr. 155</em>), <strong>SCD Type 3</strong> cực kỳ hữu ích khi doanh nghiệp tái cơ cấu vùng bán hàng hoặc chuyển đổi danh mục đồng loạt và muốn nhìn dữ liệu theo hai "thực tại song song" (<em>Alternate Realities</em>) trên cùng một hàng mà không làm tăng kích thước bảng. Tuy nhiên, điểm mù chí mạng của <strong>SCD Type 3</strong> là <strong>chỉ nhớ được đúng 1 lần thay đổi liền trước</strong>: nếu tháng sau <strong>Peter Pan</strong> tiếp tục chuyển sang Nhật Bản (<code>JPY</code>), giá trị <code>GBP</code> ban đầu sẽ bị đẩy văng khỏi cột <code>Previous Currency</code> và biến mất vĩnh viễn.</p>
+
+          <p>Ngược lại, khi một thuộc tính thay đổi liên tục qua nhiều phiên bản (ví dụ khách hàng <code>123456</code> đổi tên từ <code>Peter Parker</code> năm <code>2025-01-01</code> → <code>Peter Pan</code> năm <code>2026-01-01</code> → <code>Peter Smith</code> hiện tại — <em>Slide 31</em>), việc nhồi toàn bộ lịch sử vào chung một bảng <strong>SCD Type 2</strong> sẽ khiến bảng chiều phình to gấp hàng chục lần, làm chậm <code>90%</code> các báo cáo vận hành vốn chỉ cần tra cứu thông tin hiện hành. <strong>SCD Type 4 (Maintain A History Table)</strong> hóa giải điểm nghẽn này bằng cách tách đôi thành 2 bảng vật lý độc lập:</p>
+          <ul>
+            <li><strong><code>Current table</code> (Bảng Hiện hành Siêu gọn):</strong> Chỉ lưu đúng 1 dòng trạng thái mới nhất cho mỗi khách hàng (<code>PK = 123456 | Name = Peter Smith</code>). Nhờ số dòng cố định bằng đúng số lượng khách hàng thực tế, mọi truy vấn báo cáo trạng thái hiện tại đạt tốc độ quét tối đa mà không cần lọc qua các phiên bản hết hạn.</li>
+            <li><strong><code>History table</code> (Bảng Lưu trữ Lịch sử):</strong> Chứa toàn bộ chuỗi phiên bản quá khứ kèm mốc thời gian cập nhật (<code>PK = 123456 | Name = Peter Pan | Date Updated = 2026-01-01</code> và <code>PK = 123456 | Name = Peter Parker | Date Updated = 2025-01-01</code>) phục vụ riêng cho các truy vấn kiểm toán hoặc phân tích hồi cứu chuyên sâu. Trong biến thể nâng cao của Kimball (<em>Ch. 5, tr. 157–159</em>), kỹ thuật <strong>Type 4 Mini-Dimension</strong> còn tách các thuộc tính nhân khẩu học biến động mạnh (như dải thu nhập <code>Income Band</code>, tần suất mua <code>Purchase Frequency Score</code>) ra một bảng chiều nhỏ riêng biệt nối thẳng vào bảng Fact để ngăn bảng <code>dimCustomer</code> hàng chục triệu dòng bị nổ kích thước.</li>
+          </ul>
+
+          <h3>Giải phẫu Kiến trúc Lai SCD Type 6 (<code>Type 1 + Type 2 + Type 3 = 6</code>)</h3>
+          <p>Tại sao lại mang tên <strong>SCD Type 6</strong>? Vì nó là phép cộng (và phép nhân) cơ học của <strong><code>1 + 2 + 3 = 6</code></strong> (<em>Slide 32</em> &amp; <em>The Data Warehouse Toolkit, 3rd Ed.</em>, Ch. 5, tr. 160–162). Hãy quan sát cách cả 3 kỹ thuật cùng vận hành trên bảng chiều của <strong>Peter Pan (<code>PK = 123456</code>)</strong> sau khi anh chuyển từ <code>GBP</code> sang <code>USD</code> vào ngày <code>26/09/2025</code>:</p>
+          <ul>
+            <li><strong>Thành phần Type 2 (Row Versioning + <code>Currency</code> lịch sử):</strong> Bảng vẫn sinh dòng mới với <code>Surrogate Key = 2</code> (<code>Date From = 26/09/2025</code>, <code>Date To = 31/12/9999</code>, <code>Active = 1</code>) và đóng dòng cũ <code>Surrogate Key = 1</code> (<code>Date From = 01/09/2025</code>, <code>Date To = 25/09/2025</code>, <code>Active = 0</code>). Cột <code>Currency</code> đóng vai trò thuộc tính Type 2, bảo toàn giá trị lịch sử đúng với từng thời kỳ: dòng 1 giữ nguyên <code>Currency = GBP</code>, dòng 2 mang <code>Currency = USD</code>.</li>
+            <li><strong>Thành phần Type 1 (Overwrite trên cột <code>Current Currency</code>):</strong> Cột <code>Current Currency</code> được ghi đè đồng loạt bằng giá trị mới nhất (<code>USD</code>) trên <strong>tất cả các phiên bản dòng cùng thuộc <code>PK = 123456</code></strong> (cả dòng <code>Surrogate Key = 1</code> đã hết hạn lẫn dòng <code>Surrogate Key = 2</code> đang hoạt động đều có <code>Current Currency = USD</code>).</li>
+            <li><strong>Thành phần Type 3 (Lưu vết liền trước trên cột <code>Previous Currency</code>):</strong> Cột <code>Previous Currency</code> lưu trạng thái ngay trước lần chuyển đổi của từng phiên bản dòng: ở dòng 1 (<code>Surrogate Key = 1</code>) là <code>NULL</code> (vì là phiên bản gốc đầu tiên), còn ở dòng 2 (<code>Surrogate Key = 2</code>) là <code>GBP</code>.</li>
+          </ul>
+
+          <pre><code>-- Cập nhật SCD Type 6 khi Peter Pan (PK = 123456) đổi từ GBP sang USD ngày 26/09/2025:
+BEGIN TRANSACTION;
+
+-- 1. Đóng dòng cũ (Type 2) VÀ ghi đè current_currency = 'USD' trên TẤT CẢ các dòng của PK = 123456 (Type 1)
+UPDATE dim_customer_scd6
+SET date_to          = CASE WHEN active = 1 THEN DATE '2025-09-25' ELSE date_to END,
+    active           = 0,
+    current_currency = 'USD'
+WHERE pk = 123456;
+
+-- 2. Chèn dòng phiên bản mới (Surrogate Key = 2) mang đầy đủ Currency (Type 2), Current (Type 1), Previous (Type 3)
+INSERT INTO dim_customer_scd6 (
+    surrogate_key, pk, name, currency, current_currency, previous_currency, date_from, date_to, active
+)
+VALUES (
+    2, 123456, 'Peter Pan', 'USD', 'USD', 'GBP', DATE '2025-09-26', DATE '9999-12-31', 1
+);
+
+COMMIT;
+
+-- SỨC MẠNH TRUY VẤN CỦA SCD TYPE 6:
+-- Góc nhìn 1 (As-Was): Nhóm doanh thu theo đơn vị tiền tệ TẠI THỜI ĐIỂM giao dịch phát sinh -> GROUP BY c.currency
+-- Góc nhìn 2 (As-Is) : Nhóm toàn bộ lịch sử doanh thu (cả cũ lẫn mới) theo tiền tệ HIỆN TẠI -> GROUP BY c.current_currency
+SELECT c.current_currency                        AS as_is_currency,
+       c.currency                                AS as_was_historical_currency,
+       c.previous_currency                       AS prior_version_currency,
+       SUM(f.total_amount)                       AS total_revenue
+FROM fact_sales AS f
+INNER JOIN dim_customer_scd6 AS c
+        ON f.customer_surrogate_key = c.surrogate_key
+WHERE c.pk = 123456
+GROUP BY c.current_currency, c.currency, c.previous_currency;</code></pre>
+
+          <h3>Ma trận Quyết định Kiến trúc: When to Use What? (Tổng hợp Slide 33 &amp; Kimball Ch. 5)</h3>
+          <p>Bảng ma trận dưới đây tổng hợp toàn bộ 6 kỹ thuật SCD từ <strong>Type 0</strong> đến <strong>Type 6</strong> để kiến trúc sư dữ liệu lựa chọn chính xác theo yêu cầu nghiệp vụ và chi phí vận hành:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Loại SCD</th>
+                  <th>Cơ chế Kỹ thuật (Technique)</th>
+                  <th>Mức độ Lưu giữ Lịch sử (History Retention)</th>
+                  <th>Độ phức tạp &amp; Hiệu năng</th>
+                  <th>Khi nào sử dụng? (Use Case Chuẩn — Slide 33)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>SCD Type 0</strong></td>
+                  <td><strong>Never updated</strong> (Giữ nguyên giá trị gốc ban đầu).</td>
+                  <td>Chỉ giữ trạng thái gốc lúc khởi tạo; bỏ qua mọi biến động về sau.</td>
+                  <td>Đơn giản nhất; <code>0</code> chi phí cập nhật.</td>
+                  <td>Dữ liệu tĩnh không bao giờ được phép thay đổi: ngày sinh (<code>Birth Date</code>), quốc tịch gốc, bảng lịch <code>dimDate</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>SCD Type 1</strong></td>
+                  <td><strong>Overwrite</strong> (Ghi đè trực tiếp giá trị mới lên dòng cũ).</td>
+                  <td><strong>Không giữ lịch sử (No history):</strong> mất hoàn toàn giá trị trước khi sửa.</td>
+                  <td>Rất đơn giản; bảng gọn nhẹ, truy vấn cực nhanh.</td>
+                  <td>Khi lịch sử không quan trọng (<em>History doesn't matter</em>) hoặc khi cần sửa lỗi dữ liệu sai (Data Correction).</td>
+                </tr>
+                <tr>
+                  <td><strong>SCD Type 2</strong></td>
+                  <td><strong>Versioning rows</strong> (Thêm dòng mới kèm <code>Surrogate Key</code>, <code>Data From</code>, <code>Data To</code>, <code>Delete Flag</code>).</td>
+                  <td><strong>Giữ toàn bộ lịch sử (Full history)</strong> theo từng lát cắt thời gian hiệu lực (<code>As-Was</code>).</td>
+                  <td>Trung bình – Cao; làm tăng số dòng bảng chiều theo thời gian.</td>
+                  <td>Khi cần theo dõi đầy đủ lịch sử biến đổi (<em>Full history tracking</em> — lựa chọn <strong>phổ biến nhất</strong> trong Data Warehouse).</td>
+                </tr>
+                <tr>
+                  <td><strong>SCD Type 3</strong></td>
+                  <td><strong>Add column</strong> (Thêm cột <code>Previous Value</code> cạnh <code>Current Value</code> trên cùng 1 dòng).</td>
+                  <td><strong>Lịch sử giới hạn (Limited history):</strong> chỉ lưu được đúng <code>1</code> trạng thái liền trước.</td>
+                  <td>Thấp; không làm tăng số dòng nhưng bị khóa cứng số lần nhớ bởi số cột.</td>
+                  <td>Khi chỉ cần so sánh trạng thái hiện tại với <strong>đúng trạng thái liền trước</strong> (<em>Only previous value needed</em>, ví dụ tái cơ cấu vùng bán hàng).</td>
+                </tr>
+                <tr>
+                  <td><strong>SCD Type 4</strong></td>
+                  <td><strong>Separate history table</strong> (Tách riêng <code>Current table</code> và <code>History table</code>).</td>
+                  <td><strong>Giữ toàn bộ lịch sử</strong> trong bảng phụ <code>History table</code>; bảng chính chỉ giữ bản ghi hiện hành.</td>
+                  <td>Trung bình; tối ưu tốc độ quét bảng hiện hành, tốn công đồng bộ 2 bảng.</td>
+                  <td>Khi thuộc tính thay đổi với tần suất cao (<em>High-frequency changes</em>), cần giữ bảng chính siêu gọn cho truy vấn thời gian thực.</td>
+                </tr>
+                <tr>
+                  <td><strong>SCD Type 6</strong></td>
+                  <td><strong>Hybrid (<code>1 + 2 + 3</code>)</strong>: Dòng mới Type 2 + Ghi đè <code>Current</code> Type 1 trên mọi dòng + Cột <code>Previous</code> Type 3.</td>
+                  <td><strong>Đầy đủ lịch sử + Trạng thái hiện tại + Trạng thái liền trước</strong> ngay trên từng dòng.</td>
+                  <td>Cao nhất; mỗi lần cập nhật phải <code>UPDATE</code> toàn bộ các dòng cùng <code>Natural Key</code> rồi mới <code>INSERT</code> dòng mới.</td>
+                  <td>Khi các bài toán phân tích phức tạp đòi hỏi truy vấn linh hoạt đồng thời cả góc nhìn lịch sử (<code>As-Was</code>) lẫn góc nhìn hiện tại (<code>As-Is</code>).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Các kỹ thuật <strong>SCD Type 0–6</strong> giải quyết xuất sắc bài toán biến đổi giá trị bên trong một lược đồ chiều đã ổn định ở tầng phục vụ báo cáo. Nhưng chuyện gì xảy ra ở tầng tích hợp phía trước khi doanh nghiệp có tới 7 hệ thống nguồn (<code>ERP</code>, <code>CRM</code>, <code>Manufacturing</code>, <code>Inventory</code>, <code>eCommerce</code>, <code>Finance</code>) liên tục thêm bớt cột và thay đổi quy tắc nghiệp vụ mỗi tuần khiến các bảng Star Schema bị vỡ vụn? Chúng ta bước sang <strong>Trạm 3.3</strong> để giải phẫu kiến trúc <strong>Data Vault</strong>.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="consumption-3-3">
+          <h2 id="consumption-3-3-h2" tabindex="-1">Trạm 3.3: Mô hình Data Vault (Hub, Link, Satellite) — Hấp thụ Trôi Lược đồ &amp; Tích hợp Đa Nguồn ERP/CRM tại Tầng Silver</h2>
+
+          <p><strong>Data Vault</strong> (do Dan Linstedt khởi xướng) là phương pháp mô hình hóa kho dữ liệu lai giữa chuẩn hóa bậc ba (<code>3NF</code>) và mô hình chiều (Dimensional Modeling), được thiết kế chuyên biệt để <strong>tích hợp dữ liệu từ hàng chục hệ thống nguồn không đồng nhất, bảo toàn 100% dấu vết kiểm toán lịch sử (Auditability) và hấp thụ sự thay đổi lược đồ (Schema Drift) mà không cần đập đi xây lại đường ống ETL</strong> (<em>Slides 34–37</em>). Tại sao Star Schema truyền thống của Kimball lại gặp khủng hoảng khi đặt trực tiếp ngay sau các hệ thống nguồn lớn? Trong một tập đoàn đa quốc gia (<em>Slide 34</em>), thông tin liên quan đến <strong>Order #8888</strong> và khách hàng <strong>Peter Pan (<code>123456</code>)</strong> bị phân mảnh qua 7 hệ thống vận hành độc lập: <code>ERP</code>, <code>CRM</code>, <code>Manufacturing</code>, <code>Material Requirements Planning (MRP)</code>, <code>Supply Chain &amp; Inventory</code>, <code>eCommerce &amp; Point of Sale (POS)</code> và <code>Finance &amp; Accounting</code>. Khi đội <code>CRM</code> đột ngột thêm cột phân hạng tín dụng hoặc đội <code>ERP</code> đổi mối quan hệ giữa đơn hàng và kho vận từ <code>1-N</code> sang <code>N-N</code>, một bảng <code>factSales</code> hoặc <code>dimCustomer</code> đóng cứng ở dạng Star Schema sẽ buộc kỹ sư phải sửa lại toàn bộ cấu trúc bảng và nạp lại (Reload) hàng tỷ dòng lịch sử.</p>
+
+          <p><strong>Data Vault</strong> (thường được triển khai tại <strong>Tầng Silver</strong> trong kiến trúc Medallion — <em>Slide 34</em>) hóa giải hoàn toàn sự mong manh này bằng nguyên lý <strong>tách rời cấu trúc bất biến khỏi ngữ cảnh biến động</strong>: xé nhỏ mọi thực thể nghiệp vụ thành đúng 3 loại bảng nguyên tử chỉ cho phép ghi nối đuôi (<code>INSERT-Only / Append-Only</code>) gồm <strong>Hub (Business Keys — WHAT)</strong>, <strong>Link (Relationships — HOW)</strong> và <strong>Satellite (Attributes + History — CONTEXT)</strong> (<em>Slides 35–37</em>).</p>
+
+          <x-figure id="consumption-3-3-fig" key="3.3" title="Sơ đồ 3.3 — Kiến trúc Data Vault (Hub, Link, Satellite) cho Đơn hàng #8888 tại Tầng Silver">Giải phẫu mô hình Data Vault tách biệt hoàn toàn Khóa nghiệp vụ (HUB_CUSTOMER, HUB_ORDER, HUB_PRODUCT), Mối quan hệ (LINK_ORDER_CUSTOMER, LINK_ORDER_PRODUCT) và Thuộc tính lịch sử (SAT_CUSTOMER, SAT_ORDER, SAT_PRODUCT).</x-figure>
+
+          <h3>Giải phẫu 3 Viên gạch Bất biến của Data Vault: Hub (WHAT), Link (HOW) &amp; Satellite (CONTEXT)</h3>
+          <p>Bám sát cấu trúc lược đồ trên <em>Slides 36–37</em>, khi sự kiện của khách hàng <strong>Peter Pan (<code>CUSTOMER_ID = 123456</code>)</strong> đặt <strong>Order #8888 (<code>ORDER_ID = 8888</code>)</strong> chảy từ các nguồn <code>CRM</code> và <code>ERP</code> vào tầng Silver, dữ liệu được phân rã cơ học vào 3 lớp bảng sau:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Thành phần Data Vault</th>
+                  <th>Câu hỏi Cốt lõi &amp; Vai trò Cơ học</th>
+                  <th>Các Bảng &amp; Cột Chuẩn trong Ví dụ Đơn hàng #8888 (Slide 36)</th>
+                  <th>Cách Hấp thụ Thay đổi Lược đồ (Schema Drift &amp; Scalability)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Hub (Tâm điểm Khóa Nghiệp vụ)</strong></td>
+                  <td><strong>WHAT:</strong> Xác định các thực thể cốt lõi của doanh nghiệp thông qua <strong>Khóa nghiệp vụ duy nhất (Unique Business Keys)</strong> có tần suất thay đổi cực thấp.</td>
+                  <td>
+                    • <code>HUB_CUSTOMER(CUSTOMER_ID, LOAD_DATE, SOURCE)</code><br>
+                    • <code>HUB_ORDER(ORDER_ID, LOAD_DATE, SOURCE)</code><br>
+                    • <code>HUB_PRODUCT(PRODUCT_ID, LOAD_DATE, SOURCE)</code>
+                  </td>
+                  <td>Bảng <code>Hub</code> hoàn toàn không chứa tên, địa chỉ hay giá tiền. Khi mã khách hàng <code>123456</code> xuất hiện lần đầu từ <code>CRM</code>, hệ thống chỉ chèn 1 dòng duy nhất vào <code>HUB_CUSTOMER</code> kèm thời điểm nạp <code>LOAD_DATE</code> và nguồn <code>SOURCE = 'CRM'</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Link (Cầu nối Quan hệ Giao dịch)</strong></td>
+                  <td><strong>HOW:</strong> Ghi nhận mọi mối quan hệ hoặc sự kiện giao dịch kết nối giữa hai hay nhiều <code>Hub</code> (luôn thiết kế ở dạng quan hệ nhiều – nhiều <code>N-N</code> linh hoạt).</td>
+                  <td>
+                    • <code>LINK_ORDER_CUSTOMER(ORDER_ID, CUSTOMER_ID, LOAD_DATE)</code><br>
+                    • <code>LINK_ORDER_PRODUCT(ORDER_ID, PRODUCT_ID, LOAD_DATE)</code>
+                  </td>
+                  <td>Nếu ngày mai nghiệp vụ thay đổi (ví dụ 1 đơn hàng có thể gắn với nhiều khách hàng đồng thanh toán, hoặc thêm quan hệ với kho vận <code>HUB_WAREHOUSE</code>), chỉ cần tạo thêm <code>LINK_</code> mới mà không hề chạm vào các bảng <code>HUB_</code> hay <code>LINK_</code> cũ.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Satellite (Vệ tinh Thuộc tính &amp; Lịch sử)</strong></td>
+                  <td><strong>CONTEXT:</strong> Lưu trữ toàn bộ các thuộc tính mô tả (Descriptive Attributes) và lịch sử biến đổi theo thời gian (<code>SCD Type 2 Append-Only</code>) của một <code>Hub</code> hoặc một <code>Link</code>.</td>
+                  <td>
+                    • <code>SAT_CUSTOMER(CUSTOMER_ID, LOAD_DATE, NAME, ADDRESS)</code><br>
+                    • <code>SAT_ORDER(ORDER_ID, LOAD_DATE, STATUS, TOTAL_AMOUNT)</code><br>
+                    • <code>SAT_PRODUCT(PRODUCT_ID, LOAD_DATE, PRICE, CATEGORY)</code>
+                  </td>
+                  <td>Khi <strong>Peter Pan (<code>123456</code>)</strong> đổi địa chỉ sang Mỹ, hệ thống chỉ cần <code>INSERT</code> thêm 1 dòng mới với <code>LOAD_DATE</code> mới vào <code>SAT_CUSTOMER</code>. Nếu hệ thống <code>CRM</code> bổ sung thêm 10 cột mạng xã hội mới, kỹ sư chỉ việc gắn thêm một bảng vệ tinh mới <code>SAT_CUSTOMER_CRM_SOCIAL</code> trỏ vào <code>HUB_CUSTOMER</code> mà <strong>0% bảng hiện có bị ảnh hưởng</strong>!</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <pre><code>-- Giải phẫu DDL &amp; Luồng nạp Append-Only (INSERT-Only) của Data Vault tại Tầng Silver (Slide 36)
+-- 1. Các bảng HUB: Chỉ lưu Business Key + Metadata kiểm toán (LOAD_DATE, SOURCE)
+CREATE TABLE silver.hub_customer (
+    customer_id VARCHAR(64) NOT NULL PRIMARY KEY,
+    load_date   TIMESTAMP   NOT NULL,
+    source      VARCHAR(32) NOT NULL
+);
+
+CREATE TABLE silver.hub_order (
+    order_id    VARCHAR(64) NOT NULL PRIMARY KEY,
+    load_date   TIMESTAMP   NOT NULL,
+    source      VARCHAR(32) NOT NULL
+);
+
+-- 2. Bảng LINK: Kết nối giao dịch giữa HUB_ORDER (#8888) và HUB_CUSTOMER (Peter Pan #123456)
+CREATE TABLE silver.link_order_customer (
+    order_id    VARCHAR(64) NOT NULL REFERENCES silver.hub_order(order_id),
+    customer_id VARCHAR(64) NOT NULL REFERENCES silver.hub_customer(customer_id),
+    load_date   TIMESTAMP   NOT NULL,
+    PRIMARY KEY (order_id, customer_id)
+);
+
+-- 3. Các bảng SATELLITE: Lưu ngữ cảnh thuộc tính và lịch sử biến đổi theo thời gian (Khóa chính kép: ID + LOAD_DATE)
+CREATE TABLE silver.sat_customer (
+    customer_id VARCHAR(64)  NOT NULL REFERENCES silver.hub_customer(customer_id),
+    load_date   TIMESTAMP    NOT NULL,
+    name        VARCHAR(128) NOT NULL,
+    address     VARCHAR(256) NOT NULL,
+    PRIMARY KEY (customer_id, load_date)
+);
+
+-- Khi Peter Pan (123456) chuyển từ UK sang US ngày 26/09/2025:
+-- Không cần UPDATE dòng cũ, chỉ cần INSERT dòng ngữ cảnh mới vào SAT_CUSTOMER!
+INSERT INTO silver.sat_customer (customer_id, load_date, name, address)
+VALUES
+    ('123456', TIMESTAMP '2025-09-01 08:00:00', 'Peter Pan', '221B Baker Street, London, UK (GBP)'),
+    ('123456', TIMESTAMP '2025-09-26 09:30:00', 'Peter Pan', '350 Fifth Avenue, New York, USA (USD)');</code></pre>
+
+          <div class="callout">
+            <div class="callout-title">Đánh đổi Kỹ thuật của Data Vault: Tối ưu Tích hợp (Silver) nhưng Không dành cho Người dùng BI Trực tiếp</div>
+            <p><strong>Data Vault</strong> đạt điểm tuyệt đối về khả năng nạp song song (vì các bảng <code>Hub</code>, <code>Link</code>, <code>Satellite</code> chỉ <code>INSERT</code> nối đuôi độc lập), chống trôi lược đồ và lưu vết nguồn gốc dữ liệu (<code>SOURCE</code>, <code>LOAD_DATE</code>) phục vụ kiểm toán. Tuy nhiên, cái giá phải trả là <strong>số lượng bảng tăng gấp 3–4 lần</strong>: để lấy thông tin một đơn hàng hoàn chỉnh, truy vấn phải thực hiện từ <code>6 đến 10 phép JOIN</code> qua chuỗi <code>HUB_CUSTOMER → LINK_ORDER_CUSTOMER → HUB_ORDER → SAT_ORDER → LINK_ORDER_PRODUCT → HUB_PRODUCT → SAT_PRODUCT</code>. Do đó, Data Vault <strong>không bao giờ được phơi bày trực tiếp cho công cụ BI hay Data Analyst</strong>, mà phải đứng ở <strong>Tầng Silver</strong> làm lớp tích hợp lõi trước khi được kết xuất thành <strong>Star Schema (Kimball)</strong> ở <strong>Tầng Gold</strong>. Sự phân vai giữa tầng tích hợp lõi và tầng phục vụ báo cáo này chính là lời giải cho cuộc đại chiến kéo dài ba thập kỷ giữa <strong>Bill Inmon</strong> và <strong>Ralph Kimball</strong> mà chúng ta sẽ tổng kết ở <strong>Trạm 3.4</strong>.</p>
+          </div>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="consumption-3-4">
+          <h2 id="consumption-3-4-h2" tabindex="-1">Trạm 3.4: Hai Trường phái Tư tưởng Inmon (Top-Down 3NF) vs. Kimball (Bottom-Up Star) &amp; Quy ước Đặt tên Medallion Architecture</h2>
+
+          <p>Trong lịch sử kiến trúc Kho dữ liệu doanh nghiệp, mọi tranh luận thiết kế đều xoay quanh hai trường phái tư tưởng kinh điển: <strong>Bill Inmon (Top-Down Approach — Tiếp cận từ trên xuống)</strong> và <strong>Ralph Kimball (Bottom-Up Approach — Tiếp cận từ dưới lên)</strong> (<em>Slides 38–40</em>). Thay vì chọn một bỏ một một cách cực đoan, các nền tảng <strong>Modern Data Lakehouse</strong> hiện đại đã dung hòa cả hai trường phái vào trong kiến trúc 3 tầng <strong>Medallion Architecture (Bronze → Silver → Gold)</strong> kèm bộ quy ước đặt tên bảng tiêu chuẩn công nghiệp (<em>Slide 41</em>).</p>
+
+          <x-figure id="consumption-3-4-fig" key="3.4" title="Sơ đồ 3.4 — Đối chiếu Luồng Kiến trúc Inmon (Top-Down 3NF) vs. Kimball (Bottom-Up Star) &amp; Sự Hội tụ trên 3 Tầng Medallion (Bronze → Silver → Gold)">So sánh trực diện luồng xây dựng kho dữ liệu của Bill Inmon (3NF EDW trước, Data Marts sau) với Ralph Kimball (Star Schema Data Marts trước, tích hợp qua Conformed Dimensions) và cách hai trường phái hội tụ trên kiến trúc Medallion.</x-figure>
+
+          <h3>Đối sánh Trực diện: Bill Inmon (Top-Down 3NF) vs. Ralph Kimball (Bottom-Up Dimensional Bus)</h3>
+          <p>Sự khác biệt cốt lõi giữa hai nhà tiên phong nằm ở <strong>trình tự xây dựng kho dữ liệu</strong> và <strong>mô hình dữ liệu tại tâm điểm</strong> (<em>Slides 38–40</em> &amp; <em>The Data Warehouse Toolkit, 3rd Ed.</em>, Ch. 4, tr. 123–135):</p>
+          <ul>
+            <li><strong>Trường phái Bill Inmon — Top-Down Approach (Từ toàn cục đến cục bộ):</strong> Inmon định nghĩa Data Warehouse (hay <em>Corporate Information Factory — CIF</em>) phải bắt đầu bằng việc gom toàn bộ dữ liệu doanh nghiệp về một <strong>Kho dữ liệu Chuẩn hóa Toàn doanh nghiệp (Enterprise-wide Normalized DWH)</strong> được thiết kế ở dạng <strong>Chuẩn hóa bậc ba (<code>3NF</code>)</strong> để loại bỏ triệt để sự dư thừa và thiết lập <strong>Một nguồn sự thật duy nhất (Single Source of Truth)</strong>. Sau khi kho <code>3NF</code> trung tâm đã hoàn thiện, các <strong>Data Marts</strong> phục vụ từng phòng ban (Finance, Sales, Marketing) mới được trích xuất từ kho trung tâm này ra ngoài. Ưu điểm tuyệt đối là tính nhất quán toàn cục và khả năng kiểm toán chặt chẽ; nhược điểm là chi phí đầu tư ban đầu khổng lồ, tốn từ <code>12–24 tháng</code> thiết kế lược đồ <code>3NF</code> toàn công ty trước khi người dùng kinh doanh nhìn thấy bảng báo cáo đầu tiên.</li>
+            <li><strong>Trường phái Ralph Kimball — Bottom-Up Approach (Từ quy trình kinh doanh đến toàn cục):</strong> Kimball đảo ngược quy trình bằng cách bắt đầu ngay từ nhu cầu cấp bách của từng quy trình nghiệp vụ cụ thể (như quy trình bán lẻ của <strong>Order #8888</strong>), xây dựng trực tiếp các <strong>Business-specific Data Marts</strong> theo mô hình <strong>Star Schema (<code>factSales</code> + các bảng <code>dim_*</code>)</strong> để trao ngay báo cáo cho người dùng chỉ sau vài tuần. Để ngăn chặn các Data Marts rời rạc biến thành các "ốc đảo dữ liệu" (Data Silos) mâu thuẫn nhau, Kimball kết nối chúng thành một kho dữ liệu thống nhất thông qua kiến trúc <strong>Enterprise Data Warehouse Bus Matrix</strong> và các <strong>Chiều chuẩn hóa dùng chung (Conformed Dimensions)</strong> — tức bảng <code>dimCustomer</code> (chứa <strong>Peter Pan <code>123456</code></strong>) và <code>dimDate</code> phải có cấu trúc, khóa <code>Surrogate Key</code> và định nghĩa nghiệp vụ giống hệt nhau khi dùng chung giữa Mart Bán hàng (<code>fact_sales</code>) và Mart Tài chính (<code>fact_invoices</code>).</li>
+          </ul>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Đối sánh</th>
+                  <th>Bill Inmon (Top-Down Approach — Slide 39)</th>
+                  <th>Ralph Kimball (Bottom-Up Approach — Slide 40)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Trình tự Kiến trúc (Data Flow)</strong></td>
+                  <td><code>Source Systems</code> → <strong>Enterprise-wide Normalized DWH (<code>3NF</code>)</strong> → <code>Departmental Data Marts</code>.</td>
+                  <td><code>Source Systems</code> → <strong>Business-specific Data Marts (<code>Star Schema</code>)</strong> → Hợp nhất thành <code>Enterprise DWH</code> qua <strong>Conformed Dimensions</strong>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Mô hình Dữ liệu Trọng tâm</strong></td>
+                  <td>Chuẩn hóa quan hệ <strong><code>3NF (Third Normal Form)</code></strong> (hoặc tiến hóa thành <strong>Data Vault</strong> trong kỷ nguyên hiện đại).</td>
+                  <td>Phi chuẩn hóa <strong><code>Dimensional Modeling (Star Schema / Snowflake Schema)</code></strong> xoay quanh bảng Fact và Dimension.</td>
+                </tr>
+                <tr>
+                  <td><strong>Thời gian Ra mắt Sản phẩm Đầu tiên (Time-to-Value)</strong></td>
+                  <td><strong>Chậm (High Initial Cost &amp; Long Lead Time):</strong> Phải hoàn tất mô hình hóa toàn doanh nghiệp trước khi xuất báo cáo.</td>
+                  <td><strong>Cực nhanh (Fast Time-to-Market):</strong> Triển khai cuốn chiếu từng quy trình kinh doanh, mang lại giá trị tức thì cho BI.</td>
+                </tr>
+                <tr>
+                  <td><strong>Quản trị Tính Nhất quán &amp; Kiểm toán (Governance)</strong></td>
+                  <td><strong>Rất mạnh:</strong> Đảm bảo <code>Single Source of Truth</code> ngay từ lõi, không trùng lặp dữ liệu, lý tưởng cho ngân hàng và kiểm toán pháp lý.</td>
+                  <td><strong>Phụ thuộc chặt vào kỷ luật Conformed Dimensions:</strong> Nếu các đội tự ý tạo bảng chiều riêng không tuân thủ Bus Matrix sẽ dẫn đến lệch số liệu giữa các phòng ban.</td>
+                </tr>
+                <tr>
+                  <td><strong>Vị trí Hội tụ trên Kiến trúc Medallion Hiện đại</strong></td>
+                  <td>Ngự trị tại <strong>Tầng Silver (Integration &amp; System of Record Layer)</strong> dưới dạng bảng làm sạch <code>3NF</code> hoặc <code>Data Vault</code>.</td>
+                  <td>Ngự trị tại <strong>Tầng Gold (Consumption &amp; Presentation Layer)</strong> dưới dạng <code>Star Schema</code> và <code>One Big Table (OBT)</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Sự Hội tụ trên Kiến trúc Medallion (Bronze → Silver → Gold) &amp; Quy ước Đặt tên Chuẩn Công nghiệp (Slide 41)</h3>
+          <p>Trên các nền tảng Lakehouse hiện đại (Databricks, Snowflake, Apache Iceberg, BigQuery), cuộc chiến Inmon vs. Kimball được khép lại bằng sự phân tầng trách nhiệm rõ ràng trên <strong>Medallion Architecture</strong>: chúng ta dùng <strong>tư duy Inmon / Data Vault ở tầng Silver</strong> để tích hợp đa nguồn chuẩn xác, rồi dùng <strong>tư duy Kimball ở tầng Gold</strong> để tối ưu tốc độ truy vấn BI. Để hàng trăm kỹ sư dữ liệu và chuyên viên phân tích nhìn vào tên bảng là biết ngay tầng lưu trữ, mức độ làm sạch và mô hình dữ liệu bên trong, <em>Slide 41</em> thiết lập bộ quy chuẩn <strong>Medallion Architecture &amp; Naming Convention</strong> bắt buộc:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tầng Medallion (Layer)</th>
+                  <th>Mục đích Cơ học (Purpose)</th>
+                  <th>Kỹ thuật Mô hình hóa (Modeling)</th>
+                  <th>Quy ước Đặt tên Chuẩn (Naming Convention)</th>
+                  <th>Ví dụ Thực tế (Examples — Slide 41)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Bronze Layer</strong><br><em>(Tầng Dữ liệu Thô)</em></td>
+                  <td><strong>Ingest raw data, never modify:</strong> Thu thập nguyên trạng dữ liệu từ các nguồn vận hành, tuyệt đối không sửa đổi logic để làm điểm tựa chạy lại (Replay) toàn bộ lịch sử.</td>
+                  <td><strong><code>None</code></strong> (Giữ nguyên cấu trúc JSON/CSV/CDC của hệ thống nguồn).</td>
+                  <td><code>bronze_&lt;source&gt;_&lt;entity&gt;</code><br>hoặc tiền tố <code>raw_</code></td>
+                  <td><code>bronze_crm_orders</code>,<br><code>bronze_erp_customers</code></td>
+                </tr>
+                <tr>
+                  <td><strong>2. Silver Layer</strong><br><em>(Tầng Tích hợp &amp; Làm sạch — Tư duy Inmon / Data Vault)</em></td>
+                  <td><strong>Clean, deduplicate, integrate:</strong> Lọc rác, chuẩn hóa kiểu dữ liệu, khử trùng lặp (Deduplication) và tích hợp khóa nghiệp vụ từ nhiều nguồn về một chuẩn thống nhất.</td>
+                  <td><strong><code>Cleaned Data</code>, <code>3NF</code>, <code>Data Vault</code></strong></td>
+                  <td><code>silver_&lt;entity&gt;</code>, <code>stg_</code>,<br>hoặc tiền tố Data Vault: <code>hub_</code>, <code>lnk_</code>, <code>sat_</code></td>
+                  <td><code>silver_customers</code>,<br><code>hub_customer</code>,<br><code>sat_customer_details</code></td>
+                </tr>
+                <tr>
+                  <td><strong>3. Gold Layer</strong><br><em>(Tầng Phục vụ Phân tích — Tư duy Kimball)</em></td>
+                  <td><strong>Business-ready analytics:</strong> Tổ chức dữ liệu theo ngôn ngữ kinh doanh, áp dụng các quy tắc <code>SCD Type 1/2/6</code> và tổng hợp sẵn chỉ số để phục vụ BI Dashboard, OLAP và AI/ML với độ trễ thấp nhất.</td>
+                  <td><strong><code>Star Schema</code>, <code>Snowflake Schema</code>, <code>OBT (One Big Table)</code></strong></td>
+                  <td><code>fact_&lt;event&gt;</code>, <code>fct_</code>,<br><code>dim_&lt;entity&gt;</code>,<br><code>mart_&lt;domain&gt;</code></td>
+                  <td><code>fact_sales</code>,<br><code>dim_customer</code>,<br><code>mart_finance</code></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Như vậy, hành trình mô hình hóa của <strong>Order #8888</strong> và khách hàng <strong>Peter Pan (<code>123456</code>)</strong> đã hoàn tất một vòng khép kín: khởi nguồn từ các bản ghi thô <code>bronze_crm_orders</code> và <code>bronze_erp_customers</code> (<strong>Bronze</strong>) → được khử trùng và bóc tách thành <code>hub_customer</code>, <code>lnk_order_customer</code>, <code>sat_customer_details</code> để chống trôi lược đồ (<strong>Silver — Inmon / Data Vault</strong>) → rồi kết tinh thành <code>fact_sales</code> nối với <code>dim_customer</code> áp dụng <strong>SCD Type 2 / Type 6</strong> qua khóa <code>Surrogate Key</code> (<strong>Gold — Kimball Star Schema</strong>). Nhưng khi bảng <code>fact_sales</code> ở tầng Gold tích lũy lên tới <strong>10 tỷ dòng</strong> và các giám đốc yêu cầu kéo thả Dashboard phản hồi dưới <code>100 mili-giây</code> hoặc tìm kiếm ngữ nghĩa cho AI Agents, những động cơ cơ sở dữ liệu nào (<strong>ClickHouse, Apache Druid, DuckDB, Vector Databases</strong>) sẽ gánh vác trọng trách thực thi vật lý đó? Chúng ta chuẩn bị bước sang <strong>Chặng 4</strong>.</p>
+        </section>
+
+        <section class="lesson-section summary-section" id="consumption-3-summary">
+          <h2 id="consumption-3-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 3 &amp; Checklist 5 câu hỏi bản chất</h2>
+          <p><strong>Checklist tự kiểm tra Chặng 3 (5 Câu hỏi Bản chất):</strong></p>
+          <ol>
+            <li><strong>Khi khách hàng Peter Pan (<code>PK = 123456</code>) chuyển từ UK (<code>GBP</code>) sang Mỹ (<code>USD</code>) vào ngày <code>26/09/2025</code>, tại sao việc dùng SCD Type 1 (Overwrite) lại làm sai lệch báo cáo doanh thu lịch sử của <code>Order #8888</code>, và tại sao SCD Type 2 bắt buộc phải tạo thêm cột <code>Surrogate Key (1, 2)</code> thay vì dùng khóa tự nhiên <code>123456</code>?</strong><br>SCD Type 1 ghi đè trực tiếp <code>GBP</code> thành <code>USD</code> trên dòng <code>123456</code>, khiến mọi đơn hàng quá khứ của Peter Pan tại UK trước ngày <code>26/09/2025</code> bị quy đổi nhầm sang <code>USD</code>. SCD Type 2 giữ nguyên dòng cũ (<code>GBP</code>, <code>01/09/2025 → 25/09/2025</code>, <code>Delete Flag = 1</code>) và chèn thêm dòng mới (<code>USD</code>, <code>26/09/2025 → 31/12/9999</code>, <code>Delete Flag = 0</code>); vì mã tự nhiên <code>123456</code> bị lặp lại trên cả hai dòng nên không thể làm khóa chính, bắt buộc phải sinh khóa đại diện <code>Surrogate Key = 1</code> và <code>Surrogate Key = 2</code> để bảng <code>fact_sales</code> neo chính xác vào phiên bản khách hàng tại đúng thời điểm giao dịch phát sinh.</li>
+            <li><strong>Điểm giới hạn cơ học của SCD Type 3 (Add New Column) là gì, và SCD Type 4 (Maintain A History Table) giải quyết bài toán hiệu năng nào mà SCD Type 2 gặp phải khi thuộc tính thay đổi liên tục?</strong><br>SCD Type 3 thêm cột <code>Previous Currency</code> cạnh <code>Current Currency</code> trên cùng 1 dòng nên không làm tăng số dòng, nhưng chỉ nhớ được đúng <code>1</code> lần thay đổi liền trước (nếu đổi lần thứ hai sẽ mất giá trị đầu tiên). Khi khách hàng đổi thông tin liên tục (ví dụ đổi tên từ <code>Peter Parker</code> → <code>Peter Pan</code> → <code>Peter Smith</code>), SCD Type 2 làm bảng chính phình to gấp nhiều lần; SCD Type 4 giải quyết bằng cách tách riêng bảng <code>Current table</code> (chỉ giữ 1 dòng trạng thái mới nhất <code>Peter Smith</code> giúp quét cực nhanh) và đẩy toàn bộ bản ghi cũ sang <code>History table</code>.</li>
+            <li><strong>Tại sao kỹ thuật lai SCD Type 6 lại mang công thức <code>1 + 2 + 3 = 6</code>, và nó cho phép truy vấn đồng thời hai góc nhìn <code>As-Was</code> và <code>As-Is</code> như thế nào?</strong><br>SCD Type 6 kết hợp cả 3 kỹ thuật trên bảng có <code>Surrogate Key</code>: (1) sinh dòng phiên bản mới và giữ nguyên giá trị lịch sử ở cột <code>Currency</code> (<strong>Type 2</strong>: dòng 1 là <code>GBP</code>, dòng 2 là <code>USD</code>); (2) ghi đè cột <code>Current Currency = USD</code> trên <strong>tất cả các dòng</strong> của cùng khách hàng <code>123456</code> (<strong>Type 1</strong>); và (3) lưu giá trị liền trước vào cột <code>Previous Currency</code> (<strong>Type 3</strong>: dòng 1 là <code>NULL</code>, dòng 2 là <code>GBP</code>). Nhờ đó, câu lệnh SQL chỉ cần <code>GROUP BY currency</code> để xem báo cáo lịch sử chuẩn tại thời điểm mua (<code>As-Was</code>), hoặc <code>GROUP BY current_currency</code> để gom toàn bộ lịch sử theo trạng thái hiện tại (<code>As-Is</code>) mà không cần <code>SELF JOIN</code>.</li>
+            <li><strong>Trong mô hình Data Vault tại tầng Silver, ba thành phần <code>Hub</code>, <code>Link</code> và <code>Satellite</code> phân chia trách nhiệm như thế nào để hấp thụ hiện tượng trôi lược đồ (Schema Drift) từ 7 hệ thống ERP/CRM?</strong><br><code>Hub</code> (<strong>WHAT</strong>) chỉ lưu các khóa nghiệp vụ duy nhất ít thay đổi (<code>HUB_CUSTOMER</code>, <code>HUB_ORDER</code>, <code>HUB_PRODUCT</code> kèm <code>LOAD_DATE</code>, <code>SOURCE</code>); <code>Link</code> (<strong>HOW</strong>) lưu các mối quan hệ giao dịch nhiều – nhiều giữa các Hub (<code>LINK_ORDER_CUSTOMER</code>, <code>LINK_ORDER_PRODUCT</code>); còn <code>Satellite</code> (<strong>CONTEXT</strong>) lưu toàn bộ thuộc tính mô tả và lịch sử biến đổi theo cơ chế nối đuôi (<code>SAT_CUSTOMER</code>, <code>SAT_ORDER</code>, <code>SAT_PRODUCT</code>). Khi hệ thống nguồn thêm cột mới hoặc thay đổi thuộc tính, kỹ sư chỉ cần chèn dòng mới với <code>LOAD_DATE</code> mới hoặc gắn thêm một bảng <code>SAT_</code> mới vào <code>Hub</code> mà không phải sửa đổi bất kỳ bảng hiện hành nào.</li>
+            <li><strong>Hai trường phái Bill Inmon (Top-Down 3NF) và Ralph Kimball (Bottom-Up Star Schema) khác nhau ở điểm nào, và chúng hội tụ ra sao trong quy ước 3 tầng Medallion (<code>Bronze → Silver → Gold</code>)?</strong><br>Inmon xây dựng kho dữ liệu chuẩn hóa <code>3NF</code> toàn doanh nghiệp trước rồi mới tách ra các Data Marts (đảm bảo <code>Single Source of Truth</code> nhưng chậm ra mắt), trong khi Kimball xây dựng ngay các Data Marts dạng <code>Star Schema</code> theo từng quy trình kinh doanh rồi kết nối qua <strong>Conformed Dimensions</strong> (nhanh mang lại giá trị cho BI). Trên kiến trúc Medallion hiện đại, hai trường phái hội tụ hoàn hảo: <strong>Bronze</strong> giữ dữ liệu thô nguyên bản (<code>bronze_crm_orders</code>, <code>bronze_erp_customers</code>), <strong>Silver</strong> áp dụng tư duy Inmon / Data Vault để làm sạch và tích hợp đa nguồn (<code>silver_customers</code>, <code>hub_customer</code>, <code>sat_customer_details</code>), còn <strong>Gold</strong> áp dụng tư duy Kimball Star Schema / OBT để phục vụ trực tiếp cho BI và phân tích (<code>fact_sales</code>, <code>dim_customer</code>, <code>mart_finance</code>).</li>
+          </ol>
+          <p style="margin-top:14px;"><a href="#/D05/4" onclick="selectStorageStage(4);return false;">Sang Chặng 4: Động Cơ Thực Thi OLAP Hiện Đại (ClickHouse, Apache Druid, DuckDB &amp; Vector Databases) →</a></p>
+        </section>
+      </div>

@@ -1,0 +1,522 @@
+      <div class="prose">
+        <x-spine id="orchestration-4-spine" badge="TRONG BÀI HỌC NÀY · D06" title="Chặng 4: Quản Trị Vận Hành, Mở Rộng Quy Mô (Executors), Kiểm Soát Đồng Thời 3 Tầng &amp; Giám Sát Airflow" subtitle="Trạm 4.1 → 4.4">Đưa cụm <strong>Apache Airflow</strong> vận hành <strong>daily_sales_pipeline</strong> lên môi trường Production: bảo mật cấu hình với <strong>Variables &amp; Connections</strong> (Fernet/Vault), lựa chọn kiến trúc <strong>Executors</strong> (<code>Local</code>, <code>Celery</code>, <code>Kubernetes</code>), thiết lập phễu kiểm soát đồng thời 3 tầng (<code>parallelism</code>, <code>max_active_runs</code>, <code>Pools</code>) và hệ thống cảnh báo sớm <strong>Monitoring</strong>.</x-spine>
+
+        <p>Ở <strong>Chặng 3</strong>, chúng ta đã lập trình hoàn chỉnh đường ống <strong><code>daily_sales_pipeline</code></strong> (phiên chạy <code>DAG Run: manual__2026-05-15</code> xử lý giao dịch <strong>Order #8888</strong> với <code>order_id = "ORD-8888"</code>, <code>amount = 450000</code>) đạt chuẩn <strong>Idempotency</strong> bằng mẫu <code>Delete-Write</code> theo <code>logical_date</code>, truyền siêu dữ liệu gọn nhẹ qua <code>XComs</code> và rẽ nhánh thông báo bằng <code>TriggerRule</code>. Tuy nhiên, một tệp mã DAG chạy mượt trên máy tính cá nhân của kỹ sư vẫn có thể gây thảm họa khi đưa lên môi trường Production: lộ mật khẩu cơ sở dữ liệu trong kho Git, sập tiến trình <code>Scheduler</code> vì truy vấn cấu hình ở Top-Level, nghẽn cổ chai khi hàng trăm tác vụ tranh chấp tài nguyên, hoặc đánh sập cơ sở dữ liệu nguồn PostgreSQL vì chạy song song quá mức. Bước vào <strong>Chặng 4 (Trạm 4.1 → 4.4)</strong>, chúng ta giải quyết trọn vẹn bài toán quản trị vận hành và mở rộng quy mô cụm Airflow: tách biệt cấu hình và thông tin định danh qua <strong>Variables &amp; Connections</strong> (<em>Slide 30–31</em>), giải phẫu 4 kiến trúc <strong>Executors</strong> (<em>Slide 32</em>), thiết lập <strong>Phễu Kiểm Soát Đồng Thời 3 Tầng</strong> (<em>Slide 33–37</em>), và xây dựng hệ thống <strong>Giám Sát Chủ Động (Monitoring)</strong> trước khi đối diện với nghịch lý <em>"Pipeline Xanh nhưng Dữ liệu Sai"</em> (<em>Slide 38</em>).</p>
+
+        <section class="lesson-section" id="orchestration-4-1">
+          <h2 id="orchestration-4-1-h2" tabindex="-1">Trạm 4.1: Quản Lý Cấu Hình &amp; Định Danh Bảo Mật (Variables &amp; Connections — Tuyệt Đối Không Hardcode Trong Mã DAG)</h2>
+
+          <p>Nguyên tắc kỷ luật đầu tiên khi đưa đường ống <strong><code>daily_sales_pipeline</code></strong> lên Production là: <strong>tuyệt đối không gán cứng (hardcode) mật khẩu, khóa API, địa chỉ máy chủ hay đường dẫn bucket trực tiếp bên trong tệp mã nguồn Python của DAG</strong> (<em>Slide 30–31</em>; <em>Data Pipelines with Apache Airflow</em>, 2nd Ed., Ch. 12.1 &amp; Ch. 16.2). Một đoạn mã tưởng chừng vô hại như <code>password = "abc123"</code>, <code>host = "prod-db"</code> hay <code>bucket = "my-bucket"</code> nằm ngay trong tệp <code>daily_sales_pipeline.py</code> sẽ kích hoạt cùng lúc hai thảm họa vận hành và bảo mật:</p>
+
+          <ul>
+            <li><strong>Ác mộng bảo trì vận hành (Operational Maintenance Nightmare):</strong> Khi địa chỉ máy chủ PostgreSQL chuyển sang cụm mới, tên bucket S3 thay đổi theo môi trường (<code>dev</code> → <code>staging</code> → <code>prod</code>), hoặc mật khẩu định kỳ xoay vòng mỗi 30 ngày, kỹ sư buộc phải mở hàng chục tệp <code>.py</code> khác nhau để sửa tay, tạo Pull Request và triển khai lại toàn bộ kho mã nguồn DAG.</li>
+            <li><strong>Lỗ hổng bảo mật nghiêm trọng (Severe Security Breach):</strong> Mã nguồn DAG được lưu trữ trong hệ thống quản lý phiên bản Git và hiển thị trực tiếp trên thẻ <code>Code</code> của giao diện Airflow Webserver. Việc gán cứng <code>password = "abc123"</code> đồng nghĩa mọi lập trình viên, thực tập sinh có quyền đọc kho Git hoặc xem giao diện Airflow UI đều nhìn thấy mật khẩu Production ở dạng văn bản thuần (plaintext) — vi phạm trực tiếp các tiêu chuẩn kiểm toán an toàn thông tin (SOC2, PCI-DSS, ISO 27001).</li>
+          </ul>
+
+          <p>Để tách biệt hoàn toàn <strong>logic điều phối luồng (Code)</strong> khỏi <strong>thông số cấu hình và định danh bảo mật (Configuration &amp; Secrets)</strong>, Airflow cung cấp hai cơ chế lưu trữ tập trung với ranh giới trách nhiệm rõ ràng (<em>Slide 31</em>):</p>
+
+          <ul>
+            <li><strong><code>Variables</code> (Biến cấu hình phi mật):</strong> Là kho lưu trữ dạng <code>Key-Value</code> nằm trong bảng <code>variable</code> của Metadata DB, chuyên dùng cho các tham số cấu hình nghiệp vụ và đường dẫn thay đổi theo môi trường nhưng không phải là khóa định danh nhạy cảm — ví dụ: <code>s3_bucket_name = "fsds-prod-lake"</code>, ngưỡng cảnh báo doanh thu <code>anomaly_threshold = 500000000</code>, danh sách khu vực cần trích xuất <code>target_regions = ["VN", "SG"]</code>, hoặc cờ bật/tắt tính năng <code>enable_tax_v2 = true</code>. (Lưu ý: Airflow tự động che dấu giá trị hiển thị trên UI bằng chuỗi <code>***</code> nếu tên khóa chứa các từ khóa nhạy cảm như <code>password</code>, <code>secret</code>, <code>passwd</code>, <code>authorization</code>, <code>api_key</code>, <code>apikey</code> hoặc <code>access_token</code>).</li>
+            <li><strong><code>Connections</code> (Định danh kết nối hệ thống ngoại vi):</strong> Lưu trữ tập trung thông tin xác thực và địa chỉ kết nối tới các hệ thống bên ngoài theo mã định danh <code>conn_id</code> (ví dụ <code>conn_id = "postgres_prod_oltp"</code> hoặc <code>conn_id = "aws_s3_datalake"</code>), bao gồm cấu trúc chuẩn: <code>Conn Type</code>, <code>Host</code>, <code>Schema/Database</code>, <code>Login</code>, <code>Password</code>, <code>Port</code> và trường mở rộng <code>Extra (JSON)</code>. Toàn bộ mật khẩu và khóa token trong bảng <code>connection</code> được <strong>mã hóa đối xứng lúc lưu trữ (Encrypted at rest)</strong> bằng khóa <strong><code>Fernet Key</code></strong> (cấu hình qua biến môi trường <code>AIRFLOW__CORE__FERNET_KEY</code>, sử dụng thuật toán <code>AES-128-CBC</code> kết hợp xác thực <code>HMAC-SHA256</code>). Trong kiến trúc doanh nghiệp cao cấp, Airflow còn cho phép ủy quyền hoàn toàn việc lưu trữ này sang một <strong>External Secrets Backend</strong> (như <code>HashiCorp Vault</code>, <code>AWS Secrets Manager</code>, <code>GCP Secret Manager</code> hoặc <code>Azure Key Vault</code>) theo thứ tự ưu tiên tra cứu: <code>Secrets Backend</code> → <code>Environment Variables (AIRFLOW_CONN_*)</code> → <code>Metadata Database</code>.</li>
+          </ul>
+
+          <x-figure id="orchestration-4-1-fig" key="4.1" title="Sơ đồ 4.1 — Rủi Ro Hardcode Mật Khẩu Trong DAG vs. Kiến Trúc Quản Lý Tập Trung Variables, Connections (Mã Hóa Fernet) &amp; Secrets Backend">Tách biệt hoàn toàn mã nguồn định nghĩa luồng (Git) khỏi thông số cấu hình (Variables) và khóa định danh bảo mật (Connections/Vault), kèm quy tắc tránh gọi Variable.get() ở Top-Level.</x-figure>
+
+          <h3>Cạm bẫy Production kinh điển: Tuyệt đối không gọi Variable.get() ở Top-Level của tệp DAG!</h3>
+          <p>Một lỗi hiệu năng chí mạng được cảnh báo trực tiếp trong <em>Data Pipelines with Apache Airflow</em> (Ch. 12.1, tr. 300) là việc kỹ sư đặt lệnh <code>Variable.get("s3_bucket_name")</code> ở <strong>phạm vi toàn cục ngoài cùng (Top-Level Python code)</strong> của tệp DAG thay vì đặt bên trong thân hàm tác vụ hoặc dùng mẫu Jinja. Hãy tính toán hậu quả cơ học:</p>
+
+          <ul>
+            <li>Tiến trình <code>DAGFileProcessor</code> của Scheduler mặc định quét và thực thi lại toàn bộ các tệp <code>.py</code> trong thư mục <code>dags/</code> mỗi <strong>30 giây một lần</strong> (<code>min_file_process_interval = 30</code>) để phát hiện thay đổi cấu trúc đồ thị.</li>
+            <li>Mỗi lời gọi <code>Variable.get()</code> ở Top-Level sẽ mở một phiên kết nối và bắn trực tiếp một câu truy vấn <code>SELECT val FROM variable WHERE key = ...</code> xuống cơ sở dữ liệu PostgreSQL Metadata DB ngay trong lúc nạp tệp Python.</li>
+            <li>Nếu cụm Airflow có <code>100 tệp DAG</code> và mỗi tệp gọi <code>Variable.get()</code> <code>5 lần</code> ở Top-Level, tiến trình phân tích cú pháp sẽ nã <strong>1.000 câu truy vấn SQL mỗi phút</strong> vào Metadata DB suốt ngày đêm ngay cả khi <strong>không có bất kỳ Task nào đang chạy</strong>! Hệ quả là làm cạn kiệt Connection Pool của Metadata DB, kéo dài thời gian phân tích DAG (<code>total_parse_time</code>) và làm tê liệt Scheduler.</li>
+          </ul>
+
+          <p><strong>Giải pháp chuẩn Production (Lazy Evaluation &amp; JSON Bundling):</strong> Chỉ truy xuất cấu hình tại <em>thời điểm thực thi tác vụ (Execution Time)</em> bằng một trong hai cách: (1) Sử dụng biểu thức mẫu Jinja <strong><code>{{ var.value.s3_bucket_name }}</code></strong> hoặc <strong><code>{{ var.json.sales_config.bucket }}</code></strong> — chuỗi Jinja chỉ là văn bản tĩnh lúc Scheduler đọc tệp DAG và chỉ được giải mã khi Worker thực sự chạy Task; hoặc (2) Gọi <code>Variable.get("sales_config", deserialize_json=True)</code> <strong>bên trong thân hàm <code>@task</code></strong>, đồng thời gom nhóm các biến liên quan vào một đối tượng JSON duy nhất để giảm số lần truy vấn DB từ $N$ lần xuống còn $1$ lần.</p>
+
+          <pre><code># ============================================================================
+# PHẢN MẪU (ANTI-PATTERN): Hardcode mật khẩu &amp; gọi Variable.get() ở Top-Level
+# ============================================================================
+from airflow.models import Variable
+
+# SAI LẦM 1: Hardcode mật khẩu trực tiếp trong mã nguồn Git!
+DB_PASSWORD = "abc123_prod_password"   # Lộ plaintext trên Git &amp; Airflow UI Code tab!
+DB_HOST = "prod-oltp-db.internal"
+
+# SAI LẦM 2: Gọi Variable.get() ở Top-Level (ngoài hàm @task)!
+# Chạy câu lệnh SELECT xuống Metadata DB mỗi 30 giây khi DAGFileProcessor quét tệp!
+S3_BUCKET = Variable.get("s3_bucket_name")
+
+
+# ============================================================================
+# CHUẨN PRODUCTION: Lazy Jinja Template + Gom JSON trong @task + Connection ID
+# ============================================================================
+from airflow.decorators import dag, task
+from airflow.models import Variable
+from airflow.providers.postgres.hooks.postgres import PostgresHook
+import pendulum
+
+@dag(
+    dag_id="daily_sales_pipeline",
+    schedule="@daily",
+    start_date=pendulum.datetime(2026, 5, 1, tz="UTC"),
+    catchup=False,
+)
+def daily_sales_pipeline():
+
+    @task
+    def extract_and_archive_order(
+        # Cách 1 (Khuyến nghị): Dùng Jinja Template — hoàn toàn KHÔNG truy vấn DB lúc parse DAG!
+        s3_bucket: str = "{{ var.value.s3_bucket_name }}",
+        ds: str = "{{ ds }}",
+    ) -&gt; dict:
+        # Cách 2: Gọi Variable.get() BÊN TRONG thân hàm @task (chỉ chạy khi Task thực thi)
+        # Gom nhiều tham số vào 1 biến JSON duy nhất để chỉ tốn 1 truy vấn DB
+        sales_cfg = Variable.get("daily_sales_config", deserialize_json=True)
+        min_amount = sales_cfg["min_valid_amount"]
+
+        # Cách 3: Lấy thông tin xác thực qua conn_id (đã mã hóa Fernet / lấy từ Vault)
+        pg_hook = PostgresHook(postgres_conn_id="postgres_prod_oltp")
+        records = pg_hook.get_records(
+            sql="SELECT order_id, amount FROM orders WHERE order_date = %s AND amount &gt;= %s;",
+            parameters=(ds, min_amount),
+        )
+        return {
+            "s3_uri": f"s3://{s3_bucket}/bronze/orders/dt={ds}/orders.parquet",
+            "row_count": len(records),
+            "sample_order": "ORD-8888",
+        }
+
+    extract_and_archive_order()
+
+daily_sales_pipeline()</code></pre>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Phương thức Lưu trữ</th>
+                  <th>Mục đích Sử dụng Chuẩn</th>
+                  <th>Cơ chế Bảo mật &amp; Lưu trữ</th>
+                  <th>Cú pháp Truy xuất Chuẩn trong DAG</th>
+                  <th>Đánh giá Production</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Hardcode trong tệp <code>.py</code></strong><br><em>(<code>password = "abc123"</code>)</em></td>
+                  <td>Không bao giờ được sử dụng cho thông tin nhạy cảm hoặc cấu hình môi trường.</td>
+                  <td>Văn bản thuần (Plaintext) nằm phơi bày trong kho Git và giao diện Webserver.</td>
+                  <td>Biến toàn cục Python.</td>
+                  <td><strong>CẤM TUYỆT ĐỐI:</strong> Lộ mật khẩu Production và phải sửa code mỗi khi đổi máy chủ/mật khẩu.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Airflow <code>Variables</code></strong><br><em>(Bảng <code>variable</code>)</em></td>
+                  <td>Thông số cấu hình phi mật: tên bucket <code>s3_bucket_name</code>, ngưỡng cảnh báo, khoảng ngày, cờ tính năng.</td>
+                  <td>Lưu trong Metadata DB; tự động ẩn trên UI nếu tên khóa chứa <code>secret</code>, <code>password</code>, <code>api_key</code>.</td>
+                  <td><code>{{ var.value.key }}</code>, <code>{{ var.json.key.sub }}</code> hoặc <code>Variable.get()</code> <strong>bên trong thân hàm <code>@task</code></strong>.</td>
+                  <td><strong>Chuẩn cho cấu hình động:</strong> Dễ dàng cập nhật qua UI/CLI mà không cần sửa hay triển khai lại mã DAG.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Airflow <code>Connections</code></strong><br><em>(Bảng <code>connection</code>)</em></td>
+                  <td>Thông tin định danh kết nối hệ thống ngoài: <code>host</code>, <code>port</code>, <code>login</code>, <code>password</code>, <code>extra tokens</code>.</td>
+                  <td>Mã hóa đối xứng cột <code>password</code> và <code>extra</code> trong Metadata DB bằng khóa <strong><code>Fernet Key</code></strong> (<code>AES-128-CBC</code>).</td>
+                  <td>Truyền <code>postgres_conn_id="postgres_prod_oltp"</code> vào Operator/Hook hoặc <code>{{ conn.my_conn_id.host }}</code>.</td>
+                  <td><strong>Chuẩn mặc định cho Credentials:</strong> Tách biệt hoàn toàn thông tin đăng nhập khỏi mã nguồn đường ống.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. External <code>Secrets Backend</code></strong><br><em>(Vault / AWS / GCP SM)</em></td>
+                  <td>Quản trị tập trung toàn bộ <code>Connections</code> và <code>Variables</code> nhạy cảm cấp tập đoàn.</td>
+                  <td>Lưu trữ ngoài Airflow với cơ chế tự động xoay vòng khóa (Auto-rotation), IAM Role và nhật ký kiểm toán truy cập.</td>
+                  <td>Giữ nguyên 100% cú pháp <code>conn_id</code> và <code>Variable.get()</code> — Airflow tự động tra cứu Vault trước khi hỏi Metadata DB.</td>
+                  <td><strong>Tiêu chuẩn Vàng (Enterprise Gold Standard):</strong> Không lưu mật khẩu trong Metadata DB của Airflow.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Sau khi toàn bộ cấu hình và thông tin định danh của <strong><code>daily_sales_pipeline</code></strong> đã được tách bạch an toàn qua <code>Variables</code> và <code>Connections</code>, câu hỏi kiến trúc tiếp theo đặt ra cho người kỹ sư hạ tầng là: <em>Khi Scheduler quyết định kích hoạt hàng chục tác vụ xử lý đơn hàng, các tác vụ đó thực sự chạy ở đâu, bằng cơ chế tiến trình nào và mở rộng quy mô ra sao?</em> Đó là vai trò của tầng <strong>Executors</strong> tại <strong>Trạm 4.2</strong>.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="orchestration-4-2">
+          <h2 id="orchestration-4-2-h2" tabindex="-1">Trạm 4.2: Giải Phẫu 4 Chế Độ Thực Thi (Executors: Sequential, Local, Celery, Kubernetes) &amp; Đánh Đổi Hạ Tầng</h2>
+
+          <p>Trong kiến trúc lõi của Apache Airflow, tiến trình <strong>Scheduler</strong> chỉ chịu trách nhiệm lập lịch và quyết định <em>"tác vụ nào đã đủ điều kiện chạy"</em>, còn việc thực sự khởi tạo tiến trình tính toán để chạy mã lệnh của tác vụ đó thuộc về thành phần <strong>Executor</strong> (được gắn bên trong Scheduler và cấu hình qua tham số <code>core.executor</code> trong <code>airflow.cfg</code>). Việc lựa chọn chế độ thực thi (Execution Mode) quyết định trực tiếp độ trễ khởi động tác vụ, khả năng mở rộng ngang (Horizontal Scalability), mức độ cô lập tài nguyên (Isolation) và chi phí đám mây của toàn bộ nền tảng dữ liệu (<em>Slide 32</em>; <em>Data Pipelines with Apache Airflow</em>, 2nd Ed., Ch. 11.5 &amp; Ch. 15.2).</p>
+
+          <p>Chúng ta giải phẫu cơ học vận hành và sự đánh đổi của <strong>4 chế độ Executor kinh điển</strong> từ quy mô thử nghiệm cá nhân đến cụm Production phân tán hàng nghìn tác vụ:</p>
+
+          <ol>
+            <li><strong><code>SequentialExecutor</code> (Thực thi tuần tự đơn luồng — Chỉ dùng để học tập/thử nghiệm):</strong>
+              <ul>
+                <li><em>Cơ chế cơ học:</em> Chạy trực tiếp bên trong tiến trình của Scheduler và chỉ cho phép thực thi <strong>duy nhất 1 tác vụ tại một thời điểm (1 task at a time)</strong>. Đây là Executor duy nhất tương thích với cơ sở dữ liệu tệp đơn <code>SQLite</code> (vốn không hỗ trợ ghi đồng thời).</li>
+                <li><em>Nhược điểm chí mạng:</em> Hoàn toàn không có khả năng chạy song song; trong lúc tác vụ <code>extract_orders</code> đang chạy mất 5 phút, toàn bộ vòng lặp lập lịch bị chặn và mọi tác vụ khác phải xếp hàng chờ. Tuyệt đối không bao giờ dùng trong môi trường thực tế.</li>
+              </ul>
+            </li>
+            <li><strong><code>LocalExecutor</code> (Đa tiến trình trên một máy chủ đơn lẻ — Nhanh, gọn cho quy mô vừa và nhỏ):</strong>
+              <ul>
+                <li><em>Cơ chế cơ học:</em> Sử dụng thư viện <code>multiprocessing</code> của Python để sinh ra nhiều tiến trình con (local subprocesses) chạy song song <strong>trực tiếp trên cùng máy chủ vật lý/VM với Scheduler</strong> (yêu cầu Metadata DB là <code>PostgreSQL</code> hoặc <code>MySQL</code>).</li>
+                <li><em>Ưu điểm &amp; Giới hạn:</em> Tốc độ khởi động tác vụ cực nhanh (<code>&lt; 1 giây</code>) vì không tốn chi phí truyền tin qua mạng hay khởi tạo container; kiến trúc cực kỳ đơn giản vì không cần cài đặt Redis/RabbitMQ hay cụm Kubernetes. Rất phù hợp cho các đội ngũ quy mô nhỏ/vừa (dưới 50–100 tác vụ nhẹ đồng thời, hoặc khi Airflow chỉ đóng vai trò <em>"nhạc trưởng"</em> gửi lệnh SQL/API sang Snowflake, BigQuery, Spark rồi chờ kết quả). Tuy nhiên, <code>LocalExecutor</code> bị khóa cứng bởi trần phần cứng của 1 máy chủ duy nhất (Vertical Scaling only) và chịu rủi ro <strong>Noisy Neighbor</strong>: nếu một tác vụ Pandas xử lý <strong>Order #8888</strong> bị rò rỉ bộ nhớ gây tràn RAM (<code>OOM Killer</code>), toàn bộ máy chủ sẽ sập — kéo chết luôn cả tiến trình <code>Scheduler</code> đang nằm chung máy!</li>
+              </ul>
+            </li>
+            <li><strong><code>CeleryExecutor</code> (Cụm Worker phân tán qua hàng đợi tin nhắn — Thông lượng cao, độ trễ thấp):</strong>
+              <ul>
+                <li><em>Cơ chế cơ học:</em> Tách rời hoàn toàn tầng lập lịch khỏi tầng thực thi thông qua một hệ thống hàng đợi tin nhắn trung gian (<strong>Message Broker</strong> như <code>Redis</code> hoặc <code>RabbitMQ</code>). Khi một tác vụ sẵn sàng, <code>CeleryExecutor</code> đẩy lệnh thực thi vào hàng đợi Redis; một cụm các máy chủ <strong><code>Celery Worker</code></strong> đang chạy sẵn (warm processes) lắng nghe hàng đợi sẽ lập tức bốc tác vụ về chạy và ghi trạng thái trả lại Metadata DB.</li>
+                <li><em>Ưu điểm &amp; Đánh đổi:</em> Mở rộng ngang dễ dàng bằng cách thêm nút Worker mới vào cụm; vì các tiến trình Worker luôn bật sẵn nên độ trễ nhận việc cực thấp (<code>~0.5 – 2 giây</code>), chịu tải xuất sắc cho hàng nghìn tác vụ ngắn tần suất cao. Điểm yếu lớn nhất là <strong>thiếu cô lập môi trường (Shared Environment)</strong>: mọi tác vụ chạy trên cùng một Celery Worker đều dùng chung một môi trường thư viện Python (dễ xung đột phiên bản như Task A cần <code>scikit-learn==1.1</code> nhưng Task B cần <code>scikit-learn==1.5</code>) và dùng chung RAM/CPU của nút Worker đó; ngoài ra, việc duy trì cụm Worker bật 24/7 gây lãng phí chi phí đám mây vào những khung giờ rỗi việc (trừ khi tích hợp thêm bộ tự động co giãn như <code>KEDA</code>).</li>
+              </ul>
+            </li>
+            <li><strong><code>KubernetesExecutor</code> (Mỗi tác vụ một Pod độc lập — Cô lập tuyệt đối &amp; Co giãn về 0):</strong>
+              <ul>
+                <li><em>Cơ chế cơ học:</em> Loại bỏ hoàn toàn Message Broker (không cần Redis/RabbitMQ) và không duy trì bất kỳ Worker cố định nào. Khi tác vụ xử lý <strong>Order #8888</strong> đến giờ chạy, <code>KubernetesExecutor</code> gọi trực tiếp vào <strong>Kubernetes API Server (<code>kube-apiserver</code>)</strong> để yêu cầu <strong>khởi tạo một Pod Kubernetes hoàn toàn mới chỉ dành riêng cho duy nhất tác vụ đó (1 Task Instance = 1 Dedicated K8s Pod)</strong>. Ngay khi tác vụ chạy xong và trả về mã thoát <code>Exit Code 0</code>, Pod đó lập tức bị hủy (terminate) để trả lại tài nguyên cho cụm.</li>
+                <li><em>Ưu điểm &amp; Đánh đổi:</em> Đạt mức <strong>cô lập 100% về cả tài nguyên lẫn thư viện</strong> — mỗi tác vụ có thể chỉ định một Docker Image riêng biệt (Python 3.9, Python 3.12, R, Rust) cùng định mức <code>CPU / RAM / GPU</code> riêng qua tham số <code>executor_config</code>; nếu một tác vụ bị <code>OOMKilled</code>, chỉ duy nhất Pod của nó chết mà không ảnh hưởng tới bất kỳ tác vụ nào khác. Đặc biệt, khi ban đêm không có DAG nào chạy, số lượng Worker Pod tự động <strong>co về 0 (Scale-to-Zero)</strong> giúp tiết kiệm tối đa chi phí hạ tầng. Đánh đổi lại, mỗi tác vụ phải chịu <strong>độ trễ khởi tạo Pod (Pod Spin-up Latency từ <code>5 – 30 giây</code></strong> để lập lịch Pod, gắn ổ đĩa và kéo Docker Image), đồng thời nếu 2.000 tác vụ siêu ngắn (chạy 2 giây) cùng bùng phát một lúc sẽ tạo áp lực cực lớn lên <code>kube-apiserver</code> và <code>etcd</code>.</li>
+              </ul>
+            </li>
+          </ol>
+
+          <x-figure id="orchestration-4-2-fig" key="4.2" title="Sơ đồ 4.2 — Đối Chiếu Kiến Trúc 4 Chế Độ Thực Thi: Sequential, Local, Celery (Redis/RabbitMQ) &amp; KubernetesExecutor (1 Pod / Task)">Cơ chế phân phối tác vụ từ Scheduler qua Executor xuống tiến trình cục bộ, cụm Celery Worker cố định hoặc Pod Kubernetes co giãn động.</x-figure>
+
+          <h3>Kiến trúc Lai Thực Chiến: CeleryKubernetesExecutor</h3>
+          <p>Trong các nền tảng dữ liệu lớn hiện đại, doanh nghiệp thường không chọn cực đoan một bên mà kết hợp ưu điểm của cả hai thông qua <strong><code>CeleryKubernetesExecutor</code></strong> (<em>Data Pipelines with Apache Airflow</em>, 2nd Ed., Ch. 15.2): 90% các tác vụ nhẹ, chạy nhanh dưới vài chục giây (như kiểm tra Sensor, gửi thông báo Slack, gọi lệnh SQL nhẹ) được đẩy vào hàng đợi mặc định <code>queue="default"</code> để cụm <strong>Celery Workers</strong> bật sẵn xử lý tức thì với độ trễ dưới 1 giây; trong khi 10% các tác vụ nặng ngốn hàng chục GB RAM hoặc cần thư viện ML đặc thù được gắn nhãn <code>queue="kubernetes"</code> để <strong>KubernetesExecutor</strong> sinh Pod riêng biệt có gắn GPU/RAM lớn mà không làm ảnh hưởng tới cụm Worker chung.</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Loại Executor (Slide 32)</th>
+                  <th>Cơ chế Thực thi Vật lý</th>
+                  <th>Độ trễ Khởi động Task</th>
+                  <th>Mức độ Cô lập (Tài nguyên &amp; Thư viện)</th>
+                  <th>Khả năng Mở rộng &amp; Chi phí</th>
+                  <th>Trường hợp Sử dụng Tối ưu</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong><code>SequentialExecutor</code></strong></td>
+                  <td>Chạy tuần tự <strong>1 task tại một thời điểm</strong> ngay trong tiến trình Scheduler (đi kèm <code>SQLite</code>).</td>
+                  <td>Tức thì (nhưng xếp hàng chờ tuần tự).</td>
+                  <td>Không cô lập (chạy chung tiến trình Scheduler).</td>
+                  <td>Không thể mở rộng (Độ song song = <code>1</code>).</td>
+                  <td>Chỉ dùng để chạy thử nghiệm cục bộ lần đầu khi mới học Airflow.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>LocalExecutor</code></strong></td>
+                  <td>Sinh nhiều tiến trình con (<code>multiprocessing</code>) chạy song song <strong>trên cùng 1 máy chủ</strong> với Scheduler.</td>
+                  <td><strong>Rất nhanh (<code>&lt; 1 giây</code>)</strong>, không tốn chi phí mạng.</td>
+                  <td>Thấp — dùng chung RAM/CPU và thư viện Python với chính máy chủ Scheduler.</td>
+                  <td>Chỉ mở rộng dọc (Vertical Scale) theo giới hạn CPU/RAM của 1 máy chủ đơn lẻ.</td>
+                  <td>Đội ngũ nhỏ/vừa (<code>&lt; 50–100 tasks</code> nhẹ) hoặc khi Airflow chỉ gửi lệnh điều phối sang DB/Cloud ngoài.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>CeleryExecutor</code></strong></td>
+                  <td>Phân phối tác vụ qua <strong><code>Redis</code> / <code>RabbitMQ</code></strong> xuống cụm nhiều máy chủ <strong>Celery Worker</strong> bật sẵn.</td>
+                  <td><strong>Nhanh (<code>0.5 – 2 giây</code>)</strong> nhờ Worker luôn ở trạng thái ấm (Warm).</td>
+                  <td>Trung bình — tách khỏi Scheduler nhưng các task trên cùng 1 Worker vẫn dùng chung RAM và môi trường Python.</td>
+                  <td>Mở rộng ngang cao qua nhiều nút Worker; tốn phí duy trì cụm Worker khi rỗi nếu không có autoscaler.</td>
+                  <td>Hệ thống Production lưu lượng lớn với hàng nghìn tác vụ ngắn, tần suất cao và đồng nhất về thư viện.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>KubernetesExecutor</code></strong></td>
+                  <td>Gọi <code>kube-apiserver</code> khởi tạo <strong>1 Pod K8s độc lập cho mỗi Task</strong> và xóa Pod ngay khi chạy xong.</td>
+                  <td><strong>Chậm hơn (<code>5 – 30 giây</code>)</strong> do thời gian cấp phát Pod và tải container.</td>
+                  <td><strong>Tuyệt đối (100%):</strong> Mỗi task có Docker Image, CPU, RAM, GPU riêng biệt hoàn toàn.</td>
+                  <td>Co giãn động theo tải thực tế và <strong>Scale-to-Zero</strong> (0 Pod khi không có task chạy).</td>
+                  <td>Các tác vụ nặng nhẹ không đều, yêu cầu thư viện Python xung đột nhau hoặc cần cô lập lỗi OOM tuyệt đối.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Nhờ chuyển sang <code>CeleryExecutor</code> hoặc <code>KubernetesExecutor</code>, cụm Airflow của chúng ta giờ đây có thể phóng đồng thời hàng trăm tác vụ mỗi giây. Nhưng chính sức mạnh mở rộng gần như vô hạn này lại dẫn tới một mối nguy hiểm mới ở phía hạ nguồn: <em>Điều gì sẽ xảy ra nếu 200 tác vụ Airflow cùng lúc mở kết nối tấn công vào một cơ sở dữ liệu PostgreSQL duy nhất?</em> Chúng ta bước sang <strong>Trạm 4.3</strong> để thiết lập hệ thống phanh hãm mang tên <strong>Kiểm Soát Đồng Thời 3 Tầng (Concurrency Control)</strong>.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="orchestration-4-3">
+          <h2 id="orchestration-4-3-h2" tabindex="-1">Trạm 4.3: Ba Tầng Kiểm Soát Đồng Thời (Three Levels of Concurrency: Global parallelism, DAG max_active_runs &amp; Resource Pools)</h2>
+
+          <p>Theo phản xạ tự nhiên, mọi kỹ sư đều muốn các tác vụ trong đường ống chạy song song nhiều nhất để hoàn thành sớm nhất. Nhưng trong kiến trúc dữ liệu thực tế, <strong>chạy song song không kiểm soát (Unconstrained Parallelism) chính là một cuộc tấn công từ chối dịch vụ (DDoS) tự bắn vào các hệ thống cơ sở dữ liệu dùng chung</strong> (<em>Slide 33</em>; <em>Data Pipelines with Apache Airflow</em>, 2nd Ed., Ch. 12.4 &amp; Ch. 15.4). Hãy quan sát kịch bản tai nạn kinh điển trên Slide 33:</p>
+
+          <ul>
+            <li>Vào đúng <code>02:00 AM</code>, cụm Airflow kích hoạt lịch chạy của 20 DAG báo cáo khác nhau (bao gồm cả <strong><code>daily_sales_pipeline</code></strong>) hoặc thực hiện chạy bù lịch sử (Backfill), sinh ra tổng cộng <strong><code>200 tasks</code></strong> cùng thực hiện truy vấn trích xuất dữ liệu từ một máy chủ cơ sở dữ liệu giao dịch <strong>PostgreSQL OLTP</strong> duy nhất.</li>
+            <li>Trong khi cụm Kubernetes/Celery dễ dàng bật 200 luồng chạy cùng lúc, máy chủ PostgreSQL chỉ có giới hạn <code>max_connections = 100</code> và 16 nhân CPU. Khi 200 truy vấn nặng ập vào đồng thời, <strong>CPU của PostgreSQL vọt lên 100%, bộ đệm I/O bão hòa và toàn bộ khe kết nối bị chiếm sạch</strong>.</li>
+            <li>Hệ quả dây chuyền: Cơ sở dữ liệu từ chối kết nối mới với lỗi <code>FATAL: remaining connection slots are reserved</code>, các truy vấn đang chạy bị treo quá hạn (Timeout), hàng loạt tác vụ Airflow báo đỏ thất bại và <strong>toàn bộ các đường ống dữ liệu hạ nguồn đều bị đình trệ</strong>. Như đúc kết trên Slide 33: <em>"Kiểm soát đồng thời dạy cho Airflow biết khi nào cần phải giảm tốc độ" (Concurrency control tells Airflow when to slow down)</em>.</li>
+          </ul>
+
+          <p>Để điều tiết lưu lượng một cách chính xác từ phạm vi toàn cụm xuống từng hệ thống đích, Airflow thiết kế một <strong>Phễu Kiểm Soát Đồng Thời 3 Tầng (Three Levels of Concurrency Control)</strong> hoạt động như ba lớp van giảm áp nối tiếp nhau (<em>Slide 34–37</em>):</p>
+
+          <ol>
+            <li><strong>Tầng 1 — Cấp độ Toàn cục (Global Level: <code>core.parallelism</code> — Slide 35):</strong>
+              <ul>
+                <li><em>Phạm vi tác động:</em> Toàn bộ môi trường Airflow (tất cả các DAG và tất cả các Worker cộng lại).</li>
+                <li><em>Cơ chế cơ học:</em> Được khai báo trong tệp cấu hình <code>airflow.cfg</code> (ví dụ <code>parallelism = 64</code>, giá trị mặc định là <code>32</code>). Tham số này quy định <strong>tổng số lượng Task Instances tối đa được phép ở trạng thái <code>running</code> tại cùng một thời điểm trên toàn cụm Airflow</strong>. Ngay cả khi có 500 tác vụ đang sẵn sàng trong hàng đợi, Scheduler chỉ cho phép tối đa 64 tác vụ chạy thực tế; tác vụ thứ 65 phải đợi cho tới khi 1 trong 64 tác vụ kia hoàn tất. Chốt chặn này bảo vệ chính hạ tầng cụm Airflow và Metadata DB khỏi bị quá tải.</li>
+              </ul>
+            </li>
+            <li><strong>Tầng 2 — Cấp độ Từng Đường ống (DAG Level: <code>max_active_runs</code> &amp; <code>max_active_tasks</code> — Slide 36):</strong>
+              <ul>
+                <li><em>Phạm vi tác động:</em> Giới hạn riêng cho từng DAG cụ thể để ngăn một DAG độc chiếm toàn bộ <code>64</code> khe chạy của toàn cụm hoặc tự giẫm chân lên chính nó.</li>
+                <li><em>Cơ chế cơ học:</em> Gồm hai tham số bổ trợ nhau khai báo trực tiếp trong hàm khởi tạo <code>@dag(...)</code>:
+                  <br>— <strong><code>max_active_runs</code></strong> (ví dụ <code>max_active_runs = 1</code>, mặc định <code>16</code>): Giới hạn số lượng <strong>phiên chạy <code>DAG Runs</code> của cùng một DAG</strong> được phép hoạt động tại cùng một thời điểm. Khi đặt <code>max_active_runs = 1</code> cho <code>daily_sales_pipeline</code>, nếu phiên chạy của ngày hôm qua (<code>2026-05-14</code>) bị kẹt chạy lâu chưa xong, phiên chạy của ngày hôm nay (<code>2026-05-15</code>) sẽ tự động xếp hàng chờ chứ <strong>không bao giờ chạy đè song song</strong>. Đây là chốt chặn sống còn khi các phiên chạy của cùng một DAG cùng ghi/cập nhật vào một bảng tạm dùng chung (shared staging table) hoặc khi chạy <code>Backfill</code> cần đảm bảo tính tuần tự thời gian nghiêm ngặt.
+                  <br>— <strong><code>max_active_tasks</code></strong> (tên cũ là <code>concurrency</code>, mặc định <code>16</code>): Giới hạn tổng số Task Instances tối đa được chạy đồng thời tính gộp trên mọi phiên chạy đang mở của riêng DAG đó (ngoài ra ở mức từng Task còn có tham số <code>max_active_tis_per_dag</code> để khóa số bản sao đồng thời của một Task cụ thể qua nhiều ngày).</li>
+              </ul>
+            </li>
+            <li><strong>Tầng 3 — Cấp độ Tài nguyên Đích (Resource Level: <code>Pools</code> &amp; <code>slots</code> — Slide 37):</strong>
+              <ul>
+                <li><em>Bài toán đặt ra:</em> Giả sử bạn đã đặt <code>max_active_runs = 1</code> cho từng DAG, nhưng công ty của bạn có tới <strong>20 DAG khác nhau</strong> cùng chạy lúc 02:00 AM và mỗi DAG đều có tác vụ truy vấn vào máy chủ PostgreSQL! Làm sao giới hạn tổng số kết nối vào PostgreSQL ở mức tối đa <code>5 truy vấn đồng thời</code> vắt ngang qua cả 20 DAG đó?</li>
+                <li><em>Cơ chế cơ học của <code>Pools</code>:</em> Quản trị viên tạo một "hồ chứa thẻ bài" mang tên <strong><code>postgres_pool = 5 slots</code></strong> (5 khe thực thi) trên giao diện <code>Admin → Pools</code> hoặc qua CLI. Sau đó, bất kỳ tác vụ nào trong bất kỳ DAG nào có truy cập vào PostgreSQL đều được gắn tham số <strong><code>pool="postgres_pool"</code></strong> (mặc định mỗi tác vụ tiêu thụ <code>pool_slots = 1</code>; các truy vấn tổng hợp đặc biệt nặng có thể khai báo <code>pool_slots = 3</code>). Khi 200 tác vụ từ 20 DAG cùng ập đến lúc 02:00 AM, Scheduler kiểm tra <code>postgres_pool</code> và <strong>chỉ cấp phép cho đúng 5 tác vụ đầu tiên (có trọng số ưu tiên <code>priority_weight</code> cao nhất) chuyển sang trạng thái <code>running</code></strong>. 195 tác vụ còn lại nằm chờ an toàn ở trạng thái <code>scheduled</code>/<code>queued</code>; cứ mỗi khi 1 tác vụ chạy xong và trả lại thẻ bài vào hồ, tác vụ kế tiếp mới được rút thẻ để chạy. Máy chủ PostgreSQL được bảo vệ tuyệt đối 100% khỏi sập nguồn!</li>
+              </ul>
+            </li>
+          </ol>
+
+          <x-figure id="orchestration-4-3-fig" key="4.3" title="Sơ đồ 4.3 — Phễu Kiểm Soát Đồng Thời 3 Tầng (Global parallelism=64 → DAG max_active_runs=1 → Resource Pool postgres_pool=5 slots)">Cơ chế lọc áp lực tải qua 3 chốt chặn từ toàn cục cụm Airflow, cấp độ từng DAG cho tới van bảo vệ hệ thống cơ sở dữ liệu dùng chung.</x-figure>
+
+          <pre><code># ----------------------------------------------------------------------------
+# TẦNG 1 (GLOBAL LEVEL): Khai báo trong tệp cấu hình airflow.cfg
+# ----------------------------------------------------------------------------
+# [core]
+# parallelism = 64                  # Tối đa 64 tasks chạy đồng thời trên TOÀN CỤM Airflow
+# max_active_tasks_per_dag = 16     # Ngưỡng mặc định số tasks đồng thời cho mỗi DAG
+# max_active_runs_per_dag = 16      # Ngưỡng mặc định số DAG Runs đồng thời cho mỗi DAG
+
+# ----------------------------------------------------------------------------
+# TẦNG 3 (RESOURCE POOL): Khởi tạo Pool bảo vệ PostgreSQL qua Airflow CLI
+# ----------------------------------------------------------------------------
+# $ airflow pools set postgres_pool 5 "Giới hạn tối đa 5 kết nối đồng thời tới Postgres OLTP"
+# $ airflow pools set spark_cluster_pool 8 "Giới hạn 8 jobs đệ trình lên cụm Spark"
+
+# ----------------------------------------------------------------------------
+# TẦNG 2 &amp; TẦNG 3 TRONG MÃ NGUỒN DAG: daily_sales_pipeline.py
+# ----------------------------------------------------------------------------
+from airflow.decorators import dag, task
+import pendulum
+
+@dag(
+    dag_id="daily_sales_pipeline",
+    schedule="@daily",
+    start_date=pendulum.datetime(2026, 5, 1, tz="UTC"),
+    catchup=False,
+    # TẦNG 2 (DAG LEVEL): Chỉ cho phép 1 phiên DAG Run chạy tại một thời điểm!
+    # Ngăn phiên chạy hôm qua (2026-05-14) và hôm nay (2026-05-15) đè dữ liệu lên nhau
+    max_active_runs=1,
+    max_active_tasks=8,
+)
+def daily_sales_pipeline():
+
+    # TẦNG 3 (RESOURCE LEVEL): Gắn tác vụ vào hồ chứa "postgres_pool" (5 slots)
+    # Dù có 200 tasks từ 20 DAGs khác nhau cùng gọi, tối đa chỉ 5 tasks được chạm vào DB!
+    @task(
+        pool="postgres_pool",
+        pool_slots=1,               # Chiếm 1/5 khe của postgres_pool
+        priority_weight=10,         # Ưu tiên cấp slot trước các DAG báo cáo phụ (weight=1)
+        max_active_tis_per_dag=4,   # Giới hạn cấp Task: tối đa 4 bản sao của riêng task này
+    )
+    def extract_orders_from_postgres(ds: str = "{{ ds }}") -&gt; dict:
+        return {"order_id": "ORD-8888", "amount": 450000, "partition_date": ds}
+
+    @task(
+        pool="postgres_pool",
+        pool_slots=2,               # Truy vấn đối soát nặng hơn nên yêu cầu giữ 2/5 khe!
+        priority_weight=5,
+    )
+    def reconcile_ledger_in_postgres(order_meta: dict) -&gt; str:
+        return f"Reconciled {order_meta['order_id']} on {order_meta['partition_date']}"
+
+    meta = extract_orders_from_postgres()
+    reconcile_ledger_in_postgres(meta)
+
+daily_sales_pipeline()</code></pre>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tầng Kiểm soát (Slide 34–37)</th>
+                  <th>Tham số &amp; Nơi Cấu hình</th>
+                  <th>Phạm vi Áp dụng (Scope)</th>
+                  <th>Mục tiêu Bảo vệ Cốt lõi</th>
+                  <th>Ví dụ Thực tế trên Cụm Production</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Tầng 1: Global Level</strong><br><em>(Toàn cục cụm Airflow)</em></td>
+                  <td><code>parallelism = 64</code><br><em>(Trong <code>airflow.cfg</code> mục <code>[core]</code>)</em></td>
+                  <td>Toàn bộ cụm Airflow (tất cả các DAG và mọi Worker cộng lại).</td>
+                  <td>Bảo vệ hạ tầng cụm Airflow (Workers, Scheduler, Metadata DB) khỏi vượt trần tài nguyên vật lý.</td>
+                  <td>Dù 50 DAG cùng kích hoạt 500 tác vụ, toàn cụm chỉ cho phép đúng <code>64 tasks</code> ở trạng thái <code>running</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Tầng 2: DAG Level</strong><br><em>(Cấp độ từng Đường ống)</em></td>
+                  <td><code>max_active_runs = 1</code><br><code>max_active_tasks = 8</code><br><em>(Khai báo trong <code>@dag(...)</code>)</em></td>
+                  <td>Nội bộ một DAG đơn lẻ (giữa các phiên chạy <code>DAG Runs</code> của cùng DAG đó).</td>
+                  <td>Chống <strong>Race Condition</strong> khi hai ngày chạy chồng lấn lên bảng dùng chung và ngăn 1 DAG chiếm hết cụm.</td>
+                  <td>Khi Backfill 30 ngày của <code>daily_sales_pipeline</code>, Airflow chạy lần lượt từng ngày một (<code>2026-05-01</code> xong mới tới <code>05-02</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>Tầng 3: Resource Level</strong><br><em>(Hồ chứa Tài nguyên Đích)</em></td>
+                  <td><code>pool = "postgres_pool"</code><br><code>pool_slots = 1</code><br><em>(UI/CLI <code>Pools</code> + <code>@task(...)</code>)</em></td>
+                  <td><strong>Vắt ngang qua mọi DAG</strong> có các tác vụ cùng gắn chung tên <code>pool</code>.</td>
+                  <td>Bảo vệ các hệ thống ngoại vi dùng chung (PostgreSQL OLTP, REST API có Rate Limit, cụm Spark nhỏ) khỏi bị DDoS.</td>
+                  <td><code>200 tasks</code> từ 20 DAG cùng cần đọc PostgreSQL nhưng chỉ <code>5 tasks</code> được chạy đồng thời theo <code>postgres_pool = 5 slots</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Bổ trợ: Task Level</strong><br><em>(Cấp độ từng Tác vụ)</em></td>
+                  <td><code>max_active_tis_per_dag = 4</code><br><em>(Khai báo trong <code>@task(...)</code>)</em></td>
+                  <td>Một Task cụ thể xuyên suốt mọi phiên chạy đang mở của DAG đó (hoặc dùng cho Dynamic Task Mapping).</td>
+                  <td>Ngăn một bước tác vụ sinh động (<code>.expand()</code>) tạo hàng trăm bản sao nuốt chửng toàn bộ khe chạy của các bước khác trong DAG.</td>
+                  <td>Dù DAG cho phép <code>max_active_runs = 10</code>, tác vụ gọi API thanh toán chỉ được chạy tối đa <code>4</code> bản sao cùng lúc.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Với phễu kiểm soát đồng thời 3 tầng (<code>parallelism = 64</code> → <code>max_active_runs = 1</code> → <code>postgres_pool = 5 slots</code>), đường ống <strong><code>daily_sales_pipeline</code></strong> đã vận hành êm ái mà không bao giờ làm sập cơ sở dữ liệu nguồn. Tuy nhiên, trong thế giới thực, đường mạng vẫn có thể đứt, API đối tác vẫn có thể đổi cấu trúc và ổ đĩa vẫn có thể đầy lúc 3 giờ sáng. Làm thế nào để kỹ sư dữ liệu phát hiện sự cố ngay lập tức thay vì đợi Giám đốc Tài chính gọi điện hỏi tại sao báo cáo doanh thu sáng nay trống rỗng? Chúng ta tiến vào <strong>Trạm 4.4</strong>.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="orchestration-4-4">
+          <h2 id="orchestration-4-4-h2" tabindex="-1">Trạm 4.4: Giám Sát Chủ Động (Monitoring: UI Grid, Alerts, Prometheus/Grafana) &amp; Nghịch Lý "Pipeline Xanh Nhưng Dữ Liệu Sai"</h2>
+
+          <p>Châm ngôn vận hành tối thượng được nhấn mạnh trên Slide 38 là: <strong>"Biết trước khi ai đó báo cho bạn — Một đường ống chết âm thầm còn tồi tệ hơn việc không có đường ống nào cả"</strong> (<em>Monitoring: Knowing Before Someone Tells You — A pipeline that fails silently is worse than no pipeline at all</em>; <em>Data Pipelines with Apache Airflow</em>, 2nd Ed., Ch. 15.6–15.8). Nếu <strong><code>daily_sales_pipeline</code></strong> gặp sự cố lúc 02:15 AM nhưng đội ngũ kỹ thuật hoàn toàn mù thông tin cho tới 09:00 AM khi Giám đốc Điều hành mở bảng điều khiển BI và phát hiện số liệu doanh thu bị lệch, niềm tin vào toàn bộ nền tảng dữ liệu sẽ sụp đổ.</p>
+
+          <p>Một kiến trúc giám sát vận hành Airflow chuẩn Production được xây dựng trên <strong>3 trụ cột bổ trợ nhau</strong> (<em>Slide 38</em>):</p>
+
+          <ol>
+            <li><strong>Trụ cột 1 — Trực quan hóa Lịch sử &amp; Nhật ký Tập trung trên <code>Airflow UI (Grid View &amp; Gantt View)</code>:</strong>
+              <ul>
+                <li>Giao diện <strong><code>Grid View</code></strong> cung cấp ma trận hai chiều trong đó mỗi cột là một phiên chạy <code>DAG Run</code> theo trục thời gian (ví dụ <code>2026-05-13</code>, <code>2026-05-14</code>, <code>2026-05-15</code>) và mỗi hàng là một <code>Task</code> trong đồ thị, kết hợp biểu đồ chiều cao thanh thời gian thực thi (Duration Bar). Nhờ đó, kỹ sư nhận diện ngay lập tức hiện tượng <strong>trượt thời gian bất thường (Duration Drift)</strong> — chẳng hạn tác vụ <code>extract_orders</code> mọi ngày chỉ chạy <code>45 giây</code> nhưng hôm nay vọt lên <code>25 phút</code> do thiếu chỉ mục (Index) ở bảng nguồn.</li>
+                <li>Khi dùng <code>KubernetesExecutor</code> (nơi Pod bị xóa ngay sau khi Task kết thúc), việc cấu hình <strong>Lưu trữ Nhật ký Từ xa (Remote Logging — <code>remote_logging = True</code>)</strong> đẩy toàn bộ tệp log của từng lần thử (<code>try_number = 1, 2, 3</code>) lên <code>Amazon S3</code>, <code>GCS</code> hoặc <code>Elasticsearch</code> đảm bảo kỹ sư luôn đọc được đầy đủ Traceback lỗi trên giao diện UI kể cả khi máy chủ Worker đã bị hủy.</li>
+              </ul>
+            </li>
+            <li><strong>Trụ cột 2 — Cảnh báo Tức thì qua <code>Callbacks</code> &amp; Cam kết <code>SLA / Deadlines</code>:</strong>
+              <ul>
+                <li>Không một kỹ sư nào ngồi canh màn hình Airflow UI lúc 3 giờ sáng. Do đó, mọi DAG Production bắt buộc phải gắn hàm <strong><code>on_failure_callback</code></strong> (và tùy chọn <code>on_retry_callback</code>, <code>sla_miss_callback</code>) để tự động bắn thông báo khẩn cấp qua <strong>Slack, PagerDuty, Microsoft Teams hoặc Email</strong> ngay khoảnh khắc một tác vụ chuyển sang trạng thái <code>failed</code> (sau khi đã dùng hết số lần <code>retries</code>).</li>
+                <li>Một gói tin cảnh báo chuẩn phải trích xuất trực tiếp từ từ điển ngữ cảnh <code>context</code> của Airflow đủ 5 thông tin định vị: tên đường ống (<code>dag_id</code>), tên tác vụ gãy (<code>task_id</code>), ngày dữ liệu bị ảnh hưởng (<code>logical_date</code>), thông điệp ngoại lệ (<code>exception</code>) và <strong>đường dẫn bấm mở trực tiếp tệp log (<code>log_url</code>)</strong> để kỹ sư trực ca xử lý trong 1 cú nhấp chuột.</li>
+              </ul>
+            </li>
+            <li><strong>Trụ cột 3 — Giám sát Chỉ số Hạ tầng qua <code>StatsD / OpenTelemetry → Prometheus → Grafana</code>:</strong>
+              <ul>
+                <li>Ở cấp độ toàn cụm, Airflow phát xạ liên tục hàng trăm chỉ số đo lường hệ thống (System Metrics) qua giao thức <code>StatsD</code> hoặc <code>OpenTelemetry</code> sang <strong>Prometheus</strong> và hiển thị trên bảng điều khiển <strong>Grafana / Datadog</strong>.</li>
+                <li>Bốn chỉ số sống còn phải đặt ngưỡng cảnh báo hạ tầng gồm: (1) <strong><code>scheduler_heartbeat</code></strong> (nếu nhịp tim ngừng đập quá 60 giây nghĩa là tiến trình Scheduler đã chết); (2) <strong><code>dag_processing.total_parse_time</code></strong> (thời gian quét thư mục <code>dags/</code> — nếu tăng vọt chứng tỏ có mã Top-Level xấu đang chặn Scheduler); (3) <strong><code>executor.queued_tasks</code></strong> (số tác vụ bị ứ đọng lâu trong hàng đợi không có Worker nhận); và (4) <strong><code>pool.starving_tasks.&lt;pool_name&gt;</code></strong> (số tác vụ đang đói khe thực thi trong <code>postgres_pool</code>).</li>
+              </ul>
+            </li>
+          </ol>
+
+          <x-figure id="orchestration-4-4-fig" key="4.4" title="Sơ đồ 4.4 — Kiến Trúc Giám Sát 3 Lớp (Airflow UI Grid, Callback Alerts, StatsD/Prometheus/Grafana) &amp; Điểm Mù Silent Data Corruption">Tại sao giám sát tiến trình (Exit Code 0, Task State = SUCCESS) chỉ là điều kiện cần nhưng hoàn toàn mù trước dữ liệu bẩn khi thiếu tầng Data Validation.</x-figure>
+
+          <pre><code># Thiết lập hàm cảnh báo Slack tự động (on_failure_callback) chuẩn Production
+from airflow.decorators import dag, task
+from airflow.providers.slack.notifications.slack_webhook import send_slack_webhook_notification
+from datetime import timedelta
+import pendulum
+
+def alert_oncall_slack(context: dict) -&gt; None:
+    """Bắn cảnh báo chi tiết kèm link log trực tiếp khi Task thất bại."""
+    ti = context["task_instance"]
+    dag_id = context["dag"].dag_id
+    task_id = ti.task_id
+    logical_date = context["ds"]
+    exception = context.get("exception", "Unknown Error")
+    log_url = ti.log_url
+
+    message = (
+        f"[AIRFLOW PROD ALERT] Đường ống *{dag_id}* bị gãy!\n"
+        f"- Task thất bại: [{task_id}] (Lần thử: {ti.try_number})\n"
+        f"- Ngày dữ liệu (logical_date): [{logical_date}]\n"
+        f"- Nguyên nhân lỗi: {exception}\n"
+        f"- Xem Traceback Log: {log_url}"
+    )
+    # Gửi qua Slack Webhook Connection đã mã hóa trong Airflow Connections
+    notifier = send_slack_webhook_notification(
+        slack_webhook_conn_id="slack_data_alerts_webhook",
+        text=message,
+    )
+    notifier.notify(context)
+
+@dag(
+    dag_id="daily_sales_pipeline",
+    schedule="@daily",
+    start_date=pendulum.datetime(2026, 5, 1, tz="UTC"),
+    catchup=False,
+    default_args={
+        "owner": "data-engineering-oncall",
+        "retries": 2,
+        "retry_delay": timedelta(minutes=5),
+        # Gắn hàm cảnh báo tự động cho toàn bộ các Task trong DAG
+        "on_failure_callback": alert_oncall_slack,
+    },
+)
+def daily_sales_pipeline():
+    ...</code></pre>
+
+          <h3>Điểm mù Chí mạng (The Silent Failure Paradox): "Airflow giám sát đường ống, nhưng ai giám sát dữ liệu của bạn?"</h3>
+          <p>Hãy dừng lại để suy ngẫm câu hỏi sắc bén nhất đặt ở cuối Slide 38: <strong><em>"Airflow monitors your pipelines. But who monitors your data? A pipeline can succeed and still produce wrong results. That's why data validation is essential."</em></strong></p>
+
+          <p>Tại sao cả 3 trụ cột giám sát trên (Airflow UI báo màu xanh lá cây <code>SUCCESS</code>, Slack không báo lỗi, Grafana báo CPU/RAM hoàn toàn khỏe mạnh) vẫn có thể để lọt một thảm họa dữ liệu nghiêm trọng? Bởi vì <strong>Airflow chỉ biết giám sát sức khỏe của tiến trình thực thi (Process Health — mã thoát hệ điều hành <code>Exit Code == 0</code>), chứ Airflow hoàn toàn mù trước ngữ nghĩa và chất lượng bên trong tập dữ liệu (Data Health)</strong>:</p>
+
+          <ul>
+            <li><strong>Kịch bản 1 — Thành công với 0 bản ghi (Zero-Row Green Success):</strong> Hệ thống nguồn đối tác đổi múi giờ xuất tệp khiến truy vấn <code>WHERE order_date = '2026-05-15'</code> trả về đúng <code>0 dòng</code>. Câu lệnh SQL chạy hợp lệ 100%, không ném ra bất kỳ ngoại lệ cú pháp nào, trả về <code>Exit Code 0</code>. Airflow hân hoan đánh dấu <code>extract_orders = SUCCESS (Màu Xanh)</code> và nạp một bảng rỗng vào kho dữ liệu!</li>
+            <li><strong>Kịch bản 2 — Rác vào, Rác ra êm ru (Silent Data Corruption trên Order #8888):</strong> Lỗi phần mềm ở ứng dụng thanh toán khiến đơn hàng <strong>Order #8888</strong> bị ghi nhận với số tiền âm <strong><code>amount = -450000</code></strong>, mã khách hàng <strong><code>user_id = NULL</code></strong>, hoặc nhân đôi thành 5 bản ghi trùng lặp. Tiến trình Python/Spark vẫn đọc, cộng tổng và ghi xuống bảng <code>fact_daily_sales</code> mượt mà trong 12 giây với mã thoát <code>Exit Code 0</code>. Toàn bộ đồ thị DAG trên Airflow UI xanh mướt từ đầu đến cuối, nhưng báo cáo tài chính gửi lên Hội đồng Quản trị đã bị đầu độc hoàn toàn!</li>
+          </ul>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Lớp Giám sát</th>
+                  <th>Công cụ &amp; Chỉ số Đại diện</th>
+                  <th>Câu hỏi Kiểm định Cốt lõi</th>
+                  <th>Những gì Phát hiện được</th>
+                  <th>Điểm mù (Không thể phát hiện nếu thiếu Chặng 5)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Giám sát Hạ tầng Cụm</strong><br><em>(Infrastructure Health)</em></td>
+                  <td><code>StatsD</code> → <code>Prometheus</code> → <code>Grafana</code><br>(<code>scheduler_heartbeat</code>, <code>queued_tasks</code>, <code>total_parse_time</code>)</td>
+                  <td><em>"Cụm máy chủ Airflow có đang sống và phân phối tác vụ kịp thời không?"</em></td>
+                  <td>Scheduler bị treo, Worker cạn kiệt RAM/CPU, hàng đợi Redis ứ đọng, <code>postgres_pool</code> bị đói slot.</td>
+                  <td>Không biết bên trong từng DAG đang chạy logic nghiệp vụ gì hay dữ liệu đúng hay sai.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Giám sát Tiến trình DAG</strong><br><em>(Pipeline / Process Health)</em></td>
+                  <td><code>Airflow UI Grid View</code>, <code>Remote Logs (S3/GCS)</code>, <code>on_failure_callback</code> (Slack/PagerDuty)</td>
+                  <td><em>"Mã lệnh Python/SQL của Task có chạy hoàn tất với <code>Exit Code 0</code> đúng hạn SLA không?"</em></td>
+                  <td>Lỗi cú pháp SQL, đứt mạng tới DB, thiếu quyền IAM S3, tràn bộ nhớ <code>OOMKilled</code>, trễ hạn hoàn thành SLA.</td>
+                  <td><strong>Mù hoàn toàn trước dữ liệu bẩn:</strong> Nếu câu lệnh SQL chạy êm với <code>Exit Code 0</code> nhưng trả về <code>0 dòng</code>, <code>NULL</code> khóa chính hoặc <code>amount = -450000</code>, Airflow vẫn báo <strong>XANH (<code>SUCCESS</code>)</strong>!</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Kiểm định Chất lượng Dữ liệu</strong><br><em>(Data Quality &amp; Governance — Chặng 5)</em></td>
+                  <td><code>Great Expectations (GX)</code>, <code>AWS Deequ</code>, <code>dbt tests</code>, <code>Circuit Breaker</code>, <code>DataHub</code></td>
+                  <td><em>"Bản thân các dòng dữ liệu bên trong bảng (như <code>Order #8888</code>) có hợp lệ, đầy đủ và đáng tin cậy không?"</em></td>
+                  <td>Phát hiện ngay <code>amount &lt; 0</code>, <code>user_id IS NULL</code>, trùng khóa <code>order_id</code>, sụt giảm 90% số dòng, hoặc thay đổi Schema trái phép.</td>
+                  <td>Đòi hỏi phải tích hợp trực tiếp các cổng kiểm định (Quality Gates) vào bên trong đồ thị DAG để chủ động ném lỗi ngắt mạch khi dữ liệu vi phạm cam kết.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Nghịch lý <em>"Pipeline Xanh nhưng Dữ liệu Sai"</em> chính là cây cầu nối tất yếu đưa chúng ta từ thế giới <strong>Điều phối (Orchestration)</strong> sang thế giới <strong>Kiểm định Chất lượng &amp; Quản trị Dữ liệu (Data Quality &amp; Governance)</strong> ở <strong>Chặng 5</strong> — nơi chúng ta sẽ lắp đặt các "cầu dao tự ngắt" (Circuit Breakers) bằng Great Expectations / AWS Deequ, thiết lập Hợp đồng Dữ liệu (Data Contracts) và truy vết phả hệ toàn diện trên DataHub.</p>
+        </section>
+
+        <section class="summary-section" id="orchestration-4-summary">
+          <h2 id="orchestration-4-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 4 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <p><strong>Checklist 5 câu hỏi bản chất kiểm tra độ hiểu sâu Chặng 4 (Vận hành Production, Executors, Concurrency &amp; Monitoring):</strong></p>
+          <ol>
+            <li><strong>Quản lý Variables, Connections &amp; Cạm bẫy Top-Level Code:</strong> Tại sao việc gán cứng mật khẩu trong tệp DAG và gọi <code>Variable.get()</code> ở phạm vi ngoài cùng (Top-Level) của tệp Python lại gây thảm họa kép về bảo mật và hiệu năng? Phân biệt vai trò của <code>Variables</code> và <code>Connections</code>.
+              <br><em>Đáp án:</em> Gán cứng mật khẩu làm lộ thông tin xác thực dạng plaintext trên Git và Airflow UI, đồng thời buộc phải sửa code khi xoay vòng mật khẩu. Gọi <code>Variable.get()</code> ở Top-Level khiến tiến trình <code>DAGFileProcessor</code> bắn truy vấn SQL xuống Metadata DB mỗi 30 giây khi quét tệp (100 DAG × 5 biến = 1.000 queries/phút dù chưa chạy task nào). Phải dùng <code>Variables</code> (truy xuất lười qua Jinja <code>{{ var.value.* }}</code> hoặc trong thân hàm <code>@task</code>) cho cấu hình phi mật, và dùng <code>Connections</code> (mã hóa bằng khóa <code>Fernet Key</code> hoặc lưu trong <code>Secrets Backend</code> như Vault) cho mật khẩu và khóa API.</li>
+            <li><strong>Đánh đổi giữa 4 Chế độ Thực thi (Executors):</strong> So sánh cơ chế vận hành và sự đánh đổi giữa <code>SequentialExecutor</code>, <code>LocalExecutor</code>, <code>CeleryExecutor</code> và <code>KubernetesExecutor</code>. Khi nào nên dùng kiến trúc lai <code>CeleryKubernetesExecutor</code>?
+              <br><em>Đáp án:</em> <code>SequentialExecutor</code> chỉ chạy 1 task mỗi lần (chỉ dùng học tập); <code>LocalExecutor</code> chạy đa tiến trình trên cùng máy chủ với Scheduler (khởi động nhanh <code>&lt; 1s</code>, không cần broker nhưng không mở rộng ngang được và dễ sập chung máy khi OOM); <code>CeleryExecutor</code> phân phối qua Redis/RabbitMQ xuống cụm Worker bật sẵn (độ trễ cực thấp <code>0.5–2s</code>, thông lượng cao nhưng dùng chung môi trường Python trên Worker); <code>KubernetesExecutor</code> tạo 1 Pod K8s riêng cho mỗi Task rồi xóa ngay (cô lập 100% tài nguyên/thư viện, co về 0 khi rỗi nhưng chịu độ trễ tạo Pod <code>5–30s</code>). Dùng <code>CeleryKubernetesExecutor</code> để chạy 90% task ngắn trên Celery và 10% task nặng/đặc thù trên K8s Pod.</li>
+            <li><strong>Phễu Kiểm Soát Đồng Thời 3 Tầng (Three-Tier Concurrency):</strong> Nếu 200 tác vụ từ 20 DAG khác nhau cùng truy vấn một máy chủ PostgreSQL lúc 02:00 AM, làm thế nào phối hợp 3 tầng tham số của Airflow để bảo vệ cả cụm Airflow lẫn máy chủ PostgreSQL?
+              <br><em>Đáp án:</em> Thiết lập phễu 3 tầng: (1) <strong>Tầng Toàn cục (<code>core.parallelism = 64</code> trong <code>airflow.cfg</code>)</strong> giới hạn tối đa 64 tác vụ chạy đồng thời trên toàn cụm Airflow; (2) <strong>Tầng DAG (<code>max_active_runs = 1</code>)</strong> đảm bảo mỗi DAG chỉ chạy 1 phiên tại một thời điểm, chống chồng lấn dữ liệu giữa ngày hôm qua và hôm nay; và (3) <strong>Tầng Tài nguyên (<code>Pools</code>: tạo <code>postgres_pool = 5 slots</code> và gán <code>pool="postgres_pool"</code> cho các task truy vấn DB)</strong> để khóa chặt tối đa chỉ 5 tác vụ trên toàn bộ 20 DAG được phép mở kết nối tới PostgreSQL cùng lúc, 195 tác vụ còn lại xếp hàng chờ an toàn.</li>
+            <li><strong>Ba Trụ cột Giám sát Vận hành Airflow:</strong> Để phát hiện sự cố đường ống lúc nửa đêm trước khi người dùng cuối nhận ra, kỹ sư cần kết hợp 3 lớp công cụ giám sát nào trong Airflow?
+              <br><em>Đáp án:</em> Kết hợp: (1) <strong><code>Airflow UI Grid View</code> &amp; <code>Remote Logging (S3/GCS)</code></strong> để theo dõi ma trận trạng thái lịch sử, phát hiện trượt thời gian chạy (Duration Drift) và đọc Traceback lỗi tập trung; (2) <strong>Cảnh báo tức thì qua <code>on_failure_callback</code> / SLA Miss</strong> đẩy thông báo kèm <code>log_url</code> sang Slack/PagerDuty ngay khi task gãy; và (3) <strong>Giám sát chỉ số hệ thống qua <code>StatsD/OpenTelemetry → Prometheus → Grafana</code></strong> để canh nhịp tim <code>scheduler_heartbeat</code>, thời gian quét DAG <code>total_parse_time</code> và độ sâu hàng đợi <code>queued_tasks</code>.</li>
+            <li><strong>Nghịch lý "Pipeline Xanh nhưng Dữ liệu Sai" (Silent Data Corruption):</strong> Tại sao một DAG trên Airflow có tất cả các Task đều báo màu xanh (<code>SUCCESS</code>, <code>Exit Code 0</code>) nhưng báo cáo doanh thu của đơn hàng <strong>Order #8888</strong> vẫn sai lệch nghiêm trọng?
+              <br><em>Đáp án:</em> Vì Airflow chỉ giám sát sức khỏe của tiến trình thực thi (câu lệnh SQL hay script Python không bị văng lỗi cú pháp hay đứt mạng thì trả về <code>Exit Code 0</code>), chứ không tự động kiểm tra nội dung dữ liệu bên trong. Nếu bảng nguồn trả về <code>0 dòng</code> do lệch múi giờ, hoặc đơn hàng <code>ORD-8888</code> bị lỗi phần mềm ghi <code>amount = -450000</code> và <code>user_id = NULL</code>, tiến trình ghi vẫn hoàn tất hợp lệ 100%. Do đó bắt buộc phải bổ sung tầng <strong>Data Quality Validation (Chặng 5)</strong> để kiểm định trực tiếp giá trị dữ liệu.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/D06/5" onclick="selectStorageStage(5);return false;">Sang Chặng 5: Kiểm Định Chất Lượng Dữ Liệu (GX, Deequ), Mẫu Cầu Dao Tự Ngắt (Circuit Breaker), Hợp Đồng Dữ Liệu (Data Contracts) &amp; Quản Trị Phả Hệ DataHub →</a></p>
+        </section>
+      </div>

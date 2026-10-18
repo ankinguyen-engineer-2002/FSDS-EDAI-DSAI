@@ -48,6 +48,12 @@
           </table>
         </div>
 
+        <h2 id="db-1-0-sim" tabindex="-1">Trạm 1.0 (Mô phỏng 2D): Phòng Thí Nghiệm Chuẩn Hóa 3NF, Trang 8KB Slotted Page, Nhật Ký WAL, Đa Phiên Bản MVCC, B+Tree &amp; Cụm Phân Tán</h2>
+
+        <p>Trước khi mổ xẻ từng tầng lưu trữ, hãy trực tiếp điều khiển 6 mô phỏng cắt lớp của động cơ <strong>PostgreSQL &amp; Hệ cơ sở dữ liệu phân tán</strong> xoay quanh <strong>Đơn hàng Trà sữa #HD01</strong>: từ phẫu thuật tách bảng <code>UNF → 3NF</code>, cấu trúc trang vật lý <code>8KB Slotted Page</code>, đường đua <code>Write-Ahead Log (WAL)</code> vs. <code>Checkpointer</code>, cơ chế không khóa đọc–ghi <code>MVCC + Autovacuum</code>, đọ sức chỉ mục <code>B+Tree vs. LSM-Tree</code> đến cụm đa vùng <code>Witness Node Quorum &amp; CAP</code>.</p>
+
+        <x-database2d></x-database2d>
+
         <hr />
 
         <x-figure id="db-1-0" key="1.0" title="Sơ đồ 1.0 — Nền móng Cấu trúc &amp; Toàn vẹn Dữ liệu: RDBMS Architecture, Keys/Constraints &amp; Chuẩn hóa 3NF/BCNF">Tổng quan 3 trạm của Chặng 1: [Trạm 1.1] Kiến trúc DB Client Library -> RDBMS Server -> Database Files đảm bảo Shared Access & 5 nhóm lệnh SQL (DDL, DML, DQL, DCL, TCL); [Trạm 1.2] Mô hình quan hệ (PK, FK, Cardinality 1:1/1:N/M:N) và 4 chốt chặn NOT NULL, DEFAULT, UNIQUE, CHECK; [Trạm 1.3] Chuẩn hóa UNF -> 1NF -> 2NF -> 3NF -> BCNF tách đơn #HD01 thành 4 bảng KhachHang, HoaDon, MonAn, ChiTiet.</x-figure>

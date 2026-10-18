@@ -1,0 +1,408 @@
+      <div class="prose">
+        <x-spine id="orchestration-2-spine" badge="TRONG BÀI HỌC NÀY · D06" title="Chặng 2: Vượt Qua Giới Hạn Cron Job — Tính Lũy Đẳng (Idempotency), Backfill &amp; Dynamic Pipelines" subtitle="Trạm 2.1 → 2.4">Giải phẫu lý do bộ định thời <code>cron</code> của UNIX sụp đổ trước các đường ống dữ liệu đa bước, và 3 nguyên lý thiết kế biến đường ống <strong>daily_sales_pipeline</strong> của <strong>Order #8888</strong> thành một cỗ máy bất biến: <strong>Atomicity &amp; Idempotency (Tính lũy đẳng)</strong>, <strong>Data Interval Backfill (Lấp đầy lịch sử)</strong>, và <strong>Dynamic / Asset-Aware Pipelines</strong>.</x-spine>
+
+        <section class="lesson-section" id="orchestration-2-1">
+          <h2 id="orchestration-2-1-h2" tabindex="-1">Trạm 2.1: Giải Phẫu Bộ Định Thời Cronjob &amp; 4 Giới Hạn Tử Huyệt Đối Với Đường Ống Dữ Liệu</h2>
+
+          <p><strong>Cronjob (tiến trình nền <code>crond</code> trên hệ điều hành UNIX/Linux)</strong> là bộ định thời dựa trên đồng hồ hệ thống (time-based daemon): mỗi phút một lần, <code>crond</code> thức dậy, đọc bảng cấu hình <code>crontab</code> gồm 5 trường thời gian (<code>phút [0-59] | giờ [0-23] | ngày trong tháng [1-31] | tháng [1-12] | thứ trong tuần [0-7]</code>) kèm câu lệnh shell, và kích hoạt tiến trình con nếu đồng hồ máy chủ khớp với biểu thức (<em>Slide 16</em>). Đối với các tác vụ hệ thống đơn lẻ như xoay vòng tệp nhật ký (<code>logrotate</code>) hay dọn thư mục <code>/tmp</code>, <code>cron</code> hoạt động cực kỳ gọn nhẹ. Tuy nhiên, nguyên lý cốt lõi cần khắc cốt ghi tâm là: <strong>một biểu thức <code>cron</code> chỉ cho bộ lập lịch biết <em>khi nào</em> cần gõ lệnh chạy kịch bản — chứ hoàn toàn không biết <em>liệu có an toàn</em> để chạy kịch bản đó hay không</strong> (<em>Slide 16</em> &amp; <em>Data Pipelines with Apache Airflow 2nd Ed</em> Ch. 1.1, Ch. 3.3).</p>
+
+          <pre><code># Cú pháp 5 trường của bảng định thời UNIX crontab (Slide 16):
+# ┌───────────── phút (minute: 0 - 59)
+# │ ┌───────────── giờ (hour: 0 - 23)
+# │ │ ┌───────────── ngày trong tháng (day of month: 1 - 31)
+# │ │ │ ┌───────────── tháng (month: 1 - 12)
+# │ │ │ │ ┌───────────── thứ trong tuần (day of week: 0 - 7, 0 và 7 đều là Chủ Nhật)
+# │ │ │ │ │
+  0 2 * * *  /opt/pipelines/run_daily_sales.sh &gt;&gt; /var/log/sales_cron.log 2&gt;&amp;1
+
+# Cách duy nhất để nối nhiều bước trong Cron là ghép chuỗi lệnh Shell thủ công:
+  0 1 * * *  python3 extract_orders.py &amp;&amp; python3 clean_orders.py &amp;&amp; python3 load_dw.py</code></pre>
+
+          <p>Khi đội kỹ thuật cố gắng vận hành đường ống <code>daily_sales_pipeline</code> xử lý giao dịch <strong>Order #8888</strong> (<code>order_id="ORD-8888"</code>, <code>user_id="USR-104"</code>, <code>amount=450000</code>, kỳ dữ liệu <code>2026-05-15</code>) bằng <code>crontab</code> — chẳng hạn đặt lịch <code>0 1 * * *</code> cho <code>extract_orders.py</code>, <code>30 1 * * *</code> cho <code>transform_orders.py</code>, và <code>0 2 * * *</code> cho <code>load_warehouse.py</code> — hệ thống lập tức đối mặt với <strong>4 giới hạn tử huyệt của Cronjob</strong> (<em>Slide 17</em>):</p>
+
+          <ul>
+            <li><strong>1. Không quản lý phụ thuộc (No dependency management):</strong> Các dòng lệnh trong <code>crontab</code> được kích hoạt hoàn toàn độc lập theo đồng hồ, mù tịt về trạng thái thành công hay thất bại của tác vụ đứng trước. Vào ngày khuyến mãi lớn, nếu bước <code>extract_orders.py</code> (chạy lúc <code>01:00</code>) bị chậm mạng và kéo dài tới <code>01:42</code> mới ghi xong tệp <code>Order #8888</code>, thì đúng <code>01:30</code> tiến trình <code>transform_orders.py</code> vẫn cứ lạnh lùng khởi chạy trên một tệp dữ liệu đang ghi dở dang — tạo ra báo cáo doanh thu thiếu hụt âm thầm (Silent Data Corruption) mà không hề báo lỗi.</li>
+            <li><strong>2. Không có biểu diễn đồ thị DAG (No DAG representation):</strong> <code>cron</code> không có khái niệm đồ thị rẽ nhánh (<code>Fan-out</code>) hay hội tụ (<code>Fan-in</code>). Nếu kỹ sư nối chuỗi bằng toán tử shell <code>A.py &amp;&amp; B.py &amp;&amp; C.py</code>, toàn bộ đường ống bị ép chạy tuần tự trên một luồng duy nhất; khi bước cuối <code>C.py</code> thất bại ở phút thứ 59, kỹ sư không thể bấm chạy lại riêng bước <code>C.py</code> mà buộc phải chạy lại từ đầu cả <code>A.py</code> và <code>B.py</code>.</li>
+            <li><strong>3. Không lưu trữ siêu dữ liệu trạng thái (No metadata tracking):</strong> <code>crond</code> là một tiến trình phi trạng thái (stateless daemon) — nó chỉ bắn tín hiệu <code>fork/exec</code> rồi quên ngay lập tức. Không có cơ sở dữ liệu trung tâm nào ghi nhận lịch sử: kỳ dữ liệu <code>2026-05-15</code> đang ở trạng thái <code>running</code> hay <code>failed</code>, bước nào ngốn nhiều thời gian nhất, hay lịch sử 30 ngày qua tỷ lệ lỗi là bao nhiêu. Muốn tìm nguyên nhân <strong>Order #8888</strong> biến mất, kỹ sư phải <code>ssh</code> vào từng máy chủ và lục tìm hàng triệu dòng chữ thô trong <code>/var/log/syslog</code>.</li>
+            <li><strong>4. Phục hồi sự cố thủ công &amp; Không có cơ chế bù lịch sử (Limited failure recovery):</strong> Khi cổng API thanh toán chập chờn lúc <code>01:02 AM</code>, <code>cron</code> không có cơ chế tự động thử lại theo hàm mũ (exponential backoff retry), không có cảnh báo vi phạm cam kết thời gian (SLA miss alert), và đặc biệt: nếu máy chủ bảo trì từ <code>00:50</code> đến <code>02:10</code>, toàn bộ lịch chạy <code>01:00</code> bị bỏ qua vĩnh viễn mà không có cơ chế tự động chạy bù (Catchup / Backfill) khi máy chủ sống lại.</li>
+          </ul>
+
+          <x-figure id="orchestration-2-1-fig" key="2.1" title="Sơ đồ 2.1 — Giải Phẫu Cú Pháp 5 Trường Crontab &amp; 4 Lỗ Hổng Kiến Trúc Khi Điều Phối Đường Ống Đa Bước">Cơ chế kích hoạt mù theo đồng hồ hệ thống của daemon crond đối chiếu với 4 yêu cầu sống còn của một Orchestrator.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chiều kích Vận hành</th>
+                  <th>OS Cronjob (<code>crond</code> + Shell Scripts)</th>
+                  <th>Workflow Orchestrator (Apache Airflow)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Điều kiện kích hoạt (Trigger Semantics)</strong></td>
+                  <td>Chỉ dựa vào điểm thời gian đồng hồ hệ thống (<code>0 2 * * *</code>); chạy mù bất kể bước trước xong hay chưa.</td>
+                  <td>Kết hợp lịch thời gian, trạng thái hoàn tất của các nút cha trên đồ thị <code>DAG</code>, và sự kiện cập nhật tài sản dữ liệu (<code>Asset / Dataset</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Cấu trúc luồng (Topology)</strong></td>
+                  <td>Đơn lẻ hoặc chuỗi tuyến tính cứng nhắc (<code>cmd1 &amp;&amp; cmd2</code>); không thể rẽ nhánh song song rồi gom nhóm an toàn.</td>
+                  <td>Đồ thị có hướng không chu trình (<code>DAG</code>) hỗ trợ <code>Fan-out</code>, <code>Fan-in</code>, rẽ nhánh có điều kiện (<code>@task.branch</code>) và <code>Trigger Rules</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Quản lý trạng thái (State &amp; Metadata)</strong></td>
+                  <td>Phi trạng thái (Stateless); chỉ xuất văn bản thô ra tệp log cục bộ trên từng máy chủ.</td>
+                  <td>Lưu trữ tập trung trong <strong>Metadata Database</strong> (PostgreSQL/MySQL) từng <code>DAG Run</code>, <code>TaskInstance</code>, thời lượng chạy, <code>XCom</code> và lịch sử thử lại.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Cơ chế tự phục hồi (Failure Recovery)</strong></td>
+                  <td>Bằng không; kỹ sư phải tự viết vòng lặp <code>while/sleep</code> trong Bash/Python cho từng kịch bản.</td>
+                  <td>Tích hợp sẵn <code>retries</code>, <code>retry_delay</code>, <code>retry_exponential_backoff</code>, <code>on_failure_callback</code> và tái khởi động đúng nhánh bị lỗi (Clear Task).</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Nhận thức kỳ dữ liệu (Data Interval &amp; Backfill)</strong></td>
+                  <td>Không có khái niệm cửa sổ dữ liệu; nếu máy chủ tắt lúc <code>02:00</code>, kỳ chạy đó biến mất vĩnh viễn.</td>
+                  <td>Tách biệt thời điểm chạy vật lý với cửa sổ logic (<code>data_interval_start</code> → <code>end</code>); hỗ trợ <code>Catchup</code> tự động và <code>Backfill</code> lịch sử 365 ngày bằng 1 lệnh.</td>
+                </tr>
+                <tr>
+                  <td><strong>6. Khả năng mở rộng (Scalability)</strong></td>
+                  <td>Bị khóa cứng trên 1 máy chủ đơn lẻ (Single-node bottleneck); nghẽn CPU/RAM khi nhiều job trùng giờ.</td>
+                  <td>Phân tán tác vụ qua hàng đợi <code>CeleryExecutor</code> hoặc tạo Pod cô lập trên <code>KubernetesExecutor</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Tuy nhiên, việc chuyển từ <code>cron</code> sang Apache Airflow mới chỉ giải quyết được nửa bài toán ở tầng điều phối. Nếu bản thân đoạn code SQL/Python bên trong tác vụ được viết cẩu thả, chính tính năng tự động chạy lại (<code>retries</code>) và chạy bù lịch sử (<code>backfill</code>) của Airflow sẽ biến thành vũ khí nhân bản dữ liệu rác. Đó là lý do mọi tác vụ trong <code>daily_sales_pipeline</code> bắt buộc phải tuân thủ hai tiên đề thiết kế ở Trạm 2.2: <strong>Tính nguyên tử (Atomicity)</strong> và <strong>Tính lũy đẳng (Idempotency)</strong>.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="orchestration-2-2">
+          <h2 id="orchestration-2-2-h2" tabindex="-1">Trạm 2.2: Tính Nguyên Tử (Atomicity) &amp; Tính Lũy Đẳng (Idempotency) — Chốt Chặn Sinh Tử Chống Nhân Bản Dữ Liệu Khi Retry</h2>
+
+          <p>Trong toán học và khoa học máy tính, một phép toán $f$ được gọi là có <strong>Tính lũy đẳng (Idempotency)</strong> nếu việc áp dụng nó một lần hay $N$ lần liên tiếp trên cùng một đầu vào $x$ đều cho ra kết quả trạng thái đích hoàn toàn giống hệt nhau: $f(x) = f(f(x)) = f^{(N)}(x)$. Dịch sang ngôn ngữ của Kỹ thuật Dữ liệu: <strong>một tác vụ đường ống dữ liệu đạt chuẩn Idempotent khi và chỉ khi việc thực thi tác vụ đó 1 lần hay $N$ lần (do Airflow tự động retry khi đứt mạng, do kỹ sư bấm Clear chạy lại, hoặc do chạy Backfill lịch sử) cho cùng một kỳ dữ liệu logic (<code>data_interval_start = "2026-05-15T00:00:00Z"</code>) luôn để lại trạng thái bảng đích/tệp đích giống hệt như chỉ chạy 1 lần duy nhất</strong> — tuyệt đối không nhân đôi bản ghi (duplicate rows) và không làm cộng dồn sai lệch các chỉ số tổng hợp (<em>Slide 15</em> &amp; <em>Airflow 2nd Ed</em> Ch. 3.7, Ch. 12.2, Ch. 13.6).</p>
+
+          <p>Đi đôi như hình với bóng cùng Idempotency là <strong>Tính nguyên tử (Atomicity — All-or-Nothing)</strong>: một tác vụ phải được thiết kế sao cho hoặc là hoàn tất trọn vẹn 100% khối lượng công việc và chốt kết quả (<code>COMMIT</code>), hoặc nếu gặp lỗi giữa chừng thì phải hủy bỏ sạch sẽ (<code>ROLLBACK</code>), tuyệt đối không được để lại "hiện trường nửa vời" (partial writes). Nếu tác vụ vừa gửi 500 email hoặc vừa ghi trực tiếp 500 dòng vào bảng đích rồi bị sập ở dòng thứ 501 mà không có giao dịch bao bọc, lần chạy lại (retry) tiếp theo sẽ không thể nào đạt được tính lũy đẳng nếu không dọn sạch 500 dòng dở dang kia (<em>Airflow 2nd Ed</em> Ch. 3.7).</p>
+
+          <p>Hãy quan sát thảm họa thực tế xảy ra với giao dịch <strong>Order #8888</strong> (<code>order_id="ORD-8888"</code>, <code>user_id="USR-104"</code>, <code>amount=450000</code>) khi kỹ sư viết tác vụ <code>load_warehouse</code> theo kiểu ngây thơ (Non-Atomic &amp; Non-Idempotent):</p>
+
+          <ul>
+            <li><strong>Kịch bản lỗi lúc <code>02:05 AM</code> (Lần chạy <code>try_number = 1</code>):</strong> Tác vụ <code>load_warehouse</code> thực thi câu lệnh <code>INSERT INTO fact_orders SELECT * FROM staging_orders WHERE order_date = CURRENT_DATE;</code> ở chế độ tự động chốt từng lệnh (<code>autocommit</code>), sau đó chạy tiếp lệnh cập nhật bảng tổng hợp doanh thu <code>UPDATE daily_kpi SET revenue = revenue + 450000</code>. Giả sử lệnh <code>INSERT</code> đã ghi thành công dòng <code>ORD-8888</code> (<code>450.000 VNĐ</code>) vào <code>fact_orders</code>, nhưng đúng lúc đang chạy lệnh <code>UPDATE daily_kpi</code> thì kết nối mạng tới Data Warehouse bị đứt (<code>SocketTimeoutException</code>).</li>
+            <li><strong>Hệ lụy khi Airflow tự động Retry lúc <code>02:10 AM</code> (Lần chạy <code>try_number = 2</code>):</strong> Vì tác vụ được cấu hình <code>retries = 3</code>, 5 phút sau Airflow tự động kích hoạt lại <code>load_warehouse</code>. Câu lệnh <code>INSERT INTO fact_orders SELECT * ...</code> chạy lại từ đầu và chèn <strong>thêm một dòng <code>ORD-8888</code> thứ hai</strong> vào bảng đích! Kết quả là bảng <code>fact_orders</code> bị nhân đôi đơn hàng #8888, đẩy tổng doanh thu của khách hàng <code>USR-104</code> vọt từ <code>450.000 VNĐ</code> lên <code>900.000 VNĐ</code> (sai lệch 100%). Tệ hơn nữa, nếu 3 ngày sau kỹ sư chạy lại tác vụ này để sửa lỗi, câu điều kiện <code>WHERE order_date = CURRENT_DATE</code> sẽ lấy nhầm dữ liệu của ngày <code>2026-05-18</code> thay vì ngày <code>2026-05-15</code>!</li>
+          </ul>
+
+          <x-figure id="orchestration-2-2-fig" key="2.2" title="Sơ đồ 2.2 — Thảm Họa Nhân Đôi Đơn Hàng #8888 Khi Retry (Non-Idempotent) vs. 3 Mẫu Ghi Lũy Đẳng (Idempotent Patterns)">Cơ chế bảo toàn trạng thái đích bất biến dù tác vụ bị chạy lại N lần do đứt mạng hay Backfill.</x-figure>
+
+          <p>Để khóa chặt cả <strong>Atomicity</strong> lẫn <strong>Idempotency</strong> cho <code>daily_sales_pipeline</code>, kỹ sư dữ liệu phải loại bỏ hoàn toàn hàm thời gian thực <code>CURRENT_DATE / NOW()</code>, thay bằng biến ngữ cảnh cửa sổ dữ liệu <code>{{ ds }}</code> (ví dụ <code>'2026-05-15'</code>) của Airflow, và áp dụng một trong <strong>3 mẫu thiết kế ghi lũy đẳng (Idempotent Write Patterns)</strong> dưới đây:</p>
+
+          <pre><code>-- ============================================================================
+-- PHẢN MẪU (ANTI-PATTERN): Non-Idempotent &amp; Non-Atomic (CẤM DÙNG TRONG PRODUCTION)
+-- Lỗi 1: Dùng INSERT mù không xóa/kiểm tra trùng -&gt; Chạy lại N lần sẽ nhân bản N dòng ORD-8888.
+-- Lỗi 2: Dùng CURRENT_DATE -&gt; Chạy lại vào ngày hôm sau sẽ nạp sai kỳ dữ liệu.
+-- ============================================================================
+INSERT INTO dw.fact_orders (order_id, user_id, amount, order_date)
+SELECT order_id, user_id, amount, order_date
+FROM staging.orders_raw
+WHERE order_date = CURRENT_DATE;
+
+
+-- ============================================================================
+-- MẪU CHUẨN 1: Transactional DELETE-then-INSERT theo phân vùng kỳ dữ liệu {{ ds }}
+-- Gói cả lệnh xóa phân vùng cũ và nạp lại phân vùng mới vào chung 1 giao dịch ACID.
+-- Dù Airflow retry 10 lần cho kỳ '{{ ds }}' ('2026-05-15'), kết quả vẫn chỉ có đúng 1 dòng ORD-8888.
+-- ============================================================================
+BEGIN TRANSACTION;
+
+DELETE FROM dw.fact_orders
+WHERE order_date = '{{ ds }}';
+
+INSERT INTO dw.fact_orders (order_id, user_id, amount, order_date, loaded_at)
+SELECT order_id,
+       user_id,
+       CAST(amount AS NUMERIC(12, 2)),
+       CAST('{{ ds }}' AS DATE),
+       CAST('{{ ts }}' AS TIMESTAMPTZ)
+FROM staging.orders_raw
+WHERE order_date = '{{ ds }}';
+
+COMMIT;
+
+
+-- ============================================================================
+-- MẪU CHUẨN 2: Upsert theo khóa chính (MERGE INTO / INSERT ... ON CONFLICT)
+-- Phù hợp khi đơn hàng ORD-8888 có thể được cập nhật trạng thái muộn từ kỳ sau.
+-- ============================================================================
+MERGE INTO dw.fact_orders AS target
+USING (
+    SELECT order_id, user_id, amount, status, order_date
+    FROM staging.orders_raw
+    WHERE order_date = '{{ ds }}'
+) AS source
+ON target.order_id = source.order_id
+WHEN MATCHED THEN
+    UPDATE SET amount     = source.amount,
+               status     = source.status,
+               order_date = source.order_date
+WHEN NOT MATCHED THEN
+    INSERT (order_id, user_id, amount, status, order_date)
+    VALUES (source.order_id, source.user_id, source.amount, source.status, source.order_date);
+
+
+-- ============================================================================
+-- MẪU CHUẨN 3: Dynamic Partition Overwrite trên Data Lakehouse (Spark / Iceberg / Delta)
+-- Ghi đè nguyên tử toàn bộ thư mục phân vùng s3://lake/gold/fact_orders/dt=2026-05-15/
+-- ============================================================================
+INSERT OVERWRITE TABLE lakehouse.gold.fact_orders
+PARTITION (dt = '{{ ds }}')
+SELECT order_id, user_id, amount, status
+FROM lakehouse.silver.orders_cleaned
+WHERE dt = '{{ ds }}';</code></pre>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Mẫu Thiết kế Lũy đẳng (Idempotent Pattern)</th>
+                  <th>Cơ chế Bảo toàn Atomicity &amp; Idempotency</th>
+                  <th>Hệ thống Đích Phù hợp Nhất</th>
+                  <th>Đánh đổi Chi phí &amp; Rủi ro Cần Lưu ý</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Transactional <code>DELETE</code> + <code>INSERT</code></strong></td>
+                  <td>Xóa sạch dữ liệu thuộc cửa sổ <code>WHERE order_date = '{{ ds }}'</code> rồi nạp lại toàn bộ cửa sổ đó bên trong cùng một khối <code>BEGIN ... COMMIT</code>.</td>
+                  <td>RDBMS &amp; Cloud Data Warehouse (PostgreSQL, Snowflake, BigQuery, Redshift).</td>
+                  <td>Rất nhanh nếu bảng đích được phân vùng (Partitioned) theo cột <code>order_date</code>; nếu thiếu Partition, lệnh <code>DELETE</code> sẽ quét toàn bảng và gây phình <code>Dead Tuples</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Key-Based Upsert (<code>MERGE</code> / <code>ON CONFLICT</code>)</strong></td>
+                  <td>Đối chiếu khóa định danh duy nhất (<code>order_id = 'ORD-8888'</code>): nếu đã tồn tại thì ghi đè cột mới, nếu chưa có thì chèn mới.</td>
+                  <td>Bảng Fact/Dimension có bản ghi cập nhật muộn xuyên ngày (Late-arriving updates) trên Warehouse hoặc OLTP.</td>
+                  <td>Chi phí tính toán cao hơn <code>DELETE+INSERT</code> vì Engine phải thực hiện phép nối (Hash/Sort Join) giữa bảng nguồn và bảng đích trên khóa <code>order_id</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Partition Overwrite / Staging Swap</strong></td>
+                  <td>Ghi kết quả ra tệp tạm rồi trỏ lại siêu dữ liệu phân vùng <code>dt=2026-05-15</code> (hoặc dùng <code>mode("overwrite")</code> giới hạn theo <code>replaceWhere</code>).</td>
+                  <td>Object Storage (<code>S3 / GCS / ADLS</code>), Apache Iceberg, Delta Lake, Apache Hive/Spark.</td>
+                  <td>Cực kỳ hiệu quả cho dữ liệu lớn; nhưng trên S3 thuần (không có Iceberg/Delta), bắt buộc phải bật <code>partitionOverwriteMode = dynamic</code> để tránh xóa nhầm các ngày khác!</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Một khi từng tác vụ trong <code>daily_sales_pipeline</code> đã đạt chuẩn <strong>Atomic</strong> và <strong>Idempotent</strong> theo tham số ngày <code>{{ ds }}</code>, kỹ sư dữ liệu sẽ mở khóa được một siêu năng lực mà <code>cron</code> không bao giờ có được: khả năng quay ngược thời gian để tính toán lại bất kỳ giai đoạn lịch sử nào. Trạm 2.3 sẽ giải phẫu cơ học của cỗ máy thời gian <strong>Data Interval</strong> và <strong>Backfill</strong> trong Apache Airflow.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="orchestration-2-3">
+          <h2 id="orchestration-2-3-h2" tabindex="-1">Trạm 2.3: Cơ Học Cửa Sổ Dữ Liệu (Data Intervals), Lấp Đầy Lịch Sử (Backfill) &amp; Kiểm Soát Catchup</h2>
+
+          <p>Điểm khác biệt sâu sắc nhất giữa một bộ lập lịch tác vụ thông thường và Apache Airflow nằm ở cách định nghĩa thời gian: thay vì chỉ nhìn vào thời điểm đồng hồ điểm để chạy (wall-clock trigger time), Airflow mô hình hóa mỗi lần chạy đường ống (<code>DAG Run</code>) như một phép xử lý trên một <strong>Cửa sổ Dữ liệu khép kín (Data Interval)</strong> được xác định bởi cặp biên <code>[data_interval_start, data_interval_end)</code> (<em>Airflow 2nd Ed</em> Ch. 3.4). Hãy suy luận từ nguyên lý gốc trên đường ống <code>daily_sales_pipeline</code> chạy theo lịch hàng ngày (<code>schedule="@daily"</code> tức <code>0 0 * * *</code>): muốn tổng hợp trọn vẹn 100% các đơn hàng phát sinh trong ngày <strong>15/05/2026</strong> (từ <code>2026-05-15T00:00:00Z</code> đến <code>2026-05-15T23:59:59Z</code>, bao gồm <strong>Order #8888</strong> đặt lúc <code>14:22:10Z</code>), thời điểm sớm nhất mà đường ống có thể bắt đầu chạy một cách an toàn là <strong>ngay sau khi ngày 15/05 kết thúc</strong> — tức là lúc đồng hồ điểm <strong><code>2026-05-16T00:00:00Z</code></strong>!</p>
+
+          <p>Do đó, trong kiến trúc của Airflow, mỗi <code>DAG Run</code> định kỳ luôn phân tách rạch ròi 3 mốc thời gian (<em>Airflow 2nd Ed</em> Ch. 3.4 &amp; Ch. 5.2):</p>
+
+          <ul>
+            <li><strong><code>data_interval_start</code> (Biên đầu cửa sổ dữ liệu — tương ứng với <code>{{ ds }}</code> / <code>logical_date</code>):</strong> Thời điểm bắt đầu của kỳ dữ liệu mà lần chạy này chịu trách nhiệm xử lý. Với kỳ báo cáo ngày 15/05/2026 của <strong>Order #8888</strong>, <code>data_interval_start = 2026-05-15T00:00:00Z</code> và chuỗi định dạng ngắn <code>{{ ds }} = "2026-05-15"</code>.</li>
+            <li><strong><code>data_interval_end</code> (Biên cuối cửa sổ dữ liệu — thời điểm đủ điều kiện kích hoạt):</strong> Thời điểm kết thúc cửa sổ dữ liệu (<code>2026-05-16T00:00:00Z</code>). Bộ lập lịch (Scheduler) của Airflow chỉ xếp hàng kích hoạt <code>DAG Run</code> của ngày 15/05 sau khi đồng hồ thực vượt qua mốc <code>data_interval_end</code> này.</li>
+            <li><strong><code>start_date</code> của <code>DAG Run</code> (Wall-clock Execution Time):</strong> Thời điểm vật lý thực tế khi Worker bắt đầu chạy dòng code đầu tiên. Nếu chạy đúng lịch hàng đêm, nó là <code>2026-05-16T00:00:02Z</code>; nhưng nếu 6 tháng sau kỹ sư kích hoạt chạy lại (Backfill) kỳ 15/05, thời điểm vật lý có thể là <code>2026-11-20T15:30:00Z</code> trong khi cặp <code>[data_interval_start, data_interval_end)</code> vẫn giữ nguyên bất biến là <code>[2026-05-15T00:00Z, 2026-05-16T00:00Z)</code>!</li>
+          </ul>
+
+          <x-figure id="orchestration-2-3-fig" key="2.3" title="Sơ đồ 2.3 — Giải Phẫu Trục Thời Gian Data Interval (data_interval_start → end) &amp; Cơ Chế Cỗ Máy Thời Gian Backfill">Sự khác biệt giữa thời điểm đồng hồ điểm (Trigger Time) và cửa sổ dữ liệu logic (Data Interval) khi chạy lại lịch sử 3 ngày.</x-figure>
+
+          <p>Nhờ cơ chế đóng băng cửa sổ <code>[data_interval_start, data_interval_end)</code> này, Airflow cung cấp hai cơ chế xử lý dữ liệu quá khứ cực kỳ mạnh mẽ nhưng cũng ẩn chứa rủi ro vận hành lớn nếu cấu hình sai (<em>Slide 15</em> &amp; <em>Airflow 2nd Ed</em> Ch. 3.6):</p>
+
+          <ul>
+            <li><strong>Lấp đầy lịch sử chủ động (Backfill):</strong> Giả sử vào ngày <code>2026-05-18</code>, bộ phận Tài chính phát hiện công thức tính thuế VAT trong <code>daily_sales_pipeline</code> bị sai kể từ đầu tháng 5 (khiến thuế của <strong>Order #8888</strong> ngày <code>15/05</code> bị lệch), hoặc đội Data Science yêu cầu tính thêm một cột đặc trưng mới (<code>user_rolling_7d_spend</code>) cho toàn bộ 15 ngày đầu tháng 5. Vì mọi tác vụ trong DAG đều truy vấn theo tham số <code>WHERE created_at &gt;= '{{ data_interval_start }}' AND created_at &lt; '{{ data_interval_end }}'</code> và ghi đè lũy đẳng (Idempotent Overwrite) theo phân vùng <code>{{ ds }}</code>, kỹ sư chỉ cần sửa code rồi chạy một lệnh <code>airflow dags backfill</code> cho khoảng <code>2026-05-01 → 2026-05-15</code>. Airflow sẽ tự động khởi tạo 15 <code>DAG Run</code> độc lập tương ứng với 15 cửa sổ ngày trong quá khứ và tái tạo lại toàn bộ bảng đích chuẩn xác 100%.</li>
+            <li><strong>Chạy bù tự động (<code>catchup=True</code> vs. <code>catchup=False</code>) &amp; Thảm họa "Bão Backfill" (Backfill Storm):</strong> Tham số <code>catchup</code> trên đối tượng <code>DAG</code> quyết định liệu Scheduler có tự động sinh các <code>DAG Run</code> cho mọi kỳ dữ liệu chưa chạy tính từ mốc <code>start_date</code> của DAG cho đến hiện tại hay không. Nếu một lập trình viên mới khai báo <code>start_date = datetime(2024, 1, 1)</code>, quên tắt <code>catchup=True</code>, rồi bật công tắc Unpause DAG vào tháng 5/2026, Airflow Scheduler sẽ lập tức <strong>bắn hơn 850 <code>DAG Run</code> đồng loạt</strong> vào hàng đợi, làm sập cả cụm Worker lẫn Database nguồn! Do đó, nguyên tắc chuẩn Production là đặt mặc định <strong><code>catchup=False</code></strong> cho hầu hết các DAG, khóa chặt <code>max_active_runs = 1..3</code> để khống chế mức độ song song, và chỉ kích hoạt Backfill có kiểm soát qua CLI hoặc giao diện UI khi thực sự cần thiết.</li>
+          </ul>
+
+          <pre><code># 1. Thiết kế tác vụ trích xuất chuẩn Data Interval (Idempotent &amp; Backfill-ready)
+from airflow.sdk import DAG, task
+from pendulum import datetime
+
+with DAG(
+    dag_id="daily_sales_pipeline",
+    start_date=datetime(2026, 5, 1, tz="UTC"),
+    schedule="@daily",
+    catchup=False,           # Chốt chặn an toàn: Cấm tự động bắn hàng trăm run quá khứ khi mới bật DAG
+    max_active_runs=2,       # Giới hạn tối đa 2 kỳ dữ liệu chạy đồng thời khi thực hiện Backfill
+) as dag:
+
+    @task
+    def extract_orders_for_interval(data_interval_start=None, data_interval_end=None, ds=None):
+        # CẤM DÙNG datetime.now()! Luôn lọc chính xác theo biên [data_interval_start, data_interval_end)
+        query = f"""
+            SELECT order_id, user_id, amount, created_at
+            FROM oltp.orders
+            WHERE created_at &gt;= '{data_interval_start.to_iso8601_string()}'
+              AND created_at &lt;  '{data_interval_end.to_iso8601_string()}'
+        """
+        # Ghi đè lũy đẳng (overwrite) vào đúng phân vùng S3 của kỳ dữ liệu {{ ds }} (VD: dt=2026-05-15)
+        output_uri = f"s3://lake/bronze/orders/dt={ds}/orders.parquet"
+        return run_extract_to_parquet(query=query, target_uri=output_uri)
+
+# 2. Lệnh CLI chạy lại lịch sử (Backfill) có kiểm soát từ ngày 01/05 đến 15/05/2026:
+# airflow dags backfill \
+#     --start-date 2026-05-01 \
+#     --end-date 2026-05-15 \
+#     --reset-dagruns \
+#     daily_sales_pipeline</code></pre>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Biến Ngữ cảnh / Tham số Airflow</th>
+                  <th>Giá trị Thực tế (Kỳ chạy của Order #8888)</th>
+                  <th>Ý nghĩa Cơ học &amp; Quy tắc Sử dụng</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong><code>{{ data_interval_start }}</code></strong></td>
+                  <td><code>2026-05-15T00:00:00+00:00</code></td>
+                  <td>Biên dưới (inclusive <code>&gt;=</code>) của cửa sổ dữ liệu. Luôn dùng làm mốc bắt đầu trong mệnh đề <code>WHERE</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>{{ data_interval_end }}</code></strong></td>
+                  <td><code>2026-05-16T00:00:00+00:00</code></td>
+                  <td>Biên trên (exclusive <code>&lt;</code>) của cửa sổ dữ liệu, đồng thời là thời điểm Scheduler kích hoạt lần chạy định kỳ.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>{{ ds }}</code> / <code>{{ ds_nodash }}</code></strong></td>
+                  <td><code>2026-05-15</code> / <code>20260515</code></td>
+                  <td>Chuỗi ngày <code>YYYY-MM-DD</code> rút trích từ <code>data_interval_start</code>; chuẩn mực để đặt tên phân vùng <code>dt=2026-05-15</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>catchup=False</code> + <code>max_active_runs</code></strong></td>
+                  <td><code>catchup=False</code>, <code>max_active_runs=2</code></td>
+                  <td>Ngăn chặn thảm họa bắn hàng trăm DAG Run quá khứ cùng lúc; khống chế số lượng cửa sổ Backfill chạy song song để bảo vệ DB nguồn.</td>
+                </tr>
+                <tr>
+                  <td><strong>Giới hạn vật lý của Backfill</strong></td>
+                  <td>Phụ thuộc <strong>Source Data Retention</strong></td>
+                  <td>Backfill <strong>không thể</strong> cứu được dữ liệu nếu API nguồn chỉ lưu lịch sử 30 ngày hoặc tệp tạm gốc đã bị xóa. Vì vậy, tầng Raw/Bronze trên Data Lake phải luôn lưu trữ bất biến (Immutable Append/Partition) để làm nguồn cho Backfill tầng Silver/Gold.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Ba nguyên lý <strong>Atomicity</strong>, <strong>Idempotency</strong> và <strong>Data Interval Backfill</strong> đã giúp đường ống <code>daily_sales_pipeline</code> miễn nhiễm trước lỗi mạng và sai sót logic trong quá khứ. Nhưng khi quy mô kinh doanh mở rộng — từ 1 cổng thanh toán lên 50 đối tác khu vực, hoặc từ 1 DAG đơn lẻ lên hàng chục DAG phụ thuộc chéo nhau — cách viết đồ thị tĩnh cố định sẽ nhanh chóng chạm trần. Trạm 2.4 sẽ giải quyết bài toán cuối cùng của Chặng 2: <strong>Dynamic Pipelines</strong> và <strong>Asset-Aware Scheduling</strong>.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="orchestration-2-4">
+          <h2 id="orchestration-2-4-h2" tabindex="-1">Trạm 2.4: Đường Ống Động (Dynamic Pipelines — Dynamic Task Mapping) &amp; Lập Lịch Nhận Biết Tài Sản (Asset-Aware Scheduling)</h2>
+
+          <p>Trong một đường ống tĩnh (Static DAG), số lượng nút tác vụ và cấu trúc nhánh được đóng đinh cố định ngay từ lúc viết code. Nhưng trong thực tế vận hành ở quy mô lớn, kỹ sư dữ liệu thường xuyên gặp hai bài toán biến thiên động (<em>Slide 15</em> &amp; <em>Airflow 2nd Ed</em> Ch. 4, Ch. 12.1): <strong>(1) Số lượng phân mảnh dữ liệu chỉ được biết tại thời điểm chạy (Runtime)</strong> — ví dụ mỗi ngày đường ống <code>daily_sales_pipeline</code> cần quét thư mục S3 xem có bao nhiêu khu vực phát sinh đơn hàng (hôm nay có 4 vùng <code>["VN-North", "VN-Central", "VN-South", "Intl"]</code>, ngày mai có 7 vùng) để khởi chạy bấy nhiêu tác vụ xử lý song song; và <strong>(2) Thời điểm dữ liệu nguồn sẵn sàng biến thiên không cố định</strong> — ví dụ DAG thượng nguồn <code>ingest_orders_dag</code> nạp dữ liệu thô của <strong>Order #8888</strong> lên S3 có hôm xong lúc <code>01:10 AM</code>, có hôm trễ tới <code>02:45 AM</code>, khiến việc hẹn giờ cứng <code>02:00 AM</code> ở DAG hạ nguồn luôn rơi vào cảnh hoặc chờ đợi lãng phí, hoặc chạy khi dữ liệu chưa tới.</p>
+
+          <p>Để giải quyết bài toán thứ nhất mà không phải sao chép thủ công (copy-paste) hàng chục tệp code vi phạm nguyên tắc DRY, kiến trúc Airflow cung cấp <strong>2 thế hệ Đường ống Động (Dynamic Pipelines)</strong>:</p>
+
+          <ul>
+            <li><strong>Thế hệ 1 — Sinh tĩnh lúc biên dịch (Compile-Time Loop / DAG Factory):</strong> Kỹ sư dùng vòng lặp <code>for</code> của Python hoặc đọc một tệp cấu hình <code>YAML/JSON</code> tĩnh ngay trong tệp định nghĩa DAG để sinh ra $N$ tác vụ hoặc $N$ DAG có cấu trúc giống nhau (<em>Airflow 2nd Ed</em> Ch. 12.1). Phương pháp này cực kỳ hữu ích khi danh sách nguồn đã biết trước và ít thay đổi (như tạo 10 DAG cho 10 quốc gia cố định), nhưng <strong>bất lực hoàn toàn</strong> nếu danh sách đầu vào phụ thuộc vào kết quả trả về của một tác vụ vừa chạy xong (vì bộ phân tích <code>DAGFileProcessor</code> đọc tệp Python trước khi bất kỳ tác vụ nào thực thi).</li>
+            <li><strong>Thế hệ 2 — Ánh xạ tác vụ động tại thời điểm chạy (Runtime Dynamic Task Mapping với <code>.partial()</code> và <code>.expand()</code> — Airflow 2.3+ / 3.0):</strong> Thay vì biết trước số lượng tác vụ, một tác vụ thượng nguồn (như <code>list_active_regions()</code>) truy vấn dữ liệu thực tế của kỳ <code>2026-05-15</code> và trả về một danh sách qua XCom: <code>["VN-North", "VN-Central", "VN-South", "Intl"]</code>. Ngay tại khoảnh khắc chạy (Runtime), lời gọi <code>process_region_shard.partial(ds="{{ ds }}").expand(region=active_regions)</code> bảo Scheduler tự động nhân bản tác vụ <code>process_region_shard</code> thành <strong>4 thực thể <code>TaskInstance</code> song song</strong> được đánh chỉ mục <code>map_index = 0, 1, 2, 3</code> (trong đó <strong>Order #8888</strong> nằm ở nhánh <code>map_index = 2</code> tương ứng với <code>VN-South</code>), rồi gom toàn bộ kết quả về bước <code>aggregate_daily_sales</code> (MapReduce pattern)!</li>
+          </ul>
+
+          <p>Để giải quyết bài toán thứ hai (đồng bộ liên-DAG không cần đoán mò giờ chạy), Airflow 2.4+ và Airflow 3.0 giới thiệu <strong>Lập lịch Nhận biết Tài sản (Asset-Aware Scheduling — trước đây gọi là Datasets)</strong> (<em>Airflow 2nd Ed</em> Ch. 4). Thay vì đặt lịch cố định lúc <code>02:00 AM</code> hay treo một tiến trình <code>ExternalTaskSensor</code> tốn tài nguyên chờ đợi, DAG thượng nguồn <code>ingest_orders_dag</code> khai báo tham số đầu ra <code>outlets=[Asset("s3://lake/bronze/orders")]</code> trên tác vụ cuối cùng. Ngay khi <code>ingest_orders_dag</code> ghi xong phân vùng chứa <strong>Order #8888</strong> và hoàn tất, Airflow Metadata Database phát sự kiện cập nhật Asset URI đó và <strong>kích hoạt tức thì</strong> DAG hạ nguồn <code>daily_sales_pipeline</code> (được cấu hình <code>schedule=[Asset("s3://lake/bronze/orders")]</code>) với độ trễ bằng không!</p>
+
+          <x-figure id="orchestration-2-4-fig" key="2.4" title="Sơ đồ 2.4 — Cơ Học Dynamic Task Mapping (.partial / .expand) Tại Runtime &amp; Lập Lịch Hướng Sự Kiện Tài Sản (Asset-Aware Scheduling)">Cơ chế tự động nhân bản Task Instance theo danh sách đầu vào động và kích hoạt liên-DAG qua sự kiện cập nhật Asset URI.</x-figure>
+
+          <pre><code># Mẫu kết hợp Asset-Aware Scheduling (Airflow Ch. 4) &amp; Dynamic Task Mapping (Airflow Ch. 12)
+from airflow.sdk import Asset, DAG, task
+from pendulum import datetime
+
+# Khai báo Tài sản dữ liệu (Asset URI) làm cầu nối sự kiện giữa Producer DAG và Consumer DAG
+BRONZE_ORDERS_ASSET = Asset("s3://lake/bronze/orders")
+GOLD_SALES_ASSET    = Asset("s3://lake/gold/fact_daily_sales")
+
+with DAG(
+    dag_id="daily_sales_pipeline",
+    start_date=datetime(2026, 5, 1, tz="UTC"),
+    # Consumer DAG tự động kích hoạt ngay giây phút Producer DAG cập nhật BRONZE_ORDERS_ASSET
+    schedule=[BRONZE_ORDERS_ASSET],
+    catchup=False,
+) as dag:
+
+    @task
+    def discover_active_regions(ds=None) -&gt; list[str]:
+        # Khám phá động tại Runtime: Kỳ 2026-05-15 phát hiện 4 phân vùng khu vực có phát sinh đơn hàng
+        return ["VN-North", "VN-Central", "VN-South", "Intl"]
+
+    @task
+    def process_region_shard(region: str, target_date: str) -&gt; dict:
+        # Airflow tự động sinh N TaskInstance song song (map_index = 0..N-1)
+        # Nhánh map_index=2 ('VN-South') xử lý Order #8888 (ORD-8888, USR-104, 450000 VND)
+        shard_uri = f"s3://lake/bronze/orders/dt={target_date}/region={region}/"
+        cleaned_rows, total_vnd = transform_and_deduplicate_shard(shard_uri)
+        return {"region": region, "rows": cleaned_rows, "revenue_vnd": total_vnd}
+
+    @task(outlets=[GOLD_SALES_ASSET])
+    def consolidate_to_warehouse(shard_summaries: list[dict], ds=None) -&gt; None:
+        # Bước Reduce: Nhận danh sách kết quả từ tất cả các nhánh map_index=0..3 và ghi Idempotent vào Gold
+        atomic_overwrite_gold_partition(target_date=ds, summaries=shard_summaries)
+
+    # Luồng thực thi: .partial() giữ các tham số cố định, .expand() nhân bản theo danh sách động
+    regions = discover_active_regions()
+    shard_results = process_region_shard.partial(target_date="{{ ds }}").expand(region=regions)
+    consolidate_to_warehouse(shard_results)</code></pre>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Mô hình Thiết kế Đường ống</th>
+                  <th>Thời điểm Quyết định Cấu trúc</th>
+                  <th>Cơ chế Vận hành Cốt lõi</th>
+                  <th>Tình huống Áp dụng Tối ưu</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Static DAG (Đồ thị tĩnh)</strong></td>
+                  <td>Lúc viết code (Authoring time).</td>
+                  <td>Mọi nút tác vụ và cạnh nối được khai báo tường minh từng dòng.</td>
+                  <td>Đường ống có các bước nghiệp vụ cố định (<code>extract → validate → transform → load</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Compile-Time Factory (Vòng lặp <code>for</code> / YAML)</strong></td>
+                  <td>Lúc phân tích tệp DAG (DAG Parsing time).</td>
+                  <td>Vòng lặp Python đọc cấu hình tĩnh để sinh hàng loạt Task/DAG khi Scheduler quét thư mục <code>dags/</code>.</td>
+                  <td>Tạo hàng chục DAG/Task chuẩn hóa cho danh sách bảng hoặc đối tác cố định đã biết trước.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Runtime Dynamic Task Mapping (<code>.partial().expand()</code>)</strong></td>
+                  <td><strong>Ngay trong lúc chạy (Runtime)</strong> dựa trên đầu ra của tác vụ trước.</td>
+                  <td>Nhân bản một Task thành $N$ thực thể <code>TaskInstance</code> song song (<code>map_index = 0..N-1</code>) theo độ dài mảng trả về.</td>
+                  <td>Số lượng tệp S3, phân vùng khách hàng hoặc lô API thay đổi linh hoạt mỗi ngày không biết trước.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Asset-Aware Scheduling (<code>outlets</code> / <code>schedule=[Asset]</code>)</strong></td>
+                  <td>Kích hoạt theo sự kiện dữ liệu (Data-driven trigger).</td>
+                  <td>Producer Task hoàn tất sẽ phát tín hiệu cập nhật <code>Asset URI</code> để đánh thức ngay lập tức các Consumer DAG phụ thuộc.</td>
+                  <td>Chia nhỏ một Monolithic DAG khổng lồ thành nhiều DAG độc lập theo miền dữ liệu (Bronze → Silver → Gold) mà không cần đoán giờ chờ nhau.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Nắm vững <strong>Idempotency</strong>, <strong>Data Interval Backfill</strong>, <strong>Dynamic Task Mapping</strong> và <strong>Asset-Aware Scheduling</strong> đồng nghĩa với việc bạn đã sở hữu tư duy thiết kế đường ống ở cấp độ Production. Ở Chặng 3 tiếp theo, chúng ta sẽ đi sâu vào bên trong hộp đen của <strong>Apache Airflow</strong> để giải phẫu kiến trúc 4 thành phần cốt lõi (Scheduler, Webserver, Worker, Metadata DB), vòng đời trạng thái <code>TaskInstance</code>, hệ thống <strong>Operators / Sensors</strong> và cơ học truyền tin <strong>XCom</strong>.</p>
+        </section>
+
+        <section class="summary-section" id="orchestration-2-summary">
+          <h2 id="orchestration-2-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 2 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <ol>
+            <li><strong>Tại sao biểu thức <code>cron</code> (<code>0 2 * * *</code>) lại bất lực trước các đường ống dữ liệu đa bước như <code>daily_sales_pipeline</code>?</strong> Vì <code>crond</code> chỉ biết kích hoạt lệnh theo đồng hồ hệ thống mà không biết bước thượng nguồn đã hoàn tất an toàn hay chưa, xuất phát từ 4 giới hạn tử huyệt: <em>No dependency management</em> (không quản lý phụ thuộc), <em>No DAG representation</em> (không biểu diễn được đồ thị rẽ nhánh/hội tụ), <em>No metadata tracking</em> (không có DB lưu lịch sử trạng thái), và <em>Limited failure recovery</em> (không có retry tự động hay backfill khi máy chủ sập).</li>
+            <li><strong>Tính lũy đẳng (Idempotency — $f(x) = f(f(x))$) và Tính nguyên tử (Atomicity) bảo vệ giao dịch <code>Order #8888</code> khỏi thảm họa nhân đôi doanh thu như thế nào?</strong> Atomicity đảm bảo một tác vụ hoặc chốt thành công 100%, hoặc <code>ROLLBACK</code> sạch sẽ khi đứt mạng giữa chừng; còn Idempotency (thực thi qua <code>DELETE-then-INSERT</code> trong một Transaction theo ngày <code>{{ ds }}</code>, hoặc <code>MERGE INTO</code> theo <code>order_id = 'ORD-8888'</code>, hoặc <code>INSERT OVERWRITE PARTITION</code>) đảm bảo dù Airflow có retry hay chạy lại kỳ <code>2026-05-15</code> bao nhiêu lần, bảng đích vẫn chỉ chứa duy nhất 1 bản ghi <code>Order #8888</code> (<code>450.000 VNĐ</code>).</li>
+            <li><strong>Tại sao một <code>DAG Run</code> xử lý dữ liệu ngày <code>2026-05-15</code> (<code>data_interval_start = 2026-05-15T00:00Z</code>) lại chỉ được Airflow kích hoạt vào lúc <code>2026-05-16T00:00Z</code> (<code>data_interval_end</code>)?</strong> Vì để tổng hợp đầy đủ 100% đơn hàng phát sinh trong suốt 24 giờ của ngày 15/05, hệ thống bắt buộc phải đợi cửa sổ thời gian của ngày 15/05 khép lại hoàn toàn tại thời điểm <code>00:00:00</code> bước sang ngày 16/05.</li>
+            <li><strong>Tại sao việc gán cứng <code>CURRENT_DATE</code> hoặc <code>datetime.now()</code> bên trong code SQL/Python lại phá hủy hoàn toàn khả năng Backfill lịch sử?</strong> Vì khi kỹ sư chạy Backfill vào ngày <code>20/05</code> để tính lại dữ liệu bị lỗi của ngày <code>01/05 → 15/05</code>, hàm <code>CURRENT_DATE</code> sẽ luôn trả về ngày <code>20/05</code> thay vì ngày của từng cửa sổ quá khứ; mọi truy vấn bắt buộc phải tham số hóa theo cặp biên <code>[data_interval_start, data_interval_end)</code> hoặc <code>{{ ds }}</code>.</li>
+            <li><strong>Khi nào nên dùng Runtime Dynamic Task Mapping (<code>.partial().expand()</code>) thay vì vòng lặp <code>for</code> thông thường, và <code>Asset-Aware Scheduling</code> giải quyết bài toán gì?</strong> Dùng <code>.expand()</code> khi số lượng nhánh song song (ví dụ 4 phân vùng khu vực <code>map_index=0..3</code>) chỉ được khám phá động tại thời điểm chạy (Runtime) từ kết quả của tác vụ đứng trước. Còn <code>Asset-Aware Scheduling</code> (<code>outlets=[Asset(...)]</code>) giúp kích hoạt Consumer DAG ngay giây phút Producer DAG cập nhật xong tập dữ liệu trên S3/Warehouse, xóa bỏ hoàn toàn việc đoán mò giờ chạy (time-offset guessing) giữa các DAG.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/D06/3" onclick="selectStorageStage(3);return false;">Sang Chặng 3: Kiến Trúc Apache Airflow, Đồ Thị DAG, Operators, Sensors &amp; Cơ Học Truyền Tin XCom →</a></p>
+        </section>
+      </div>

@@ -1,0 +1,180 @@
+      <div class="prose">
+        <x-spine id="python-3-spine" badge="TRONG BÀI HỌC NÀY · F02" title="Chặng 3: Quản Trị Ngoại Lệ, Giao Thức Context Manager (with), Streaming File I/O &amp; Tự Động Hóa CLI" subtitle="Trạm 3.1 → 3.3"><strong>Bản đồ Cơ học Chặng 3:</strong> Khi <code>crawler.py</code> bước ra khỏi môi trường thử nghiệm để thu thập hàng triệu bản ghi 24/7, ba rủi ro hệ thống lập tức xuất hiện: ngoại lệ làm đứt gãy luồng thực thi và rò rỉ File Descriptor của hệ điều hành, tệp nhật ký nhiều Gigabyte làm tràn bộ nhớ RAM (OOM), và các tham số gán cứng làm tê liệt đường ống tự động hóa. Chặng 3 giải phẫu cơ chế tháo gỡ ngăn xếp (Stack Unwinding) với <code>try</code> / <code>except</code> đặc thù kết hợp giao thức hai pha <code>with</code> (<code>__enter__()</code> / <code>__exit__()</code>), đối chiếu bộ đệm File I/O giữa nạp toàn khối và luồng <code>Iterator</code> độ phức tạp <code>O(1)</code> RAM, đồng thời chuẩn hóa giao diện dòng lệnh bằng <code>argparse</code> và hệ sinh thái Python Standard Library (<code>pathlib</code>, <code>json</code>, <code>re</code>, <code>logging</code>).</x-spine>
+
+        <section class="lesson-section" id="python-3-1">
+          <h2 id="python-3-1-h2" tabindex="-1">Trạm 3.1: Phân cấp Ngoại lệ (Specific Exceptions) &amp; Giao thức Context Manager (with → __enter__ / __exit__) Chống Rò rỉ Tài nguyên</h2>
+
+          <p>Khi một dòng lệnh bên trong <code>crawler.py</code> gặp bản ghi JSON bẩn hoặc đứt kết nối mạng giữa chừng, máy ảo CPython lập tức dừng luồng thực thi hiện tại, đóng gói trạng thái lỗi thành một đối tượng ngoại lệ (Exception Object) và kích hoạt cơ chế <strong>tháo gỡ ngăn xếp (Stack Unwinding)</strong> — lùi ngược từng khung hàm (Stack Frame) từ dưới lên trên để tìm khối <code>try</code> / <code>except</code> khớp kiểu dữ liệu (<em>Slide 54–55</em>). Sai lầm chí mạng thường gặp ở các hệ thống sơ khai là bọc toàn bộ vòng lặp thu thập bằng <code>except Exception:</code> (hoặc <code>except:</code> trần) rồi bỏ qua. Thao tác bắt lỗi chung chung này làm mù hoàn toàn khả năng quan sát của hệ thống: nó nuốt chửng cả lỗi sai kiểu dữ liệu (<code>TypeError</code>), lỗi gõ sai tên biến (<code>NameError</code>), lỗi chia cho không (<code>ZeroDivisionError</code>) lẫn tín hiệu ngắt hệ thống, biến các lỗi logic nghiêm trọng thành hiện tượng <strong>hỏng dữ liệu âm thầm (Silent Data Corruption)</strong>. Nguyên tắc vận hành cốt lõi bắt buộc kỹ sư chỉ được bắt chính xác từng lớp ngoại lệ cụ thể (<code>ValueError</code>, <code>KeyError</code>, <code>TimeoutError</code>) tại đúng tầng có khả năng xử lý phục hồi.</p>
+
+          <p>Nguy hiểm hơn, cơ chế Stack Unwinding còn trực tiếp gây ra thảm họa <strong>rò rỉ tài nguyên hệ điều hành (Resource Leak)</strong> nếu kỹ sư quản lý tệp hoặc kết nối mạng thủ công. Khi gọi <code>f = open("events.jsonl", "a")</code>, nhân hệ điều hành (OS Kernel) cấp phát một con trỏ <strong>File Descriptor (FD)</strong> trong bảng quản lý của tiến trình; nếu dòng xử lý kế tiếp văng ngoại lệ <code>ValueError</code> trước khi chạm tới lệnh <code>f.close()</code>, luồng thực thi sẽ nhảy vọt ra ngoài và bỏ mặc File Descriptor đó treo vĩnh viễn. Chỉ sau vài nghìn bản ghi lỗi, tiến trình <code>crawler.py</code> sẽ chạm trần giới hạn của Linux Kernel (<code>ulimit -n</code>, mặc định thường là <code>1,024</code> hoặc <code>65,535</code> FDs) và làm sập toàn bộ máy chủ với lỗi <code>OSError: [Errno 24] Too many open files</code>. Để khóa chặt rủi ro này, câu lệnh <code>with</code> (<strong>Context Manager</strong> — <em>Slide 56</em>) thiết lập một giao thức cam kết hai pha: tự động gọi phương thức <code>__enter__()</code> để cấp phát tài nguyên lúc bắt đầu khối lệnh, và <strong>luôn luôn kích hoạt <code>__exit__(exc_type, exc_val, exc_tb)</code></strong> để thu hồi File Descriptor ngay khi luồng thực thi rời khỏi khối <code>with</code> — bất kể khối lệnh kết thúc bình thường, chạy lệnh <code>return</code> sớm hay nổ tung vì ngoại lệ. Đây cũng chính là nền tảng cơ học đằng sau <code>with Session()</code> trong SQLAlchemy và <code>async with httpx.AsyncClient()</code> trong FastAPI.</p>
+
+          <x-figure id="python-3-1-fig" key="3.1" title="Sơ đồ 3.1 — Cơ chế Bắt Ngoại lệ Đặc thù (Specific Exceptions) và Giao thức Context Manager (__enter__ / __exit__) Chặn Đứng Rò rỉ File Descriptor">Đối chiếu luồng tháo gỡ ngăn xếp (Stack Unwinding): (1) Bắt lỗi chung chung với <code>except Exception:</code> làm mù hệ thống và mở tệp thủ công gây rò rỉ File Descriptor dẫn tới lỗi <code>OSError: [Errno 24] Too many open files</code>; (2) Bắt ngoại lệ đặc thù (<code>ValueError</code>, <code>TypeError</code>) kết hợp giao thức <code>with</code> kích hoạt <code>__enter__()</code> và cam kết thực thi <code>__exit__()</code> trả lại tài nguyên cho OS Kernel trong mọi kịch bản.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Mẫu Quản trị Lỗi &amp; Tài nguyên</th>
+                  <th>Cơ chế Vận hành dưới Tầng CPython &amp; OS Kernel</th>
+                  <th>Hậu quả Vận hành Thực tế trên Production</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong><code>Generic except Exception:</code></strong><br><em>(Anti-pattern — Cấm dùng)</em></td>
+                  <td>Chặn đứng quá trình Stack Unwinding của mọi lớp kế thừa từ <code>Exception</code>, gom chung lỗi dữ liệu đầu vào với lỗi lập trình nội bộ (<code>TypeError</code>, <code>AttributeError</code>).</td>
+                  <td>Hệ thống rơi vào trạng thái mù lỗi: chương trình vẫn báo chạy thành công nhưng ghi toàn bộ dữ liệu rỗng hoặc sai lệch xuống kho lưu trữ (Silent Data Corruption).</td>
+                </tr>
+                <tr>
+                  <td><strong><code>Specific try / except</code></strong><br><em>(<code>ValueError</code>, <code>ZeroDivisionError</code> — Slide 55)</em></td>
+                  <td>Chỉ chặn đúng lớp ngoại lệ đã khai báo tường minh trong nhánh <code>except</code>; các ngoại lệ không khớp sẽ tiếp tục tháo gỡ ngăn xếp để báo động hoặc dừng tiến trình theo nguyên tắc Fail-fast.</td>
+                  <td>Bóc tách chính xác bản ghi bẩn (ví dụ chuỗi số bị hỏng gây <code>ValueError</code>) để đẩy sang hàng đợi lỗi (Dead-Letter Queue) mà không che giấu lỗi logic của hệ thống.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>Manual open() / close()</code></strong><br><em>(Quản lý thủ công không có <code>finally</code>)</em></td>
+                  <td>Cấp phát File Descriptor qua lời gọi hệ thống <code>open(2)</code> nhưng lệnh thu hồi <code>f.close()</code> nằm sau các dòng xử lý nghiệp vụ dễ phát sinh ngoại lệ.</td>
+                  <td>Khi ngoại lệ nổ ra giữa chừng, lệnh <code>f.close()</code> bị nhảy qua; các File Descriptor tích tụ dần tới ngưỡng <code>ulimit -n</code> và làm sập tiến trình với <code>Errno 24</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>Context Manager (with)</code></strong><br><em>(Giao thức <code>__enter__()</code> / <code>__exit__()</code> — Slide 56)</em></td>
+                  <td>Trình biên dịch CPython bọc khối lệnh bằng cấu trúc bảo vệ ngầm: <code>__enter__()</code> trả về đối tượng tài nguyên, còn <code>__exit__(exc_type, exc_val, exc_tb)</code> luôn được gọi trước khi thoát khỏi phạm vi khối.</td>
+                  <td>Đảm bảo 100% File Descriptor, Socket mạng hoặc Database Session được đóng và giải phóng về lại OS Kernel/Connection Pool ngay lập tức dù có lỗi xảy ra hay không.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Giao thức Context Manager (<code>with</code>) kết hợp bắt ngoại lệ đặc thù (<code>ValueError</code>, <code>TypeError</code>) đã khóa chặt nguy cơ rò rỉ File Descriptor ở tầng nhân hệ điều hành. Tuy nhiên, ngay bên trong khối <code>with open(...) as f:</code> đó, việc chọn sai cờ chế độ mở tệp hoặc gọi nhầm phương thức đọc dữ liệu trên một tệp nhật ký <code>10 GB</code> sẽ lập tức xóa trắng dữ liệu lịch sử hoặc kích hoạt Linux OOM Killer giết chết tiến trình — bài toán cơ học sẽ được giải phẫu tại <strong>Trạm 3.2</strong>.</p>
+        </section>
+
+        <section class="lesson-section" id="python-3-2">
+          <h2 id="python-3-2-h2" tabindex="-1">Trạm 3.2: Cơ học File I/O Modes (r, a, w, x) &amp; Đánh đổi Bộ nhớ giữa Đọc Toàn khối (read / readlines) và Luồng Lười (Streaming Iterator)</h2>
+
+          <p>Hàm tích hợp <code>open(filename, mode)</code> trong Python không phải là một lớp bọc trừu tượng đơn thuần mà ánh xạ trực tiếp xuống các cờ lời gọi hệ thống POSIX của OS Kernel thông qua 4 chế độ cốt lõi (<em>Slide 57–58</em>): <strong><code>"r"</code> (Read)</strong> mở tệp ở chế độ chỉ đọc và văng ngay ngoại lệ <code>FileNotFoundError</code> nếu đường dẫn chưa tồn tại; <strong><code>"w"</code> (Write)</strong> mở tệp để ghi mới hoàn toàn — nếu tệp đã tồn tại trên đĩa, hệ điều hành kích hoạt cờ cắt cụt (<code>O_TRUNC</code>) <strong>xóa trắng toàn bộ dữ liệu cũ về <code>0 byte</code> ngay tại thời điểm mở tệp</strong>; <strong><code>"a"</code> (Append)</strong> mở tệp với cờ nối đuôi (<code>O_APPEND</code>), ép con trỏ tệp luôn nhảy về vị trí byte cuối cùng trước mỗi lần ghi và tạo tệp mới nếu chưa có — đây là chế độ chuẩn bắt buộc để <code>crawler.py</code> ghi tiếp các dòng sự kiện vào tệp nhật ký <code>events.jsonl</code>; và <strong><code>"x"</code> (Exclusive Create)</strong> kích hoạt cờ tạo độc quyền (<code>O_CREAT | O_EXCL</code>), lập tức văng lỗi <code>FileExistsError</code> nếu tệp đã tồn tại nhằm làm chốt chặn an toàn chống ghi đè nhầm kết quả của tiến trình khác.</p>
+
+          <p>Ở chiều đọc dữ liệu (<em>Slide 59–60</em> &amp; <em>Data Engineering with Python</em> Ch. 3), sự khác biệt giữa các phương thức đọc quyết định trực tiếp sự sống còn của bộ nhớ RAM khi xử lý tệp lớn. Nếu kỹ sư gọi <code>f.read()</code> (nạp toàn bộ tệp thành một chuỗi <code>str</code> khổng lồ) hoặc <code>f.readlines()</code> (khởi tạo một danh sách <code>list</code> chứa hàng chục triệu đối tượng <code>str</code> cho từng dòng) trên một tệp nhật ký <code>10 GB</code>, CPython sẽ cấp phát dồn dập toàn bộ dữ liệu cộng thêm chi phí tiêu đề PyObject vào Heap RAM cùng một lúc, đẩy máy chủ chạm trần bộ nhớ vật lý và bị <strong>Linux OOM Killer</strong> bức tử. Ngược lại, khi duyệt trực tiếp qua đối tượng tệp bằng vòng lặp <code>for line in f:</code> (hoặc gọi tuần tự <code>f.readline()</code>), đối tượng tệp vận hành như một <strong>Lazy Iterator / Generator</strong> kết hợp bộ đệm đọc tuần tự (Buffered I/O mặc định <code>8 KB</code>): tại mỗi bước lặp, CPython chỉ nạp đúng <code>1 dòng</code> vào RAM để xử lý rồi thu hồi vùng nhớ ngay ở vòng lặp kế tiếp, giữ mức tiêu thụ bộ nhớ ổn định tuyệt đối ở <strong><code>O(1)</code> RAM</strong> dù tệp đầu vào nặng <code>10 MB</code> hay <code>100 GB</code>.</p>
+
+          <x-figure id="python-3-2-fig" key="3.2" title="Sơ đồ 3.2 — Giải phẫu 4 Chế độ Mở tệp (r, w, a, x) và Đối chiếu Mức tiêu thụ RAM: Eager Load (read/readlines → OOM) vs. Streaming Iterator (O(1) RAM)">Giải phẫu hai chiều File I/O: (1) Bốn cờ chế độ <code>"r"</code>, <code>"w"</code> (<code>O_TRUNC</code> xóa trắng tệp cũ), <code>"a"</code> (<code>O_APPEND</code> ghi nối đuôi an toàn) và <code>"x"</code> (khóa chống ghi đè); (2) Đối chiếu đọc tệp <code>10 GB</code> giữa Eager Load (<code>read()</code> / <code>readlines()</code> nạp toàn khối gây tràn RAM) và Streaming Iterator (<code>for line in f:</code> giữ đúng 1 dòng trong RAM với độ phức tạp <code>O(1)</code>).</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chế độ Mở / Phương thức Đọc</th>
+                  <th>Hành vi Cơ học trên Ổ đĩa &amp; Bộ nhớ RAM (Slide 57–60)</th>
+                  <th>Độ phức tạp RAM &amp; Kịch bản Ứng dụng Chuẩn</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Chế độ <code>"r"</code> (Read)</strong> &amp; <strong><code>"x"</code> (Create)</strong></td>
+                  <td><code>"r"</code> mở chỉ đọc (báo lỗi <code>FileNotFoundError</code> nếu thiếu tệp); <code>"x"</code> tạo tệp mới độc quyền (báo lỗi <code>FileExistsError</code> nếu tệp đã tồn tại trên đĩa).</td>
+                  <td>Dùng <code>"r"</code> để đọc cấu hình/dữ liệu nguồn; dùng <code>"x"</code> khi xuất tệp checkpoint hoặc tạo khóa tệp (Lock file) không cho phép hai tiến trình ghi đè lên nhau.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chế độ <code>"w"</code> (Write)</strong> vs. <strong><code>"a"</code> (Append)</strong></td>
+                  <td><code>"w"</code> kích hoạt cờ <code>O_TRUNC</code> cắt cụt tệp cũ về <code>0 byte</code> ngay khi mở; <code>"a"</code> kích hoạt cờ <code>O_APPEND</code> giữ nguyên lịch sử cũ và luôn ghi nối tiếp vào cuối tệp.</td>
+                  <td>Chỉ dùng <code>"w"</code> khi chủ đích tạo lại báo cáo mới từ đầu; bắt buộc dùng <code>"a"</code> cho tệp <code>events.jsonl</code> và tệp nhật ký vận hành để bảo toàn dữ liệu lịch sử.</td>
+                </tr>
+                <tr>
+                  <td><strong>Đọc Toàn khối (Eager Load):</strong><br><code>f.read()</code> &amp; <code>f.readlines()</code></td>
+                  <td><code>f.read()</code> nạp toàn bộ nội dung tệp thành một chuỗi <code>str</code> duy nhất; <code>f.readlines()</code> nạp toàn bộ các dòng vào một mảng <code>list</code> trên bộ nhớ RAM cùng lúc.</td>
+                  <td><strong><code>O(N)</code> RAM</strong> (tăng tuyến tính theo kích thước tệp): chỉ dùng cho tệp cấu hình nhỏ vài Kilobyte; tuyệt đối cấm dùng trên tệp dữ liệu lớn để tránh lỗi tràn bộ nhớ (OOM).</td>
+                </tr>
+                <tr>
+                  <td><strong>Đọc Luồng Lười (Streaming):</strong><br><code>f.readline()</code> &amp; <code>for line in f:</code></td>
+                  <td>Tận dụng giao thức Iterator của đối tượng tệp và bộ đệm C Buffered I/O: đọc trượt tuần tự từng dòng một, xử lý xong dòng trước mới nạp dòng tiếp theo.</td>
+                  <td><strong><code>O(1)</code> RAM</strong> (hằng số bộ nhớ): tiêu chuẩn bắt buộc trong Data Engineering khi quét tệp CSV, JSON Lines (<code>.jsonl</code>) hoặc tệp log hàng chục Gigabyte.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Kết hợp <code>with open(..., "a")</code> và luồng đọc <code>for line in f:</code> đã giúp <code>crawler.py</code> xử lý tệp dữ liệu lớn an toàn tuyệt đối với chi phí <code>O(1)</code> RAM. Nhưng nếu tên tệp đầu vào, kích thước lô (batch size) hay chế độ chạy vẫn bị gán cứng (hard-coded) bên trong mã nguồn và xuất thông báo bằng hàm <code>print()</code> thô sơ, tập lệnh này sẽ không thể tích hợp vào đường ống tự động hóa CI/CD hay bộ lập lịch Airflow — đó là lý do chúng ta phải chuẩn hóa giao diện CLI và thư viện chuẩn ở <strong>Trạm 3.3</strong>.</p>
+        </section>
+
+        <section class="lesson-section" id="python-3-3">
+          <h2 id="python-3-3-h2" tabindex="-1">Trạm 3.3: Vũ khí hóa Script thành Công cụ Production — Giao diện CLI với argparse &amp; Hệ sinh thái Python Standard Library</h2>
+
+          <p>Trong môi trường Production (Docker Container, Cronjob, Apache Airflow), kỹ sư không bao giờ mở mã nguồn <code>crawler.py</code> ra sửa lại từng biến số mỗi khi đổi môi trường từ Dev sang Staging hay Production. Thư viện tích hợp <strong><code>argparse</code></strong> (lớp <code>ArgumentParser</code> — <em>Slide 61–65</em>) tách biệt hoàn toàn cấu hình thực thi khỏi mã nguồn thông qua quy trình <strong>3 bước tiêu chuẩn (Create → Add → Parse)</strong>: (1) khởi tạo bộ phân tích <code>parser = argparse.ArgumentParser(...)</code>; (2) đăng ký đặc tả tham số qua <code>parser.add_argument(...)</code> — bao gồm đối số bắt buộc theo vị trí (Positional argument như <code>"dataset"</code>), đối số tùy chọn kèm ép kiểu và giá trị mặc định (<code>"--batch"</code> với <code>type=int</code>, <code>default=32</code>), khóa chặt tập giá trị hợp lệ (<code>"--mode"</code> với <code>choices=["train", "val"]</code>), hoặc cờ bật/tắt kiểu boolean không cần truyền giá trị đi kèm (<code>"--save"</code> với <code>action="store_true"</code>); và (3) gọi <code>args = parser.parse_args()</code> để CPython tự động kiểm tra tính hợp lệ, sinh bảng hướng dẫn <code>--help</code> và trả về đối tượng thuộc tính an toàn kiểu dữ liệu.</p>
+
+          <p>Song hành cùng <code>argparse</code>, <strong>Python Standard Library</strong> (<em>Slide 66</em>) cung cấp sẵn bộ 6 module nền tảng cấp độ hệ thống mà không cần cài đặt bất kỳ gói phụ thuộc bên ngoài nào: <strong><code>os</code> / <code>pathlib</code></strong> (quản lý biến môi trường và thao tác đường dẫn hướng đối tượng đa hệ điều hành), <strong><code>datetime</code></strong> (đóng dấu thời gian chuẩn hóa múi giờ ISO-8601), <strong><code>json</code></strong> (tuần tự hóa và giải mã payload API/JSONL), <strong><code>re</code></strong> (đối sánh và bóc tách mẫu văn bản phức tạp bằng Regular Expressions), <strong><code>math</code> / <code>random</code></strong> (tính toán toán học và lấy mẫu ngẫu nhiên), và đặc biệt là <strong><code>logging</code></strong>. Khác với hàm <code>print()</code> chỉ đẩy văn bản thô ra <code>stdout</code> mà không có cấp độ nghiêm trọng hay thời gian thực thi, module <code>logging</code> chuẩn hóa nhật ký vận hành theo phân cấp (<code>DEBUG</code>, <code>INFO</code>, <code>WARNING</code>, <code>ERROR</code>, <code>CRITICAL</code>), tự động gắn nhãn thời gian (Timestamp) và định tuyến luồng nhật ký đồng thời ra cả màn hình điều khiển lẫn tệp lưu trữ xoay vòng.</p>
+
+          <x-figure id="python-3-3-fig" key="3.3" title="Sơ đồ 3.3 — Luồng 3 Bước của argparse (Create → Add → Parse) và Bộ 6 Module Cốt lõi trong Python Standard Library">Kiến trúc đóng gói tập lệnh <code>crawler.py</code> chuẩn Production: (1) Cổng giao tiếp CLI <code>argparse</code> thực thi quy trình 3 bước Create (<code>ArgumentParser</code>) → Add (<code>add_argument</code> với <code>type</code>, <code>default</code>, <code>choices</code>, <code>action="store_true"</code>) → Parse (<code>parse_args()</code>); (2) Phối hợp 6 module trong Python Standard Library (<code>os</code> / <code>pathlib</code>, <code>datetime</code>, <code>math</code> / <code>random</code>, <code>json</code>, <code>re</code>, <code>logging</code>).</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Thành phần CLI / Standard Library</th>
+                  <th>Cơ chế Kỹ thuật &amp; Tham số Cốt lõi (Slide 62–66)</th>
+                  <th>Vai trò trong Đường ống Dữ liệu &amp; MLOps (<code>crawler.py</code>)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong><code>argparse</code> (Quy trình Create → Add → Parse)</strong></td>
+                  <td>Khởi tạo <code>ArgumentParser</code>; khai báo đối số vị trí (<code>"dataset"</code>), tùy chọn ép kiểu (<code>--batch</code>, <code>type=int</code>, <code>default=32</code>), giới hạn miền (<code>choices=['train', 'val']</code>) và cờ boolean (<code>action="store_true"</code>).</td>
+                  <td>Biến tập lệnh tĩnh thành công cụ CLI tái sử dụng được trên Airflow/Docker; tự động chặn tham số sai kiểu ngay từ cửa ngõ và tự sinh tài liệu <code>--help</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>os</code> &amp; <code>pathlib</code></strong><br><em>(File &amp; Directory Access)</em></td>
+                  <td>Thao tác cây thư mục, đọc biến môi trường (<code>os.environ</code>) và nối đường dẫn hướng đối tượng bằng toán tử <code>/</code> của lớp <code>Path</code> độc lập hệ điều hành.</td>
+                  <td>Tự động khởi tạo thư mục đích (<code>mkdir(parents=True, exist_ok=True)</code>) và hợp nhất đường dẫn tệp dữ liệu an toàn giữa Linux, macOS và Windows.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>json</code> &amp; <code>re</code></strong><br><em>(Serialization &amp; Pattern Matching)</em></td>
+                  <td><code>json.loads()</code> / <code>json.dumps()</code> chuyển đổi chuỗi JSON và <code>dict</code>; <code>re</code> biên dịch biểu thức chính quy (Regular Expressions) để lọc mẫu văn bản.</td>
+                  <td>Giải mã payload phản hồi từ REST API, làm sạch chuỗi ký tự bẩn bằng <code>re</code> và tuần tự hóa từng bản ghi sạch xuống tệp <code>events.jsonl</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>datetime</code>, <code>math</code> &amp; <code>random</code></strong><br><em>(Time &amp; Numeric Utilities)</em></td>
+                  <td>Quản lý mốc thời gian thực thi (<code>datetime</code>), các hàm toán học chuẩn (<code>math</code>) và sinh số giả ngẫu nhiên có kiểm soát hạt giống (<code>random</code>).</td>
+                  <td>Đóng dấu thời gian thu thập (Ingestion Timestamp) cho từng sự kiện và tính toán khoảng trễ ngẫu nhiên (Jitter Backoff) khi thử lại kết nối mạng.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>logging</code></strong><br><em>(Production Event Logging)</em></td>
+                  <td>Ghi nhật ký phân cấp (<code>INFO</code>, <code>WARNING</code>, <code>ERROR</code>) kèm định dạng thời gian, tên module và dòng lệnh thay thế hoàn toàn lệnh <code>print()</code>.</td>
+                  <td>Theo dõi tiến độ thu thập theo lô và lưu vết đầy đủ Traceback khi gặp bản ghi lỗi mà không làm nhiễu loạn luồng dữ liệu đầu ra chuẩn.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <pre><code>import argparse, json, logging
+from pathlib import Path
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+parser = argparse.ArgumentParser(description="Production Data Ingestion CLI")
+parser.add_argument("dataset", help="Path to input raw JSONL file")
+parser.add_argument("--batch", type=int, default=32, help="Batch size (default: 32)")
+parser.add_argument("--mode", choices=["train", "val"], default="train", help="Pipeline split mode")
+parser.add_argument("--save", action="store_true", help="Persist valid records to output")
+args = parser.parse_args()
+
+with open(Path(args.dataset), "r", encoding="utf-8") as src, open("clean_events.jsonl", "a", encoding="utf-8") as dst:
+    for line in src:
+        try:
+            record = json.loads(line)
+            if args.save:
+                dst.write(json.dumps(record) + "\n")
+        except ValueError as err:
+            logging.warning("Skipped malformed JSON record: %s", err)</code></pre>
+
+          <p>Đến đây, <code>crawler.py</code> đã trở thành một công cụ CLI chuẩn mực: nhận cấu hình động qua <code>argparse</code>, ghi nhật ký phân cấp bằng <code>logging</code>, xử lý luồng tệp <code>O(1)</code> RAM và bảo toàn tuyệt đối File Descriptor nhờ <code>with</code>. Tuy nhiên, khi đưa công cụ này đi thu thập dữ liệu thực tế từ <code>10,000</code> địa chỉ API qua mạng Internet, việc gọi tuần tự từng yêu cầu một (Synchronous I/O) khiến CPU dành 99% thời gian ngồi chờ phản hồi mạng — nút thắt hiệu năng cuối cùng sẽ được giải quyết bằng lập trình bất đồng bộ (<code>async</code> / <code>await</code>) và quản trị môi trường ở <strong>Chặng 4</strong>.</p>
+        </section>
+
+        <section class="summary-section" id="python-3-summary">
+          <h2 id="python-3-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 3 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <ol>
+            <li><strong>Cấm bắt lỗi mù quáng bằng <code>except Exception:</code>:</strong> Quá trình tháo gỡ ngăn xếp (Stack Unwinding) đòi hỏi kỹ sư chỉ bắt các lớp ngoại lệ cụ thể (<code>ValueError</code>, <code>KeyError</code>, <code>ZeroDivisionError</code>) để xử lý dữ liệu bẩn mà không nuốt chửng lỗi logic hệ thống (<code>TypeError</code>, <code>NameError</code>).</li>
+            <li><strong>Giao thức hai pha của Context Manager (<code>with</code>):</strong> Bọc tài nguyên bằng câu lệnh <code>with</code> kích hoạt <code>__enter__()</code> khi mở và cam kết luôn thực thi <code>__exit__(exc_type, exc_val, exc_tb)</code> khi thoát khối lệnh, triệt tiêu hoàn toàn nguy cơ rò rỉ File Descriptor gây lỗi <code>OSError: [Errno 24] Too many open files</code>.</li>
+            <li><strong>Cờ mở tệp vật lý trong <code>open(filename, mode)</code>:</strong> Chế độ <code>"w"</code> kích hoạt cờ cắt cụt <code>O_TRUNC</code> xóa trắng dữ liệu cũ ngay lập tức; chế độ <code>"a"</code> kích hoạt cờ <code>O_APPEND</code> ghi nối đuôi an toàn cho tệp nhật ký; còn <code>"x"</code> bảo vệ độc quyền chống ghi đè bằng ngoại lệ <code>FileExistsError</code>.</li>
+            <li><strong>Đánh đổi bộ nhớ giữa Eager Load và Streaming Iterator:</strong> Gọi <code>read()</code> hoặc <code>readlines()</code> nạp toàn bộ tệp lớn vào RAM với độ phức tạp <code>O(N)</code> gây tràn bộ nhớ (OOM); ngược lại, duyệt <code>for line in f:</code> tận dụng bộ đệm và cơ chế Lazy Iterator giữ mức tiêu thụ bộ nhớ cố định ở <code>O(1)</code> RAM.</li>
+            <li><strong>Vũ khí hóa CLI với <code>argparse</code> và Standard Library:</strong> Quy trình 3 bước <strong>Create → Add → Parse</strong> của <code>ArgumentParser</code> kết hợp bộ 6 module chuẩn (<code>os</code> / <code>pathlib</code>, <code>datetime</code>, <code>math</code> / <code>random</code>, <code>json</code>, <code>re</code>, <code>logging</code>) tách bạch hoàn toàn cấu hình khỏi mã nguồn để sẵn sàng tích hợp vào CI/CD và Airflow.</li>
+          </ol>
+
+          <p><strong>Câu hỏi tự kiểm tra trước khi sang Chặng 4:</strong> (1) Tại sao mở tệp bằng <code>f = open(...)</code> mà không dùng <code>with</code> lại có thể đánh sập toàn bộ máy chủ sau vài nghìn lần văng ngoại lệ <code>ValueError</code>? (2) Khi mở một tệp đã có sẵn <code>10 GB</code> dữ liệu bằng chế độ <code>"w"</code> so với <code>"a"</code>, nhân hệ điều hành thực hiện thao tác gì lên tệp ngay tại thời điểm lệnh <code>open()</code> chạy? (3) Tại sao vòng lặp <code>for line in f:</code> có thể quét tệp <code>100 GB</code> trên máy chủ chỉ có <code>2 GB</code> RAM mà không bị OOM Killer tiêu diệt như <code>f.readlines()</code>? (4) Trong <code>argparse</code>, sự khác biệt giữa tham số <code>choices=["train", "val"]</code> và <code>action="store_true"</code> là gì? (5) Tại sao trên môi trường Production, kỹ sư bắt buộc thay thế <code>print()</code> bằng module <code>logging</code>?</p>
+        </section>
+      </div>

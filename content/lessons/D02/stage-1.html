@@ -65,6 +65,12 @@
           </table>
         </div>
 
+        <h2 id="storage-1-0-sim" tabindex="-1">Trạm 1.0 (Mô phỏng 2D): Phòng Thí Nghiệm Tháp Độ Trễ, Định Dạng Cột Parquet/Arrow, Kimball SCD Type 2, Open Lakehouse ACID &amp; Medallion</h2>
+
+        <p>Trước khi bước vào từng trạm vật lý, hãy tương tác trực tiếp với 6 lát cắt kiến trúc của tầng lưu trữ <strong>Storage Layer &amp; Open Data Lakehouse</strong> theo chân <strong>Đơn hàng #8888</strong>: từ tháp độ trễ <code>L1 Cache (1ns) → S3 (100ms)</code> và hiện tượng <code>Spill-to-Disk</code>, giải phẫu <code>Apache Parquet + Apache Arrow</code>, đối chiếu <code>HDFS 3x vs. Cloud Object Storage</code>, mô hình chiều <code>Kimball SCD Type 2</code>, cơ chế chặn <code>Zombie Files</code> của <code>Delta Lake / Iceberg</code> đến dây chuyền 3 tầng <code>Medallion (Bronze → Silver → Gold)</code>.</p>
+
+        <x-storage2d></x-storage2d>
+
         <hr />
 
         <h2 id="storage-1-1" tabindex="-1">Trạm 1.1: Bậc thang phần cứng &amp; thang đo độ trễ vật lý (Cache Hierarchy)</h2>

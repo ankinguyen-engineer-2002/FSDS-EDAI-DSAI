@@ -14,6 +14,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+from f04_api_module import build_api_ascii_diagrams, API_SIM2D_JS
+from f05_validation_module import build_validation_ascii_diagrams, VALIDATION_SIM2D_JS
+from f01_f03_d02_sim2d import LINUX_SIM2D_JS, DATABASE_SIM2D_JS, STORAGE_SIM2D_JS
 from ascii_diagram import (
     display_width,
     join_horizontal,
@@ -1232,8 +1235,3279 @@ def build_ingestion_ascii_diagrams() -> dict:
     return diagrams
 
 
+def build_spark_ascii_diagrams() -> dict:
+    diagrams = {
+        '0.1': {"ascii": '========================================================================================================================================\n                           BẢN ĐỒ KIẾN TRÚC 6 CHẶNG (D03) · TRANSFORMATION LAYER I: BATCH PROCESSING (SPARK)\n              Nhân vật chính: Job daily_revenue_attribution.py (Order #8888 + 2 tỷ dòng / 500GB Parquet từ Lakehouse D02)\n========================================================================================================================================\n\n  CHẶNG 1 · WHY SPARK, ARCHITECTURE & EXECUTION                         CHẶNG 2 · ABSTRACTIONS & APIS (RDD VS DATAFRAME)\n┌───────────────────────────────────────────────────────────────┐     ┌───────────────────────────────────────────────────────────────┐\n│ • Trạm 1.1: Giới hạn Máy đơn (RAM/CPU/I/O) & Sự sụp đổ        │     │ • Trạm 2.1: Spark RDD — Tập hợp logic các Partition phân tán  │\n│   đọc/ghi đĩa lặp lại của Hadoop MapReduce trước Spark.       │     │   & Tự phục hồi lỗi qua Đồ thị Huyết thống (Lineage Graph).   │\n│ • Trạm 1.2: Kiến trúc Cụm: Driver Program (SparkSession,      │ ──► │ • Trạm 2.2: Khởi tạo RDD (parallelize) & Chi phí Double       │\n│   DAGScheduler) -> Cluster Manager -> Worker / Executors.     │     │   Serialization IPC giữa JVM Executor và Python Worker.       │\n│ • Trạm 1.3: Partition vs Task, Narrow vs Wide Transform,      │     │ • Trạm 2.3: Spark DataFrame — Bảng cấu trúc có Schema,        │\n│ Lazy Evaluation & Luồng 8 bước: App -> Job -> Stage -> Task.  │     │   Tính bất biến (Immutability) & Đọc đa nguồn (Parquet/JDBC). │\n└───────────────────────────────────────────────────────────────┘     │ • Trạm 2.4: Đối chiếu RDD vs DataFrame vs Dataset[T].         │\n                                                                      └───────────────────────────────────────────────────────────────┘\n                                                                    │\n                                                     │  Chuyển đổi sang biểu diễn byte & quản trị bộ nhớ RAM/Off-Heap trên cụm Executors\n                                                                    ▼\n  CHẶNG 3 · SERIALIZATION & IN-MEMORY COMPUTING                         CHẶNG 4 · BATCH CHALLENGES & BUILT-IN OPTIMIZERS\n┌───────────────────────────────────────────────────────────────┐     ┌───────────────────────────────────────────────────────────────┐\n│ • Trạm 3.1: Serialization & Deserialization (Object <-> Byte) │     │ • Trạm 4.1: 5 Thách thức Xử lý Lô: Data Skew, Shuffle         │\n│   tại 3 điểm nóng: Shuffle, Caching và Network Transfer.      │     │   Explosion, High Cardinality, Wide Schema, Schema Evolution. │\n│ • Trạm 3.2: Java Serialization (nặng metadata) vs Kryo        │     │ • Trạm 4.2: Catalyst Optimizer (Logical -> Optimized Plan,    │\n│   Serialization (nhỏ gọn gấp 10x, cần đăng ký class).         │ ──► │   Predicate Pushdown lọc t2.id > 50000 trước khi Join).       │\n│ • Trạm 3.3: In-Memory Computing, cache() vs persist() &       │     │ • Trạm 4.3: Project Tungsten (Off-Heap UnsafeRow, L1/L2/L3    │\n│   5 chế độ lưu trữ (MEMORY_ONLY .. DISK_ONLY).                │     │   Cache-Aware Computation ~1ns, Whole-Stage CodeGen).         │\n│ • Trạm 3.4: Khi nào nên Cache & Unified Memory Manager.       │     │ • Trạm 4.4: Adaptive Query Execution (AQE Runtime Stats).     │\n└───────────────────────────────────────────────────────────────┘     └───────────────────────────────────────────────────────────────┘\n                                                                    │\n                                              │  Kết hợp bộ ba tối ưu tự động (Catalyst/Tungsten/AQE) với 6 kỹ thuật tinh chỉnh thủ công\n                                                                    ▼\n  CHẶNG 5 · MANUAL PERFORMANCE TUNING (6 KỸ THUẬT)                      CHẶNG 6 · SPARK OPERATIONAL TECHNIQUES\n┌───────────────────────────────────────────────────────────────┐     ┌───────────────────────────────────────────────────────────────┐\n│ • Trạm 5.1: Tinh chỉnh Shuffle & Partition (chống             │     │ • Trạm 6.1: Giải phẫu Spark UI Dashboard (Active/Completed    │\n│   Spill/Overhead)                                             │     │   Stages, Shuffle Read/Write, GC Time, Spill & OOM).          │\n│   & Chiến lược Join (Broadcast Hash Join vs Sort-Merge Join). │ ──► │ • Trạm 6.2: Dynamic Allocation (tự động co giãn 2 -> 10 -> 1  │\n│ • Trạm 5.2: Khử Khóa Lệch bằng Key Salting (VIP123_1..N)      │     │   Executors theo schedulerBacklogTimeout=1s & idle=60s).      │\n│   chia tải đều cho các Executors, xóa sổ Straggler Task.      │     │ • Trạm 6.3: Data Compaction (gộp 1.000.000 file nhỏ thành     │\n│ • Trạm 5.3: High Cardinality (approx_count_distinct +         │     │   200 file chuẩn qua coalesce(n), repartition(n), OPTIMIZE).  │\n│   Pre-agg),                                                   │     └───────────────────────────────────────────────────────────────┘\n│   Wide Schema (Column Pruning) & Schema Evolution (Iceberg).  │\n└───────────────────────────────────────────────────────────────┘', "kind": 'boxes'},
+        '1.1': {"ascii": '========================================================================================================================================\n                               VAI TRÒ TẦNG TRANSFORMATION: TỪ MÁY ĐƠN, HADOOP MAPREDUCE ĐẾN APACHE SPARK\n                    Làm sạch, xác thực, kết nối (Join) và tổng hợp dữ liệu thô từ D02 thành bảng sẵn sàng cho BI/AI\n========================================================================================================================================\n\n  1. GIỚI HẠN CỦA MÁY ĐƠN (THE PROBLEM WITH SINGLE-MACHINE PROCESSING)\n┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\n│ • Bảng orders_silver (500 GB / 2 tỷ dòng) nạp vào 1 máy chủ đơn (64 GB RAM, 8 Cores):                                              │\n│   [Đĩa NVMe 500 GB] ──► [RAM 64 GB: Tràn bộ nhớ ngay lập tức!] ──► [CRASH: MemoryError / Swap Thrashing!]                          │\n│ • Tại sao nâng cấp dọc (Scale-Up) thất bại? Chi phí phần cứng tăng theo hàm mũ, băng thông đọc đĩa                                 │\n│   của 1 máy bị trần vật lý (~3 GB/s) và 1 điểm lỗi duy nhất (Single Point of Failure).                                             │\n└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘\n                                                                    │\n                                   │  Chia nhỏ dữ liệu thành các Partitions và phân phối qua nhiều máy chủ (Scale-Out Distributed Batch)\n                                                                    ▼\n  2A. HADOOP MAPREDUCE (REPEATED DISK I/O)                              2B. APACHE SPARK (IN-MEMORY DAG ENGINE)\n┌───────────────────────────────────────────────────────────────┐     ┌───────────────────────────────────────────────────────────────┐\n│ • Hadoop MapReduce buộc phải ghi kết quả trung gian xuống đĩa │     │ • Apache Spark giữ dữ liệu trung gian trong RAM và nối chuỗi  │\n│   HDFS sau MỖI bước biến đổi:                                 │     │   toàn bộ phép toán thành đồ thị DAG:                         │\n│ [HDFS Read] ──► (Map 1: Filter) ──► [HDFS Write + 3x Rep] ──► │ vs. │ [Lakehouse Read] ──► (Filter ──► Select ──► Join ──►          │\n│   [HDFS Read] ──► (Reduce 1: Join) ──► [HDFS Write]           │     │   Aggregate trong RAM) ──► [Gold Table Write]                 │\n│ • Hậu quả: 90% thời gian chạy Job bị đốt vào Disk I/O và      │     │ • Hiệu quả: Nhanh gấp 10x - 100x; một động cơ hợp nhất cho    │\n│   Network Serialization lặp đi lặp lại.                       │     │   Batch, SQL, Streaming, MLlib & GraphX.                      │\n└───────────────────────────────────────────────────────────────┘     └───────────────────────────────────────────────────────────────┘', "kind": 'boxes'},
+        '1.2': {"ascii": '========================================================================================================================================\n                             GIẢI PHẪU KIẾN TRÚC CỤM APACHE SPARK (DRIVER, CLUSTER MANAGER & WORKER NODES)\n                 Worker Node không chạy trực tiếp chương trình của bạn: Worker chứa Executors, và Executors chạy Tasks\n========================================================================================================================================\n\n  1. DRIVER PROGRAM (BỘ NÃO)                    2. CLUSTER MANAGER (ĐIỀU PHỐI)                3. WORKER NODES & EXECUTORS\n┌────────────────────────────────────────┐    ┌────────────────────────────────────────┐    ┌─────────────────────────────────────────┐\n│ • Chạy hàm main() của người dùng       │    │ • Quản lý tài nguyên vật lý toàn cụm   │    │ • Worker Node A (16 Cores, 64GB RAM):   │\n│ • Khởi tạo SparkSession / SparkContext │    │   (CPU Cores & RAM trên các máy chủ)   │    │   └── [Executor 1 JVM Process]          │\n│ • Phân tích code thành đồ thị logic    │    │ • Các nền tảng hỗ trợ:                 │    │       ├── [Task 1 -> Partition 1]       │\n│   (DAG)                                │◄─► │   - Spark Standalone                   │──► │       ├── [Task 2 -> Partition 2]       │\n│ • DAGScheduler cắt Job thành các       │    │   - Apache Hadoop YARN                 │    │       └── [In-Memory Cache / BlockMgr]  │\n│   Stages                               │    │   - Kubernetes (K8s Pods)              │    │ • Worker Node B (16 Cores, 64GB RAM):   │\n│ • TaskScheduler gửi Tasks xuống        │    │ • Cấp phát Container cho Executors     │    │   └── [Executor 2 JVM Process]          │\n│   Executors                            │    └────────────────────────────────────────┘    │       ├── [Task 3 -> Partition 3]       │\n│ • Theo dõi trạng thái & thu nhận kết   │                                                  │       └── [Task 4 -> Partition 4]       │\n│   quả                                  │                                                  └─────────────────────────────────────────┘\n└────────────────────────────────────────┘\n\n  NGUYÊN TẮC TÁCH BIỆT CONTROL PLANE VÀ DATA PLANE TRONG SPARK\n┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\n│ • Đường điều khiển (Control Plane): Driver xin tài nguyên từ Cluster Manager; sau khi Executors khởi chạy trên các                 │\n│   Worker Nodes, Driver giao tiếp TRỰC TIẾP (RPC) với các Executors để giao Task và nhận trạng thái thực thi.                       │\n│ • Đường dữ liệu (Data Plane): Các Executors đọc/ghi các Partitions trực tiếp từ S3/HDFS/Lakehouse (D02) và trao đổi                │\n│   dữ liệu trực tiếp với nhau khi Shuffle mà KHÔNG đi vòng qua Driver (trừ khi bạn gọi lệnh .collect() kéo về Driver!).             │\n└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘', "kind": 'boxes'},
+        '1.3': {"ascii": "========================================================================================================================================\n                          GIẢI PHẪU PARTITION, LAZY EVALUATION & PHÂN CẤP APPLICATION -> JOB -> STAGE -> TASK\n                       Không có Action, Spark chỉ ghi nhận kế hoạch (Lazy) chứ chưa chạm vào một byte dữ liệu nào\n========================================================================================================================================\n\n  1. QUAN HỆ BẤT BIẾN GIỮA PARTITION (MẢNH DỮ LIỆU) VÀ TASK (ĐƠN VỊ XỬ LÝ)\n┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\n│ • Partition (Phân vùng dữ liệu): Một mảnh cắt logic của tập dữ liệu lớn nằm trong bộ nhớ của Executor.                             │\n│   [500 GB orders] ──► [Partition 1]  [Partition 2]  [Partition 3]  [Partition 4]  ...  [Partition 200]                             │\n│                             │              │              │              │                   │                                     │\n│                             ▼              ▼              ▼              ▼                   ▼                                     │\n│ • Task (Đơn vị thực thi): [Task 1]       [Task 2]       [Task 3]       [Task 4]       ...  [Task 200]                              │\n│   Quy tắc 1-1: Mỗi Task là đơn vị công việc nhỏ nhất, chạy trên 1 luồng CPU Core để xử lý đúng 1 Partition.                        │\n└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘\n\n  2. PHÂN CẤP ĐƠN VỊ THỰC THI: APPLICATION ──► JOB ──► STAGE (CẮT TẠI SHUFFLE) ──► TASK\n┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\n│ • Application (application_12345): Toàn bộ chương trình Spark của bạn (có thể chứa nhiều Actions).                                 │\n│   └── Job 1 (sinh ra khi gọi Action .write() hoặc .show()):                                                                        │\n│       ├── Stage 1 (Narrow Transformations: Read orders -> filter(status=='completed') -> select(user_id, amount)):                 │\n│       │   └── Chạy song song 200 Tasks trong RAM mà không cần trao đổi dữ liệu qua mạng.                                           │\n│       ├── ════════════ [ RANH GIỚI SHUFFLE (Wide Transformation: join / groupBy country) ] ════════════                            │\n│       └── Stage 2 (Đọc dữ liệu Shuffle Read từ Stage 1 -> Tính tổng doanh thu theo quốc gia -> Ghi kết quả):                       │\n│           └── Chạy 200 Tasks phụ thuộc vào kết quả Shuffle Write của Stage 1.                                                      │\n└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘\n\n  3. LUỒNG THỰC THI 8 BƯỚC HOÀN CHỈNH (SPARK EXECUTION FLOW + LAZY EVALUATION)\n┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\n│   [1. User viết code] ──► [2. Ghi nhận Transformations (Lazy)] ──► [3. Gọi Action (.show/.write)] ──► [4. Catalyst tối ưu Plan]    │\n│                                                                                                                  │                 │\n│   [8. Trả kết quả / Ghi đĩa] ◄── [7. Executors chạy Tasks] ◄── [6. Cluster Mgr cấp RAM/CPU] ◄── [5. Driver tạo Job/Stage/Task] ◄─┘ │\n└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘", "kind": 'boxes'},
+        '2.1': {"ascii": '========================================================================================================================================\n                              GIẢI PHẪU SPARK RDD (RESILIENT DISTRIBUTED DATASET): PHÂN TÁN & TỰ PHỤC HỒI\n                  Nền tảng cấp thấp của Spark: Chia để trị (Distributed) + Phục hồi bằng công thức biến đổi (Lineage)\n========================================================================================================================================\n\n  1. TÍNH PHÂN TÁN (DISTRIBUTED): CHIA NHỎ TẬP DỮ LIỆU ĐỂ XỬ LÝ SONG SONG TRÊN NHIỀU MÁY\n┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\n│ • Dữ liệu gốc trên đĩa (HDFS/S3)      • RDD = Tập hợp logic các Partitions      • Phân bổ thực thi trên các Máy chủ                │\n│   ┌────────────────────────────┐        ┌────────────────────────────────┐        ┌─ Worker A: [Part 1] [Part 2]                   │\n│   │ Block 1 │ Block 2 │ Block 3│  ───►  │  Partition 1 (Logical Pointer) │  ───►  ├─ Worker B: [Part 3] [Part 4]                   │\n│   │ Block 4 │ Block 5 │ Block 6│        │  Partition 2, 3, 4 ...         │        └─ Worker C: [Part 5] [Part 6]                   │\n│   └────────────────────────────┘        └────────────────────────────────┘                                                         │\n│   *Lưu ý cốt lõi (Slide 20): RDD được định nghĩa bởi danh sách Partitions và hàm tính toán chúng, KHÔNG phải nơi lưu trữ.          │\n└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘\n\n  2. TÍNH TỰ PHỤC HỒI (RESILIENT): TÁI TẠO PHÂN VÙNG BỊ MẤT QUA ĐỒ THỊ HUYẾT THỐNG (LINEAGE)\n┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\n│ • Chuỗi biến đổi (Lineage Graph):  [RDD 1: textFile] ──(filter)──► [RDD 2: filtered] ──(map)──► [RDD 3: mapped]                    │\n│ • Kịch bản sự cố: Máy chủ Worker B bị sập đột ngột làm mất trắng [Partition 3] của RDD 3 trong bộ nhớ RAM!                         │\n│ • Cơ chế tự phục hồi (Resilient): Thay vì phải nhân bản 3 bản sao tốn kém trong RAM, Spark tra cứu Đồ thị Huyết thống              │\n│   (Lineage) và chỉ chạy lại đúng chuỗi `textFile(Block 3) -> filter -> map` trên máy chủ khác để tái tạo lại Partition 3!          │\n└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘', "kind": 'boxes'},
+        '2.2': {"ascii": "========================================================================================================================================\n                              KHỞI TẠO SPARK RDD VS. NÚT THẮT CỔ CHAI PYTHON SUBPROCESS IPC TRONG PYSPARK\n                     Giải thích cơ học tại sao cùng viết bằng Python nhưng DataFrame lại nhanh vượt trội so với RDD\n========================================================================================================================================\n\n  1. QUY TRÌNH 3 BƯỚC KHỞI TẠO RDD (SLIDE 23)                           2. TẠI SAO PYTHON RDD CHẬM? (DOUBLE IPC PENALTY)\n┌───────────────────────────────────────────────────────────────┐     ┌───────────────────────────────────────────────────────────────┐\n│ • Bước 1: Khởi tạo SparkSession (Entry point từ Spark 2.0+):  │     │ • Khi gọi `rdd.map(lambda x: x * 2)` trong PySpark:           │\n│ `spark =                                                      │     │   1. JVM Executor phải đọc dữ liệu và Serialize ra byte.      │\n│   SparkSession.builder.master('local[*]').getOrCreate()`      │ ──► │   2. Bơm qua ống dẫn (Socket/Pipe IPC) sang Python Worker.    │\n│ • Bước 2: Truy cập SparkContext cấp thấp:                     │     │   3. Python Worker `pickle.loads()`, chạy hàm lambda.         │\n│   `sc = spark.sparkContext`                                   │     │   4. `pickle.dumps()` gửi ngược lại về JVM Executor!          │\n│ • Bước 3: Chia mảng dữ liệu thành 2 Partitions:               │     │ • Hậu quả: Chi phí tuần tự hóa kép làm chậm gấp 5x - 10x!     │\n│   `my_rdd = sc.parallelize([10, 20, 30, 40], numSlices=2)`    │     └───────────────────────────────────────────────────────────────┘\n└───────────────────────────────────────────────────────────────┘", "kind": 'boxes'},
+        '2.3': {"ascii": "========================================================================================================================================\n                             GIẢI PHẪU SPARK DATAFRAME: LƯỢC ĐỒ (SCHEMA), TÍNH BẤT BIẾN & ĐA NGUỒN DỮ LIỆU\n                    DataFrame = Dễ viết hơn + Nhanh hơn + Có cấu trúc rõ ràng để Catalyst & Tungsten tối ưu tự động\n========================================================================================================================================\n\n  1. CẤU TRÚC SPARK DATAFRAME: BẢNG PHÂN TÁN GỒM ROWS, COLUMNS VÀ SCHEMA CHẶT CHẼ\n┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\n│ • Schema (Lược đồ tường minh):  order_id: STRING │ user_id: STRING │ country: STRING │ amount: DOUBLE │ is_valid: BOOLEAN          │\n│   ───────────────────────────────────────────────┼─────────────────┼─────────────────┼────────────────┼──────────────────          │\n│   Row 1 (Bản ghi giao dịch #1): 'ORD-8888'       │ 'USR-104'       │ 'VN'            │ 450000.0       │ true                       │\n│   Row 2 (Bản ghi giao dịch #2): 'ORD-8889'       │ 'USR-209'       │ 'US'            │ 1250000.0      │ true                       │\n└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘\n\n  2. TÍNH BẤT BIẾN (IMMUTABILITY) & ĐA NGUỒN DỮ LIỆU (PARQUET, CSV, JSON, JDBC, S3)\n┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\n│ • Tính bất biến (Immutability — Slide 27): DataFrame KHÔNG BAO GIỜ bị sửa đổi tại chỗ sau khi tạo.                                 │\n│   [df1: Bảng gốc 2 tỷ dòng] ──(.filter('amount > 0'))──► [df2: DataFrame mới] ──(.withColumn('tax'))──► [df3: DataFrame mới]       │\n│ • Lợi ích: Dữ liệu gốc luôn an toàn tuyệt đối; các luồng tính toán song song không bao giờ ghi đè làm hỏng trạng thái của nhau.    │\n└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘", "kind": 'boxes'},
+        '2.4': {"ascii": "========================================================================================================================================\n                                     ĐỐI CHIẾU BA TẦNG API: SPARK RDD VS. DATAFRAME VS. DATASET[T]\n            Tại sao `df.select('price') * 2` luôn đánh bại `rdd.map(lambda x: x * 2)` trong mọi bài toán dữ liệu có cấu trúc\n========================================================================================================================================\n\n  1. SPARK RDD (CẤP THẤP)                       2. SPARK DATAFRAME (CHỦ LỰC)                  3. SPARK DATASET[T] (SCALA/JAVA)\n┌─────────────────────────────────────────┐   ┌─────────────────────────────────────────┐   ┌─────────────────────────────────────────┐\n│ • Dữ liệu: Unstructured / Semi          │   │ • Dữ liệu: Structured & Semi            │   │ • Dữ liệu: Structured (JVM Typed)       │\n│ • Schema: Không có (Opaque Object)      │   │ • Schema: Có (Quản lý bởi Catalog)      │   │ • Schema: Có + Kiểm kiểu lúc Compile    │\n│ • Cú pháp: `rdd.map(lambda x: x*2)`     │   │ • Cú pháp: `df.select(col('p')*2)`      │   │ • Cú pháp: `ds.map(_.price * 2)`        │\n│ • Tối ưu hóa: Không (Chạy mù)           │   │ • Tối ưu hóa: Catalyst + Tungsten       │   │ • Tối ưu hóa: Catalyst + Encoder        │\n│ • PySpark: Chậm (Tốn Python IPC)        │   │ • PySpark: Cực nhanh (100% trong JVM)   │   │ • Ngôn ngữ: Chỉ có trên Scala / Java    │\n│ • Khi dùng: Xử lý văn bản/nhị phân      │   │ • Khi dùng: Lựa chọn mặc định cho       │   │ • Khi dùng: Ứng dụng Scala lớn cần      │\n│   thô cần kiểm soát từng bản ghi        │   │   95% tác vụ ETL / Batch / SQL          │   │   an toàn kiểu dữ liệu tuyệt đối        │\n└─────────────────────────────────────────┘   └─────────────────────────────────────────┘   └─────────────────────────────────────────┘", "kind": 'boxes'},
+        '3.1': {"ascii": '========================================================================================================================================\n                              GIẢI PHẪU SERIALIZATION & DESERIALIZATION TẠI 3 ĐIỂM NÓNG TRONG APACHE SPARK\n                Tối ưu kích thước byte truyền tải giúp giải phóng đồng thời cả 3 tài nguyên: RAM, CPU và Băng thông Mạng\n========================================================================================================================================\n\n  1. CƠ CHẾ TUẦN TỰ HÓA (SERIALIZATION) VÀ GIẢI TUẦN TỰ HÓA (DESERIALIZATION)\n┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\n│ [Executor A: Object trong RAM] ──► [Serializer] ──► [Luồng Byte Stream: 01001101...] ──(Mạng / Đĩa)──► [Deserializer] ──►          │\n│   [Executor B: Object]                                                                                                             │\n│ • Tại sao bắt buộc phải có? Các máy chủ không thể bắn thẳng con trỏ vùng nhớ RAM (Memory Pointer) qua cáp mạng cho nhau!           │\n│ • Chi phí 3 chiều (Slide 36): Object cồng kềnh ──► Tốn CPU Serialize ──► Luồng byte phình to ──► Nghẽn mạng ──► Tốn CPU            │\n│   Deserialize.                                                                                                                     │\n└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘\n\n  ĐIỂM NÓNG #1: SHUFFLE                         ĐIỂM NÓNG #2: CACHING / SPILL                 ĐIỂM NÓNG #3: NETWORK TRANSFER\n┌─────────────────────────────────────────┐   ┌─────────────────────────────────────────┐   ┌─────────────────────────────────────────┐\n│ • Khi chạy `join`, `groupBy`,           │   │ • Khi gọi `persist(MEMORY_ONLY_SER)`    │   │ • Khi Driver gửi hàm thực thi (Task     │\n│   `repartition`                         │   │   hoặc khi tràn RAM phải Spill ra đĩa.  │   │   Closure) và biến `Broadcast` xuống    │\n│ • Các bản ghi cùng khóa phải di chuyển  │   │ • Nén đối tượng thành mảng byte liên    │   │   tất cả các Executors trong cụm.       │\n│   giữa các Executors qua mạng.          │   │   tục giúp giảm 2x-5x dung lượng RAM.   │   └─────────────────────────────────────────┘\n│ • Điểm đốt CPU và băng thông số 1!      │   └─────────────────────────────────────────┘\n└─────────────────────────────────────────┘', "kind": 'boxes'},
+        '3.2': {"ascii": "========================================================================================================================================\n                                    ĐỐI CHIẾU JAVA SERIALIZATION VS. KRYO SERIALIZATION TRONG SPARK\n                      Tại sao các tác vụ RDD/Caching nặng bắt buộc phải bật KryoSerializer và đăng ký lớp dữ liệu\n========================================================================================================================================\n\n  1. JAVA SERIALIZATION (MẶC ĐỊNH — CỒNG KỀNH)                          2. KRYO SERIALIZATION (NHỎ GỌN GẤP 10X — TỐC ĐỘ CAO)\n┌───────────────────────────────────────────────────────────────┐     ┌───────────────────────────────────────────────────────────────┐\n│ • Cơ chế: Trình tuần tự hóa mặc định của JVM                  │     │ • Cơ chế: Thư viện tuần tự hóa nhị phân tốc độ cao            │\n│   (`ObjectOutputStream`).                                     │     │   (`KryoSerializer`).                                         │\n│ • Cấu trúc khung byte: Ghi kèm tên đầy đủ của Class, kế thừa, │ vs. │ • Cấu trúc khung byte: Thay tên Class dài dòng bằng mã ID số  │\n│   chữ ký kiểu dữ liệu và Object Header nặng nề.               │     │   nguyên                                                      │\n│ • Kích thước: Bản ghi 48 bytes phình thành ~180 - 250 bytes!  │     │   1-2 byte (khi đã đăng ký qua `classesToRegister`).          │\n│ • Tốc độ: Chậm, tạo áp lực lớn lên bộ thu gom rác JVM GC.     │     │ • Kích thước: Nhỏ gọn hơn Java Serialization tới 5x - 10x!    │\n└───────────────────────────────────────────────────────────────┘     │ • Cấu hình: `conf.set('spark.serializer',                     │\n                                                                      │   '...KryoSerializer')`.                                      │\n                                                                      └───────────────────────────────────────────────────────────────┘", "kind": 'boxes'},
+        '3.3': {"ascii": '========================================================================================================================================\n                            IN-MEMORY COMPUTING: CACHE() VS. PERSIST() & 5 CHẾ ĐỘ LƯU TRỮ (STORAGE CHOICES)\n                  Kiểm soát chính xác nơi lưu (RAM hay Đĩa) và dạng lưu (Đối tượng giải nén hay Mảng byte tuần tự hóa)\n========================================================================================================================================\n\n  1. NGUYÊN LÝ TÍNH TOÁN TRONG BỘ NHỚ (IN-MEMORY COMPUTING) & SỰ KHÁC BIỆT CỦA CACHE()\n┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\n│ • Không có Cache: Action 1 (.count()) đọc từ Đĩa -> Tính toán; Action 2 (.show()) LẠI đọc từ Đĩa -> Tính toán lại từ đầu!          │\n│ • Có Cache (`df.cache()`): Đọc từ Đĩa 1 lần -> Giữ các Partitions đã tính trong RAM -> Action 1, 2, 3 đọc thẳng từ RAM!            │\n│ • Sự khác biệt ngầm định (Slide 45): Với RDD, `cache()` = `MEMORY_ONLY`. Với DataFrame, `cache()` = `MEMORY_AND_DISK`.             │\n└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘\n\n  2. BẢNG GIẢI PHẪU 5 CHẾ ĐỘ LƯU TRỮ CỦA PERSIST() (SLIDES 47 - 52)\n┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\n│ Chế độ (Storage Choice) │ Nơi lưu trữ  │ Dạng lưu trữ (Format)        │ Khi tràn RAM (Out of Memory)         │ Đánh đổi CPU / RAM  │\n│ ────────────────────────┼──────────────┼──────────────────────────────┼──────────────────────────────────────┼──────────────────── │\n│ 1. MEMORY_ONLY          │ Chỉ RAM      │ Deserialized Java Object     │ Không lưu phần tràn; tính lại từ đầu │ Nhanh nhất, tốn RAM │\n│ 2. MEMORY_AND_DISK      │ RAM + Đĩa    │ Deserialized trong RAM       │ Đẩy phần tràn xuống Đĩa (Spill Disk) │ Chuẩn vàng mặc định │\n│ 3. MEMORY_ONLY_SER      │ Chỉ RAM      │ Serialized (1 mảng byte/part)│ Không lưu phần tràn; tính lại từ đầu │ Tiết kiệm RAM, tốn  │\n│   CPU                                                                                                                              │\n│   4. MEMORY_AND_DISK_SER  │ RAM + Đĩa    │ Serialized (1 mảng byte/part)│ Đẩy phần tràn xuống Đĩa (Spill Disk) │ Rất tiết kiệm RAM │\n│ 5. DISK_ONLY            │ Chỉ Đĩa cứng │ Serialized trên Đĩa local    │ Lưu toàn bộ trên Đĩa                 │ Dùng khi RAM quá    │\n│   hẹp                                                                                                                              │\n└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘', "kind": 'boxes'},
+        '3.4': {"ascii": '========================================================================================================================================\n                             CHIẾN LƯỢC SỬ DỤNG CACHE & KIẾN TRÚC BỘ NHỚ HỢP NHẤT (UNIFIED MEMORY MANAGER)\n                Hiểu cơ chế tranh chấp giữa Storage Memory (Cache) và Execution Memory (Shuffle/Join) bên trong Executor\n========================================================================================================================================\n\n  1A. KHI NÀO NÊN DÙNG CACHE / PERSIST?                                 1B. KHI NÀO CACHE GÂY HẠI HỆ THỐNG?\n┌───────────────────────────────────────────────────────────────┐     ┌───────────────────────────────────────────────────────────────┐\n│ • NÊN CACHE (Good Cases — Slide 53):                          │     │ • TUYỆT ĐỐI KHÔNG CACHE (Bad Cases — Slide 53):               │\n│ - Tập dữ liệu trung gian được tái sử dụng trong NHIỀU Actions │     │   - Dữ liệu chỉ đọc qua đúng 1 lần rồi ghi thẳng ra đích.     │\n│     hoặc nhiều nhánh báo cáo khác nhau.                       │ vs. │   - Bảng gốc khổng lồ hàng Terabyte làm tràn bộ nhớ Executor. │\n│ - Thuật toán lặp nhiều vòng (Machine Learning, Đồ thị Graph). │     │   - Quên gọi `df.unpersist()` sau khi dùng xong khiến bộ nhớ  │\n│ - Tập dữ liệu sau chuỗi lọc/join đắt đỏ đã thu gọn kích       │     │     bị chiếm giữ chết suốt vòng đời ứng dụng.                 │\n│   thước.                                                      │     └───────────────────────────────────────────────────────────────┘\n└───────────────────────────────────────────────────────────────┘\n\n  2. KIẾN TRÚC BỘ NHỚ HỢP NHẤT (UNIFIED MEMORY MANAGER — LEARNING SPARK 2E CH. 7)\n┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\n│ • Phân bổ JVM Heap của Executor: [1. Reserved: 300 MB] + [2. Spark Unified Memory: 60% Heap] + [3. User Memory: 40% Heap]          │\n│ • Bên trong Spark Unified Memory (`spark.memory.fraction = 0.6`) chia đôi bằng ranh giới động (`storageFraction = 0.5`):           │\n│ [Storage Memory (30% Heap): Lưu cache(), persist(), Broadcast]  ◄══(Ranh giới động)══►  [Execution Memory (30% Heap): Shuffle,     │\n│   Join, Sort, Agg]                                                                                                                 │\n│ • Quy tắc Ranh giới Động (Dynamic Eviction): Khi Execution cần thêm RAM, nó ĐƯỢC PHÉP lấn sang và đuổi (evict) các khối            │\n│   Storage ra đĩa; ngược lại, Storage chỉ được mượn phần trống của Execution chứ KHÔNG ĐƯỢC đuổi Execution đang chạy!               │\n└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘', "kind": 'boxes'},
+        '4.1': {"ascii": '========================================================================================================================================\n                                  NĂM THÁCH THỨC CỐT LÕI CỦA XỬ LÝ LÔ (TẠI SAO THÊM MÁY CHỦ KHÔNG ĐỦ?)\n            Thêm máy chủ chỉ tăng dung lượng phần cứng, không tự sửa được phân phối dữ liệu lệch hay di chuyển dữ liệu thừa\n========================================================================================================================================\n\n  THÁCH THỨC #1 & #2: DATA SKEW (LỆCH TẢI) VÀ SHUFFLE EXPLOSION (BÙNG NỔ TRAO ĐỔI MẠNG)\n┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\n│ • 1. Data Skew (Lệch phân phối dữ liệu — Slide 58):                                                                                │\n│   - Partition 1 (US): ████████████████████████████ 700M rows (Chạy 45 phút!)                                                       │\n│   - Partition 2 (VN): █ 10M rows (Xong trong 15 giây)                                                                              │\n│   - Partition 3 (SG): █ 8M rows  │ Partition 4 (JP): █ 12M rows                                                                    │\n│   => Cả Stage bị kẹt cứng chờ đúng 1 Task chậm nhất (Straggler Task).                                                              │\n│ • 2. Shuffle Explosion (Bùng nổ dữ liệu trao đổi mạng — Slide 59):                                                                 │\n│   - [100 GB Input] ──(Wide Join / GroupBy)──► [600 GB Shuffle Data] ──► Tràn RAM, Spill xuống đĩa & Nghẽn mạng!                    │\n└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘\n\n  THÁCH THỨC #3, #4 & #5: HIGH CARDINALITY, WIDE SCHEMA VÀ SCHEMA EVOLUTION\n┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\n│ • 3. High Cardinality (Độ phân biệt khóa cực cao — Slide 60): Cột `user_id` có hàng trăm triệu giá trị duy nhất khiến              │\n│   các phép `groupBy(user_id)` hoặc `countDistinct(user_id)` phải giữ bảng băm khổng lồ trong bộ nhớ.                               │\n│ • 4. Wide Schema (Bảng siêu rộng — Slide 61): Bảng chứa 1.000 cột nhưng truy vấn chỉ cần 5 cột; nếu viết `SELECT *` sẽ             │\n│   lãng phí gấp 200 lần băng thông đọc đĩa, bộ nhớ RAM và kích thước gói tin Shuffle.                                               │\n│ • 5. Schema Evolution (Trôi dạt lược đồ — Slide 62): Ngày 1 bảng chỉ có `(user_id, event, ts)`, đến Ngày 30 thêm cột               │\n│   `(country, platform)` hoặc đổi kiểu dữ liệu làm các Job hạ nguồn kỳ vọng lược đồ cố định bị sập hoặc đọc sai cột.                │\n└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘', "kind": 'boxes'},
+        '4.2': {"ascii": "========================================================================================================================================\n                            BỘ TỐI ƯU HÓA NỘI SINH #1: CATALYST OPTIMIZER (VIẾT LẠI KẾ HOẠCH TRƯỚC KHI CHẠY)\n             Catalyst quyết định 'Cần làm gì' (What to do) thông qua biến đổi đại số quan hệ và đẩy bộ lọc xuống sát nguồn\n========================================================================================================================================\n\n  1. ĐƯỜNG ỐNG 4 PHA CỦA BỘ TỐI ƯU HÓA CATALYST (CATALYST OPTIMIZER PIPELINE)\n┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\n│   [SQL / DataFrame API] ──► [1. Unresolved Logical Plan] ──(Catalog Lookup)──► [2. Analyzed Logical Plan]                          │\n│                                                                                        │                                           │\n│   [Executors chạy Code] ◄── [4. Physical Plan (Cost Model)] ◄──(Rule Optimizer)── [3. Optimized Logical Plan]                      │\n└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘\n\n  2A. KẾ HOẠCH LOGIC BAN ĐẦU (SLIDE 66)                                 2B. KẾ HOẠCH LOGIC ĐÃ TỐI ƯU (SLIDE 67)\n┌───────────────────────────────────────────────────────────────┐     ┌───────────────────────────────────────────────────────────────┐\n│ • Truy vấn: `SELECT sum(1 + 2 + t1.value) FROM t1 JOIN t2`    │     │ • Sau khi Catalyst áp dụng 3 quy tắc tối ưu:                  │\n│   `ON t1.id = t2.id WHERE t2.id > 50 * 1000`                  │     │ 1. Constant Folding: Tính trước `1+2 = 3` và `50*1000 =       │\n│ • Cây kế hoạch thô (Chưa tối ưu):                             │     │   50000`.                                                     │\n│   [Aggregate: sum(v)]                                         │     │ 2. Predicate Pushdown: Đẩy `Filter t2.id > 50000` XUỐNG DƯỚI  │\n│         ▲                                                     │     │ phép Join để loại bỏ 95% dòng rác của `t2` trước khi Join!    │\n│ [Project: 1 + 2 + t1.value AS v]  (Cộng lại trên từng dòng!)  │ ──► │   3. Column Pruning: Chỉ đọc đúng cột `(id, value)` của `t1`  │\n│         ▲                                                     │     │      và cột `(id)` của `t2` từ đĩa Parquet.                   │\n│   [Filter: t2.id > 50 * 1000]       (Lọc SAU khi đã Join!)    │     │ • Cây kế hoạch đã tối ưu:                                     │\n│         ▲                                                     │     │   [Aggregate: sum(3 + t1.value)] ◄── [Join: t1.id = t2.id]    │\n│ [Join: t1.id = t2.id]             (Join toàn bộ 2 bảng lớn!)  │     │                                         ▲            ▲        │\n│      ▲             ▲                                          │     │ [Scan t1]   [Filter: id>50000]                                │\n│   [Scan t1]     [Scan t2]                                     │     │                                                      ▲        │\n└───────────────────────────────────────────────────────────────┘     │                                                  [Scan t2]    │\n                                                                      └───────────────────────────────────────────────────────────────┘", "kind": 'boxes'},
+        '4.3': {"ascii": "========================================================================================================================================\n                             BỘ TỐI ƯU HÓU NỘI SINH #2: PROJECT TUNGSTEN (VẮT KIỆT HIỆU NĂNG CPU & BỘ NHỚ)\n         Nếu Catalyst quyết định 'Làm gì' (Plan), thì Project Tungsten quyết định 'Làm như thế nào trên phần cứng' (Execution)\n========================================================================================================================================\n\n  1. OFF-HEAP MEMORY (SLIDE 70)                 2. CACHE-AWARE COMPUTATION (SLIDE 71)         3. WHOLE-STAGE CODEGEN (SLIDE 72)\n┌─────────────────────────────────────────┐   ┌─────────────────────────────────────────┐   ┌─────────────────────────────────────────┐\n│ • Vấn đề JVM Heap: Đối tượng Java kèm   │   │ • Phân cấp tốc độ truy cập bộ nhớ:      │   │ • Không có Tungsten: `Scan -> Filter -> │\n│   Object Header nặng và gây dừng hệ     │   │   - L1 Cache: ~1 ns (Nhanh gấp 100x!)   │   │   Project -> Aggregate` gọi hàm ảo      │\n│   thống do Garbage Collection (GC).     │   │   - L2 / L3 Cache: ~4 - 15 ns           │   │   (`Virtual Function Call`) qua từng    │\n│ • Giải pháp Tungsten: Lưu dữ liệu dạng  │   │   - RAM chính: ~100 ns                  │   │   toán tử tốn hàng tỷ chu kỳ CPU.       │\n│   nhị phân (`UnsafeRow`) ở Off-Heap     │   │ • Giải pháp Tungsten: Xếp các bản ghi   │   │ • Giải pháp Tungsten: Hợp nhất toàn     │\n│   Memory do Spark quản lý trực tiếp     │   │   nhị phân nằm sát nhau liên tục trong  │   │   bộ chuỗi toán tử thành 1 hàm Java     │\n│   bằng con trỏ C (`sun.misc.Unsafe`),   │   │   bộ nhớ để CPU đọc tuần tự lấp đầy     │   │   Bytecode duy nhất chạy trong 1 vòng   │\n│   triệt tiêu hoàn toàn bão GC!          │   │   L1/L2/L3 Cache Lines cực nhanh.       │   │   lặp `for` phẳng ngay lúc runtime!     │\n└─────────────────────────────────────────┘   └─────────────────────────────────────────┘   └─────────────────────────────────────────┘", "kind": 'boxes'},
+        '4.4': {"ascii": '========================================================================================================================================\n                            BỘ TỐI ƯU HÓA NỘI SINH #3: ADAPTIVE QUERY EXECUTION (AQE — ĐIỀU CHỈNH LÚC CHẠY)\n                    Ba phép hiệu chỉnh tự động dựa trên thống kê Shuffle thực tế (spark.sql.adaptive.enabled = true)\n========================================================================================================================================\n\n  1. CƠ CHẾ PHẢN HỒI ĐỘNG CỦA ADAPTIVE QUERY EXECUTION (AQE — SLIDES 73 - 74)\n┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\n│   [Kế hoạch Ban đầu (Initial Plan)] ──► [Chạy Stage 1 & Ghi Shuffle Files] ──► [AQE đọc Thống kê Thực tế (Runtime Stats)]          │\n│                                                                                               │                                    │\n│   [Chạy Stage 2 nhanh gấp 5x] ◄──────── [Kế hoạch Điều chỉnh (Adjusted Plan)] ◄───────────────┘                                    │\n│ • Tại sao cần AQE? Trước khi chạy, Catalyst chỉ ước lượng kích thước dữ liệu; sau khi lọc phức tạp, ước lượng có thể sai lệch      │\n│   hàng trăm lần. AQE quan sát kích thước byte thật của các tệp Shuffle để sửa lại kế hoạch ngay giữa lúc Job đang chạy!            │\n└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘\n\n  AQE #1: SWITCH JOIN STRATEGY                  AQE #2: COALESCE PARTITIONS                   AQE #3: HANDLE SKEWED JOINS\n┌─────────────────────────────────────────┐   ┌─────────────────────────────────────────┐   ┌─────────────────────────────────────────┐\n│ • Phát hiện bảng `t2` sau khi lọc chỉ   │   │ • Thay vì giữ cứng 200 Shuffle          │   │ • Phát hiện Partition 0 nặng 50 GB      │\n│   còn `8 MB` (nhỏ hơn ngưỡng 10 MB).    │   │   Partitions mỗi mảnh chỉ nặng 2 MB,    │   │   trong khi trung vị chỉ 250 MB.        │\n│ • Tự động hủy `Sort-Merge Join` và      │   │ • AQE tự động gộp (coalesce) các        │   │ • AQE tự động chẻ nhỏ Partition 0       │\n│   chuyển sang `Broadcast Hash Join`     │   │   phân vùng nhỏ liền kề thành 15        │   │   thành nhiều sub-tasks song song và    │\n│   ngay tại runtime, bỏ qua Shuffle!     │   │   phân vùng chuẩn ~64 MB!               │   │   nhân bản phía bảng đối ứng!           │\n└─────────────────────────────────────────┘   └─────────────────────────────────────────┘   └─────────────────────────────────────────┘', "kind": 'boxes'},
+        '5.1': {"ascii": '========================================================================================================================================\n                             TINH CHỈNH THỦ CÔNG #1 & #2: ĐỊNH CỠ PARTITION, GIẢM SHUFFLE & CHIẾN LƯỢC JOIN\n                   Không chỉ thêm máy chủ — nguyên tắc cốt lõi là di chuyển ít dữ liệu nhất có thể giữa các Executors\n========================================================================================================================================\n\n  1. CÂN BẰNG SỐ LƯỢNG PARTITION & GIẢM CHI PHÍ SHUFFLE (SLIDES 77 - 78)\n┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\n│ • Quá ít Partitions (VD: 4 partitions cho 500 GB): Mỗi Task gánh 125 GB ──► Tràn RAM ──► Disk Spill ──► Chạy cực chậm / OOM!       │\n│ • Quá nhiều Partitions (VD: 50.000 partitions cho 10 GB): Mỗi Task chỉ xử lý 200 KB ──► Driver tốn hàng chục phút chỉ để           │\n│   lập lịch Task (Scheduling Overhead) và đẻ ra hàng vạn file nhỏ!                                                                  │\n│ • Điểm ngọt (Sweet Spot): Mục tiêu ~128 MB - 256 MB / Partition; luôn lọc dữ liệu sớm (`Filter Early`) trước khi Shuffle.          │\n└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘\n\n  2A. SORT-MERGE JOIN (SMJ — SHUFFLE CẢ 2 BẢNG)                         2B. BROADCAST HASH JOIN (BHJ — 0% SHUFFLE BẢNG LỚN)\n┌───────────────────────────────────────────────────────────────┐     ┌───────────────────────────────────────────────────────────────┐\n│ • Cơ chế: Shuffle cả 2 bảng theo khóa Join về cùng Partition, │     │ • Cơ chế: Driver thu bảng nhỏ (`< 10MB`, hoặc dùng gợi ý      │\n│   sắp xếp (`Sort`) rồi trộn tuần tự (`Merge`).                │ vs. │   `broadcast(small_df)`) rồi phát sóng tới mọi Executor.      │\n│ • Chi phí: Phải di chuyển toàn bộ 500 GB bảng lớn qua mạng!   │     │ • Chi phí: 0% Shuffle bảng lớn 500 GB! Tốc độ nhanh gấp chục  │\n│ • Khi dùng: Khi CẢ HAI bảng đều rất lớn (hàng chục/trăm GB).  │     │   lần.                                                        │\n└───────────────────────────────────────────────────────────────┘     │ • Khi dùng: Khi kết nối 1 bảng Fact lớn với bảng Dimension    │\n                                                                      │   nhỏ.                                                        │\n                                                                      └───────────────────────────────────────────────────────────────┘', "kind": 'boxes'},
+        '5.2': {"ascii": "========================================================================================================================================\n                          TINH CHỈNH THỦ CÔNG #3: HÓA GIẢI DATA SKEW BẰNG KỸ THUẬT RẮC MUỐI KHÓA (KEY SALTING)\n                        Phá vỡ định mệnh băm cố định của khóa nóng bằng cách thêm hậu tố ngẫu nhiên có kiểm soát\n========================================================================================================================================\n\n  1. TRƯỚC KHI RẮC MUỐI (UNSALTED KEY): MỘT KHÓA NÓNG DỒN TOÀN BỘ TẢI VÀO 1 PARTITION\n┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\n│ • Bảng giao dịch có 80% đơn hàng thuộc về 1 đại lý `user_id = 'VIP123'`:                                                           │\n│   [Khóa 'VIP123' (80M dòng)] ──(hash('VIP123') % 3)──► [Partition 1: 80M dòng] ──► Executor 1 quá tải, Spill & Treo!               │\n│   [Khóa 'USR_02' (1M dòng)]  ──(hash('USR_02') % 3)──► [Partition 2: 1M dòng]  ──► Executor 2 xong sau 2 giây rồi ngồi chờ         │\n│   [Khóa 'USR_03' (1M dòng)]  ──(hash('USR_03') % 3)──► [Partition 3: 1M dòng]  ──► Executor 3 xong sau 2 giây rồi ngồi chờ         │\n└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘\n                                                                    │\n                                                            │  Áp dụng phép biến đổi Salting: phân tách 1 khóa lớn thành N nhóm khóa con\n                                                                    ▼\n  2. SAU KHI RẮC MUỐI (KEY SALTING — SLIDES 79 - 80): CHIA ĐỀU KHÓA NÓNG QUA NHIỀU PARTITIONS\n┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\n│ • Gắn thêm hậu tố ngẫu nhiên `1..3` vào khóa nóng (`salted_key = concat(user_id, '_', rand_int(1, 3))`):                           │\n│                                                    ┌──► ['VIP123_1' (26.6M dòng)] ──► [Partition 1 / Executor 1]                   │\n│   [Khóa gốc: user_id = 'VIP123' (80M dòng)] ──(Salting)┼──► ['VIP123_2' (26.6M dòng)] ──► [Partition 2 / Executor 2]               │\n│                                                    └──► ['VIP123_3' (26.6M dòng)] ──► [Partition 3 / Executor 3]                   │\n│ • Kết quả: Một tác vụ khổng lồ được chia đều cho 3 Executors xử lý song song; khi Join với bảng nhỏ chỉ cần nhân bản               │\n│   bản ghi `'VIP123'` trên bảng nhỏ thành 3 dòng `('VIP123_1', 'VIP123_2', 'VIP123_3')` để khớp khóa 100%!                          │\n└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘", "kind": 'boxes'},
+        '5.3': {"ascii": "========================================================================================================================================\n                           TINH CHỈNH THỦ CÔNG #4, #5 & #6: HIGH CARDINALITY, WIDE SCHEMA & SCHEMA EVOLUTION\n                Giảm áp lực bộ nhớ bằng đếm xấp xỉ, cắt tỉa cột sớm trên Parquet và kiểm soát lược đồ với Iceberg/Delta\n========================================================================================================================================\n\n  1. HIGH CARDINALITY (SLIDE 81)                2. WIDE SCHEMA (SLIDE 82)                     3. SCHEMA EVOLUTION (SLIDE 83)\n┌─────────────────────────────────────────┐   ┌─────────────────────────────────────────┐   ┌─────────────────────────────────────────┐\n│ • Vấn đề: `COUNT(DISTINCT user_id)`     │   │ • Vấn đề: Bảng 1.000 cột nhưng chỉ cần  │   │ • Vấn đề: Bảng nguồn thêm/xóa/đổi kiểu  │\n│   trên                                  │   │   5 cột. Dùng `SELECT *` làm nghẽn I/O. │   │   cột làm gãy pipeline hạ nguồn.        │\n│   500 triệu người dùng đòi hỏi giữ toàn │   │ • Giải pháp 1: `Project Early` — gọi    │   │ • Giải pháp 1: Bật `Schema Enforcement` │\n│   bộ tập giá trị duy nhất trong RAM.    │   │   `.select('c1',..,'c5')` NGAY SAU khi  │   │   để chặn đứng dữ liệu sai hợp đồng.    │\n│ • Giải pháp 1: Dùng                     │   │   đọc, trước mọi phép Join/GroupBy.     │   │ • Giải pháp 2: Dùng Open Table Formats  │\n│   `approx_count_distinct`               │   │ • Giải pháp 2: Lưu định dạng cột        │   │   (Delta Lake / Apache Iceberg D02)     │\n│ (thuật toán HyperLogLog) khi chấp nhận  │   │   Parquet                               │   │   quản lý metadata lược đồ và cho phép  │\n│   sai số ~1-2%, giảm 99% bộ nhớ!        │   │   hoặc ORC để Spark tự động cắt cột     │   │   `Schema Evolution` (`mergeSchema`).   │\n│ • Giải pháp 2: `Pre-aggregation` (gom   │   │   thừa (`Column Pruning`) ngay tại đĩa. │   └─────────────────────────────────────────┘\n│ nhóm cục bộ trước khi đẩy qua Shuffle). │   └─────────────────────────────────────────┘\n└─────────────────────────────────────────┘", "kind": 'boxes'},
+        '6.1': {"ascii": '========================================================================================================================================\n                              VẬN HÀNH THỰC CHIẾN #1: GIẢI PHẪU SPARK UI DASHBOARD & CHẨN ĐOÁN ĐIỂM NGHẼN\n                Đọc vị chính xác nguyên nhân làm chậm Job qua tiến độ Task, dung lượng Shuffle Read/Write và Disk Spill\n========================================================================================================================================\n\n  1. BẢNG ĐIỀU KHIỂN SPARK WEB UI — CHẨN ĐOÁN TRỰC TIẾP TRẠNG THÁI STAGES (SLIDE 86)\n┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\n│   Stage ID │ Description  │ Status    │ Duration │ Tasks: Succeeded/Total │ Input    │ Output   │ Shuffle Read │ Shuffle Write     │\n│   ─────────┼──────────────┼───────────┼──────────┼────────────────────────┼──────────┼──────────┼──────────────┼──────────────     │\n│   Stage 15 │ join at ...  │ ACTIVE    │ 16 min   │ 199 / 200 (1 running!) │ 120.0 GB │  0.0 B   │   66.9 GB    │    0.0 B          │\n│   Stage 14 │ groupBy at...│ COMPLETED │ 12 min   │ 200 / 200 [██████████] │  32.5 GB │  0.0 B   │    0.0 B     │   66.9 GB         │\n│   Stage 13 │ select at ...│ COMPLETED │  5 sec   │ 200 / 200 [██████████] │ 530.4 MB │ 56.6 MB  │    0.0 B     │    0.0 B          │\n│   Stage 06 │ write at ... │ PENDING   │ Unknown  │   0 / 4000             │   0.0 B  │  0.0 B   │    0.0 B     │    0.0 B          │\n└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘\n\n  2. PHÁC ĐỒ ĐỌC 3 DẤU HIỆU BỆNH LÝ TRÊN SPARK UI (EXECUTION TIME, TASK PROGRESS, SHUFFLE COST)\n┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\n│ • Dấu hiệu #1 (Data Skew): Nhìn `Stage 15` chạy suốt 16 phút nhưng tiến độ kẹt ở `199/200 Tasks` ──► Mở tab Tasks xem cột          │\n│   `Duration` và `Shuffle Read Size`: nếu `Max` lớn gấp hàng chục lần `Median (75th percentile)` thì chắc chắn bị lệch khóa!        │\n│ • Dấu hiệu #2 (Shuffle Explosion & Disk Spill): `Stage 14` đọc vào `32.5 GB` nhưng ghi ra tới `66.9 GB Shuffle Write` kèm          │\n│   chỉ số `Spill (Memory)` và `Spill (Disk)` xuất hiện ──► Cần lọc sớm, dùng Broadcast Join hoặc tăng RAM/Partitions.               │\n│ • Dấu hiệu #3 (Too Many Small Tasks): `Stage 06` chờ chạy tới `0/4000 Tasks` trên tập dữ liệu nhỏ ──► Cần `coalesce()`.            │\n└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘', "kind": 'boxes'},
+        '6.2': {"ascii": '========================================================================================================================================\n                            VẬN HÀNH THỰC CHIẾN #2: DYNAMIC ALLOCATION (TỰ ĐỘNG CO GIÃN EXECUTORS THEO TẢI)\n                         Giải phóng tài nguyên ngay khi nhàn rỗi và bứt tốc cấp phát khi hàng đợi Task tăng cao\n========================================================================================================================================\n\n  1. KHÔNG CÓ DYNAMIC ALLOCATION (FIXED RESOURCES)                      2. BẬT DYNAMIC ALLOCATION (ELASTIC SCALING)\n┌───────────────────────────────────────────────────────────────┐     ┌───────────────────────────────────────────────────────────────┐\n│ • Cấp phát cứng 20 Executors cho toàn bộ vòng đời Job:        │     │ • Tự động điều chỉnh số lượng Executors theo tải thực tế:     │\n│   - Pha 1 (Đọc & Lọc nhẹ): Chỉ cần 5 Executors                │     │ [Start: 2 Executors] ──(Tải tăng)──► [Scale Up: 10 Executors] │\n│     ──► 15 Executors ngồi chơi lãng phí 75% chi phí Cloud!    │ vs. │ ──(Nhàn rỗi)──► [Scale Down: 1 Executor]                      │\n│   - Pha 2 (Heavy Join 500GB): Cần 30 Executors                │     │ • Ngưỡng kích hoạt (Slide 87):                                │\n│     ──► Bị giới hạn ở 20 Executors nên chạy chậm!             │     │   - Scale Up khi Task chờ > `schedulerBacklogTimeout` (`1s`). │\n└───────────────────────────────────────────────────────────────┘     │ - Scale Down khi Executor rảnh > `executorIdleTimeout`        │\n                                                                      │   (`60s`).                                                    │\n                                                                      └───────────────────────────────────────────────────────────────┘', "kind": 'boxes'},
+        '6.3': {"ascii": '========================================================================================================================================\n                             VẬN HÀNH THỰC CHIẾN #3: DATA COMPACTION (NÉN GỘP FILE NHỎ TRÊN DATA LAKEHOUSE)\n            Khép kín vòng đời Batch Transformation: Ghi các tệp Parquet/Iceberg kích thước chuẩn sang tầng Consumption (D05)\n========================================================================================================================================\n\n  1. TRƯỚC KHI COMPACTION (1.000.000 SMALL FILES)                       2. SAU KHI DATA COMPACTION (200 OPTIMAL FILES)\n┌───────────────────────────────────────────────────────────────┐     ┌───────────────────────────────────────────────────────────────┐\n│ • Tập dữ liệu `1 TB` bị ghi lắt nhắt thành `1.000.000 file    │     │ • Gộp `20.000 file nhỏ ──► 200 file lớn` (mỗi file ~128MB -   │\n│   nhỏ`                                                        │     │   512MB)                                                      │\n│   (mỗi file chỉ nặng ~1 MB trên S3 / HDFS):                   │     │   mà KHÔNG làm thay đổi tổng dung lượng dữ liệu (Slide 88):   │\n│ [f_0001.parquet (1MB)] [f_0002.parquet (1MB)] ... [f_1000000] │ ──► │   [part_001.parquet (512MB)]  ...  [part_200.parquet (512MB)] │\n│ • Hậu quả: Khi đọc lại, Spark phải thực hiện 1.000.000 lời    │     │ • 3 Công cụ thực thi:                                         │\n│   gọi                                                         │     │ 1. `df.coalesce(200).write...` (Gộp nhanh không qua Shuffle). │\n│   mở/đóng file (`S3 HEAD/GET` metadata overhead), làm Job     │     │   2. `df.repartition(200).write...` (Shuffle đều kích thước). │\n│   treo hàng giờ dù tổng dung lượng chỉ có 1 TB!               │     │   3. Lệnh `OPTIMIZE table_name` trên Delta Lake / Iceberg.    │\n└───────────────────────────────────────────────────────────────┘     └───────────────────────────────────────────────────────────────┘', "kind": 'boxes'},
+    }
+    for k, meta in diagrams.items():
+        errs = verify_diagram(meta["ascii"], f"SPK-{k}", kind=meta["kind"])
+        if errs:
+            raise SystemExit(f"ASCII verification failed for SPK-{k} ({meta['kind']}): {errs}")
+    return diagrams
+
+
+
+def build_consumption_ascii_diagrams() -> dict:
+    from ascii_diagram import make_box as _raw_make_box, display_width
+
+    def wrap_line(line: str, limit: int) -> list[str]:
+        if display_width(line) <= limit:
+            return [line]
+        if any(c in line for c in "┐┘") or line.rstrip().endswith("│"):
+            return [line]
+        import re as _re
+        m = _re.match(r"^(\s*(?:[├└]──\s+|\│\s+|\•\s+)?)", line)
+        prefix = m.group(1) if m else ""
+        cont_indent = prefix.replace("├──", "│  ").replace("└──", "   ").replace("•", " ")
+        if len(cont_indent) > 12:
+            cont_indent = "  "
+        words = line.split(" ")
+        out = []
+        cur = ""
+        for w in words:
+            cand = w if not cur else cur + " " + w
+            if display_width(cand) <= limit:
+                cur = cand
+            else:
+                if cur:
+                    out.append(cur)
+                cur = cont_indent + w
+        if cur:
+            out.append(cur)
+        return out
+
+    def make_box(lines, inner_width=None, header=None, context="make_box"):
+        if inner_width:
+            wrapped = []
+            for l in lines:
+                wrapped.extend(wrap_line(l, inner_width))
+            lines = wrapped
+        req_w = max((display_width(l) for l in lines), default=0)
+        w = max(inner_width or 0, req_w)
+        return _raw_make_box(lines, inner_width=w, header=header, context=context)
+
+    def banner(title: str, subtitle: str = "", width: int = 136) -> list[str]:
+        bar = "=" * width
+        out = [bar, pad_center(title, width).rstrip()]
+        if subtitle:
+            out.append(pad_center(subtitle, width).rstrip())
+        out.append(bar)
+        return out
+
+    def v_arrow(label: str = "", width: int = 136) -> list[str]:
+        mid = width // 2
+        if label:
+            lbl = f"│  {label}"
+            start = min(mid, max(2, width - display_width(lbl)))
+            return [
+                (" " * mid) + "│",
+                (" " * start) + lbl,
+                (" " * mid) + "▼",
+            ]
+        return [
+            (" " * mid) + "│",
+            (" " * mid) + "▼",
+        ]
+
+    W = 136
+    INNER_FULL = 132     # box width = 136
+    INNER_HALF = 62      # box width = 66 -> 66 + 4 + 66 = 136
+    INNER_THIRD = 38     # box width = 42 -> 42 + 4 + 42 + 4 + 42 = 134
+
+    diagrams = {}
+
+    # -------------------------------------------------------------------------
+    # 0.1: Mental Map 5 Chặng — Cắt lớp Kiến trúc Toàn khóa D05 Consumption Layer
+    # -------------------------------------------------------------------------
+    s01_c1 = make_box([
+        "[CHẶNG 1: DATA WAREHOUSE, ETL & CHUẨN HÓA 3NF (TRẠM 1.1 -> 1.3)]",
+        "├── Kiến trúc DWH : Staging Area -> Central Warehouse -> Data Marts",
+        "├── Chuẩn hóa ER  : 1NF (Atomic) -> 2NF (No Partial) -> 3NF (No Transitive)",
+        "├── Thực thể gốc  : Order #1001/#8888 (C01 Anna, P01 Keyboard, P02 Mouse)",
+        "└── Điểm nghẽn    : 4 bảng 3NF tối ưu OLTP nhưng gây bão Hash Join OLAP",
+    ], inner_width=INNER_HALF)
+    s01_c2 = make_box([
+        "[CHẶNG 2: KIMBALL DIMENSIONAL MODELING (TRẠM 2.1 -> 2.4)]",
+        "├── Quy trình 4 bước: Business Process -> Grain -> Dimensions -> Facts",
+        "├── Bảng sự kiện    : factSales (Additive SalesAmount vs Semi Inventory)",
+        "├── Bảng chiều      : dimDate (20260501), dimCustomer, Role-Playing Keys",
+        "└── Cấu trúc vật lý : Star Schema (1-Hop) vs Snowflake (City->State->Country)",
+    ], inner_width=INNER_HALF)
+    row_01_top = join_horizontal([s01_c1, s01_c2], ["    "], {3: [" ──►"]})
+
+    s01_c3 = make_box([
+        "[CHẶNG 3: SCD TYPE 0-6, DATA VAULT & MEDALLION (TRẠM 3.1 -> 3.4)]",
+        "├── Bảo toàn lịch sử: Peter Pan (#123456) đổi GBP -> USD ngày 26/09/2025",
+        "├── Giải phẫu SCD   : Type 0/1/2 (Surrogate Key 1->2), Type 3/4/6 (1+2+3)",
+        "├── Data Vault 2.0  : Hub (Keys) + Link (Relations) + Satellite (History)",
+        "└── Hội tụ kiến trúc: Inmon vs Kimball trên Bronze -> Silver -> Gold",
+    ], inner_width=INNER_HALF)
+    s01_c4 = make_box([
+        "[CHẶNG 4: ĐỘNG CƠ OLAP TỐC ĐỘ CAO: CLICKHOUSE & PINOT (TRẠM 4.1 -> 4.4)]",
+        "├── 3 Trụ cột OLAP  : Columnar Storage + Vectorized SIMD + Distributed MPP",
+        "├── ClickHouse      : Nodes, MergeTree (8,192 Granule), S3 & ZooKeeper",
+        "├── Apache Pinot    : Dimensions/Metrics/Time + Real-time/Offline/Hybrid",
+        "└── Phân công       : ClickHouse (Complex Batch/Logs) vs Pinot (User <10ms)",
+    ], inner_width=INNER_HALF)
+    row_01_mid = join_horizontal([s01_c3, s01_c4], ["    "], {3: [" ──►"]})
+
+    s01_c5 = make_box([
+        "[CHẶNG 5: FEATURE STORE & FEAST THỰC CHIẾN — XÓA SỔ TRAINING-SERVING SKEW CHO HỆ THỐNG ML (TRẠM 5.1 -> 5.4)]",
+        "├── [Bài toán Fraud]  : Giao dịch txn_9f3a21c8 (user_48291, $1,250.00) cần đặc trưng hành vi avg_tx_30d & failed_attempts_1h",
+        "├── [2 Căn bệnh ML]   : Training-Serving Skew (SQL 45.73 vs Python 46) & Duplicated Effort (Fraud 45.73 vs Credit Limit 47.10)",
+        "├── [Kiến trúc Kép]   : Offline Store (S3 Parquet/BigQuery cho Training) + Online Store (Redis/DynamoDB < 10ms cho Serving)",
+        "└── [Vòng đời Feast]  : feast apply -> get_historical_features (Point-in-Time ASOF Join) -> materialize-incremental -> get_online_features",
+    ], inner_width=INNER_FULL)
+
+    diagrams["0.1"] = {
+        "ascii": "\n".join(
+            banner("BẢN ĐỒ TƯ DUY TOÀN KHÓA D05: HÀNH TRÌNH ĐƠN HÀNG #8888 & GIAO DỊCH TXN_9F3A21C8 QUA TẦNG CONSUMPTION",
+                   "(Từ Chuẩn hóa 3NF -> Kimball Star Schema / SCD / Data Vault -> Động cơ OLAP ClickHouse & Pinot -> Feast Feature Store)")
+            + [""]
+            + row_01_top
+            + v_arrow("Bước chuyển 1: Quản trị biến đổi lịch sử chiều (SCD/Data Vault) & Tăng tốc thực thi bằng Động cơ OLAP Vector hóa")
+            + row_01_mid
+            + v_arrow("Bước chuyển 2: Mở rộng từ Phục vụ Con người (BI/Dashboards) sang Phục vụ Mô hình AI/ML Thời gian thực (< 10ms)")
+            + s01_c5
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 1.1: Kiến trúc Data Warehouse, Vùng đệm Staging, Data Marts & Quy trình ETL
+    # -------------------------------------------------------------------------
+    s11_b1 = make_box([
+        "[1. DATA SOURCES & STAGING]",
+        "• Nguồn: OLTP DBs, ERP/CRM,",
+        "  Flat Files (Order #8888)",
+        "• Staging Area (Vùng đệm):",
+        "  Làm sạch, chuẩn hóa kiểu,",
+        "  khử trùng lặp trước khi nạp",
+        "[+] Cách ly tải khỏi DB OLTP",
+    ], inner_width=INNER_THIRD)
+    s11_b2 = make_box([
+        "[2. CENTRAL DATA WAREHOUSE]",
+        "• Kho lưu trữ trung tâm (SSoT):",
+        "  ├── Raw data (Chi tiết gốc)",
+        "  ├── Summary data (Tổng hợp)",
+        "  └── Metadata data (Siêu dữ liệu)",
+        "• Tích hợp đa nguồn đồng nhất",
+        "[!] Không thay thế DB OLTP!",
+    ], inner_width=INNER_THIRD)
+    s11_b3 = make_box([
+        "[3. DATA MARTS -> USERS]",
+        "• Data Marts theo phòng ban:",
+        "  ├── Purchasing Mart",
+        "  ├── Sales Mart (#8888)",
+        "  └── Inventory Mart",
+        "• Users: Analytics, Reporting,",
+        "  Data Mining / ML Scientists",
+    ], inner_width=INNER_THIRD)
+    row_11_top = join_horizontal([s11_b1, s11_b2, s11_b3], ["    ", "    "], {3: [" ──►", " ──►"]})
+
+    s11_etl = make_box([
+        "[CƠ HỌC ĐƯỜNG ỐNG NẠP DỮ LIỆU VÀO DATA WAREHOUSE: EXTRACT -> TRANSFORM -> LOAD (SLIDE 4-5)]",
+        "├── [Bước 1 - Extract (E)]   : Thu thập dữ liệu thô từ các cơ sở dữ liệu giao dịch (PostgreSQL/MySQL), tệp tin và ứng dụng nguồn",
+        "├── [Bước 2 - Transform (T)] : Làm sạch (Clean), chuẩn hóa định dạng (Standardize) và kiểm định (Validate) ngay tại vùng Staging Area",
+        "└── [Bước 3 - Load (L)]      : Nạp dữ liệu đã chuẩn bị sạch sẽ vào các bảng cấu trúc của Data Warehouse và Data Marts để phân tích",
+    ], inner_width=INNER_FULL)
+
+    diagrams["1.1"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU KIẾN TRÚC DATA WAREHOUSE, DATA MARTS & ĐƯỜNG ỐNG ETL (SLIDE 4-5)")
+            + [""]
+            + row_11_top
+            + v_arrow("Luồng di chuyển và biến đổi vật lý qua 3 chặng Extract (E) -> Transform (T) -> Load (L)")
+            + s11_etl
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 1.2: Hai Trường phái Logical Modeling & Lộ trình Chuẩn hóa 1NF -> 2NF -> 3NF
+    # -------------------------------------------------------------------------
+    s12_nf1 = make_box([
+        "[BƯỚC 1: 1ST NORMAL FORM (1NF)]",
+        "• Quy tắc: Giá trị nguyên tử (Atomic),",
+        "  cấm nhóm lặp & mảng đa giá trị",
+        "• [x] Vi phạm: C01 có Phone1, Phone2,",
+        "  Phone3; Order 1001 có 'P01, P02'",
+        "• [+] Chuẩn 1NF: Tách mỗi SĐT và mỗi",
+        "  mã sản phẩm (P01, P02) thành 1 dòng",
+    ], inner_width=INNER_THIRD)
+    s12_nf2 = make_box([
+        "[BƯỚC 2: 2ND NORMAL FORM (2NF)]",
+        "• Quy tắc: Đạt 1NF + Cấm phụ thuộc",
+        "  bộ phận vào khóa chính ghép",
+        "• [x] Vi phạm: Khóa (OrderID,ProductID)",
+        "  nhưng CustomerName='Anna' chỉ phụ",
+        "  thuộc vào một mình cột OrderID!",
+        "• [+] Chuẩn 2NF: Tách bảng Orders riêng",
+    ], inner_width=INNER_THIRD)
+    s12_nf3 = make_box([
+        "[BƯỚC 3: 3RD NORMAL FORM (3NF)]",
+        "• Quy tắc: Đạt 2NF + Cấm phụ thuộc",
+        "  bắc cầu giữa các cột không khóa",
+        "• [x] Vi phạm: OrderID -> CustomerID",
+        "  -> CustomerName ('Anna'), Phone('0901')",
+        "• [+] Chuẩn 3NF: Tách CustomerName và",
+        "  CustomerPhone sang bảng Customers",
+    ], inner_width=INNER_THIRD)
+    row_12_nfs = join_horizontal([s12_nf1, s12_nf2, s12_nf3], ["    ", "    "], {3: [" ──►", " ──►"]})
+
+    s12_cmp = make_box([
+        "[ĐỐI CHIẾU HAI TRƯỜNG PHÁI MÔ HÌNH HÓA LOGIC: ER MODELING vs. DIMENSIONAL MODELING (SLIDE 7-8)]",
+        "├── [A] ER Modeling (Entity-Relationship - 3NF) : Thiết kế cho OLTP (PostgreSQL, MySQL) -> Mục tiêu: Triệt tiêu dư thừa dữ liệu (Zero Redundancy)",
+        "└── [B] Dimensional Modeling (Facts & Dimensions): Thiết kế cho OLAP (BigQuery, Snowflake) -> Mục tiêu: Tối đa hóa tốc độ truy vấn (Query Speed)",
+    ], inner_width=INNER_FULL)
+
+    diagrams["1.2"] = {
+        "ascii": "\n".join(
+            banner("LỘ TRÌNH CHUẨN HÓA DỮ LIỆU 1NF -> 2NF -> 3NF & ĐỐI CHIẾU LOGICAL MODELING (SLIDE 7-11)")
+            + [""]
+            + row_12_nfs
+            + v_arrow("Mục tiêu tối thượng của 3NF: Mọi cột không khóa chỉ phụ thuộc vào Khóa chính, toàn bộ Khóa chính và không gì ngoài Khóa chính")
+            + s12_cmp
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 1.3: Phẫu thuật Bảng Order_Detail sang 4 Bảng 3NF & Điểm nghẽn Phép Kết OLAP
+    # -------------------------------------------------------------------------
+    s13_before = make_box([
+        "[TRƯỚC 3NF: BẢNG PHẲNG ORDER_DETAIL (VI PHẠM CẢ 1NF, 2NF, 3NF - SLIDE 12)]",
+        "  order_id | order_date | customer_id | customer_name | phone | product_id | name     | price | qty",
+        "  1001     | 2026-05-01 | C01         | Anna          | 0901  | P01        | Keyboard | 50    | 1",
+        "  1001     | 2026-05-01 | C01         | Anna          | 0901  | P02        | Mouse    | 20    | 2",
+        "  1002     | 2026-05-02 | C01         | Anna          | 0901  | P01        | Keyboard | 50    | 1",
+        "• [x] Dư thừa & Dị thường: Thông tin 'Anna - 0901' và 'Keyboard - 50' bị lặp lại trên mọi dòng đơn hàng!",
+    ], inner_width=INNER_FULL)
+
+    s13_after1 = make_box([
+        "[SAU KHI ÁP DỤNG 3NF: TÁCH THÀNH 4 BẢNG THỰC THỂ ĐỘC LẬP (SLIDE 13-14)]",
+        "├── 1. Customers(customer_id PK, customer_name, customer_phone) -> [C01 | Anna | 0901]",
+        "├── 2. Products(product_id PK, product_name, product_price)     -> [P01 | Keyboard | 50], [P02 | Mouse | 20]",
+        "├── 3. Orders(order_id PK, order_date, customer_id FK)          -> [1001 | 2026-05-01 | C01]",
+        "└── 4. OrderItems(order_item_id PK, order_id FK, product_id FK, quantity) -> [1|1001|P01|1], [2|1001|P02|2]",
+    ], inner_width=INNER_HALF)
+    s13_after2 = make_box([
+        "[ĐIỂM NGHẼN VẬT LÝ KHI PHÂN TÍCH TRÊN MÔ HÌNH 3NF (SLIDE 15)]",
+        "• [+] Cực tốt cho OLTP: Ghi/sửa đơn lẻ nhanh, nhất quán cao",
+        "• [x] Cực yếu cho OLAP: Để tính tổng doanh thu 12 tháng theo",
+        "  Vùng và Danh mục, hệ thống phải JOIN hàng loạt bảng lớn:",
+        "  OrderItems ⋈ Orders ⋈ Customers ⋈ Regions ⋈ Products",
+        "• Hậu quả: Tràn bộ nhớ Hash Table, nghẽn CPU & mạng phân tán!",
+    ], inner_width=INNER_HALF)
+    row_13_bot = join_horizontal([s13_after1, s13_after2], ["    "], {3: [" ──►"]})
+
+    diagrams["1.3"] = {
+        "ascii": "\n".join(
+            banner("PHẪU THUẬT BẢNG ORDER_DETAIL SANG 4 BẢNG 3NF & CÁI GIÁ CỦA PHÉP KẾT OLAP (SLIDE 12-15)")
+            + [""]
+            + s13_before
+            + v_arrow("Phân rã thực thể theo 3NF để cứu OLTP, nhưng tạo ra bài toán Multi-Table Join cho OLAP")
+            + row_13_bot
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 2.1: Vai trò của Dimensional Modeling trong Consumption Layer & 4 Bước Kimball
+    # -------------------------------------------------------------------------
+    s21_p1 = make_box([
+        "[1. RAW & TRANSFORMATION]",
+        "• Raw Data (Dữ liệu thô từ",
+        "  Kafka CDC / S3 Parquet)",
+        "• Transformation Layer:",
+        "  Làm sạch, chuẩn hóa,",
+        "  tích hợp thực thể nghiệp vụ",
+    ], inner_width=INNER_THIRD)
+    s21_p2 = make_box([
+        "[2. DIMENSIONAL MODELS]",
+        "• Lớp ngữ nghĩa (Semantic Layer)",
+        "• Tổ chức lại thành:",
+        "  ├── Fact Tables (Đo lường)",
+        "  ├── Dimension Tables (Ngữ cảnh)",
+        "  └── Aggregation / Views",
+    ], inner_width=INNER_THIRD)
+    s21_p3 = make_box([
+        "[3. BI TOOLS & DECISION]",
+        "• Power BI, Tableau, Superset",
+        "• Kéo-thả trực quan, cắt lát",
+        "  (Slice & Dice) đa chiều",
+        "• Đảm bảo logic báo cáo nhất",
+        "  quán toàn doanh nghiệp",
+    ], inner_width=INNER_THIRD)
+    row_21_pos = join_horizontal([s21_p1, s21_p2, s21_p3], ["    ", "    "], {3: [" ──►", " ──►"]})
+
+    s21_kimball = make_box([
+        "[QUY TRÌNH 4 BƯỚC THIẾT KẾ MÔ HÌNH CHIỀU CỦA RALPH KIMBALL (THE DATA WAREHOUSE TOOLKIT CH. 2 & SLIDE 17)]",
+        "├── [Bước 1 - Select Business Process] : Chọn quy trình nghiệp vụ cốt lõi phát sinh sự kiện (Ví dụ: Customer Orders / Retail Sales)",
+        "├── [Bước 2 - Declare the Grain]       : Tuyên bố độ mịn nguyên tử của 1 dòng Fact (Ví dụ Slide 17: Grain = 1 row per order line)",
+        "├── [Bước 3 - Identify Dimensions]     : Xác định các bảng chiều trả lời Who, What, Where, When (Order Date, Product, Customer, Channel)",
+        "└── [Bước 4 - Identify Facts]          : Xác định các con số định lượng tại đúng độ mịn đã chọn (UnitPrice, SalesAmount, UnitsSold)",
+    ], inner_width=INNER_FULL)
+
+    diagrams["2.1"] = {
+        "ascii": "\n".join(
+            banner("VỊ TRÍ CỦA DIMENSIONAL MODELING TRONG CONSUMPTION LAYER & 4 BƯỚC KIMBALL (SLIDE 17-18)")
+            + [""]
+            + row_21_pos
+            + v_arrow("Áp dụng Quy trình 4 bước bất biến của Kimball để chuyển hóa dữ liệu thô thành mô hình phân tích")
+            + s21_kimball
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 2.2: Giải phẫu Fact Tables (factSales) & Additive vs. Semi-Additive Measures
+    # -------------------------------------------------------------------------
+    s22_fact = make_box([
+        "[GIẢI PHẪU BẢNG SỰ KIỆN TRUNG TÂM: FACTSALES (SLIDE 19-20)]",
+        "├── 1. Fact Keys (Foreign Keys): CustomerKey FK -> dimCustomer | ProductKey FK -> dimProduct | TerritoryKey FK -> dimTerritory",
+        "├── 2. Role-Playing Date Keys  : OrderDateKey FK, ShipDateKey FK, PaymentDateKey FK (Cả 3 khóa cùng trỏ về 1 bảng dimDate!)",
+        "└── 3. Numeric Measures        : UnitPrice, SalesAmount, UnitsSold (Bảng cực dài và hẹp - Hàng trăm triệu đến hàng tỷ dòng)",
+    ], inner_width=INNER_FULL)
+
+    s22_add = make_box([
+        "[A. ADDITIVE MEASURE (CỘNG ĐƯỢC TRÊN MỌI CHIỀU - SLIDE 21)]",
+        "• Ví dụ: Cột doanh thu SalesAmount theo ngày:",
+        "  ├── Ngày May 1 : SalesAmount = 500",
+        "  └── Ngày May 2 : SalesAmount = 700",
+        "• Phép tính: SUM(SalesAmount) = 500 + 700 = 1,200 [+]",
+        "• Bản chất : Mỗi dòng là một luồng phát sinh độc lập (Flow),",
+        "  cộng gộp tự do theo Thời gian, Sản phẩm, Khách hàng, Vùng.",
+    ], inner_width=INNER_HALF)
+    s22_semi = make_box([
+        "[B. SEMI-ADDITIVE MEASURE (CẤM CỘNG THEO THỜI GIAN - SLIDE 21)]",
+        "• Ví dụ: Cột mức tồn kho InventoryLevel theo ngày:",
+        "  ├── May 1 = 100 | May 2 = 80 | May 3 = 120",
+        "• [x] Sai lầm chết người: 100 + 80 + 120 = 300 (Báo cáo khống!)",
+        "• [+] Đúng chuẩn: Lấy tồn kho cuối kỳ (Ending Inventory = 120)",
+        "  hoặc tồn kho trung bình kỳ (Average Inventory = 100).",
+        "• Bản chất : Số dư tại một thời điểm (Stock/Balance Snapshot).",
+    ], inner_width=INNER_HALF)
+    row_22_meas = join_horizontal([s22_add, s22_semi], ["    "])
+
+    diagrams["2.2"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU BẢNG FACTSALES & PHÂN LOẠI CHỈ SỐ ADDITIVE vs. SEMI-ADDITIVE (SLIDE 19-21)")
+            + [""]
+            + s22_fact
+            + v_arrow("Kiểm tra tính chất toán học của cột Measure trước khi viết hàm tổng hợp SUM() hay AVG()/LAST_VALUE()")
+            + row_22_meas
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 2.3: Bảng Chiều Thời gian dimDate & Cơ học Thực thi Truy vấn Star Schema
+    # -------------------------------------------------------------------------
+    s23_date = make_box([
+        "[GIẢI PHẪU BẢNG CHIỀU THỜI GIAN: DIMDATE (SLIDE 21 - KHÓA NGUYÊN THÔNG MINH YYYYMMDD)]",
+        "  DateKey  | FullDate   | Day | Month | MonthName | Quarter | Year | Weekday  | IsWeekend",
+        "  20260501 | 2026-05-01 | 1   | 5     | May       | Q2      | 2026 | Friday   | No",
+        "  20260502 | 2026-05-02 | 2   | 5     | May       | Q2      | 2026 | Saturday | Yes",
+        "• [+] Lợi ích cơ học: Thay vì gọi hàm EXTRACT(DOW FROM date) quét trên 1 tỷ dòng Fact, chỉ cần lọc IsWeekend='Yes' trên 3,650 dòng dimDate!",
+    ], inner_width=INNER_FULL)
+
+    s23_star1 = make_box([
+        "[CẤU TRÚC HÌNH SAO: STAR SCHEMA (SLIDE 22)]",
+        "       [dimCustomer]       [dimProduct]",
+        "              \\               /",
+        "               v             v",
+        "             +-----------------+",
+        "             |    factSales    |  (1 Bảng Fact trung tâm)",
+        "             +-----------------+",
+        "               ^             ^",
+        "              /               \\",
+        "       [dimTerritory]      [dimDate]",
+    ], inner_width=INNER_HALF)
+    s23_star2 = make_box([
+        "[LUỒNG THỰC THI TRUY VẤN 4 BƯỚC TRÊN STAR SCHEMA (SLIDE 22)]",
+        "├── Bước 1: Truy vấn phân tích luôn bắt đầu từ bảng Fact trung tâm",
+        "├── Bước 2: Lọc điều kiện (WHERE) trên các bảng Dimension nhỏ gọn",
+        "├── Bước 3: Kết nối (Join 1-Hop) Fact với Dimensions qua khóa ngoại",
+        "└── Bước 4: Thực hiện gom nhóm (SUM, AVG, COUNT) trên cột Measures",
+        "",
+        "[+] Ưu điểm: Cấu trúc đơn giản, ít phép Join, tốc độ quét cực nhanh!",
+    ], inner_width=INNER_HALF)
+    row_23_star = join_horizontal([s23_star1, s23_star2], ["    "], {4: [" ──►"]})
+
+    diagrams["2.3"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU BẢNG CHIỀU DIMDATE & LUỒNG THỰC THI TRUY VẤN STAR SCHEMA (SLIDE 21-22)")
+            + [""]
+            + s23_date
+            + v_arrow("Kết nối trực tiếp 1-Hop từ các bảng Dimension xung quanh vào bảng Fact trung tâm")
+            + row_23_star
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 2.4: Star Schema vs. Snowflake Schema (Phân nhánh DIM_CUSTOMER -> CITY -> STATE -> COUNTRY)
+    # -------------------------------------------------------------------------
+    s24_star = make_box([
+        "[A. STAR SCHEMA: CHIỀU PHẲNG PHI CHUẨN HÓA (1-HOP JOIN)]",
+        "  [FACT_SALES] ──► [DIM_CUSTOMER (customer_id, name, city, state, country)]",
+        "• Toàn bộ thuộc tính phân cấp địa lý nằm gọn trong 1 bảng DIM_CUSTOMER",
+        "• Truy vấn doanh thu theo Quốc gia chỉ tốn đúng 1 phép JOIN duy nhất!",
+        "• [+] Tối ưu cho Dashboards, BI Tools và truy vấn ad-hoc tốc độ cao",
+        "• [!] Đánh đổi: Chuỗi 'United Kingdom' lặp lại ở các khách hàng cùng nước",
+    ], inner_width=INNER_HALF)
+    s24_snow = make_box([
+        "[B. SNOWFLAKE SCHEMA: CHIỀU PHÂN NHÁNH 3NF (SLIDE 23)]",
+        "  [FACT_SALES] ──► [DIM_CUSTOMER (customer_id, name, city_id)]",
+        "                        └──► [DIM_CITY (city_id, city_name, state_id)]",
+        "                                  └──► [DIM_STATE (state_id, name, country_id)]",
+        "                                            └──► [DIM_COUNTRY (country_id, name)]",
+        "• [+] Tiết kiệm dung lượng lưu trữ chiều, chuẩn hóa phân cấp (Hierarchy)",
+        "• [x] Phải nối chuỗi 4 phép JOIN mới lấy được tên Quốc gia -> Chậm hơn!",
+    ], inner_width=INNER_HALF)
+    row_24_top = join_horizontal([s24_star, s24_snow], ["    "])
+
+    s24_obt = make_box([
+        "[GÓC NHÌN HIỆN ĐẠI: TẠI SAO STAR SCHEMA & OBT (ONE BIG TABLE) THỐNG TRỊ TRÊN ĐỘNG CƠ CỘT (PARQUET / CLICKHOUSE)?]",
+        "• Trên ổ đĩa từ thập niên 1990, lặp lại chuỗi 'United States' tốn nhiều MB nên người ta tách Snowflake Schema để tiết kiệm đĩa.",
+        "• Trên kho dữ liệu cột hiện đại (BigQuery, Snowflake, ClickHouse, Parquet), thuật toán Dictionary Encoding + RLE nén 1 triệu chuỗi",
+        "  trùng lặp xuống chỉ còn vài KB! Do đó, chi phí CPU của phép Join đắt hơn gấp nhiều lần chi phí lưu trữ -> Ưu tiên Star Schema / OBT!",
+    ], inner_width=INNER_FULL)
+
+    diagrams["2.4"] = {
+        "ascii": "\n".join(
+            banner("ĐỐI CHIẾU KIẾN TRÚC STAR SCHEMA vs. SNOWFLAKE SCHEMA (SLIDE 23-24)")
+            + [""]
+            + row_24_top
+            + v_arrow("Quyết định kiến trúc dựa trên bài toán đánh đổi giữa Chi phí CPU Phép Kết (Joins) và Dung lượng Đĩa (Storage)")
+            + s24_obt
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 3.1: Giải phẫu Slowly Changing Dimensions: SCD Type 0, Type 1 & Type 2
+    # -------------------------------------------------------------------------
+    s31_t01 = make_box([
+        "[SCD TYPE 0 & TYPE 1: GIỮ NGUYÊN HOẶC GHI ĐÈ XÓA LỊCH SỬ (SLIDE 27-28)]",
+        "├── [Type 0 - Never Updated] : Peter Pan (PK=123456) giữ mãi Currency='GBP'",
+        "│   • Dùng cho thuộc tính bất biến: Ngày sinh (Birthday), Quốc tịch gốc",
+        "└── [Type 1 - Overwritten]   : Ghi đè trực tiếp GBP -> USD trên dòng 123456:",
+        "      Trước: [123456 | Peter Pan | GBP] ──(UPDATE)──► Sau: [123456 | Peter Pan | USD]",
+        "    • [x] Hậu quả: Xóa sạch lịch sử! Mọi đơn hàng cũ tại UK bị tính nhầm thành USD!",
+    ], inner_width=INNER_FULL)
+
+    s31_t2 = make_box([
+        "[SCD TYPE 2: VERSIONING ROWS VỚI SURROGATE KEY — CHUẨN VÀNG BẢO TOÀN LỊCH SỬ (SLIDE 29)]",
+        "  Primary Key (NK) | Customer Name | Currency | Surrogate Key (PK) | Data From  | Data To    | Delete Flag",
+        "  123456           | Peter Pan     | GBP      | 1                  | 01/09/2025 | 25/09/2025 | 1 (Đã đóng)",
+        "  123456           | Peter Pan     | USD      | 2                  | 26/09/2025 | 31/12/9999 | 0 (Hiện hành)",
+        "├── [+] Cơ chế Surrogate Key (1 -> 2): Vì Natural Key (123456) bị lặp lại ở cả 2 dòng, hệ thống sinh khóa thay thế (1, 2) làm PK thật!",
+        "└── [+] Kết nối Fact chuẩn xác       : Đơn hàng ngày 10/09 neo vào SK=1 (GBP); đơn hàng ngày 28/09 neo vào SK=2 (USD) -> 0% sai lệch!",
+    ], inner_width=INNER_FULL)
+
+    diagrams["3.1"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU SLOWLY CHANGING DIMENSIONS: SCD TYPE 0, TYPE 1 & TYPE 2 (SLIDE 26-29)")
+            + [""]
+            + s31_t01
+            + v_arrow("Khi khách hàng Peter Pan (#123456) đổi tiền tệ từ GBP sang USD ngày 26/09/2025 và cần bảo toàn 100% lịch sử")
+            + s31_t2
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 3.2: Giải phẫu SCD Type 3, Type 4 & Kiến trúc Lai SCD Type 6 (1+2+3)
+    # -------------------------------------------------------------------------
+    s32_t3 = make_box([
+        "[A. SCD TYPE 3: THÊM CỘT MỚI (SLIDE 30)]",
+        "  PK     | Name      | Current_Curr | Previous_Curr",
+        "  123456 | Peter Pan | USD          | GBP",
+        "• Thay vì thêm dòng, mở rộng bảng bằng cột Previous",
+        "• [+] Không tăng số dòng, không cần cột Delete_Flag",
+        "• [x] Chỉ nhớ được đúng 1 lần thay đổi liền trước!",
+    ], inner_width=INNER_HALF)
+    s32_t4 = make_box([
+        "[B. SCD TYPE 4: TÁCH BẢNG LỊCH SỬ RIÊNG (SLIDE 31)]",
+        "• Current Table : [123456 | Peter Smith] (Nhỏ, quét cực nhanh)",
+        "• History Table : [123456 | Peter Pan    | 2026-01-01]",
+        "                  [123456 | Peter Parker | 2025-01-01]",
+        "• [+] Giữ bảng hiện hành siêu gọn khi thuộc tính đổi liên tục",
+        "• [!] Phải UNION / JOIN 2 bảng nếu muốn phân tích xuyên lịch sử",
+    ], inner_width=INNER_HALF)
+    row_32_top = join_horizontal([s32_t3, s32_t4], ["    "])
+
+    s32_t6 = make_box([
+        "[C. SCD TYPE 6: KẾT HỢP TYPE 1 + TYPE 2 + TYPE 3 = 6 (HYBRID DIMENSION - SLIDE 32)]",
+        "  Surrogate Key | Name      | Currency (Type 2) | Current Currency (Type 1) | Previous Currency (Type 3) | Date From  | Date To    | Active",
+        "  1             | Peter Pan | GBP (Lịch sử)     | USD (Ghi đè mọi dòng!)    | NULL                       | 01/09/2025 | 25/09/2025 | 0",
+        "  2             | Peter Pan | USD (Hiện tại)    | USD (Ghi đè mọi dòng!)    | GBP (Giá trị bước trước)   | 26/09/2025 | 31/12/9999 | 1",
+        "• [+] Sức mạnh kép: Group theo cột 'Currency' để xem báo cáo đúng thời điểm phát sinh (As-Was), HOẶC Group theo 'Current Currency' (As-Is)!",
+    ], inner_width=INNER_FULL)
+
+    diagrams["3.2"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU SCD TYPE 3, TYPE 4 & MÔ HÌNH LAI SCD TYPE 6 (1+2+3) (SLIDE 30-33)")
+            + [""]
+            + row_32_top
+            + v_arrow("Hợp nhất cả 3 kỹ thuật (Row Versioning + Overwrite Current + Previous Column) thành SCD Type 6")
+            + s32_t6
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 3.3: Kiến trúc Data Vault (Hub, Link, Satellite) tại Tầng Silver (Slide 35-37)
+    # -------------------------------------------------------------------------
+    s33_hub = make_box([
+        "[1. HUBS (BUSINESS KEYS - WHAT)]",
+        "• HUB_CUSTOMER:",
+        "  CUSTOMER_ID, LOAD_DATE, SOURCE",
+        "• HUB_ORDER:",
+        "  ORDER_ID, LOAD_DATE, SOURCE",
+        "• HUB_PRODUCT:",
+        "  PRODUCT_ID, LOAD_DATE, SOURCE",
+        "[+] Khóa nghiệp vụ bất biến!",
+    ], inner_width=INNER_THIRD)
+    s33_lnk = make_box([
+        "[2. LINKS (RELATIONSHIPS - HOW)]",
+        "• LINK_ORDER_CUSTOMER:",
+        "  ORDER_ID, CUSTOMER_ID, LOAD_DATE",
+        "• LINK_ORDER_PRODUCT:",
+        "  ORDER_ID, PRODUCT_ID, LOAD_DATE",
+        "",
+        "[+] Kết nối linh hoạt các Hub,",
+        "    dễ dàng tích hợp CRM + ERP!",
+    ], inner_width=INNER_THIRD)
+    s33_sat = make_box([
+        "[3. SATELLITES (HISTORY - CONTEXT)]",
+        "• SAT_CUSTOMER:",
+        "  CUSTOMER_ID, LOAD_DATE, NAME, ADDR",
+        "• SAT_PRODUCT:",
+        "  PRODUCT_ID, LOAD_DATE, PRICE, CAT",
+        "• SAT_ORDER:",
+        "  ORDER_ID, LOAD_DATE, STATUS, TOTAL",
+        "[+] Đổi tên/địa chỉ -> Append dòng mới!",
+    ], inner_width=INNER_THIRD)
+    row_33_dv = join_horizontal([s33_hub, s33_lnk, s33_sat], ["    ", "    "], {3: ["◄──►", " ──►"]})
+
+    s33_why = make_box([
+        "[TẠI SAO DATA VAULT ĐƯỢC ĐẶT TẠI TẦNG SILVER TRONG KIẾN TRÚC MEDALLION? (SLIDE 35-37)]",
+        "├── [Vấn đề của Star Schema] : Đòi hỏi dữ liệu đầu vào phải sạch và lược đồ cố định; khi ERP/CRM đổi cột phải sửa lại toàn bộ bảng!",
+        "├── [Giải pháp Data Vault]   : Tách rời hoàn toàn Khóa (Hub), Quan hệ (Link) và Thuộc tính biến động theo thời gian (Satellite).",
+        "└── [Khả năng thích nghi]    : Thêm nguồn mới hoặc đổi thuộc tính chỉ cần gắn thêm Satellite hoặc chèn dòng với LOAD_DATE mới (100% Audit)!",
+    ], inner_width=INNER_FULL)
+
+    diagrams["3.3"] = {
+        "ascii": "\n".join(
+            banner("KIẾN TRÚC DATA VAULT (HUB, LINK, SATELLITE) TẠI TẦNG SILVER (SLIDE 34-37)")
+            + [""]
+            + row_33_dv
+            + v_arrow("Cơ chế hấp thụ thay đổi lược đồ (Schema Drift) và tích hợp đa nguồn ERP / CRM / eCommerce")
+            + s33_why
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 3.4: Inmon vs. Kimball & Quy ước Đặt tên Medallion Architecture (Slide 39-41)
+    # -------------------------------------------------------------------------
+    s34_inmon = make_box([
+        "[TRƯỜNG PHÁI 1: BILL INMON — TOP-DOWN APPROACH (SLIDE 39)]",
+        "  [Sources] ──► [Enterprise 3NF DWH] ──► [Department Data Marts]",
+        "• Bắt đầu bằng việc xây dựng Kho dữ liệu chuẩn hóa 3NF toàn",
+        "  doanh nghiệp, sau đó mới trích xuất các Data Marts phụ thuộc.",
+        "• [+] Single Source of Truth tuyệt đối, nhất quán giữa mọi phòng ban",
+        "• [x] Chi phí đầu tư ban đầu rất lớn, thời gian triển khai chậm",
+        "• Phù hợp: Tập đoàn lớn, ngân hàng/bảo hiểm nặng tính tuân thủ",
+    ], inner_width=INNER_HALF)
+    s34_kimball = make_box([
+        "[TRƯỜNG PHÁI 2: RALPH KIMBALL — BOTTOM-UP APPROACH (SLIDE 39)]",
+        "  [Sources] ──► [Star Schema Data Marts] ──► [Union Enterprise DWH]",
+        "• Bắt đầu ngay từ các Data Marts (Star Schema) phục vụ từng",
+        "  quy trình kinh doanh, nối kết qua Conformed Dimensions.",
+        "• [+] Bàn giao cực nhanh (Fast Time-to-Value), dễ hiểu cho BI",
+        "• [!] Rủi ro lệch số liệu giữa các Mart nếu thiếu quản trị chung",
+        "• Phù hợp: Đội ngũ Agile, cần ra mắt báo cáo phân tích nhanh",
+    ], inner_width=INNER_HALF)
+    row_34_schools = join_horizontal([s34_inmon, s34_kimball], ["    "])
+
+    s34_medallion = make_box([
+        "[SỰ HỘI TỤ TRÊN MODERN DATA PLATFORM: KIẾN TRÚC MEDALLION & QUY ƯỚC ĐẶT TÊN CHUẨN (SLIDE 41)]",
+        "├── [1. BRONZE LAYER (Raw)]    : Nạp dữ liệu thô nguyên bản, cấm sửa đổi | Modeling: None | Quy ước: bronze_<source>_<entity> (bronze_crm_orders)",
+        "├── [2. SILVER LAYER (Clean)]  : Làm sạch, khử trùng, tích hợp đa nguồn  | Modeling: 3NF / Data Vault (Inmon) | Quy ước: silver_<entity>, hub_, lnk_, sat_",
+        "└── [3. GOLD LAYER (Business)] : Phục vụ trực tiếp BI & Analytics        | Modeling: Star / Snowflake / OBT (Kimball) | Quy ước: fact_sales, dim_customer, mart_finance",
+    ], inner_width=INNER_FULL)
+
+    diagrams["3.4"] = {
+        "ascii": "\n".join(
+            banner("HAI TRƯỜNG PHÁI INMON vs. KIMBALL & KIẾN TRÚC MEDALLION HIỆN ĐẠI (SLIDE 38-41)")
+            + [""]
+            + row_34_schools
+            + v_arrow("Kết hợp tinh hoa của cả Inmon (Silver 3NF/Data Vault) và Kimball (Gold Star Schema/OBT) trên Medallion")
+            + s34_medallion
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 4.1: Cơ học Động cơ OLAP: Columnar Storage, Vectorized SIMD & Distributed MPP
+    # -------------------------------------------------------------------------
+    s41_p1 = make_box([
+        "[1. COLUMNAR STORAGE]",
+        "• Lưu dữ liệu theo từng cột liên",
+        "  tiếp trên đĩa thay vì theo dòng",
+        "• Truy vấn SUM(amount) chỉ đọc",
+        "  đúng cột amount, bỏ qua 90% I/O",
+        "  của các cột văn bản khác!",
+        "[+] Nén LZ4/ZSTD/RLE cực cao",
+    ], inner_width=INNER_THIRD)
+    s41_p2 = make_box([
+        "[2. VECTORIZED EXECUTION (SIMD)]",
+        "• Xử lý cả mảng giá trị trong",
+        "  ĐÚNG 1 LỆNH CPU (AVX-512):",
+        "• [x] Thường: 1+5, 2+6, 3+7, 4+8",
+        "      => Mất 4 lệnh CPU rời rạc",
+        "• [+] Vector: (1,2,3,4)+(5,6,7,8)",
+        "      = (6,8,10,12) => 1 lệnh!",
+    ], inner_width=INNER_THIRD)
+    s41_p3 = make_box([
+        "[3. DISTRIBUTED QUERY (MPP)]",
+        "• Chia nhỏ truy vấn chạy song",
+        "  song trên hàng chục máy chủ",
+        "• Mỗi Shard quét phân đoạn cột",
+        "  cục bộ và gửi kết quả tạm về",
+        "  nút điều phối hợp nhất",
+        "[+] Quét hàng tỷ dòng/giây!",
+    ], inner_width=INNER_THIRD)
+    row_41_props = join_horizontal([s41_p1, s41_p2, s41_p3], ["    ", "    "], {3: [" ──►", " ──►"]})
+
+    s41_cmp = make_box([
+        "[ĐỐI CHIẾU CƠ HỌC ĐỘNG CƠ OLTP vs. ĐỘNG CƠ OLAP (SLIDE 43-44)]",
+        "├── [OLTP (PostgreSQL, MySQL, MongoDB)] : Chạy INSERT/UPDATE/DELETE vài dòng/lần | Cấu trúc 3NF | Độ trễ < 10ms | Dữ liệu Real-time",
+        "└── [OLAP (ClickHouse, BigQuery, Pinot)]: Chạy SELECT GROUP BY, SUM, AVG trên hàng triệu-tỷ dòng | Star/Snowflake | Độ trễ Mili-giây -> Phút",
+    ], inner_width=INNER_FULL)
+
+    diagrams["4.1"] = {
+        "ascii": "\n".join(
+            banner("BA TRỤ CỘT CƠ HỌC CỦA ĐỘNG CƠ OLAP & THỰC THI VECTOR HÓA SIMD (SLIDE 42-44)")
+            + [""]
+            + row_41_props
+            + v_arrow("Sự kết hợp giữa Bố cục Đĩa (Columnar), Thanh ghi CPU (SIMD Vectorization) và Cụm Mạng (MPP)")
+            + s41_cmp
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 4.2: Giải phẫu Kiến trúc 4 Thành phần của ClickHouse & MergeTree 8,192 Granule
+    # -------------------------------------------------------------------------
+    s42_left = make_box([
+        "[1. CLICKHOUSE NODES & 2. COLUMNAR BLOCK STORAGE (SLIDE 46-48)]",
+        "  +---------------------------------+     +---------------------------------+",
+        "  | ClickHouse Node 1 (Vectorized)  | <─► | ClickHouse Node 2 (Vectorized)  |",
+        "  | [Caching: Mark & Page Cache]    |     | [Caching: Mark & Page Cache]    |",
+        "  +----------------+----------------+     +----------------+----------------+",
+        "                   |                                       |",
+        "                   v                                       v",
+        "  [Columnar Data in Block Storage]        [Columnar Data in Block Storage]",
+        "  • Chia thành các Granules (8,192 dòng)  • Sparse Primary Index (primary.idx)",
+        "                   \\                                       /",
+        "                    v                                     v",
+        "  +-------------------------------------------------------------------------+",
+        "  | 3. S3-COMPATIBLE OBJECT STORAGE (Amazon S3 / MinIO / Data Lake Files)   |",
+        "  +-------------------------------------------------------------------------+",
+    ], inner_width=80)
+    s42_right = make_box([
+        "[4. ZOOKEEPER / KEEPER (SLIDE 50)]",
+        "  +----------------------------+",
+        "  |   [Zoo]Keeper Node 1       |",
+        "  +-------------+--------------+",
+        "                ^",
+        "                v",
+        "  +-------------+--------------+",
+        "  |   [Zoo]Keeper Node 2       |",
+        "  +-------------+--------------+",
+        "                ^",
+        "                v",
+        "  +-------------+--------------+",
+        "  |   [Zoo]Keeper Node 3       |",
+        "  +----------------------------+",
+        "• Chỉ lưu Metadata (0% dữ liệu thật)",
+        "• Đồng bộ các Data Parts giữa các",
+        "  Node qua ReplicatedMergeTree!",
+    ], inner_width=44)
+    row_42_arch = join_horizontal([s42_left, s42_right], ["    "], {4: [" ◄─►"]})
+
+    s42_note = make_box([
+        "[NGUYÊN LÝ VẬN HÀNH SỐNG CÒN CỦA CLICKHOUSE MERGETREE (SLIDE 45 & CHƯƠNG 4 CLICKHOUSE BOOK)]",
+        "• Mỗi lệnh INSERT theo lô tạo ra một thư mục Data Part bất biến được sắp xếp vật lý theo khóa ORDER BY và đánh dấu mỗi 8,192 dòng (Granule).",
+        "• [!] CẢNH BÁO THIẾT KẾ (Slide 45): ClickHouse KHÔNG được thiết kế cho lệnh UPDATE/DELETE đơn lẻ thường xuyên (vì phải viết lại cả Data Part)!",
+    ], inner_width=INNER_FULL)
+
+    diagrams["4.2"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU KIẾN TRÚC 4 THÀNH PHẦN CỦA CLICKHOUSE & MERGETREE (SLIDE 45-50)")
+            + [""]
+            + row_42_arch
+            + [""]
+            + s42_note
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 4.3: Giải phẫu Apache Pinot & Kiến trúc Hybrid Tables (Real-time + Offline)
+    # -------------------------------------------------------------------------
+    s43_rt = make_box([
+        "[1. REAL-TIME TABLES (SLIDE 52)]",
+        "• Nguồn: Hút luồng sự kiện trực tiếp từ",
+        "  Apache Kafka, Kinesis, Pub/Sub",
+        "• Cơ chế: Ghi vào Consuming Segments",
+        "  trong RAM -> Truy vấn được NGAY LẬP TỨC",
+        "  ngay khi sự kiện vừa chạm tới!",
+    ], inner_width=INNER_HALF)
+    s43_off = make_box([
+        "[2. OFFLINE TABLES (SLIDE 52)]",
+        "• Nguồn: Dữ liệu lô lịch sử từ Data Lake",
+        "  hoặc Warehouse (S3, GCS, HDFS)",
+        "• Cơ chế: Đóng gói sẵn thành các Pre-built",
+        "  Segments nén chặt & đẩy lên qua Pinot",
+        "  Controller APIs (Tối ưu quét lịch sử).",
+    ], inner_width=INNER_HALF)
+    row_43_tables = join_horizontal([s43_rt, s43_off], ["    "])
+
+    s43_hybrid = make_box([
+        "[3. HYBRID TABLES & CƠ CHẾ CHIA CẮT TRUY VẤN QUA TIME BOUNDARY (SLIDE 51-52)]",
+        "  [Ứng dụng User-Facing gửi SQL] ──► [Pinot Broker (Kiểm tra mốc Time Boundary: t_bound = 2026-10-17 23:59:59)]",
+        "                                          ├── Nhánh 1 (timeColumn <= t_bound) ──► Quét [Offline Table Segments (Lịch sử sâu)]",
+        "                                          └── Nhánh 2 (timeColumn >  t_bound) ──► Quét [Real-time Table Segments (Mới nhất từ Kafka)]",
+        "• Lược đồ cột cố định (Fixed Schema): Phân tách rõ Dimensions (Lọc/Group), Metrics (Tổng hợp SUM/AVG) và Time Column (Cột mốc hợp nhất).",
+        "• [+] Kết quả: Người dùng chỉ truy vấn 1 bảng logic duy nhất nhưng nhận được cả độ sâu lịch sử hàng năm lẫn độ tươi mili-giây!",
+    ], inner_width=INNER_FULL)
+
+    diagrams["4.3"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU APACHE PINOT: 3 LOẠI BẢNG & CƠ CHẾ HỢP NHẤT HYBRID TABLE (SLIDE 51-52)")
+            + [""]
+            + row_43_tables
+            + v_arrow("Hợp nhất cả hai luồng dưới một tên bảng logic duy nhất thông qua cột Time Column và Pinot Broker")
+            + s43_hybrid
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 4.4: Đối chiếu Kiến trúc ClickHouse vs. Apache Pinot (Slide 53)
+    # -------------------------------------------------------------------------
+    s44_ch = make_box([
+        "[A. CLICKHOUSE: VUA PHÂN TÍCH LÔ, LOGS & SQL PHỨC TẠP]",
+        "├── Thế mạnh cốt lõi : High-throughput batch analytics, Log/Trace",
+        "├── Độ trễ (Latency) : Seconds (trên các truy vấn phức tạp quét lớn)",
+        "├── Độ tươi dữ liệu  : Near real-time (Gom lô INSERT mỗi vài giây)",
+        "├── Độ phức tạp SQL  : Hỗ trợ SQL cực mạnh, phép kết nhiều bảng (Joins)",
+        "├── Cơ chế chỉ mục   : Sparse Primary Index (1 mark / 8,192 dòng)",
+        "└── Ứng dụng thực tế : Dashboard nội bộ, phân tích Log/Observability",
+    ], inner_width=INNER_HALF)
+    s44_pi = make_box([
+        "[B. APACHE PINOT: VUA PHÂN TÍCH HƯỚNG NGƯỜI DÙNG THỜI GIAN THỰC]",
+        "├── Thế mạnh cốt lõi : User-facing real-time analytics (Hàng triệu User)",
+        "├── Độ trễ (Latency) : Milliseconds (Truy vấn đơn giản ở quy mô cực lớn)",
+        "├── Độ tươi dữ liệu  : True real-time (Hút trực tiếp luồng Apache Kafka)",
+        "├── Độ phức tạp SQL  : Gom nhóm đơn giản, chịu tải đồng thời cực cao (QPS)",
+        "├── Cơ chế chỉ mục   : Star-Tree Index (Tính sẵn tổ hợp) + Inverted Index",
+        "└── Ứng dụng thực tế : LinkedIn (Ai xem hồ sơ), Uber Eats, Stripe Dashboard",
+    ], inner_width=INNER_HALF)
+    row_44_cmp = join_horizontal([s44_ch, s44_pi], ["    "])
+
+    s44_bridge = make_box([
+        "[BƯỚC CHUYỂN TỪ PHỤC VỤ CON NGƯỜI (BI / OLAP) SANG PHỤC VỤ MÔ HÌNH MACHINE LEARNING (SLIDE 53 -> 54)]",
+        "• ClickHouse và Apache Pinot giải quyết xuất sắc bài toán trả lời câu hỏi phân tích cho con người và ứng dụng báo cáo.",
+        "• Nhưng khi một mô hình Machine Learning chống gian lận cần chấm điểm giao dịch trong < 10ms VÀ cần tái tạo lại chính xác lịch sử",
+        "  đặc trưng để huấn luyện mà không bị lệch logic (Training-Serving Skew), chúng ta cần một mảnh ghép kiến trúc mới: FEATURE STORE!",
+    ], inner_width=INNER_FULL)
+
+    diagrams["4.4"] = {
+        "ascii": "\n".join(
+            banner("ĐỐI CHIẾU KIẾN TRÚC CLICKHOUSE vs. APACHE PINOT (SLIDE 53)")
+            + [""]
+            + row_44_cmp
+            + v_arrow("Mở rộng biên giới Consumption Layer từ Hệ thống Báo cáo sang Hệ thống Suy luận AI/ML")
+            + s44_bridge
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 5.1: Bài toán Fraud Detection (txn_9f3a21c8) & 2 Căn bệnh ML (Skew & Duplication)
+    # -------------------------------------------------------------------------
+    s51_raw = make_box([
+        "[DỮ LIỆU GIAO DỊCH THÔ TẠI CỔNG THANH TOÁN (SLIDE 55)]",
+        "  { \"transaction_id\": \"txn_9f3a21c8\",",
+        "    \"user_id\"       : \"user_48291\",",
+        "    \"timestamp\"     : \"2025-01-05T14:32:10Z\",",
+        "    \"amount\"        : 1250.00, \"currency\": \"USD\",",
+        "    \"card_present\"  : false,   \"device_type\": \"mobile\" }",
+        "• [!] Chỉ nhìn vào gói JSON thô này, mô hình ML bị MÙ ngữ cảnh!",
+    ], inner_width=INNER_HALF)
+    s51_need = make_box([
+        "[ĐẶC TRƯNG HÀNH VI TÍNH SẴN MÔ HÌNH CẦN (SLIDE 55)]",
+        "• 1. avg_tx_30d         : Giá trị giao dịch trung bình 30 ngày qua",
+        "• 2. failed_attempts_1h : Số lần quẹt thẻ lỗi trong 1 giờ qua",
+        "• 3. is_new_device      : Thiết bị hoặc vị trí IP này có mới lạ?",
+        "• 4. pattern_match      : Có khớp thói quen chi tiêu quá khứ?",
+        "",
+        "──► Phải kết hợp Raw Event + Pre-computed Behavioral Features!",
+    ], inner_width=INNER_HALF)
+    row_51_top = join_horizontal([s51_raw, s51_need], ["    "], {3: [" ──►"]})
+
+    s51_skew = make_box([
+        "[CĂN BỆNH 1: TRAINING-SERVING SKEW (SLIDE 56)]",
+        "• Lúc Huấn luyện (Training SQL):",
+        "  ROUND(AVG(amount), 2) WHERE status='SETTLED'",
+        "  + Thay NULL bằng 0  ==> Kết quả: 45.73",
+        "• Lúc Chạy thật (Serving Python):",
+        "  round(sum/len) + Bỏ qua NULL ==> Kết quả: 46",
+        "• [x] Hậu quả: Học trên 45.73 nhưng chấm điểm trên 46!",
+    ], inner_width=INNER_HALF)
+    s51_dup = make_box([
+        "[CĂN BỆNH 2: DUPLICATED EFFORT & INCONSISTENCY (SLIDE 57)]",
+        "• Đội Fraud Detection : Tự viết Custom SQL trên Database A",
+        "                        ==> Tính ra avg_tx_30d = 45.73",
+        "• Đội Credit Limit    : Tự viết Custom Python ETL trên Database B",
+        "                        ==> Tính ra avg_tx_30d = 47.10",
+        "• [x] Hậu quả: Cùng 1 tên đặc trưng nhưng 2 giá trị mâu thuẫn!",
+    ], inner_width=INNER_HALF)
+    row_51_bot = join_horizontal([s51_skew, s51_dup], ["    "])
+
+    diagrams["5.1"] = {
+        "ascii": "\n".join(
+            banner("BÀI TOÁN PHÁT HIỆN GIAN LẬN (TXN_9F3A21C8) & HAI CĂN BỆNH CHÍ MẠNG CỦA ML (SLIDE 55-57)")
+            + [""]
+            + row_51_top
+            + v_arrow("Khi thiếu một tầng lưu trữ và định nghĩa đặc trưng tập trung, hệ thống ML sụp đổ vì 2 căn bệnh:")
+            + row_51_bot
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 5.2: Kiến trúc Feature Store Kép (Offline vs Online < 10ms) & Tần suất Cập nhật
+    # -------------------------------------------------------------------------
+    s52_src = make_box([
+        "[1. INGESTION & PIPELINE]",
+        "• Nguồn Lô (Batch):",
+        "  S3 Daily Transactions",
+        "• Nguồn Luồng (Streaming):",
+        "  Apache Kafka / PubSub",
+        "• Feature Pipeline:",
+        "  Định nghĩa 1 lần duy nhất",
+        "  (Single Definition SQL/Py)",
+    ], inner_width=INNER_THIRD)
+    s52_stores = make_box([
+        "[2. DUAL STORAGE ENGINE]",
+        "• [A] OFFLINE STORE (Lịch sử):",
+        "  S3 (Parquet/Delta/Iceberg),",
+        "  BigQuery, Snowflake",
+        "• [B] ONLINE STORE (Mới nhất):",
+        "  Redis, Amazon DynamoDB",
+        "  [!] Bắt buộc phản hồi < 10ms!",
+    ], inner_width=INNER_THIRD)
+    s52_cons = make_box([
+        "[3. TRAINING & SERVING SDK]",
+        "• Model Training (Huấn luyện):",
+        "  Đọc tập dữ liệu lịch sử từ",
+        "  Offline Store",
+        "• Model Serving (Chấm điểm):",
+        "  Gọi Feast SDK lấy avg_tx_30d",
+        "  từ Online Store cho user_48291",
+    ], inner_width=INNER_THIRD)
+    row_52_arch = join_horizontal([s52_src, s52_stores, s52_cons], ["    ", "    "], {3: [" ──►", " ──►"]})
+
+    s52_freq = make_box([
+        "[MA TRẬN QUYẾT ĐỊNH TẦN SUẤT CẬP NHẬT ĐẶC TRƯNG: ĐỘ TƯƠI vs. CHI PHÍ HẠ TẦNG (SLIDE 60)]",
+        "├── [1. Static Features]     : Hồ sơ người dùng (age, country)       | Cập nhật: Daily / Weekly    | Ít thay đổi, chi phí tính toán thấp nhất",
+        "├── [2. Contextual Features] : Trung bình chi tiêu 30 ngày (avg_30d) | Cập nhật: Every 1-5 minutes | Tín hiệu mạnh, chấp nhận trễ vài phút",
+        "└── [3. Critical Features]   : Số tiền quẹt thẻ, số lần lỗi (1h)     | Cập nhật: Per event / Real-time | Quyết định trực tiếp, phải tươi tức thì!",
+    ], inner_width=INNER_FULL)
+
+    diagrams["5.2"] = {
+        "ascii": "\n".join(
+            banner("KIẾN TRÚC LƯU TRỮ KÉP CỦA FEATURE STORE & MA TRẬN TẦN SUẤT CẬP NHẬT (SLIDE 58-61)")
+            + [""]
+            + row_52_arch
+            + v_arrow("Phân tầng nhịp độ tính toán dựa trên độ nhạy của quyết định ML và ngân sách FinOps")
+            + s52_freq
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 5.3: Giải phẫu Kiến trúc Feast: feature_store.yaml, Entity, FeatureView & Registry
+    # -------------------------------------------------------------------------
+    s53_code = make_box([
+        "[1. KHAI BÁO ĐẶC TRƯNG TRONG MÃ PYTHON (features.py)]",
+        "• Entity      : user = Entity(name='user_id', join_keys=['user_id'])",
+        "• DataSource  : FileSource / BigQuerySource (path='s3://.../tx.parquet',",
+        "                timestamp_field='event_timestamp')",
+        "• FeatureView : FeatureView(name='user_tx_stats_fv', entities=[user],",
+        "                ttl=timedelta(days=30), online=True,",
+        "                schema=[Field(name='avg_tx_30d', dtype=Float32),",
+        "                        Field(name='failed_attempts_1h', dtype=Int64)])",
+    ], inner_width=INNER_HALF)
+    s53_yaml = make_box([
+        "[2. TỆP CẤU HÌNH HẠ TẦNG (feature_store.yaml)]",
+        "  project: fraud_detection_prod",
+        "  registry: s3://fsds-ml-registry/registry.db",
+        "  provider: local / aws / gcp",
+        "  offline_store:",
+        "    type: bigquery # hoặc duckdb / file / snowflake",
+        "  online_store:",
+        "    type: redis",
+        "    connection_string: 'redis-cluster.prod:6379'",
+    ], inner_width=INNER_HALF)
+    row_53_top = join_horizontal([s53_code, s53_yaml], ["    "], {3: [" ──►"]})
+
+    s53_apply = make_box([
+        "[3. CƠ CHẾ ĐỒNG BỘ LƯỢC ĐỒ KHI CHẠY LỆNH CLI: $ feast apply (CENTRALIZED METADATA REGISTRY)]",
+        "├── Bước 1: Quét toàn bộ các đối tượng Entity, DataSource, FeatureView, FeatureService trong kho mã nguồn Git (feature_repo/)",
+        "├── Bước 2: Biên dịch và ghi siêu dữ liệu định nghĩa vào tệp Centralized Registry (registry.db trên S3/GCS) làm nguồn sự thật duy nhất",
+        "└── Bước 3: Khởi tạo cấu trúc khóa bảng trên Redis Online Store (không sao chép dữ liệu thô, chỉ chuẩn bị hạ tầng phục vụ)",
+    ], inner_width=INNER_FULL)
+
+    diagrams["5.3"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU FEAST FEATURE STORE: ENTITY, FEATUREVIEW & LỆNH FEAST APPLY (SLIDE 59)")
+            + [""]
+            + row_53_top
+            + v_arrow("Thực thi lệnh `$ feast apply` để đăng ký hợp đồng đặc trưng lên Centralized Registry")
+            + s53_apply
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 5.4: Vòng đời Feast Thực chiến: Point-in-Time Join, Materialize & Online Serving
+    # -------------------------------------------------------------------------
+    s54_pit = make_box([
+        "[LUỒNG 1: TẠO TẬP HUẤN LUYỆN KHÔNG RÒ RỈ TƯƠNG LAI — get_historical_features() (POINT-IN-TIME ASOF JOIN)]",
+        "  Trục thời gian user_48291: ──[14:00 avg=45.73]────▼ (14:32:10Z txn_9f3a21c8 xảy ra!)────[16:00 avg=390.00 (Tương lai!)]──►",
+        "• [x] Nếu dùng SQL JOIN thường : Lấy nhầm bản ghi lúc 16:00 (390.00) ghép vào sự kiện lúc 14:32 -> Rò rỉ tương lai (Data Leakage)!",
+        "• [+] Feast Point-in-Time Join : Quét lùi từ mốc 14:32:10Z trong cửa sổ TTL -> Lấy đúng trạng thái lúc 14:00 (avg_tx_30d = 45.73)!",
+    ], inner_width=INNER_FULL)
+
+    s54_mat = make_box([
+        "[LUỒNG 2: ĐỒNG BỘ OFFLINE SANG ONLINE (MATERIALIZATION)]",
+        "  $ feast materialize-incremental 2025-01-05T14:30:00Z",
+        "• Quét giá trị đặc trưng mới nhất từ Offline Store (Parquet/",
+        "  BigQuery) kể từ lần chạy trước, nạp vào Redis Online Store",
+        "• Khóa Redis: [user_48291] -> {avg_tx_30d:45.73, failed:3}",
+        "• Đặc trưng Critical: Đẩy thẳng qua store.push() từ Kafka!",
+    ], inner_width=INNER_HALF)
+    s54_srv = make_box([
+        "[LUỒNG 3: SUY LUẬN THỜI GIAN THỰC < 10MS (ONLINE SERVING)]",
+        "  store.get_online_features(entity_rows=[{'user_id': ...}])",
+        "• Khi txn_9f3a21c8 ($1,250) chạm cổng thanh toán, Fraud API",
+        "  tra cứu Redis qua Feast SDK chỉ mất ~1.8ms (< 10ms SLA)!",
+        "• Mô hình nhận vector [amount=1250, avg_tx_30d=45.73, ...]",
+        "  khớp 100% lúc Train -> Chặn đứng giao dịch lừa đảo tức thì!",
+    ], inner_width=INNER_HALF)
+    row_54_bot = join_horizontal([s54_mat, s54_srv], ["    "], {3: [" ──►"]})
+
+    diagrams["5.4"] = {
+        "ascii": "\n".join(
+            banner("VÒNG ĐỜI VẬN HÀNH FEAST: POINT-IN-TIME JOIN, MATERIALIZE & ONLINE SERVING (SLIDE 59-61)")
+            + [""]
+            + s54_pit
+            + v_arrow("Đồng bộ trạng thái đặc trưng mới nhất sang bộ nhớ Redis để phục vụ chấm điểm trực tuyến")
+            + row_54_bot
+        ),
+        "kind": "boxes",
+    }
+
+    for k, meta in diagrams.items():
+        errs = verify_diagram(meta["ascii"], f"CNS-{k}", kind=meta["kind"])
+        if errs:
+            raise SystemExit(f"ASCII verification failed for CNS-{k} ({meta['kind']}): {errs}")
+    return diagrams
+
+
 import html as _html_mod
 import re as _re_mod
+
+def build_python_ascii_diagrams() -> dict:
+    from ascii_diagram import make_box as _raw_make_box, display_width
+
+    def wrap_line(line: str, limit: int) -> list[str]:
+        if display_width(line) <= limit:
+            return [line]
+        if any(c in line for c in "┐┘") or line.rstrip().endswith("│"):
+            return [line]
+        import re as _re
+        m = _re.match(r"^(\s*(?:[├└]──\s+|\│\s+|\•\s+)?)", line)
+        prefix = m.group(1) if m else ""
+        cont_indent = prefix.replace("├──", "│  ").replace("└──", "   ").replace("•", " ")
+        if len(cont_indent) > 12:
+            cont_indent = "  "
+        words = line.split(" ")
+        out = []
+        cur = ""
+        for w in words:
+            cand = w if not cur else cur + " " + w
+            if display_width(cand) <= limit:
+                cur = cand
+            else:
+                if cur:
+                    out.append(cur)
+                cur = cont_indent + w
+        if cur:
+            out.append(cur)
+        return out
+
+    def make_box(lines, inner_width=None, header=None, context="make_box"):
+        if inner_width:
+            wrapped = []
+            for l in lines:
+                wrapped.extend(wrap_line(l, inner_width))
+            lines = wrapped
+        req_w = max((display_width(l) for l in lines), default=0)
+        w = max(inner_width or 0, req_w)
+        return _raw_make_box(lines, inner_width=w, header=header, context=context)
+
+    def banner(title: str, subtitle: str = "", width: int = 132) -> list[str]:
+        bar = "=" * width
+        out = [bar, pad_center(title, width).rstrip()]
+        if subtitle:
+            out.append(pad_center(subtitle, width).rstrip())
+        out.append(bar)
+        return out
+
+    def v_arrow(label: str = "", width: int = 132) -> list[str]:
+        mid = width // 2
+        if label:
+            lbl = f"│  {label}"
+            start = min(mid, max(2, width - display_width(lbl)))
+            return [
+                (" " * mid) + "│",
+                (" " * start) + lbl,
+                (" " * mid) + "▼",
+            ]
+        return [
+            (" " * mid) + "│",
+            (" " * mid) + "▼",
+        ]
+
+    INNER_HALF = 58
+    INNER_THIRD = 36
+
+    diagrams = {}
+
+    s01_c1 = make_box([
+        "[CHẶNG 1: CPYTHON RUNTIME & VIRTUAL ENVIRONMENTS (TRẠM 1.1 -> 1.2)]",
+        "├── Bytecode VM : Mã nguồn crawler.py -> .pyc -> CPython Stack VM",
+        "├── Bộ nhớ tự động: PyObject (28B/int), ob_refcnt + Cyclic GC",
+        "├── Dependency Hell: Xung đột thư viện trong site-packages toàn cục",
+        "└── Cô lập dự án: venv/virtualenv (4.63s) -> Poetry (0.99s) -> uv (0.06s)",
+    ], inner_width=INNER_HALF)
+    s01_c2 = make_box([
+        "[CHẶNG 2: MÔ HÌNH ĐỐI TƯỢNG, HASH TABLE & INTERFACES (TRẠM 2.1 -> 2.3)]",
+        "├── Name Binding : Biến là con trỏ tham chiếu Heap (is vs ==)",
+        "├── Khả biến     : Mutable (list/dict/set) vs Immutable (tuple/str)",
+        "├── Độ phức tạp  : list O(n) Linear Scan vs dict/set O(1) Hash Table",
+        "└── Hợp đồng hàm : __name__ == \"__main__\", *args/**kwargs, Type Hints",
+    ], inner_width=INNER_HALF)
+    row_01_top = join_horizontal([s01_c1, s01_c2], ["    "], {3: [" ──►"]})
+
+    s01_c3 = make_box([
+        "[CHẶNG 3: EXCEPTION, CONTEXT MANAGER & CLI PRODUCTION (TRẠM 3.1 -> 3.3)]",
+        "├── Ngoại lệ đặc thù: Bắt ValueError/TypeError, cấm except Exception mù",
+        "├── Context Manager : Giao thức with (__enter__/__exit__) chống rò FD",
+        "├── Streaming File  : Chế độ r/w/a/x & Iterator O(1) RAM chống OOM",
+        "└── Vũ khí hóa CLI  : argparse (Create->Add->Parse) & Standard Library",
+    ], inner_width=INNER_HALF)
+    s01_c4 = make_box([
+        "[CHẶNG 4: LẬP TRÌNH BẤT ĐỒNG BỘ ASYNCIO & FRAMEWORKS (TRẠM 4.1 -> 4.2)]",
+        "├── Bài toán Polgár : Sync Blocking 12h (92% CPU Idle) vs Async 1.5h",
+        "├── Event Loop      : asyncio + OS epoll/kqueue, async def / await",
+        "├── Chạy đồng thời  : asyncio.gather() gom 1.000 HTTP requests trên 1 luồng",
+        "└── Hệ sinh thái    : Sync WSGI (Flask/Django/Requests) vs ASGI (FastAPI)",
+    ], inner_width=INNER_HALF)
+    row_01_bot = join_horizontal([s01_c3, s01_c4], ["    "], {3: [" ──►"]})
+
+    diagrams["0.1"] = {
+        "ascii": "\n".join(
+            banner("BẢN ĐỒ KIẾN TRÚC 4 CHẶNG F02: HÀNH TRÌNH TIẾN TRÌNH MARKET-CRAWLER (CRAWLER.PY)",
+                   "(Từ CPython Runtime & Môi trường Ảo uv -> Cấu trúc Dữ liệu O(1) -> Context Manager with -> Vòng lặp Sự kiện asyncio)")
+            + [""]
+            + row_01_top
+            + v_arrow("Bước chuyển: Đóng gói cấu trúc dữ liệu thành công cụ CLI an toàn tài nguyên & bất đồng bộ mạng")
+            + row_01_bot
+        ),
+        "kind": "boxes",
+    }
+
+    s11_l = make_box([
+        "[CPYTHON HIGH-LEVEL RUNTIME (AUTOMATIC MEMORY)]",
+        "├── Biên dịch : crawler.py -> Bytecode (.pyc) -> PVM",
+        "├── Cấu trúc  : Mọi giá trị là PyObject trên Heap",
+        "│   • ob_refcnt (8B): Đếm số biến đang trỏ tới",
+        "│   • ob_type   (8B): Con trỏ kiểu dữ liệu động",
+        "│   • payload  (12B): Tổng 28 bytes cho 1 số int",
+        "├── Giải phóng: Khi del a, del b -> ob_refcnt == 0",
+        "│   -> Thu hồi RAM tức thì + Cyclic GC dọn vòng lặp",
+        "└── [+] An toàn 100% khỏi lỗi quên giải phóng bộ nhớ",
+    ], inner_width=INNER_HALF)
+    s11_r = make_box([
+        "[C / C++ LOW-LEVEL NATIVE (MANUAL MEMORY)]",
+        "├── Biên dịch : main.c -> Mã máy nhị phân trực tiếp",
+        "├── Cấu trúc  : Ô nhớ nguyên thủy (int = 4-8 bytes)",
+        "│   • int *arr = malloc(3 * sizeof(int));",
+        "│   • Không có header đếm tham chiếu hay kiểm kiểu",
+        "├── Giải phóng: Lập trình viên tự gọi free(arr);",
+        "│   • Quên gọi free() -> Rò rỉ bộ nhớ (Memory Leak)",
+        "│   • Gọi free() 2 lần -> Sập tiến trình (Segfault)",
+        "└── [!] Tốc độ cao: Dùng viết lõi C-Extension (NumPy)",
+    ], inner_width=INNER_HALF)
+    diagrams["1.1"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU BỘ NHỚ CPYTHON (PYOBJECT & OB_REFCNT) ĐỐI CHIẾU CẤP PHÁT THỦ CÔNG TRONG C")
+            + [""]
+            + join_horizontal([s11_l, s11_r], ["    "])
+        ),
+        "kind": "boxes",
+    }
+
+    s12_c1 = make_box([
+        "[1. GLOBAL SITE-PACKAGES]",
+        "• Cài chung toàn máy chủ",
+        "• Project 1 cần serpapi 1.0.5",
+        "• Project 2 cần serpapi 1.0.8",
+        "• Global đang cài bản 1.1.15",
+        "[x] Xung đột Dependency Hell!",
+    ], inner_width=INNER_THIRD)
+    s12_c2 = make_box([
+        "[2. VENV / POETRY ISOLATION]",
+        "• Cô lập thư mục .venv riêng",
+        "• Poetry: pyproject.toml +",
+        "  cây phụ thuộc poetry.lock",
+        "• Tốc độ cài đặt: 0.99s - 4.63s",
+        "[+] Sạch xung đột giữa dự án",
+    ], inner_width=INNER_THIRD)
+    s12_c3 = make_box([
+        "[3. ASTRAL UV (RUST ENGINE)]",
+        "• Giải thuật PubGrub siêu tốc",
+        "• Global Cache (~/.cache/uv)",
+        "• Hardlink / CoW sang .venv",
+        "• Tốc độ cài đặt: 0.06s (77x)",
+        "[+] Chuẩn Production hiện đại",
+    ], inner_width=INNER_THIRD)
+    diagrams["1.2"] = {
+        "ascii": "\n".join(
+            banner("TỪ XUNG ĐỘT SITE-PACKAGES TOÀN CỤC ĐẾN 3 THẾ HỆ CÔNG CỤ MÔI TRƯỜNG ẢO (VENV -> POETRY -> UV)")
+            + [""]
+            + join_horizontal([s12_c1, s12_c2, s12_c3], ["    ", "    "], {3: [" ──►", " ──►"]})
+        ),
+        "kind": "boxes",
+    }
+
+    s21_l = make_box([
+        "[NAME BINDING & IDENTITY (IS VS. ==)]",
+        "├── Biến trong Python là Nhãn (Reference) trỏ vào Heap",
+        "├── Toán tử == (Equality): Gọi __eq__() so sánh GIÁ TRỊ",
+        "│   • a = [1, 2]; b = [1, 2] -> (a == b) là True",
+        "├── Toán tử is (Identity): So sánh ĐỊA CHỈ RAM id(a)==id(b)",
+        "│   • (a is b) là False (2 vùng nhớ độc lập trên Heap)",
+        "└── [!] Quy tắc: Luôn dùng `x is None`, cấm dùng `x == None`",
+    ], inner_width=INNER_HALF)
+    s21_r = make_box([
+        "[RANH GIỚI MUTABLE VS. IMMUTABLE TRONG BỘ NHỚ]",
+        "├── Immutable (int, str, tuple): Khóa cứng sau khi tạo",
+        "│   • Có mã băm cố định (__hash__) -> Làm key cho dict/set",
+        "├── Mutable (list, dict, set): Sửa trực tiếp tại chỗ (in-place)",
+        "│   • Không khả băm (Unhashable) -> Cấm làm key cho dict",
+        "└── [x] Bẫy Aliasing & Default Arg: `def f(x, seen=[])` giữ",
+        "    nguyên 1 list duy nhất xuyên suốt mọi lần gọi hàm!",
+    ], inner_width=INNER_HALF)
+    diagrams["2.1"] = {
+        "ascii": "\n".join(
+            banner("MÔ HÌNH CON TRỎ THAM CHIẾU (NAME BINDING), ĐỊNH DANH (IS VS ==) & MUTABLE / IMMUTABLE")
+            + [""]
+            + join_horizontal([s21_l, s21_r], ["    "])
+        ),
+        "kind": "boxes",
+    }
+
+    s22_l = make_box([
+        "[MẢNG ĐỘNG LIST & TUPLE (SEQUENTIAL SCAN)]",
+        "├── list : Mảng con trỏ động cấp phát dư (Over-allocated)",
+        "│   • Truy cập chỉ mục arr[i]: O(1) | append(): O(1)",
+        "│   • Kiểm tra `url in visited_list`: Quét tuần tự O(n)",
+        "│   • [x] 100.000 URL tốn ~12.400 ms (Treo cứng CPU!)",
+        "└── tuple: Mảng con trỏ cố định bất biến (Immutable)",
+        "    • Nhẹ RAM hơn list, dùng làm bản ghi cố định (row)",
+    ], inner_width=INNER_HALF)
+    s22_r = make_box([
+        "[BẢNG BĂM COMPACT HASH TABLE: DICT & SET (O(1))]",
+        "├── Cơ chế: key -> hash(key) -> Chỉ mục bảng băm trực tiếp",
+        "├── set  : Tập hợp phần tử duy nhất (Unique), không thứ tự",
+        "│   • Kiểm tra `url in visited_set`: Nhảy thẳng O(1)",
+        "│   • [+] 100.000 URL chỉ tốn ~4.8 ms (Nhanh gấp 2.500x)",
+        "└── dict : Lưu cặp khóa-giá trị (Key-Value) bảo toàn thứ tự",
+        "    • Truy xuất/Cập nhật `cache[url]` đạt tốc độ O(1)",
+    ], inner_width=INNER_HALF)
+    diagrams["2.2"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU BỘ TỨ COLLECTION: MẢNG CON TRỎ LIST O(N) ĐỐI ĐẦU BẢNG BĂM DICT / SET O(1)")
+            + [""]
+            + join_horizontal([s22_l, s22_r], ["    "])
+        ),
+        "kind": "boxes",
+    }
+
+    s23_c1 = make_box([
+        "[1. MODULE GUARD]",
+        "• Chạy trực tiếp file:",
+        "  __name__ == \"__main__\"",
+        "• Khi được import:",
+        "  __name__ == \"crawler\"",
+        "[+] Chặn chạy code ngoài ý",
+    ], inner_width=INNER_THIRD)
+    s23_c2 = make_box([
+        "[2. *ARGS & **KWARGS]",
+        "• *args  : Gom vị trí -> tuple",
+        "• **kwargs: Gom từ khóa -> dict",
+        "• Chuyển tiếp tham số xuyên",
+        "  qua Decorator / Middleware",
+        "[+] Linh hoạt chữ ký hàm",
+    ], inner_width=INNER_THIRD)
+    s23_c3 = make_box([
+        "[3. TYPE HINTS CONTRACT]",
+        "• Cú pháp: `url: str -> dict`",
+        "• Lưu vào `__annotations__`",
+        "• FastAPI / Pydantic đọc để",
+        "  ép kiểu & sinh OpenAPI",
+        "[+] Chuẩn hóa hợp đồng dữ liệu",
+    ], inner_width=INNER_THIRD)
+    diagrams["2.3"] = {
+        "ascii": "\n".join(
+            banner("CƠ CHẾ NẠP MODULE (__MAIN__), GÓI THAM SỐ (*ARGS/**KWARGS) & HỢP ĐỒNG TYPE HINTS")
+            + [""]
+            + join_horizontal([s23_c1, s23_c2, s23_c3], ["    ", "    "], {3: [" ──►", " ──►"]})
+        ),
+        "kind": "boxes",
+    }
+
+    s31_l = make_box([
+        "[BẪY NUỐT LỖI & RÒ RỈ FILE DESCRIPTOR (ANTI-PATTERN)]",
+        "├── 1. Bắt lỗi mù: `except Exception:` nuốt cả TypeError",
+        "│      và lỗi cú pháp -> Dữ liệu bẩn lọt âm thầm (Silent Bug)",
+        "├── 2. Mở tài nguyên thủ công: `f = open(\"log.txt\", \"r\")`",
+        "│      • Nếu dòng `parse(f)` văng lỗi trước lệnh `f.close()`",
+        "│      • File Descriptor (FD) bị treo vĩnh viễn trong Kernel",
+        "└── [x] Sau 1.024 lần lỗi -> Sập: `[Errno 24] Too many open files`",
+    ], inner_width=INNER_HALF)
+    s31_r = make_box([
+        "[SPECIFIC EXCEPTIONS & GIAO THỨC CONTEXT MANAGER (WITH)]",
+        "├── 1. Bắt đúng bệnh: `except (ValueError, KeyError):`",
+        "│      • Phân loại rõ lỗi dữ liệu bẩn để đẩy sang Quarantine",
+        "├── 2. Giao thức `with open(...) as f:` (2 Pha Tự động):",
+        "│      • Pha vào (`__enter__`): Cấp phát File / DB Session",
+        "│      • Pha thoát (`__exit__`): LUÔN chạy dù thành công hay",
+        "│        văng Exception giữa chừng -> Thu hồi 100% FD/Socket!",
+    ], inner_width=INNER_HALF)
+    diagrams["3.1"] = {
+        "ascii": "\n".join(
+            banner("PHÂN CẤP NGOẠI LỆ ĐẶC THÙ & GIAO THỨC CONTEXT MANAGER (WITH) CHỐNG RÒ RỈ TÀI NGUYÊN")
+            + [""]
+            + join_horizontal([s31_l, s31_r], ["    "])
+        ),
+        "kind": "boxes",
+    }
+
+    s32_l = make_box([
+        "[BỐN CHẾ ĐỘ MỞ TỆP POSIX (OPEN MODES: R / W / A / X)]",
+        "├── \"r\" (Read)   : Chỉ đọc; văng FileNotFoundError nếu thiếu",
+        "├── \"w\" (Write)  : Ghi đè; cờ O_TRUNC xóa trắng tệp cũ ngay!",
+        "├── \"a\" (Append) : Ghi nối đuôi (O_APPEND) an toàn cho nhật ký",
+        "└── \"x\" (Create) : Tạo độc quyền; văng lỗi nếu tệp đã tồn tại",
+    ], inner_width=INNER_HALF)
+    s32_r = make_box([
+        "[ĐÁNH ĐỔI BỘ NHỚ KHI ĐỌC TỆP LỚN (10 GB LOG FILE)]",
+        "├── Eager Load (`f.read()` / `f.readlines()`):",
+        "│   • Nạp toàn bộ 10 GB vào RAM -> Tràn bộ nhớ (OOM Killed!)",
+        "└── Streaming Iterator (`for line in f:` / `f.readline()`):",
+        "    • Đọc từng dòng qua bộ đệm 8 KB -> RAM cố định O(1)!",
+    ], inner_width=INNER_HALF)
+    diagrams["3.2"] = {
+        "ascii": "\n".join(
+            banner("CƠ HỌC FILE I/O MODES (R, W, A, X) & ĐỐI CHIẾU BỘ NHỚ: EAGER LOAD VS. STREAMING ITERATOR")
+            + [""]
+            + join_horizontal([s32_l, s32_r], ["    "])
+        ),
+        "kind": "boxes",
+    }
+
+    s33_l = make_box([
+        "[QUY TRÌNH 3 BƯỚC ARGPARSE CLI (CREATE -> ADD -> PARSE)]",
+        "├── Bước 1 (Create): `parser = argparse.ArgumentParser(...)`",
+        "├── Bước 2 (Add)   : Định nghĩa hợp đồng tham số đầu vào:",
+        "│   • Positional : `add_argument(\"dataset\")` (Bắt buộc)",
+        "│   • Typed/Def  : `--batch`, `type=int`, `default=32`",
+        "│   • Choices    : `--mode`, `choices=[\"train\", \"val\"]`",
+        "│   • Flag Bool  : `--save`, `action=\"store_true\"`",
+        "└── Bước 3 (Parse) : `args = parser.parse_args()` + `--help`",
+    ], inner_width=INNER_HALF)
+    s33_r = make_box([
+        "[6 MODULE TRỤ CỘT TRONG PYTHON STANDARD LIBRARY]",
+        "├── `os / pathlib`: Quản lý đường dẫn & thư mục đa nền tảng",
+        "├── `datetime`    : Đóng dấu thời gian chuẩn ISO-8601 & tính trễ",
+        "├── `json`        : Tuần tự hóa / giải mã payload API & cấu hình",
+        "├── `re`          : Trích xuất mẫu văn bản bằng Regular Expressions",
+        "├── `math/random` : Tính toán số học & sinh dữ liệu kiểm thử",
+        "└── `logging`     : Thay thế `print()` bằng log phân cấp chuẩn",
+    ], inner_width=INNER_HALF)
+    diagrams["3.3"] = {
+        "ascii": "\n".join(
+            banner("KIẾN TRÚC CLI TỰ ĐỘNG HÓA VỚI ARGPARSE & BỘ 6 MODULE PYTHON STANDARD LIBRARY")
+            + [""]
+            + join_horizontal([s33_l, s33_r], ["    "])
+        ),
+        "kind": "boxes",
+    }
+
+    s41_l = make_box([
+        "[MODE 1: SYNCHRONOUS (BLOCKING I/O — CHỜ TUẦN TỰ)]",
+        "├── Kịch bản: Judit (CPU: 5s/nước) đấu 24 người (I/O: 55s/nước)",
+        "├── Cơ chế  : Đánh xong 1 nước (5s) -> Đứng chờ đối thủ 55s",
+        "│   rồi mới đi tiếp; xong hẳn Bàn 1 mới bước sang Bàn 2",
+        "├── Toán học: (5s + 55s) x 30 nước x 24 bàn = 43.200s (12 Giờ)",
+        "├── Ví dụ   : `cook_rice(3s)` + `text_friends(1s)` = 4.00 giây",
+        "└── [x] Hiệu suất cực thấp: CPU bị bỏ không (Idle) tới 92%!",
+    ], inner_width=INNER_HALF)
+    s41_r = make_box([
+        "[MODE 2: ASYNCHRONOUS (NON-BLOCKING I/O — XOAY VÒNG)]",
+        "├── Cơ chế  : Đi 1 nước ở Bàn 1 (5s) -> Bước ngay sang Bàn 2",
+        "│   trong lúc đối thủ Bàn 1 đang nghĩ (55s I/O chạy ngầm)",
+        "├── Toán học: (24 bàn x 5s + 55s vòng cuối) x 30 vòng",
+        "│   = 5.250 giây (~1.5 Giờ) -> Tăng tốc gấp 8.2 lần!",
+        "├── Ví dụ   : `asyncio.gather(cook_rice, text_friends)` = 3.00s",
+        "└── [+] Hiệu suất tối đa: Lấp đầy hoàn toàn khoảng trống chờ I/O",
+    ], inner_width=INNER_HALF)
+    diagrams["4.1"] = {
+        "ascii": "\n".join(
+            banner("BÀI TOÁN ĐẠI KIỆN TƯỚNG JUDIT POLGÁR: SYNCHRONOUS (12 GIỜ) VS. ASYNCHRONOUS (1.5 GIỜ)")
+            + [""]
+            + join_horizontal([s41_l, s41_r], ["    "])
+        ),
+        "kind": "boxes",
+    }
+
+    s42_l = make_box([
+        "[CƠ HỌC VÒNG LẶP SỰ KIỆN ASYNCIO EVENT LOOP (1 THREAD)]",
+        "├── 1. Entry Point : `asyncio.run(main())` khởi tạo Event Loop",
+        "├── 2. Đồng thời   : `await asyncio.gather(task1, task2, ...)`",
+        "├── 3. Điểm nhường : Khi gặp `await client.get(url)`:",
+        "│      • Đăng ký Socket FD với `epoll` (Linux) / `kqueue` (macOS)",
+        "│      • Tạm dừng (Suspend) Coroutine, trả CPU cho Event Loop",
+        "├── 4. Đánh thức   : Khi dữ liệu mạng về, Kernel báo Event Loop",
+        "│      khôi phục (Resume) đúng Coroutine đó chạy tiếp",
+        "└── [!] Cấm gọi `time.sleep()` / `requests.get()` trong `async def`!",
+    ], inner_width=INNER_HALF)
+    s42_r = make_box([
+        "[BẢN ĐỒ HỆ SINH THÁI SYNC (WSGI) VS. ASYNC (ASGI) STACK]",
+        "├── Nhánh Sync (WSGI — Blocking Thread-per-Request):",
+        "│   • Web Framework : `Flask`, `Django` (Default Mode)",
+        "│   • HTTP / DB     : `Requests`, `urllib`, `psycopg2`",
+        "├── Nhánh Async (ASGI — Non-Blocking Event Loop):",
+        "│   • Web Framework : `FastAPI`, `Starlette`, `Uvicorn`",
+        "│   • HTTP / DB     : `httpx`, `aiohttp`, `asyncpg`",
+        "└── Nhánh CPU-Bound : Dùng `ProcessPoolExecutor` (Đa tiến trình)",
+        "    để vượt khóa `GIL` khi tính toán nặng trên nhiều nhân CPU",
+    ], inner_width=INNER_HALF)
+    diagrams["4.2"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU VÒNG LẶP SỰ KIỆN ASYNCIO EVENT LOOP & HỆ SINH THÁI FRAMEWORK (WSGI VS. ASGI)")
+            + [""]
+            + join_horizontal([s42_l, s42_r], ["    "])
+        ),
+        "kind": "boxes",
+    }
+
+    for k, meta in diagrams.items():
+        errs = verify_diagram(meta["ascii"], f"PY-{k}", kind=meta["kind"])
+        if errs:
+            raise SystemExit(f"ASCII verification failed for PY-{k} ({meta['kind']}): {errs}")
+    return diagrams
+
+
+def build_flink_ascii_diagrams() -> dict:
+    from ascii_diagram import make_box as _raw_make_box
+
+    def wrap_line(line: str, limit: int) -> list[str]:
+        if display_width(line) <= limit:
+            return [line]
+        if any(c in line for c in "┐┘") or line.rstrip().endswith("│"):
+            return [line]
+        import re as _re
+        m = _re.match(r"^(\s*(?:[├└]──\s+|\│\s+|\•\s+)?)", line)
+        prefix = m.group(1) if m else ""
+        cont_indent = prefix.replace("├──", "│  ").replace("└──", "   ").replace("•", " ")
+        if len(cont_indent) > 12:
+            cont_indent = "  "
+        words = line.split(" ")
+        out = []
+        cur = ""
+        for w in words:
+            cand = w if not cur else cur + " " + w
+            if display_width(cand) <= limit:
+                cur = cand
+            else:
+                if cur:
+                    out.append(cur)
+                cur = cont_indent + w
+        if cur:
+            out.append(cur)
+        return out
+
+    def make_box(lines, inner_width=None, header=None, context="make_box"):
+        if inner_width:
+            wrapped = []
+            for l in lines:
+                wrapped.extend(wrap_line(l, inner_width))
+            lines = wrapped
+        req_w = max((display_width(l) for l in lines), default=0)
+        w = max(inner_width or 0, req_w)
+        return _raw_make_box(lines, inner_width=w, header=header, context=context)
+
+    def banner(title: str, subtitle: str = "", width: int = 136) -> list[str]:
+        bar = "=" * width
+        out = [bar, pad_center(title, width).rstrip()]
+        if subtitle:
+            out.append(pad_center(subtitle, width).rstrip())
+        out.append(bar)
+        return out
+
+    def v_arrow(label: str = "", width: int = 136) -> list[str]:
+        mid = width // 2
+        if label:
+            lbl = f"│  {label}"
+            start = min(mid, max(2, width - display_width(lbl)))
+            return [
+                (" " * mid) + "│",
+                (" " * start) + lbl,
+                (" " * mid) + "▼",
+            ]
+        return [
+            (" " * mid) + "│",
+            (" " * mid) + "▼",
+        ]
+
+    W = 136
+    INNER_FULL = W - 4   # 132 -> total box width 136
+    INNER_HALF = 62      # box width 66 -> 66 + 4 + 66 = 136
+    INNER_THIRD = 38     # box width 42 -> 42 + 5 + 42 + 5 + 42 = 136
+
+    diagrams = {}
+
+    # -------------------------------------------------------------------------
+    # 0.1: Mental Map 6 Chặng — Cắt lớp Kiến trúc Toàn khóa D04 (Flink Stream)
+    # -------------------------------------------------------------------------
+    s01_c1 = make_box([
+        "[CHẶNG 1: FLINK ARCHITECTURE & TASK SLOTS (TRẠM 1.1 -> 1.4)]",
+        "├── Bản chất  : Unbounded vs Bounded, Stateful & Exactly-Once",
+        "├── Điều phối : JobManager (Dispatcher, Scheduler, Checkpoint Coord)",
+        "├── Thực thi  : TaskManagers -> Task Slots (1/N RAM, dùng chung CPU)",
+        "└── Song song : Nhân bản Sub-tasks theo Parallelism & Source Rewind",
+    ], inner_width=INNER_HALF)
+    s01_c2 = make_box([
+        "[CHẶNG 2: TIME SEMANTICS & WATERMARKS (TRẠM 2.1 -> 2.3)]",
+        "├── 3 Hệ quy chiếu: Event Time (10:00:30) vs Ingestion vs Processing",
+        "├── Đồng hồ logic : Watermark W(t) = max(event_time) - allowed_delay",
+        "├── Luồng truyền  : Source -> Timestamp Extractor -> Watermark Gen",
+        "└── 3 Chiến lược  : Monotonous (0s), Bounded Delay (p95), Custom Gen",
+    ], inner_width=INNER_HALF)
+    row_01_top = join_horizontal([s01_c1, s01_c2], ["    "], {2: [" ──►"]})
+
+    s01_c3 = make_box([
+        "[CHẶNG 3: WINDOWING, TRIGGERS & LATE DATA (TRẠM 3.1 -> 3.4)]",
+        "├── 4 Kiểu cửa sổ : Tumbling, Sliding, Session (Gap) & Global Window",
+        "├── Bộ kích hoạt  : EventTimeTrigger mặc định vs Bẫy OOM Global Window",
+        "├── Vòng đời 3 pha: Collecting -> Waiting (Allowed Lateness) -> Deleted",
+        "└── Phòng thủ kép : Allowed Lateness (30s) + Side Output (Audit / DLQ)",
+    ], inner_width=INNER_HALF)
+    s01_c4 = make_box([
+        "[CHẶNG 4: HỆ SINH THÁI FLINK APIs & SQL (TRẠM 4.1 -> 4.3)]",
+        "├── Tháp 3 tầng   : Flink SQL -> Table API -> DataStream / ProcessFunc",
+        "├── Tầng đáy      : map, filter, flatMap, keyBy, window, aggregate",
+        "├── Đối ngẫu      : Stream <-> Dynamic Table (Cùng 1 Execution Plan)",
+        "└── Liên thông API: DataStream -> Table -> SQL (TUMBLE/HOP) -> Sink",
+    ], inner_width=INNER_HALF)
+    row_01_mid = join_horizontal([s01_c3, s01_c4], ["    "], {2: [" ──►"]})
+
+    s01_c5 = make_box([
+        "[CHẶNG 5: STATE MANAGEMENT & CHECKPOINT BARRIERS (TRẠM 5.1 -> 5.3)]",
+        "├── Vòng lặp 5 bước: Đọc/Ghi State cục bộ trên MỌI sự kiện (#8888)",
+        "├── Phân loại State: Keyed State (sau keyBy) vs Operator State (Offset)",
+        "├── State Backend  : HashMap (JVM Heap) vs EmbeddedRocksDB (LSM-Tree)",
+        "└── Chandy-Lamport : Checkpoint Barrier #N bất đồng bộ & Exactly-Once",
+    ], inner_width=INNER_HALF)
+    s01_c6 = make_box([
+        "[CHẶNG 6: OPTIMIZATION & DEPLOYMENT MODES (TRẠM 6.1 -> 6.3)]",
+        "├── Operator Chaining: Gộp Source+Map+Filter vào 1 Thread (0 Network)",
+        "├── Ngắt chuỗi       : .disableChaining() / .startNewChain() để Debug",
+        "├── Backpressure     : Lan truyền ngược dòng & 3 bước cứu (Async I/O)",
+        "└── Deployment Modes : Session Mode (Dev) vs Application Mode (Prod)",
+    ], inner_width=INNER_HALF)
+    row_01_bot = join_horizontal([s01_c5, s01_c6], ["    "], {2: [" ──►"]})
+
+    diagrams["0.1"] = {
+        "ascii": "\n".join(
+            banner("BẢN ĐỒ TƯ DUY TOÀN KHÓA D04: HÀNH TRÌNH SỰ KIỆN ORDER #8888 QUA TẦNG TRANSFORMATION (FLINK)",
+                   "(Từ Kafka Topic prod.orders [event_time=10:00:50] -> Watermark & Window -> RocksDB State & Checkpoint -> Lakehouse)")
+            + [""]
+            + row_01_top
+            + v_arrow("Bước chuyển 1: Từ Kiến trúc Thực thi & Đồng hồ Watermark sang Cắt lát Cửa sổ & Đa tầng API")
+            + row_01_mid
+            + v_arrow("Bước chuyển 2: Bảo toàn Trạng thái Chịu lỗi (Exactly-Once) & Tối ưu Hóa Vận hành Production")
+            + row_01_bot
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 1.1: Unbounded vs Bounded Data & Vị trí Flink tại Transformation Layer
+    # -------------------------------------------------------------------------
+    s11_left = make_box([
+        "[1. BỐN NĂNG LỰC CỐT LÕI CỦA APACHE FLINK (SLIDE 04)]",
+        "├── Unbounded Data : Xử lý dòng sự kiện vô hạn không có điểm kết thúc",
+        "├── Bounded Data   : Xử lý tập dữ liệu hữu hạn (chế độ Batch thống nhất)",
+        "├── Stateful       : Ghi nhớ lịch sử sự kiện quá khứ ngay trong bộ nhớ",
+        "└── Exactly-Once   : Đảm bảo kết quả đúng đắn 100% kể cả sau khi sập nút",
+    ], inner_width=INNER_HALF)
+    s11_right = make_box([
+        "[2. NHIỆM VỤ CỦA FLINK TẠI TRANSFORMATION LAYER (SLIDE 05)]",
+        "├── Lọc & Làm giàu : Filters, enriches, aggregates, and routes events",
+        "├── Tổng hợp luồng : Biến raw events (#8888) thành summary & metadata",
+        "├── Độ trễ cực thấp: Xử lý từng sự kiện (Event-by-Event < 10-50ms)",
+        "└── Phục vụ đa đích: Cấp liệu cho Warehouse, Data Marts & Real-time Alert",
+    ], inner_width=INNER_HALF)
+    row_11_top = join_horizontal([s11_left, s11_right], ["    "])
+
+    s11_pipe = make_box([
+        "[3. ĐỊNH VỊ APACHE FLINK TRONG KIẾN TRÚC DỮ LIỆU TỔNG THỂ (SLIDE 05)]",
+        "  [Data Sources: OLTP / Logs / IoT] ──► [Ingestion Layer: Kafka] ──► [TRANSFORMATION LAYER: APACHE FLINK]",
+        "                                                                                       │",
+        "       ┌───────────────────────────────────────────────────────────────────────────────┘",
+        "       ▼",
+        "  [Warehouse: Raw Data + Summary Data + Metadata] ──► [Data Marts: Purchasing / Sales / Inventory] ──► [Users: BI / Mining]",
+    ], inner_width=INNER_FULL)
+
+    diagrams["1.1"] = {
+        "ascii": "\n".join(
+            banner("BẢN CHẤT APACHE FLINK & VỊ TRÍ TRỌNG YẾU TẠI TẦNG TRANSFORMATION LAYER (SLIDE 04-05)")
+            + [""]
+            + row_11_top
+            + v_arrow("Biến đổi dòng sự kiện thô từ Kafka thành dữ liệu tổng hợp & siêu dữ liệu theo thời gian thực")
+            + s11_pipe
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 1.2: Kiến trúc Master-Worker (Client, JobManager, TaskManagers)
+    # -------------------------------------------------------------------------
+    s12_c1 = make_box([
+        "[1. FLINK CLIENT (MÁY TRẠM)]",
+        "• Program Code (PyFlink/Java)",
+        "• Optimizer / Graph Builder:",
+        "  Biên dịch mã nguồn thành",
+        "  Dataflow Graph tối ưu",
+        "• Submit Job / Cancel / Update",
+    ], inner_width=INNER_THIRD)
+    s12_c2 = make_box([
+        "[2. JOBMANAGER (THE BRAIN)]",
+        "• Dispatcher: Nhận Job nộp vào",
+        "• Scheduler : LậpExecutionGraph",
+        "  & gán Task vào các Task Slots",
+        "• Checkpoint Coordinator:",
+        "  Điều phối chụp ảnh trạng thái",
+    ], inner_width=INNER_THIRD)
+    s12_c3 = make_box([
+        "[3. TASKMANAGERS (THE MUSCLE)]",
+        "• Chứa các Task Slots chạy Task",
+        "• Memory & I/O Manager (RAM/SSD)",
+        "• Network Manager: Truyền thẳng",
+        "  Data Streams giữa các Worker",
+        "• Actor System: Báo Heartbeats",
+    ], inner_width=INNER_THIRD)
+    row_12_top = join_horizontal([s12_c1, s12_c2, s12_c3], ["     ", "     "], {3: [" ───►", " ───►"]})
+
+    s12_duty = make_box([
+        "[4. BỐN BƯỚC THIẾT LẬP CỦA JOBMANAGER KHI NHẬN TÁC VỤ MỚI (SLIDE 10)]",
+        "  [Bước 1: Receive Job] ──► [Bước 2: Parse & Optimize Logic] ──► [Bước 3: Build Execution Graph] ──► [Bước 4: Assign Tasks to Slots]",
+        "  • Lưu ý cơ học: JobManager chỉ thực hiện chuỗi 4 bước thiết lập này MỘT LẦN lúc khởi chạy, sau đó chuyển sang chế độ",
+        "    kiểm soát thời gian chạy (Runtime Control: lắng nghe Heartbeats, thu thập Statistics và kích hoạt Checkpoints).",
+    ], inner_width=INNER_FULL)
+
+    diagrams["1.2"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU KIẾN TRÚC MASTER-WORKER CỦA APACHE FLINK & NHIỆM VỤ CỦA JOBMANAGER (SLIDE 06, 10)")
+            + [""]
+            + row_12_top
+            + v_arrow("Chu trình 4 bước từ lúc Client nộp Job đến khi các Sub-tasks chạy trên TaskManagers")
+            + s12_duty
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 1.3: Task Slots, Resource Sharing, Sub-tasks & Parallelism
+    # -------------------------------------------------------------------------
+    s13_left = make_box([
+        "[A. TASK SLOTS & CHIA SẺ TÀI NGUYÊN (SLIDE 07)]",
+        "• Mỗi Task Slot đại diện cho 1 phần tài nguyên cố định",
+        "  (fixed subset of resources) của tiến trình TaskManager.",
+        "• Ví dụ TaskManager có 3 Task Slots (Tổng RAM = 12 GB):",
+        "  ├── Slot [1]: Độc quyền 1/3 Managed Memory (~4 GB RAM)",
+        "  ├── Slot [2]: Độc quyền 1/3 Managed Memory (~4 GB RAM)",
+        "  └── Slot [3]: Độc quyền 1/3 Managed Memory (~4 GB RAM)",
+        "• [!] Lưu ý: Cả 3 Slots DÙNG CHUNG CPU của TaskManager!",
+    ], inner_width=INNER_HALF)
+    s13_right = make_box([
+        "[B. SUB-TASKS & PARALLELISM = 4 (SLIDE 08-09)]",
+        "• Toán tử map() với Parallelism = 4 sinh ra 4 Sub-tasks,",
+        "  mỗi Sub-task chạy trên 1 Thread riêng trong 1 Task Slot:",
+        "  ├── TaskManager 1: [Slot 1: map()[1]]  [Slot 2: map()[2]]",
+        "  └── TaskManager 2: [Slot 1: map()[3]]  [Slot 2: map()[4]]",
+        "• Quy luật: Parallelism KHÔNG đổi logic nghiệp vụ, chỉ",
+        "  quyết định số lượng bản sao chạy song song cùng logic đó.",
+        "• [+] Slot Sharing: 1 Slot có thể chứa cả Source[1]+Map[1].",
+    ], inner_width=INNER_HALF)
+    row_13 = join_horizontal([s13_left, s13_right], ["    "], {3: [" ──►"]})
+
+    diagrams["1.3"] = {
+        "ascii": "\n".join(
+            banner("CƠ HỌC TASK SLOTS (CHIA MANAGED MEMORY, DÙNG CHUNG CPU) & SUB-TASKS THEO PARALLELISM (SLIDE 07-09)")
+            + [""]
+            + row_13
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 1.4: Saving Progress (Checkpointing) & Recovering from Failure (Rewind)
+    # -------------------------------------------------------------------------
+    s14_left = make_box([
+        "[1. CHẠY BÌNH THƯỜNG & LƯU CHECKPOINT (SLIDE 11-12)]",
+        "• Bước 1: Job chạy bình thường, JobManager canh Heartbeats.",
+        "• Bước 2: Định kỳ mỗi N giây (tại mốc T), JobManager phát",
+        "  tín hiệu 'Save your state now' tới toàn bộ các Tasks.",
+        "• Bước 3: Mỗi Task ghi State hiện tại (running count, sum,",
+        "  window buffer, Kafka offset) xuống S3 / HDFS bền vững.",
+        "• Bước 4: Khi TẤT CẢ Tasks gửi xác nhận (Confirmation),",
+        "  bản chụp tại mốc T được đóng dấu Checkpoint hoàn tất!",
+    ], inner_width=INNER_HALF)
+    s14_right = make_box([
+        "[2. KHI XẢY RA SỰ CỐ & TUA NGƯỢC NGUỒN (SLIDE 12)]",
+        "• Sự cố : 1 TaskManager mất kết nối (Heartbeat Timeout).",
+        "• Bước 1: Các Tasks nạp lại State đã lưu từ Checkpoint T",
+        "  gần nhất trên S3 / HDFS (reload saved state at time T).",
+        "• Bước 2: Nguồn dữ liệu (Kafka) TUA NGƯỢC (rewinds) con",
+        "  trỏ đọc về đúng vị trí Offset đã ghi nhận tại mốc T.",
+        "• Bước 3: Job tiếp tục chạy từ mốc T -> Đảm bảo sự kiện",
+        "  Order #8888 không bao giờ bị bỏ sót hay thất thoát!",
+    ], inner_width=INNER_HALF)
+    row_14 = join_horizontal([s14_left, s14_right], ["    "], {3: [" ──►"]})
+
+    diagrams["1.4"] = {
+        "ascii": "\n".join(
+            banner("CHU TRÌNH LƯU TIẾN ĐỘ ĐỊNH KỲ (CHECKPOINT) & TUA NGƯỢC NGUỒN KHI PHỤC HỒI SỰ CỐ (SLIDE 11-12)")
+            + [""]
+            + row_14
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 2.1: Three Definitions of Time (Event Time, Ingestion Time, Processing Time)
+    # -------------------------------------------------------------------------
+    s21_c1 = make_box([
+        "[1. EVENT TIME = 10:00:30]",
+        "• Xảy ra ngoài thế giới thực:",
+        "  Khách bấm đặt Order #8888",
+        "  lúc 10:00:30 trên điện thoại.",
+        "• Gắn cố định bên trong payload",
+        "  sự kiện (inside event payload).",
+        "[+] Tất định 100% khi chạy lại!",
+    ], inner_width=INNER_THIRD)
+    s21_c2 = make_box([
+        "[2. INGESTION TIME = 10:01:45]",
+        "• Đi qua mạng 4G chập chờn, bộ",
+        "  đệm thiết bị & hàng đợi Kafka.",
+        "• Bước vào cửa ngõ Flink Source",
+        "  lúc 10:01:45 (trễ 75 giây!).",
+        "• Flink tự đóng dấu lúc vào cổng.",
+        "[!] Lệch so với thực tế 75 giây.",
+    ], inner_width=INNER_THIRD)
+    s21_c3 = make_box([
+        "[3. PROCESSING TIME = 10:01:46]",
+        "• Nằm chờ 1 giây trong hàng đợi",
+        "  nội bộ rồi được Window Operator",
+        "  nhặt lên xử lý lúc 10:01:46.",
+        "• Tính theo đồng hồ máy chủ.",
+        "• Nhanh nhất (0 chờ đợi) nhưng",
+        "[x] Sai lệch kết quả khi nghẽn!",
+    ], inner_width=INNER_THIRD)
+    row_21 = join_horizontal([s21_c1, s21_c2, s21_c3], ["     ", "     "], {3: [" ───►", " ───►"]})
+
+    s21_note = make_box([
+        "[QUY LUẬT ĐỘ LỆCH THỜI GIAN (TIME SKEW - SLIDE 14)]",
+        "• Khoảng cách giữa Event Time (10:00:30) và Processing Time (10:01:46) có thể dao động từ vài mili-giây đến hàng giờ",
+        "  tùy thuộc vào điều kiện mạng di động, hành vi ngoại tuyến của thiết bị và độ trễ hàng đợi Kafka.",
+        "• Hệ quả: Mọi báo cáo tài chính và cửa sổ doanh thu cho Order #8888 BẮT BUỘC phải tính theo Event Time!",
+    ], inner_width=INNER_FULL)
+
+    diagrams["2.1"] = {
+        "ascii": "\n".join(
+            banner("BA ĐỊNH NGHĨA THỜI GIAN TRONG FLINK: EVENT TIME vs. INGESTION TIME vs. PROCESSING TIME (SLIDE 14)")
+            + [""]
+            + row_21
+            + v_arrow("Sự kiện đi qua mạng & hàng đợi tạo ra độ lệch (Time Skew) giữa lúc phát sinh và lúc xử lý")
+            + s21_note
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 2.2: Watermark Mechanics, Formula & Pipeline Flow
+    # -------------------------------------------------------------------------
+    s22_top = make_box([
+        "[1. CÔNG THỨC WATERMARK & VÍ DỤ ĐÓNG CỬA SỔ [00:00 - 01:00] VỚI ALLOWED DELAY = 5s (SLIDE 16-17)]",
+        "  • Công thức gốc : Watermark W(t) = (latest event_time seen) - (allowed delay / out-of-orderness)",
+        "  • Dòng sự kiện  : (e1) ──► (e2) ──► (e3: 00:58) ──► < W = 00:58 - 5s = 00:53 > ──► (e4) ──► (e5: 01:05) ──► < W = 01:05 - 5s = 01:00 >",
+        "  • Cơ chế điểm hỏa: Tại W = 00:53, cửa sổ [00:00 - 01:00] vẫn mở chờ. Ngay khi e5(01:05) tới đẩy W chạm mốc 01:00",
+        "                    (W >= window_end), Flink tự tin mọi sự kiện <= 01:00 đã tới đủ -> ĐÓNG CỬA SỔ & PHÁT KẾT QUẢ!",
+    ], inner_width=INNER_FULL)
+
+    s22_b1 = make_box([
+        "[A. EVENT SOURCE & EXTRACTOR]",
+        "• Event Source: Đọc luồng sự kiện",
+        "  thô từ Kafka topic prod.orders.",
+        "• Timestamp Extractor: Trích xuất",
+        "  trường event_time (10:00:50)",
+        "  bên trong payload của #8888.",
+    ], inner_width=INNER_THIRD)
+    s22_b2 = make_box([
+        "[B. WATERMARK GENERATOR]",
+        "• Theo dõi mốc max_ts lớn nhất",
+        "  đã từng nhìn thấy trên luồng.",
+        "• Tính W = max_ts - allowed_delay",
+        "  và định kỳ (mỗi 200ms) phát",
+        "  gói tin W chảy xuống hạ nguồn.",
+    ], inner_width=INNER_THIRD)
+    s22_b3 = make_box([
+        "[C. WINDOW OPERATOR & OUTPUT]",
+        "• Nhận cả Events lẫn Watermarks.",
+        "• Khi W >= window_end: Kích hoạt",
+        "  hàm tính toán (count/sum) trên",
+        "  cửa sổ và đẩy ra Result Output!",
+        "• Đa luồng: W_op = min(W_in_1..k).",
+    ], inner_width=INNER_THIRD)
+    row_22_bot = join_horizontal([s22_b1, s22_b2, s22_b3], ["     ", "     "], {3: [" ───►", " ───►"]})
+
+    diagrams["2.2"] = {
+        "ascii": "\n".join(
+            banner("CƠ HỌC ĐỒNG HỒ LOGIC WATERMARK & LUỒNG TRUYỀN QUA 4 THÀNH PHẦN PIPELINE (SLIDE 16-18)")
+            + [""]
+            + s22_top
+            + v_arrow("Hành trình của Watermark từ cửa ngõ Kafka Source đến khi kích hoạt đóng Window Operator")
+            + row_22_bot
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 2.3: Three Watermark Strategies (Monotonous, Bounded Delay, Custom)
+    # -------------------------------------------------------------------------
+    s23_c1 = make_box([
+        "[1. MONOTONOUS TIMESTAMPS]",
+        "• Điều kiện: Sự kiện luôn đến",
+        "  đúng thứ tự 100% (0 độ trễ).",
+        "• Công thức: W = max(event_time)",
+        "  (Zero tolerance / delay = 0).",
+        "• Cửa sổ đóng tức thì nhưng",
+        "[x] Rớt ngay mọi sự kiện trễ!",
+    ], inner_width=INNER_THIRD)
+    s23_c2 = make_box([
+        "[2. BOUNDED DELAY (CHUẨN PROD)]",
+        "• Điều kiện: Sự kiện đến trễ",
+        "  trong khoảng tối đa biết trước.",
+        "• Công thức: W = max_ts - delay",
+        "  (VD: 10:01:20 - 10s = 10:01:10).",
+        "• Chọn delay theo phân vị p95/p99",
+        "[+] Cân bằng tốt nhất cho Prod!",
+    ], inner_width=INNER_THIRD)
+    s23_c3 = make_box([
+        "[3. CUSTOM WATERMARK GEN]",
+        "• Điều kiện: Độ trễ biến thiên",
+        "  phức tạp, không cố định.",
+        "• Tự viết WatermarkGenerator:",
+        "  - on_event(event, ts, out)",
+        "  - on_periodic_emit(output)",
+        "[+] Linh hoạt tối đa theo tải!",
+    ], inner_width=INNER_THIRD)
+    row_23 = join_horizontal([s23_c1, s23_c2, s23_c3], ["     ", "     "], {3: [" ───►", " ───►"]})
+
+    diagrams["2.3"] = {
+        "ascii": "\n".join(
+            banner("BA CHIẾN LƯỢC SINH WATERMARK: MONOTONOUS vs. BOUNDED DELAY (P95) vs. CUSTOM GENERATOR (SLIDE 19-22)")
+            + [""]
+            + row_23
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 3.1: Four Window Types (Tumbling, Sliding, Session, Global)
+    # -------------------------------------------------------------------------
+    s31_c1 = make_box([
+        "[1. TUMBLING WINDOWS (CỬA SỔ LẬT - SLIDE 26)]",
+        "• Đặc tính : Kích thước cố định, KHÔNG chồng lấp (Non-overlapping).",
+        "• Ánh xạ   : Mỗi sự kiện thuộc về ĐÚNG 1 cửa sổ duy nhất.",
+        "• Trục giờ : |──── Window 1 [0..10) ────|──── Window 2 [10..20) ────|",
+        "• Ứng dụng : Báo cáo doanh thu mỗi giờ, đếm đơn hàng #8888 mỗi phút.",
+    ], inner_width=INNER_HALF)
+    s31_c2 = make_box([
+        "[2. SLIDING WINDOWS (CỬA SỔ TRƯỢT - SLIDE 27)]",
+        "• Đặc tính : Kích thước cố định (Size=10) + Bước trượt (Slide=5).",
+        "• Ánh xạ   : Các cửa sổ CHỒNG LẤP; 1 sự kiện thuộc về nhiều cửa sổ.",
+        "• Trục giờ : |──── Window 1 [0..10) ────|  +  |──── Window 2 [5..15) ────|",
+        "• Ứng dụng : Trung bình trượt 10 phút cập nhật mỗi 1 phút (Moving Avg).",
+    ], inner_width=INNER_HALF)
+    row_31_top = join_horizontal([s31_c1, s31_c2], ["    "])
+
+    s31_c3 = make_box([
+        "[3. SESSION WINDOWS (CỬA SỔ PHIÊN - SLIDE 28)]",
+        "• Đặc tính : Kích thước ĐỘNG (Dynamic size) theo hành vi người dùng.",
+        "• Cơ chế   : Gom các sự kiện sát nhau; cắt phiên mới khi khoảng lặng",
+        "             không hoạt động vượt ngưỡng (Inactivity gap > threshold).",
+        "• Trục giờ : [Event]─[Event] ───(Gap > Threshold)───► [New Session]",
+        "• Ứng dụng : Phân tích hành vi Clickstream & giỏ hàng của USR-104.",
+    ], inner_width=INNER_HALF)
+    s31_c4 = make_box([
+        "[4. GLOBAL WINDOWS (CỬA SỔ TOÀN CỤC - SLIDE 29)]",
+        "• Đặc tính : Gom TẤT CẢ sự kiện (cùng Key) vào 1 cửa sổ logic duy nhất.",
+        "• Cơ chế   : Không có ranh giới thời gian tự nhiên (No natural end).",
+        "• Điều kiện: BẮT BUỘC phải gắn Custom Trigger tường minh (VD: nổ sau",
+        "             mỗi 100 sự kiện) — nếu quên sẽ tích tụ gây tràn RAM!",
+        "• Ứng dụng : Gom lô theo số lượng bản ghi hoặc quy tắc nghiệp vụ riêng.",
+    ], inner_width=INNER_HALF)
+    row_31_bot = join_horizontal([s31_c3, s31_c4], ["    "])
+
+    diagrams["3.1"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU HÌNH HỌC 4 KIỂU CỬA SỔ THỜI GIAN: TUMBLING, SLIDING, SESSION & GLOBAL (SLIDE 24-30)")
+            + [""]
+            + row_31_top
+            + [""]
+            + row_31_bot
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 3.2: Window Triggers & Global Window Silent Failure Trap
+    # -------------------------------------------------------------------------
+    s32_left = make_box([
+        "[1. PHÂN VAI WINDOW ASSIGNER vs. TRIGGER (SLIDE 31)]",
+        "• Window Type trả lời : 'Làm sao gom nhóm các sự kiện?'",
+        "• Window Trigger trả lời: 'KHI NÀO tính toán và phát kết quả?'",
+        "• Chu trình cửa sổ [10:00 - 10:01]:",
+        "  ├── e1, e2, e3 đến ──► Lưu tích lũy vào Window State",
+        "  ├── Watermark chạm 10:01:00 ──► Trigger FIRES (Điểm hỏa!)",
+        "  └── Window Function chạy ──► Phát kết quả count = 3 [+]",
+    ], inner_width=INNER_HALF)
+    s32_right = make_box([
+        "[2. TRIGGER MẶC ĐỊNH & BẪY GLOBAL WINDOW (SLIDE 32)]",
+        "• Tumbling Window : EventTimeTrigger (Nổ khi W >= window_end)",
+        "• Sliding Window  : EventTimeTrigger (Nổ khi W >= mỗi window_end)",
+        "• Session Window  : EventTimeTrigger (Nổ khi W >= session_end)",
+        "• Global Window   : [x] NONE (Không có Trigger mặc định!)",
+        "  [!] CẢNH BÁO: Dùng Global Window mà quên định nghĩa Trigger",
+        "      = Silent Failure (Tích tụ sự kiện vô hạn gây OOM Crash!).",
+    ], inner_width=INNER_HALF)
+    row_32 = join_horizontal([s32_left, s32_right], ["    "], {3: [" ──►"]})
+
+    diagrams["3.2"] = {
+        "ascii": "\n".join(
+            banner("CƠ HỌC BỘ KÍCH HOẠT WINDOW TRIGGER & CẠM BẪY RÒ RỈ BỘ NHỚ TRÊN GLOBAL WINDOW (SLIDE 31-32)")
+            + [""]
+            + row_32
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 3.3: Allowed Lateness 3-State Machine & Slide 37 Concrete Timeline
+    # -------------------------------------------------------------------------
+    s33_c1 = make_box([
+        "[PHA 1: COLLECTING (ĐANG GOM)]",
+        "• Khi: W < window_end (01:30).",
+        "• Hành vi: Cửa sổ [00:30-01:30]",
+        "  mở, tích lũy e1, e2, e5.",
+        "• Chuyển pha: Khi e5 (et=01:40)",
+        "  đến lúc 01:42 -> W = 01:30",
+        "  ──► CỬA SỔ NỔ LẦN 1 (Fires)!",
+    ], inner_width=INNER_THIRD)
+    s33_c2 = make_box([
+        "[PHA 2: WAITING (GIA HẠN 15s)]",
+        "• Khi: 01:30 <= W < 01:45",
+        "  (window_end + allowed_lateness).",
+        "• Hành vi: Cửa sổ vẫn sống trong",
+        "  RAM để đón sự kiện trễ!",
+        "• Sự kiện e3 (et=01:15) đến lúc",
+        "  01:45 ──► NỔ LẠI (Refires)!",
+    ], inner_width=INNER_THIRD)
+    s33_c3 = make_box([
+        "[PHA 3: DELETED (XÓA SỔ RAM)]",
+        "• Khi: W >= 01:45 (Hết gia hạn).",
+        "• Hành vi: Xóa sạch trạng thái",
+        "  cửa sổ khỏi bộ nhớ TaskManager.",
+        "• Sự kiện e4 (et=01:28) đến lúc",
+        "  02:00 (quá hạn Allowed Lateness)",
+        "  ──► BỊ LOẠI BỎ (Dropped [x])!",
+    ], inner_width=INNER_THIRD)
+    row_33 = join_horizontal([s33_c1, s33_c2, s33_c3], ["     ", "     "], {3: [" ───►", " ───►"]})
+
+    s33_bot = make_box([
+        "[TỔNG KẾT TRỤC THỜI GIAN THỰC NGHIỆM SLIDE 37: WINDOW [00:30 - 01:30] | OUT-OF-ORDER = 10s | ALLOWED LATENESS = 15s]",
+        "  • e5 (event_time=01:40, arrival=01:42) : Đẩy Watermark = 01:40 - 10s = 01:30 (chạm window_end) ──► Phát kết quả lần 1.",
+        "  • e3 (event_time=01:15, arrival=01:45) : Đến trễ sau khi cửa sổ đã nổ, nhưng nằm trong hạn 15s ──► Cập nhật & Phát lại (Refire).",
+        "  • e4 (event_time=01:28, arrival=02:00) : Đến sau khi ngưỡng gia hạn (01:45) đã khép lại ──► Bị Drop (trừ khi bật Side Output).",
+    ], inner_width=INNER_FULL)
+
+    diagrams["3.3"] = {
+        "ascii": "\n".join(
+            banner("MÁY TRẠNG THÁI 3 PHA CỦA CỬA SỔ & TRỤC THỜI GIAN THỰC NGHIỆM ALLOWED LATENESS (SLIDE 36-37)")
+            + [""]
+            + row_33
+            + v_arrow("Đối chiếu số phận của 3 sự kiện e5 (Đúng hạn), e3 (Trễ trong hạn 15s) và e4 (Quá hạn)")
+            + s33_bot
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 3.4: Side Output & Dual-Defense Late Data Strategy
+    # -------------------------------------------------------------------------
+    s34_left = make_box([
+        "[1. LUỒNG RẼ NHÁNH SIDE OUTPUT (SLIDE 38-39)]",
+        "  [Input Stream (#8888, e3, e4)] ──► [Window Operator]",
+        "                                        ├──► [Main Output: Kết quả chuẩn + Refire]",
+        "                                        └──► [Side Output: Chỉ chứa sự kiện quá trễ (e4)]",
+        "• Bốn tác vụ xử lý trên luồng Side Output:",
+        "  1. Audit Log    : Ghi vết sự kiện nào trễ và trễ bao nhiêu giây.",
+        "  2. Reprocessing : Nạp vào Batch Job cuối ngày để hiệu chỉnh lịch sử.",
+        "  3. Alerting     : Bắn cảnh báo khi tỷ lệ trễ vượt ngưỡng SLA.",
+        "  4. Dead Letter  : Lưu xuống S3 / Database để kỹ sư kiểm tra.",
+    ], inner_width=INNER_HALF)
+    s34_right = make_box([
+        "[2. PHÁC ĐỒ KẾT HỢP CHUẨN PRODUCTION (SLIDE 40)]",
+        "• Drop (Mặc định)   : Nhanh, 0 tốn RAM nhưng làm sai lệch doanh thu.",
+        "• Allowed Lateness  : Tự động phát bản ghi đính chính (Retraction /",
+        "  Update), nhưng giữ State lâu làm tốn RAM/RocksDB.",
+        "• Side Output       : 0 tốn thêm RAM cửa sổ, bảo toàn 100% sự kiện.",
+        "• [+] KẾT HỢP TỐI ƯU TRÊN PRODUCTION:",
+        "  Bật Allowed Lateness ngắn (VD: 30s) để tự sửa 99% sự kiện trễ nhẹ,",
+        "  ĐỒNG THỜI gắn Side Output hứng 1% sự kiện trễ sâu để kiểm toán!",
+    ], inner_width=INNER_HALF)
+    row_34 = join_horizontal([s34_left, s34_right], ["    "], {3: [" ──►"]})
+
+    diagrams["3.4"] = {
+        "ascii": "\n".join(
+            banner("KIẾN TRÚC PHÒNG THỦ KÉP CHO DỮ LIỆU TRỄ: ALLOWED LATENESS + SIDE OUTPUT (SLIDE 38-40)")
+            + [""]
+            + row_34
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 4.1: Flink API Landscape Pyramid & DataStream Transformations
+    # -------------------------------------------------------------------------
+    s41_left = make_box([
+        "[1. THÁP TRỪU TƯỢNG 3 TẦNG FLINK APIs (SLIDE 42)]",
+        "                 /\\          [ĐỈNH: FLINK SQL]",
+        "                /  \\         • Dễ viết & dễ đọc nhất (Declarative)",
+        "               /────\\        [GIỮA: TABLE API]",
+        "              /      \\       • Phép toán quan hệ trên Dynamic Table",
+        "             /────────\\      [ĐÁY : DATASTREAM API & PROCESS FUNCTION]",
+        "            /__________\\     • Kiểm soát từng sự kiện, State & Timer",
+        "• Từ đáy lên đỉnh: Tăng năng suất lập trình (Higher Productivity).",
+        "• Từ đỉnh xuống đáy: Tăng quyền kiểm soát cơ học (Lower-level Control).",
+    ], inner_width=INNER_HALF)
+    s41_right = make_box([
+        "[2. BẢY PHÉP BIẾN ĐỔI DATASTREAM API (SLIDE 43)]",
+        "├── map()            : Biến đổi 1-đối-1 (x -> x * 2)",
+        "├── filter()         : Giữ lại sự kiện thỏa điều kiện (amount > 0)",
+        "├── flatMap()        : 1 đầu vào -> 0, 1 hoặc nhiều đầu ra",
+        "├── keyBy()          : Phân vùng luồng theo khóa (user_id / product_id)",
+        "├── window()         : Cắt lát cửa sổ (luôn đi sau keyBy()!)",
+        "├── aggregate()      : Tính tổng, đếm, trung bình trong cửa sổ",
+        "└── union()/connect(): Gộp 2 luồng sự kiện từ các Kafka topics",
+    ], inner_width=INNER_HALF)
+    row_41 = join_horizontal([s41_left, s41_right], ["    "], {3: [" ──►"]})
+
+    diagrams["4.1"] = {
+        "ascii": "\n".join(
+            banner("THÁP TRỪU TƯỢNG 3 TẦNG FLINK APIs & CÁC PHÉP BIẾN ĐỔI DATASTREAM CỐT LÕI (SLIDE 42-43)")
+            + [""]
+            + row_41
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 4.2: Stream-Table Duality (Dynamic Table) & DataStream vs Table API
+    # -------------------------------------------------------------------------
+    s42_left = make_box([
+        "[1. ĐỐI NGẪU LUỒNG - BẢNG: DYNAMIC TABLE (SLIDE 45)]",
+        "  [Event Stream đang chảy]         [Dynamic Table (Bảng động)]",
+        "  {id: 1, amount: 100}    ───►     | id | amount | event_time |",
+        "  {id: 2, amount: 200}    ───►     | 1  | 100    | 10:00:01   |",
+        "  {id: 3, amount: 50}     ───►     | 2  | 200    | 10:00:02   |",
+        "                                   | 3  | 50     | 10:00:03   |",
+        "• Mỗi sự kiện mới chảy vào làm bảng logic lớn lên liên tục,",
+        "  cho phép dùng select, filter, join, groupBy cho cả Stream & Batch!",
+    ], inner_width=INNER_HALF)
+    s42_right = make_box([
+        "[2. DATASTREAM API vs. TABLE API (SLIDE 44 & 46)]",
+        "• DataStream API (Buồng máy - Engine Room):",
+        "  stream.key_by(...).window(Tumbling...).aggregate(SalesAgg())",
+        "• Table API (Buồng lái - Cockpit):",
+        "  sales.group_by(col('productId'), col('window')).select(...)",
+        "• [+] ĐỊNH LUẬT TƯƠNG ĐƯƠNG (SLIDE 44):",
+        "  Cả hai sinh ra CÙNG MỘT EXECUTION PLAN vật lý giống hệt nhau!",
+        "  Sự khác biệt chỉ là trải nghiệm lập trình, KHÔNG phải hiệu năng.",
+    ], inner_width=INNER_HALF)
+    row_42 = join_horizontal([s42_left, s42_right], ["    "], {3: [" ──►"]})
+
+    diagrams["4.2"] = {
+        "ascii": "\n".join(
+            banner("NGUYÊN LÝ ĐỐI NGẪU LUỒNG - BẢNG (DYNAMIC TABLE) & SO SÁNH DATASTREAM vs. TABLE API (SLIDE 44-46)")
+            + [""]
+            + row_42
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 4.3: Flink SQL Execution Pipeline & 4-Step API Interoperability
+    # -------------------------------------------------------------------------
+    s43_top = make_box([
+        "[1. CHU TRÌNH 5 BƯỚC BIÊN DỊCH & THỰC THI TRUY VẤN FLINK SQL (SLIDE 47-49)]",
+        "  [1. Write SQL Query] ──► [2. Parse SQL (Cú pháp)] ──► [3. Optimize Plan (Calcite)] ──► [4. Execution Plan] ──► [5. Flink Runtime]",
+        "  • Ba hàm cửa sổ tích hợp sẵn: TUMBLE(time_col, INTERVAL '1' MINUTE) | HOP(time_col, slide, size) | SESSION(time_col, gap)",
+        "  • Điều kiện bắt buộc: Bảng nguồn CREATE TABLE phải khai báo mệnh đề WATERMARK FOR event_time AS event_time - INTERVAL '5' SECOND.",
+    ], inner_width=INNER_FULL)
+
+    s43_b1 = make_box([
+        "[BƯỚC 1: DATASTREAM API]",
+        "• Đọc luồng từ Kafka Source",
+        "  kèm Custom Watermark:",
+        "  stream = env.from_source(",
+        "    kafka_src, wm_strategy)",
+    ], inner_width=INNER_THIRD)
+    s43_b2 = make_box([
+        "[BƯỚC 2 & 3: TABLE + SQL]",
+        "• Chuyển sang Table & tạo View:",
+        "  table_env.from_data_stream()",
+        "• Chạy Flink SQL tổng hợp cửa sổ",
+        "  TUMBLE(event_time, 1 MINUTE)",
+    ], inner_width=INNER_THIRD)
+    s43_b3 = make_box([
+        "[BƯỚC 4: VỀ LẠI DATASTREAM]",
+        "• Chuyển kết quả SQL về luồng:",
+        "  out = table_env.to_data_stream(",
+        "    result_table)",
+        "• Gắn Custom Sink: out.add_sink()",
+    ], inner_width=INNER_THIRD)
+    row_43_bot = join_horizontal([s43_b1, s43_b2, s43_b3], ["     ", "     "], {2: [" ───►", " ───►"]})
+
+    diagrams["4.3"] = {
+        "ascii": "\n".join(
+            banner("CHU TRÌNH THỰC THI FLINK SQL & PHỐI HỢP LIÊN THÔNG 3 TẦNG API TRONG CÙNG 1 JOB (SLIDE 47-50)")
+            + [""]
+            + s43_top
+            + v_arrow("Kết hợp liền mạch DataStream API, Table API và Flink SQL trong cùng một tác vụ")
+            + row_43_bot
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 5.1: Why Streaming Needs State & 5-Step Stateful Processing Loop
+    # -------------------------------------------------------------------------
+    s51_left = make_box([
+        "[1. NĂM BÀI TOÁN THỰC TẾ BẮT BUỘC PHẢI CÓ STATE (SLIDE 53)]",
+        "├── Đếm tổng đơn theo User   : Lưu Running count cho mỗi user_id",
+        "├── Phát hiện 3 lần Login sai: Lưu danh sách N sự kiện gần nhất",
+        "├── Tính doanh thu mỗi giờ   : Lưu tổng tạm (Partial sum) trong cửa sổ",
+        "├── Theo dõi phiên (Session) : Lưu mốc thời gian hoạt động cuối cùng",
+        "└── Phát hiện gian lận Fraud : Lưu lịch sử giao dịch của USR-104",
+    ], inner_width=INNER_HALF)
+    s51_right = make_box([
+        "[2. CHU TRÌNH 5 BƯỚC CHO MỌI SỰ KIỆN ĐƠN LẺ (SLIDE 54)]",
+        "  [1. Event #8888 đến] ──► [2. ĐỌC State hiện tại của khóa USR-104]",
+        "                                         │",
+        "  [5. Phát Output] ◄── [4. GHI State mới] ◄── [3. Chạy Logic nghiệp vụ]",
+        "• [!] QUY LUẬT SINH TỬ: Bước 2 (Đọc) và Bước 4 (Ghi) chạy trên TỪNG",
+        "  SỰ KIỆN MỘT -> Tốc độ đọc/ghi State quyết định trực tiếp Throughput!",
+    ], inner_width=INNER_HALF)
+    row_51 = join_horizontal([s51_left, s51_right], ["    "], {3: [" ──►"]})
+
+    diagrams["5.1"] = {
+        "ascii": "\n".join(
+            banner("TẠI SAO XỬ LÝ LUỒNG CẦN TRẠNG THÁI (STATE) & CHU TRÌNH 5 BƯỚC ĐỌC-GHI TRÊN TỪNG SỰ KIỆN (SLIDE 53-54)")
+            + [""]
+            + row_51
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 5.2: Keyed State vs Operator State & State Backends (Heap vs RocksDB)
+    # -------------------------------------------------------------------------
+    s52_left = make_box([
+        "[1. KEYED STATE (SAU keyBy() - SLIDE 56)]",
+        "• Mỗi khóa (user_id) có vùng nhớ độc lập riêng:",
+        "  ├── Source[1] & [2] băm keyBy(key):",
+        "  ├── Khóa (A, B, Y) ──► Stateful[1] -> [KeyedState-1: A, B, Y]",
+        "  └── Khóa (D, E, Z) ──► Stateful[2] -> [KeyedState-2: D, E, Z]",
+        "• Lưu trên HashMapStateBackend (RAM) hoặc EmbeddedRocksDB (SSD).",
+        "• Chia theo Key Groups (maxParallelism) giúp co giãn không mất State.",
+    ], inner_width=INNER_HALF)
+    s52_right = make_box([
+        "[2. OPERATOR STATE (GẮN THEO SUB-TASK - SLIDE 57)]",
+        "• Thuộc về 1 bản sao toán tử vật lý, KHÔNG gắn với keyBy():",
+        "  ├── Source[1] ──(map A,B,Y)──► Stateful[1] -> [OperatorState-1: ABY]",
+        "  └── Source[2] ──(map D,E,Z)──► Stateful[2] -> [OperatorState-2: DEZ]",
+        "• Ứng dụng cốt lõi: Dùng cho các bộ kết nối Sources và Sinks",
+        "  (VD: Kafka Source Operator ghi nhớ Partition Offsets đã đọc).",
+        "• Lưu ý: Ít dùng trong logic nghiệp vụ thường (chưa có ở PyFlink).",
+    ], inner_width=INNER_HALF)
+    row_52 = join_horizontal([s52_left, s52_right], ["    "], {3: [" ──►"]})
+
+    diagrams["5.2"] = {
+        "ascii": "\n".join(
+            banner("PHÂN LOẠI TRẠNG THÁI: KEYED STATE (THEO KHÓA keyBy) vs. OPERATOR STATE (THEO SUB-TASK - SLIDE 56-57)")
+            + [""]
+            + row_52
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 5.3: Checkpoint Barriers (Chandy-Lamport) & 6-Step Fault Recovery
+    # -------------------------------------------------------------------------
+    s53_left = make_box([
+        "[1. CƠ HỌC RÀO CHẮN CHECKPOINT BARRIER #N (SLIDE 59-60)]",
+        "• Bước 1: JobManager phát lệnh chụp Checkpoint N theo định kỳ.",
+        "• Bước 2: Source Operators bơm rào chắn [Barrier N] vào luồng.",
+        "• Bước 3: Operator A nhận [Barrier N] -> Chụp ảnh State cục bộ,",
+        "  ghi bất đồng bộ (Async) xuống S3/HDFS & đẩy Barrier N đi tiếp.",
+        "• Bước 4: Operator B (Sink) nhận [Barrier N] -> Chụp ảnh & ghi S3.",
+        "• Bước 5: Mọi Operator báo xong -> JobManager chốt Checkpoint N [+].",
+    ], inner_width=INNER_HALF)
+    s53_right = make_box([
+        "[2. SÁU BƯỚC PHỤC HỒI SỰ CỐ & EXACTLY-ONCE (SLIDE 61)]",
+        "  [1. Phát hiện lỗi] ──► [2. Tìm Checkpoint N hoàn tất mới nhất]",
+        "                                          │",
+        "  [3. TaskManagers nạp lại State (Counts, Windows) từ Checkpoint N]",
+        "                                          │",
+        "  [4. Sources tua ngược (Rewind) về đúng Kafka Offset trong Ckpt N]",
+        "                                          │",
+        "  [5. Phát lại (Replay) sự kiện sau Ckpt N] ──► [6. Chạy bình thường!]",
+    ], inner_width=INNER_HALF)
+    row_53 = join_horizontal([s53_left, s53_right], ["    "], {3: [" ──►"]})
+
+    diagrams["5.3"] = {
+        "ascii": "\n".join(
+            banner("CƠ HỌC RÀO CHẮN CHECKPOINT BARRIER (CHANDY-LAMPORT) & QUY TRÌNH 6 BƯỚC PHỤC HỒI SỰ CỐ (SLIDE 59-61)")
+            + [""]
+            + row_53
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 6.1: Without Operator Chaining vs With Operator Chaining
+    # -------------------------------------------------------------------------
+    s61_left = make_box([
+        "[1. KHI TẮT OPERATOR CHAINING (WITHOUT CHAINING - SLIDE 65)]",
+        "  [Source Operator] ──(Serialize + Network Buffer + Thread)──► [Map Operator]",
+        "         └──► ──(Serialize + Network Buffer + Thread)──► [Filter] ──► [Sink]",
+        "• Tác hại cơ học:",
+        "  ├── Tốn CPU tuần tự hóa / giải tuần tự hóa (Serialization cost)",
+        "  ├── Tốn chi phí chép qua bộ đệm mạng (Network buffer overhead)",
+        "  └── Tốn chi phí chuyển ngữ cảnh giữa các luồng (Thread switches)",
+    ], inner_width=INNER_HALF)
+    s61_right = make_box([
+        "[2. KHI BẬT OPERATOR CHAINING (MẶC ĐỊNH BẬT - SLIDE 66-67)]",
+        "  [Chuỗi gộp trong 1 Thread: Source + Map + Filter] ──(Network)──► [Sink]",
+        "• Lợi ích cơ học:",
+        "  ├── Dữ liệu nằm nguyên trên RAM (truyền qua lời gọi hàm trực tiếp)",
+        "  └── Giảm mạnh độ trễ và chi phí CPU giữa các toán tử tương thích.",
+        "• Chỉ tắt (.disableChaining() / .startNewChain()) khi cần: Debug",
+        "  riêng toán tử trên Web UI, Profile CPU, hoặc cô lập tài nguyên.",
+    ], inner_width=INNER_HALF)
+    row_61 = join_horizontal([s61_left, s61_right], ["    "], {3: [" ──►"]})
+
+    diagrams["6.1"] = {
+        "ascii": "\n".join(
+            banner("TỐI ƯU HÓA THỰC THI: ĐỐI CHIẾU TẮT CHAINING vs. BẬT OPERATOR CHAINING (SLIDE 64-67)")
+            + [""]
+            + row_61
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 6.2: Backpressure Propagation, Web UI Detection & 3-Step Resolution
+    # -------------------------------------------------------------------------
+    s62_top = make_box([
+        "[1. CƠ CHẾ LAN TRUYỀN NGƯỢC DÒNG CỦA BACKPRESSURE QUA BỘ ĐỆM MẠNG (SLIDE 68-69)]",
+        "  [Fast Source (Kafka)]  ──(Events)──►  [Map Operator]  ──(Events)──►  [Slow Operator (Nghẽn!)]  ──►  [Sink]",
+        "                        ◄─(Backpressure)─              ◄─(Backpressure)─ (Hết Credit / Đầy Buffer!)",
+        "  • Bản chất: Khi Slow Operator xử lý không kịp, Input Buffers đầy cứng và ép các toán tử thượng nguồn giảm tốc độ.",
+        "  • Ý nghĩa : Backpressure vừa là phanh bảo vệ (chống nổ OOM Crash), vừa là tín hiệu chỉ điểm nút thắt cổ chai!",
+    ], inner_width=INNER_FULL)
+
+    s62_b1 = make_box([
+        "[A. CHẨN ĐOÁN WEB UI (SLIDE 70)]",
+        "• OK (Green)  : Chạy bình thường",
+        "• LOW (Yellow): Chớm nghẽn nhẹ",
+        "  -> Giám sát chặt chẽ",
+        "• HIGH (Red)  : Bộ đệm gần đầy!",
+        "  -> Toán tử ngay sau chuỗi HIGH",
+        "     chính là thủ phạm gây nghẽn!",
+    ], inner_width=INNER_HALF)
+    s62_b2 = make_box([
+        "[B. BA PHÁC ĐỒ XỬ LÝ THEO THỨ TỰ ƯU TIÊN (SLIDE 71)]",
+        "• Ưu tiên 1 (Scale Out) : Tăng độ song song riêng cho toán tử",
+        "  bị chậm bằng .set_parallelism(N).",
+        "• Ưu tiên 2 (Async I/O) : Thay lời gọi DB/API bên ngoài dạng",
+        "  chặn luồng bằng AsyncDataStream.unorderedWait().",
+        "• Ưu tiên 3 (RocksDB)   : Tăng kích thước Block Cache & Write",
+        "  Buffer nếu nút thắt nằm ở thao tác đọc/ghi State trên đĩa.",
+    ], inner_width=INNER_HALF)
+    row_62_bot = join_horizontal([s62_b1, s62_b2], ["    "], {3: [" ──►"]})
+
+    diagrams["6.2"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU ÁP LỰC NGƯỢC (BACKPRESSURE): LAN TRUYỀN, CHẨN ĐOÁN WEB UI & 3 PHÁC ĐỒ XỬ LÝ (SLIDE 68-71)")
+            + [""]
+            + s62_top
+            + v_arrow("Từ phát hiện cảnh báo đỏ HIGH trên Flink Web UI đến 3 bước giải cứu nút thắt cổ chai")
+            + row_62_bot
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 6.3: Deployment Modes — Session Mode vs Application Mode
+    # -------------------------------------------------------------------------
+    s63_left = make_box([
+        "[1. SESSION MODE (DÙNG CHUNG CỤM - SLIDE 73)]",
+        "• Kiến trúc : Khởi tạo sẵn 1 cụm Flink duy nhất (1 JobManager",
+        "  + N TaskManagers) để phục vụ NHIỀU Jobs nộp vào cùng lúc.",
+        "• Cô lập    : THẤP (Low Isolation) — Các Jobs tranh chấp CPU,",
+        "  Network và JVM; 1 Job lỗi OOM có thể đánh sập cả TaskManager!",
+        "• Khuyến nghị: Chỉ dùng cho Dev / Testing hoặc truy vấn ngắn.",
+    ], inner_width=INNER_HALF)
+    s63_right = make_box([
+        "[2. APPLICATION MODE (MỖI JOB 1 CỤM RIÊNG - SLIDE 73)]",
+        "• Kiến trúc : Cấp phát 1 cụm Flink ĐỘC LẬP cho từng Job duy nhất;",
+        "  hàm main() biên dịch ExecutionGraph chạy ngay trên JobManager.",
+        "• Cô lập    : CAO TUYỆT ĐỐI (High Isolation) — Hết cảnh Noisy",
+        "  Neighbor; khi Job dừng thì cụm tự động giải phóng tài nguyên.",
+        "• Khuyến nghị: CHUẨN BẮT BUỘC CHO PRODUCTION (trên K8s Operator)!",
+    ], inner_width=INNER_HALF)
+    row_63 = join_horizontal([s63_left, s63_right], ["    "], {3: [" ──►"]})
+
+    diagrams["6.3"] = {
+        "ascii": "\n".join(
+            banner("ĐỐI CHIẾU HAI CHẾ ĐỘ TRIỂN KHAI CỤM FLINK: SESSION MODE vs. APPLICATION MODE (SLIDE 72-73)")
+            + [""]
+            + row_63
+        ),
+        "kind": "boxes",
+    }
+
+    for k, meta in diagrams.items():
+        errs = verify_diagram(meta["ascii"], f"FLINK-{k}", kind=meta["kind"])
+        if errs:
+            raise SystemExit(f"ASCII verification failed for FLINK-{k} ({meta['kind']}): {errs}")
+    return diagrams
+
+
+def build_orchestration_ascii_diagrams() -> dict:
+    from ascii_diagram import make_box as _raw_make_box
+    def wrap_line(line: str, limit: int) -> list[str]:
+        if display_width(line) <= limit:
+            return [line]
+        if any(c in line for c in "┐┘") or line.rstrip().endswith("│"):
+            return [line]
+        import re as _re
+        m = _re.match(r"^(\s*(?:[├└]──\s+|\│\s+|\•\s+)?)", line)
+        prefix = m.group(1) if m else ""
+        cont_indent = prefix.replace("├──", "│  ").replace("└──", "   ").replace("•", " ")
+        if len(cont_indent) > 12:
+            cont_indent = "  "
+        words = line.split(" ")
+        out = []
+        cur = ""
+        for w in words:
+            cand = w if not cur else cur + " " + w
+            if display_width(cand) <= limit:
+                cur = cand
+            else:
+                if cur:
+                    out.append(cur)
+                cur = cont_indent + w
+        if cur:
+            out.append(cur)
+        return out
+
+    def make_box(lines, inner_width=None, header=None, context="make_box"):
+        if inner_width:
+            wrapped = []
+            for l in lines:
+                wrapped.extend(wrap_line(l, inner_width))
+            lines = wrapped
+        req_w = max((display_width(l) for l in lines), default=0)
+        w = max(inner_width or 0, req_w)
+        return _raw_make_box(lines, inner_width=w, header=header, context=context)
+
+    def banner(title: str, subtitle: str = "", width: int = 136) -> list[str]:
+        bar = "=" * width
+        out = [bar, pad_center(title, width).rstrip()]
+        if subtitle:
+            out.append(pad_center(subtitle, width).rstrip())
+        out.append(bar)
+        return out
+
+    def v_arrow(label: str = "", width: int = 136) -> list[str]:
+        mid = width // 2
+        if label:
+            lbl = f"│  {label}"
+            start = min(mid, max(2, width - display_width(lbl)))
+            return [
+                (" " * mid) + "│",
+                (" " * start) + lbl,
+                (" " * mid) + "▼",
+            ]
+        return [
+            (" " * mid) + "│",
+            (" " * mid) + "▼",
+        ]
+
+    W = 136
+    INNER_FULL = W - 4   # 132
+    INNER_HALF = 62      # box width = 66 -> 66 + 4 + 66 = 136
+    INNER_THIRD = 38     # box width = 42 -> 42 + 4 + 42 + 4 + 42 = 134
+
+    diagrams = {}
+
+    # -------------------------------------------------------------------------
+    # 0.1: Mental Map 5 Chặng — Cắt lớp Kiến trúc Toàn khóa D06
+    # -------------------------------------------------------------------------
+    s01_c1 = make_box([
+        "[CHẶNG 1: PIPELINE ORCHESTRATION & 5 TRỤ CỘT (TRẠM 1.1 -> 1.3)]",
+        "├── Thảm họa Cron 03:20 AM: Transform đọc dữ liệu khuyết #8888",
+        "├── Điều phối phụ thuộc   : Chặn tuần tự & Rẽ nhánh song song",
+        "├── Kích hoạt & Trạng thái: Time/Manual/Data/Event & 6 States",
+        "└── Chịu lỗi & Tài nguyên : Retry/Alert & Pool (Max 5 Slots)",
+    ], inner_width=INNER_HALF)
+    s01_c2 = make_box([
+        "[CHẶNG 2: VƯỢT QUA CRON: IDEMPOTENCY & BACKFILL (TRẠM 2.1 -> 2.4)]",
+        "├── Tử huyệt Crontab 5 ô  : Không DAG, không State, không Retry",
+        "├── Atomicity & Idempotent: f(f(x)) = f(x) chống nhân đôi #8888",
+        "├── Data Interval Backfill: Chạy lại lịch sử theo [start, end)",
+        "└── Dynamic & Asset-Aware : .expand() runtime & Dataset URI",
+    ], inner_width=INNER_HALF)
+    row_01_top = join_horizontal([s01_c1, s01_c2], ["    "], {3: [" ──►"]})
+
+    s01_c3 = make_box([
+        "[CHẶNG 3: KIẾN TRÚC AIRFLOW, OPERATORS & XCOM (TRẠM 3.1 -> 3.4)]",
+        "├── Triết lý cốt lõi : Điều phối (Orchestrate), không tính toán nặng",
+        "├── Đồ thị & Thực thi: DAG -> DAG Run (2026-05-15) -> Task Instance",
+        "├── Nội tạng 6 khối  : DAG Processor, Scheduler, Metadata DB, Worker",
+        "└── Sensor & XCom    : Async Triggerer (Deferrable) & Pass-by-URI",
+    ], inner_width=INNER_HALF)
+    s01_c4 = make_box([
+        "[CHẶNG 4: VẬN HÀNH, EXECUTORS, CONCURRENCY & MONITOR (TRẠM 4.1 -> 4.4)]",
+        "├── Bảo mật cấu hình : Variables & Connections (Fernet / Vault)",
+        "├── 4 Chế độ Executor: Sequential, Local, Celery & Kubernetes Pod",
+        "├── Phễu đồng thời   : parallelism=64 -> max_active_runs=1 -> Pool=5",
+        "└── Giám sát đa tầng : UI Grid, Slack Callback, Prometheus/Grafana",
+    ], inner_width=INNER_HALF)
+    row_01_mid = join_horizontal([s01_c3, s01_c4], ["    "], {3: [" ──►"]})
+
+    s01_c5 = make_box([
+        "[CHẶNG 5: KIỂM ĐỊNH CHẤT LƯỢNG (GX, DEEQU), CIRCUIT BREAKER, DATA CONTRACTS & QUẢN TRỊ DATAHUB (TRẠM 5.1 -> 5.4)]",
+        "├── [Lớp 1 - Dimensions]     : 6 Chiều Chất lượng (Accuracy, Completeness, Consistency, Timeliness, Validity, Uniqueness) & Chu trình 5 bước",
+        "├── [Lớp 2 - Circuit Breaker]: Cổng kiểm định nội tuyến (Validation Gate + BranchPythonOperator) ngắt mạch ngay khi dữ liệu bẩn",
+        "├── [Lớp 3 - Data Contracts] : Hợp đồng máy đọc được (Schema, Nullability, Range, Freshness, Uniqueness) giữa Producer & Consumer",
+        "└── [Lớp 4 - Tooling & Hub]  : Great Expectations (GX), Spark Deequ (Incremental/Anomaly) & Đồ thị Phả hệ DataHub (OpenLineage/MCP)",
+    ], inner_width=INNER_FULL)
+
+    diagrams["0.1"] = {
+        "ascii": "\n".join(
+            banner("BẢN ĐỒ TƯ DUY TOÀN KHÓA D06: ĐIỀU PHỐI DAILY_SALES_PIPELINE & QUẢN TRỊ ORDER #8888",
+                   "(Từ Cạm bẫy Cron 03:20 AM -> Kiến trúc Apache Airflow DAG -> Cầu dao Circuit Breaker -> Hợp đồng DataHub)")
+            + [""]
+            + row_01_top
+            + v_arrow("Bước chuyển 1: Hiện thực hóa đồ thị phụ thuộc lũy đẳng trên nền tảng Apache Airflow")
+            + row_01_mid
+            + v_arrow("Bước chuyển 2: Khép kín khoảng trống 'Pipeline Xanh nhưng Dữ liệu Sai' bằng Data Validation & DataHub")
+            + s01_c5
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 1.1: Naive Scheduling (03:20 AM Race Condition) vs. Pipeline Orchestration
+    # -------------------------------------------------------------------------
+    s11_naive = make_box([
+        "[A. LẬP LỊCH THEO GIỜ NGÂY THƠ (NAIVE TIME-BASED CRON - SLIDE 5-6)]",
+        "  • 02:00 AM : Extract data bắt đầu chạy (Quét bảng orders #8888)",
+        "  • 03:00 AM : [x] Transform BẮT ĐẦU SỚM (Dù Extract chưa xong!)",
+        "  • 03:20 AM : Extract mới hoàn tất ghi tệp (Trễ 20 phút do Lock)",
+        "  • 04:00 AM : [x] Load & Dashboard cập nhật SỐ LIỆU KHUYẾT / SAI!",
+        "  └── Tử huyệt: Đồng hồ điểm 03:00 AM không đồng nghĩa dữ liệu sẵn sàng!",
+    ], inner_width=INNER_HALF)
+    s11_orch = make_box([
+        "[B. ĐIỀU PHỐI PHỤ THUỘC TRUNG TÂM (PIPELINE ORCHESTRATION - SLIDE 7-8)]",
+        "  • Bước 1 : Extract chạy lúc 02:00 AM -> Trạng thái: RUNNING...",
+        "  • Bước 2 : Lúc 03:00 AM, Transform kiểm tra phụ thuộc -> WAITING",
+        "  • Bước 3 : 03:20 AM Extract báo [+] SUCCESS -> Mở khóa Transform!",
+        "  • Bước 4 : Transform -> Validate -> Load -> [+] Dashboard ĐÚNG 100%",
+        "  └── Nguyên lý: Tác vụ chỉ chạy khi Dependency hoàn tất an toàn!",
+    ], inner_width=INNER_HALF)
+    row_11_top = join_horizontal([s11_naive, s11_orch], ["    "], {3: [" ──►"]})
+
+    s11_coord = make_box([
+        "[TRUNG TÂM ĐIỀU PHỐI (ORCHESTRATOR HUB - SLIDE 7 & 8): ĐIỀU PHỐI LÀ COORDINATION, KHÔNG PHẢI COMPUTATION]",
+        "                ┌──────────────┐         ┌──────────────┐         ┌──────────────┐",
+        "                │ 1. Extract   │◄───────►│ 2. Clean     │◄───────►│ 3. Validate  │",
+        "                └──────┬───────┘         └──────┬───────┘         └──────┬───────┘",
+        "                       │                        │                        │",
+        "                       └────────────────────────┼────────────────────────┘",
+        "                                                ▼",
+        "                                    ┌────────────────────────┐",
+        "                                    │  PIPELINE ORCHESTRATOR │",
+        "                                    └───────────┬────────────┘",
+        "                                  ┌─────────────┴─────────────┐",
+        "                                  ▼                           ▼",
+        "                          ┌──────────────┐            ┌──────────────┐",
+        "                          │ 4. Load DW   │            │ 5. Notify    │",
+        "                          └──────────────┘            └──────────────┘",
+        "• 4 Trách nhiệm cốt lõi: (1) Dependency Resolution | (2) Scheduling & Triggers | (3) State Management | (4) Fault Tolerance",
+    ], inner_width=INNER_FULL)
+
+    diagrams["1.1"] = {
+        "ascii": "\n".join(
+            banner("SỰ SỤP ĐỔ CỦA LẬP LỊCH THEO GIỜ (03:20 AM DELAY) vs. PIPELINE ORCHESTRATION (SLIDE 4-8)")
+            + [""]
+            + row_11_top
+            + v_arrow("Chuyển dịch từ kích hoạt mù theo đồng hồ (Clock-driven) sang điều phối theo phụ thuộc (Dependency-driven)")
+            + s11_coord
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 1.2: Dependency Management (Sequential & Parallel), Triggers & State Tracking
+    # -------------------------------------------------------------------------
+    s12_seq = make_box([
+        "[1A. CHẶN TUẦN TỰ AN TOÀN (SLIDE 9)]",
+        "  [Extract Orders (#8888)] -> [x] FAILED",
+        "             │",
+        "      =======╪======= [X BLOCK GATE]",
+        "             ▼",
+        "  [Clean Orders]      (Bị chặn dừng!)",
+        "  [Load Warehouse]    (Bị chặn dừng!)",
+        "  [Refresh Dashboard] (Giữ số an toàn)",
+    ], inner_width=INNER_THIRD)
+    s12_par = make_box([
+        "[1B. SONG SONG FAN-OUT/IN (SLIDE 10)]",
+        "  [Extract Customers] ──┐",
+        "                        ├──► [Transform]",
+        "  [Extract Orders]    ──┘         │",
+        "                                  ▼",
+        "                           [Load Warehouse]",
+        "• [+] Rút ngắn 50% tổng thời gian chạy",
+        "• [+] Tận dụng tối đa tài nguyên cụm",
+    ], inner_width=INNER_THIRD)
+    s12_state = make_box([
+        "[3. THEO DÕI TRẠNG THÁI (SLIDE 12)]",
+        "┌────────────┬────────────────────────┐",
+        "│ Task       │ State (Metadata DB)    │",
+        "├────────────┼────────────────────────┤",
+        "│ Extract    │ [+] success            │",
+        "│ Clean      │ [x] failed (retrying)  │",
+        "│ Load       │ [!] queued / waiting   │",
+        "└────────────┴────────────────────────┘",
+    ], inner_width=INNER_THIRD)
+    row_12_top = join_horizontal([s12_seq, s12_par, s12_state], ["    ", "    "])
+
+    s12_trig = make_box([
+        "[2. BỐN CƠ CHẾ KÍCH HOẠT ĐƯỜNG ỐNG TỰ ĐỘNG (FOUR TRIGGER TYPES - SLIDE 11) & VÒNG ĐỜI 6 TRẠNG THÁI TASK]",
+        "├── [A] Time-based Trigger        : Chạy theo lịch cố định (Ví dụ: Chạy daily_sales_pipeline mỗi ngày lúc 02:00 AM UTC)",
+        "├── [B] Manual Trigger            : Kỹ sư chủ động bấm chạy từ Web UI hoặc CLI (Ví dụ: Chạy lại luồng ngày hôm qua sau khi vá code)",
+        "├── [C] Data Availability Trigger : Chỉ khởi chạy khi dữ liệu cần thiết đã xuất hiện (Ví dụ: Tệp orders_20260515.parquet đáp xuống S3)",
+        "├── [D] Event-based Trigger       : Kích hoạt khi hệ thống ngoài bắn sự kiện (Ví dụ: Webhook/Kafka báo lô hàng mới vừa tải lên)",
+        "└── Máy trạng thái 6 nấc          : [scheduled] ──► [queued] ──► [running] ──► ( [+] [success]  |  [!] [retrying] ──► [x] [failed]  |  [skipped] )",
+    ], inner_width=INNER_FULL)
+
+    diagrams["1.2"] = {
+        "ascii": "\n".join(
+            banner("QUẢN LÝ PHỤ THUỘC (TUẦN TỰ & SONG SONG), 4 LOẠI TRIGGER & STATE TRACKING (SLIDE 9-12)")
+            + [""]
+            + row_12_top
+            + v_arrow("Kết hợp cơ chế kích hoạt đầu vào (Scheduling Triggers) với sổ cái trạng thái tập trung (State Tracking)")
+            + s12_trig
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 1.3: Failure Handling & Resource Coordination (Pool Max 5 Slots)
+    # -------------------------------------------------------------------------
+    s13_fail = make_box([
+        "[TRỤ CỘT 4: XỬ LÝ SỰ CỐ CÓ KIỂM SOÁT (FAILURE HANDLING - SLIDE 13)]",
+        "  [1. Task clean_orders gặp lỗi mạng / dữ liệu (#8888)]",
+        "                            │",
+        "                            ▼",
+        "  [2. Tự động thử lại theo chính sách (Retry + Backoff)]",
+        "                            │ (Vẫn thất bại sau N lần Retry)",
+        "                            ▼",
+        "  [3. Ghi nhật ký tập trung (Record Logs) & Bắn cảnh báo (Alert)]",
+        "                            │",
+        "                            ▼",
+        "  [4. Khóa chặt toàn bộ nhánh hạ nguồn (Downstream Stopped)]",
+        "  [+] Cho phép chạy lại (Manual Rerun) đúng từ điểm gãy!",
+    ], inner_width=INNER_HALF)
+    s13_pool = make_box([
+        "[TRỤ CỘT 5: ĐIỀU PHỐI TÀI NGUYÊN DÙNG CHUNG (RESOURCE POOL - SLIDE 14)]",
+        "  [Hàng đợi: 100 Tasks]    [Pool: Max 5 Slots]    [Database]",
+        "  ┌───────────────────┐    ┌─────────────────┐    ┌────────┐",
+        "  │ Task 1, Task 2... │ ─► │ Slot 1: Task 7  │ ─► │        │",
+        "  │ Task 4, Task 5... │    │ Slot 2: Task 12 │    │  DB    │",
+        "  │ ...               │    │ Slot 3: Task 3  │ ─► │HEALTHY │",
+        "  │ Task 100          │    │ Slot 4: Task 25 │    │  [+]   │",
+        "  │ (95 Tasks chờ!)   │    │ Slot 5: Task 42 │    └────────┘",
+        "  └─────────▲─────────┘    └────────┬────────┘",
+        "            └──(Task xong: Nhả Slot & Cấp tiếp)──+",
+        "  [+] Chặn đứng thảm họa 100 Tasks dội sập PostgreSQL cùng lúc!",
+    ], inner_width=INNER_HALF)
+    row_13 = join_horizontal([s13_fail, s13_pool], ["    "])
+
+    diagrams["1.3"] = {
+        "ascii": "\n".join(
+            banner("KIỂM SOÁT SỰ CỐ TỰ ĐỘNG (FAILURE HANDLING) & BẢO VỆ HẠ TẦNG (RESOURCE POOL - SLIDE 13-14)")
+            + [""]
+            + row_13
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 2.1: Giải phẫu Biểu thức Crontab 5 trường & 4 Giới hạn Tử huyệt
+    # -------------------------------------------------------------------------
+    s21_cron = make_box([
+        "[GIẢI PHẪU BIỂU THỨC CRONTAB 5 TRƯỜNG CỦA HỆ ĐIỀU HÀNH UNIX/LINUX (SLIDE 16)]",
+        "    *     *     *     *     *    /usr/bin/python3 /opt/pipelines/extract_orders.py",
+        "    ┬     ┬     ┬     ┬     ┬    ─────────────────────────────────────────────────",
+        "    │     │     │     │     └─── [Trường 5] day of week  (0 - 7)  : Thứ trong tuần (0 hoặc 7 = Chủ nhật)",
+        "    │     │     │     └───────── [Trường 4] month        (1 - 12) : Tháng trong năm",
+        "    │     │     └─────────────── [Trường 3] day of month (1 - 31) : Ngày trong tháng",
+        "    │     └───────────────────── [Trường 2] hour         (0 - 23) : Giờ trong ngày (VD: 2 = 02:00 AM)",
+        "    └─────────────────────────── [Trường 1] minute       (0 - 59) : Phút trong giờ (VD: 0 = Phút thứ 0)",
+        "  [!] Bản chất cơ học: Biểu thức Cron chỉ báo cho OS KHI NÀO gọi lệnh, hoàn toàn MÙ về trạng thái an toàn của dữ liệu!",
+    ], inner_width=INNER_FULL)
+
+    s21_l1 = make_box([
+        "[1. KHÔNG QUẢN LÝ PHỤ THUỘC & ĐỒ THỊ (NO DAG)]",
+        "• Các lệnh chạy độc lập, không biết tác vụ trước",
+        "  đã xong hay bị treo (No dependency awareness).",
+        "• Không có biểu diễn đồ thị DAG; muốn nối chuỗi",
+        "  phải ghép thủ công (a.sh && b.sh) cực kỳ mong manh.",
+    ], inner_width=INNER_HALF)
+    s21_l2 = make_box([
+        "[2. KHÔNG LƯU TRẠNG THÁI & PHỤC HỒI (NO METADATA)]",
+        "• Không có cơ sở dữ liệu trung tâm ghi nhận lịch sử",
+        "  chạy, thời gian thực thi hay trạng thái từng bước.",
+        "• Không có cơ chế Retry thông minh, không tự động",
+        "  chạy bù (Backfill) khi máy chủ sập nguồn 3 ngày.",
+    ], inner_width=INNER_HALF)
+    row_21_bot = join_horizontal([s21_l1, s21_l2], ["    "])
+
+    diagrams["2.1"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU BIỂU THỨC CRONTAB 5 TRƯỜNG & 4 GIỚI HẠN ĐỐI VỚI ĐƯỜNG ỐNG DỮ LIỆU (SLIDE 16-17)")
+            + [""]
+            + s21_cron
+            + v_arrow("Bốn khiếm khuyết kiến trúc buộc kỹ sư dữ liệu phải tiến hóa từ OS Cronjob lên Apache Airflow")
+            + row_21_bot
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 2.2: Atomicity & Idempotency — Chống nhân đôi Order #8888 khi Retry
+    # -------------------------------------------------------------------------
+    s22_bad = make_box([
+        "[A. TÁC VỤ PHI LŨY ĐẲNG (NON-IDEMPOTENT APPEND - NHÂN BẢN)]",
+        "  • SQL ngây thơ: INSERT INTO fact_orders SELECT * FROM raw;",
+        "  • Lần chạy 1 (02:00): Ghi xong #8888 (450k) -> Đứt mạng!",
+        "  • Lần chạy 2 (Retry): Chạy lại INSERT -> Chèn THÊM 1 bản!",
+        "  ┌──────────┬─────────┬─────────┬────────────────────────┐",
+        "  │ order_id │ user_id │ amount  │ Trạng thái Bảng Đích   │",
+        "  ├──────────┼─────────┼─────────┼────────────────────────┤",
+        "  │ ORD-8888 │ USR-104 │ 450,000 │ Bản ghi từ Lần chạy 1  │",
+        "  │ ORD-8888 │ USR-104 │ 450,000 │ [x] NHÂN ĐÔI = 900.000 │",
+        "  └──────────┴─────────┴─────────┴────────────────────────┘",
+    ], inner_width=INNER_HALF)
+    s22_good = make_box([
+        "[B. TÁC VỤ LŨY ĐẲNG & NGUYÊN TỬ (IDEMPOTENT: f(f(x)) = f(x))]",
+        "  • Mẫu 1 (Delete-Write): BEGIN; DELETE ds='05-15'; INSERT;",
+        "  • Mẫu 2 (Upsert/Merge): MERGE INTO fact ON id='ORD-8888';",
+        "  • Mẫu 3 (Object Store): Ghi đè s3://.../dt=2026-05-15/",
+        "  ┌──────────┬─────────┬─────────┬────────────────────────┐",
+        "  │ order_id │ user_id │ amount  │ Trạng thái (Chạy N lần)│",
+        "  ├──────────┼─────────┼─────────┼────────────────────────┤",
+        "  │ ORD-8888 │ USR-104 │ 450,000 │ [+] Duy nhất 1 bản ghi │",
+        "  │ (Bất biến hoàn toàn: Retry hay Backfill đều chuẩn!)   │",
+        "  └──────────┴─────────┴─────────┴────────────────────────┘",
+    ], inner_width=INNER_HALF)
+    row_22 = join_horizontal([s22_bad, s22_good], ["    "], {4: [" ──►"]})
+
+    diagrams["2.2"] = {
+        "ascii": "\n".join(
+            banner("TÍNH NGUYÊN TỬ (ATOMICITY) & TÍNH LŨY ĐẲNG (IDEMPOTENCY): CHỐNG NHÂN BẢN ORDER #8888 (CHƯƠNG 3)")
+            + [""]
+            + row_22
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 2.3: Data Interval (data_interval_start -> end) & Cơ chế Backfill Lịch sử
+    # -------------------------------------------------------------------------
+    s23_time = make_box([
+        "[GIẢI PHẪU TRỤC THỜI GIAN AIRFLOW: DATA INTERVAL vs. LOGICAL DATE vs. TRIGGER TIME (CHƯƠNG 3 HARENSLAK)]",
+        "  Trục thời gian thực:  2026-05-14 00:00              2026-05-15 00:00              2026-05-16 00:00",
+        "                        ├─────────────────────────────┼─────────────────────────────┼──────────────────►",
+        "                        │◄─── Cửa sổ ngày 14/05 ─────►│◄─── Cửa sổ ngày 15/05 ─────►│",
+        "                                                      ▲                             ▲",
+        "                                         data_interval_start            data_interval_end",
+        "                                         (ds = '2026-05-15')          (Thời điểm kích hoạt thật!)",
+        "  • Quy tắc vàng: Phiên chạy cho kỳ dữ liệu 2026-05-15 (chứa Order #8888) chỉ bắt đầu chạy SAU KHI ngày 15/05 khép lại!",
+        "  • Cấm dùng NOW() / CURRENT_DATE trong code; bắt buộc truyền biến ngữ cảnh [data_interval_start, data_interval_end).",
+    ], inner_width=INNER_FULL)
+
+    s23_bf = make_box([
+        "[CỖ MÁY THỜI GIAN BACKFILL & CATCHUP: TÁI XỬ LÝ LỊCH SỬ SONG SONG MÀ KHÔNG LỆCH DỮ LIỆU]",
+        "  Lệnh CLI: airflow dags backfill --start-date 2026-05-13 --end-date 2026-05-15 daily_sales_pipeline",
+        "  ├── [DAG Run #1: ds = 2026-05-13] ──► Xóa & nạp lại đúng phân vùng dt='2026-05-13' (Độc lập 100%)",
+        "  ├── [DAG Run #2: ds = 2026-05-14] ──► Xóa & nạp lại đúng phân vùng dt='2026-05-14' (Độc lập 100%)",
+        "  └── [DAG Run #3: ds = 2026-05-15] ──► Xóa & nạp lại đúng phân vùng dt='2026-05-15' (Chứa Order #8888 đã sửa thuế)",
+        "  [+] Nhờ kết hợp Tham số hóa Cửa sổ Thời gian (Data Interval) + Tính Lũy Đẳng (Idempotency), N ngày lịch sử có thể chạy lại an toàn!",
+    ], inner_width=INNER_FULL)
+
+    diagrams["2.3"] = {
+        "ascii": "\n".join(
+            banner("CƠ HỌC CỬA SỔ DỮ LIỆU (DATA INTERVALS) & LẤP ĐẦY LỊCH SỬ (BACKFILL - SLIDE 15 & CHƯƠNG 3)")
+            + [""]
+            + s23_time
+            + v_arrow("Tham số hóa cửa sổ [data_interval_start, data_interval_end) mở khóa khả năng chạy bù lịch sử (Backfill)")
+            + s23_bf
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 2.4: Dynamic Pipelines (.expand() Task Mapping) & Asset-Aware Scheduling
+    # -------------------------------------------------------------------------
+    s24_dyn = make_box([
+        "[A. DYNAMIC TASK MAPPING (.partial / .expand - CHƯƠNG 12)]",
+        "  [list_active_regions] ──► Trả về mảng động lúc Runtime:",
+        "                            ['VN-Bac', 'VN-Trung', 'VN-Nam']",
+        "                               │",
+        "        ┌──────────────────────┼──────────────────────┐",
+        "        ▼                      ▼                      ▼",
+        "  [shard[0]: Bac]       [shard[1]: Trung]      [shard[2]: Nam]",
+        "        │                      │                      │",
+        "        └──────────────────────┼──────────────────────┘",
+        "                               ▼",
+        "                    [merge_and_load_orders]",
+        "  [+] Tự động co giãn số lượng Task Instance theo dữ liệu!",
+    ], inner_width=INNER_HALF)
+    s24_asset = make_box([
+        "[B. LẬP LỊCH NHẬN BIẾT TÀI SẢN (ASSET-AWARE SCHEDULING - CHƯƠNG 4)]",
+        "  [DAG 1: ingest_orders_cdc] (Chạy mỗi 15 phút hoặc sự kiện)",
+        "     └── Task: write_bronze (outlets=[Asset('s3://orders')])",
+        "                               │",
+        "                               ▼ (Phát tín hiệu Asset Event)",
+        "  ╔════════════════════════════════════════════════════════╗",
+        "  ║ ASSET URI: s3://orders (Cập nhật lúc 02:14:08 UTC)     ║",
+        "  ╚════════════════════════════╤═══════════════════════════╝",
+        "                               ▼ (Kích hoạt tức thì!)",
+        "  [DAG 2: daily_sales_pipeline] (schedule=[Asset('s3://..')])",
+        "  [+] Xóa bỏ hoàn toàn khoảng chờ đoán mò giữa các DAG!",
+    ], inner_width=INNER_HALF)
+    row_24 = join_horizontal([s24_dyn, s24_asset], ["    "])
+
+    diagrams["2.4"] = {
+        "ascii": "\n".join(
+            banner("ĐƯỜNG ỐNG ĐỘNG (DYNAMIC TASK MAPPING .expand) & ASSET-AWARE SCHEDULING (SLIDE 15 & CHƯƠNG 4)")
+            + [""]
+            + row_24
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 3.1: Bản chất Airflow (Coordinator vs Compute), Đồ thị DAG & 4 Khái niệm
+    # -------------------------------------------------------------------------
+    s31_role = make_box([
+        "[A. RANH GIỚI TRÁCH NHIỆM: AIRFLOW LÀ NHẠC TRƯỞNG (SLIDE 19-20)]",
+        "  ┌──────────────────────────────────────────────────────────┐",
+        "  │ 1. AIRFLOW ORCHESTRATION LAYER (Chỉ điều phối & Lập lịch)│",
+        "  └────────────────────────────┬─────────────────────────────┘",
+        "                               │ (Gửi lệnh kích hoạt API/CLI)",
+        "                               ▼",
+        "  ┌──────────────────────────────────────────────────────────┐",
+        "  │ 2. COMPUTE ENGINES: Spark / dbt / SQL / Docker / API     │",
+        "  └────────────────────────────┬─────────────────────────────┘",
+        "                               ▼",
+        "  ┌──────────────────────────────────────────────────────────┐",
+        "  │ 3. STORAGE & SERVING: Data Warehouse / Lake / Dashboard  │",
+        "  └──────────────────────────────────────────────────────────┘",
+        "  [!] Cấm nạp hàng chục GB dữ liệu vào RAM của Airflow Worker!",
+    ], inner_width=INNER_HALF)
+    s31_dag = make_box([
+        "[B. CẤU TRÚC DAG & PHÂN CẤP 4 KHÁI NIỆM CỐT LÕI (SLIDE 21-22)]",
+        "  • DAG = Directed (Có hướng) + Acyclic (Cấm vòng lặp vô tận)",
+        "  [1. DAG (Bản thiết kế tĩnh): daily_sales_pipeline]",
+        "      ├──► [2. DAG Run (1 Phiên chạy): run for 2026-05-15]",
+        "      │        ├── [4. Task Instance: extract_orders (2026-05-15)]",
+        "      │        ├── [4. Task Instance: clean_orders   (2026-05-15)]",
+        "      │        └── [4. Task Instance: load_warehouse (2026-05-15)]",
+        "      └──► [2. DAG Run (Phiên kế tiếp): run for 2026-05-16]",
+        "               └── (Chứa các Task Instances của ngày 16/05...)",
+        "  • [3. Task]: Bước logic định nghĩa trong DAG (VD: extract_orders)",
+        "  [+] 1 DAG có nhiều DAG Runs; mỗi DAG Run chứa nhiều Task Instances!",
+    ], inner_width=INNER_HALF)
+    row_31 = join_horizontal([s31_role, s31_dag], ["    "])
+
+    diagrams["3.1"] = {
+        "ascii": "\n".join(
+            banner("BẢN CHẤT APACHE AIRFLOW, ĐỒ THỊ KHÔNG CHU TRÌNH (DAG) & BỘ TỨ KHÁI NIỆM (SLIDE 19-22)")
+            + [""]
+            + row_31
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 3.2: Giải phẫu 6 Thành phần Kiến trúc Airflow & Metadata Database
+    # -------------------------------------------------------------------------
+    s32_arch = make_box([
+        "[SƠ ĐỒ TƯƠNG TÁC 6 THÀNH PHẦN KIẾN TRÚC APACHE AIRFLOW QUANH METADATA DATABASE (SLIDE 23-24 & CHƯƠNG 15)]",
+        "  [Kỹ sư Dữ liệu / User] ───────────────────────► [6. Web Server / UI] (Hiển thị Grid/Graph, Logs & Điều khiển tay)",
+        "                                                           │",
+        "                                                           │ (Đọc trạng thái DAGs, Task Instances, XCom)",
+        "                                                           ▼",
+        "  [2. Scheduler] ────────(Ghi DAG Run & Trạng thái Task)──► [5. METADATA DATABASE (PostgreSQL / MySQL)]",
+        "     │      ▲                                              ▲      │   (Nguồn sự thật trung tâm duy nhất - SSoT)",
+        "     │      │ (Đọc cấu trúc)                               │      │",
+        "     │   [1. DAG Files (.py)]                              │      └───(Đọc cấu hình, Variables, Connections)",
+        "     │   (DAG Processor phân tích)                         │                       │",
+        "     ▼                                                     │                       ▼",
+        "  [3. Executor] ◄────(Báo cáo trạng thái & Gửi lệnh thực thi)─────┴─────────────► [4. Workers (Thực thi code Task)]",
+        "  • Tiến hóa Airflow 3.0: Tách rời độc lập [DAG Processor] và chặn Worker chọc thẳng DB qua [Task Execution API Server]!",
+    ], inner_width=INNER_FULL)
+
+    s32_c1 = make_box([
+        "[1-3. NHÓM LẬP LỊCH & ĐIỀU PHỐI (CONTROL PLANE)]",
+        "• [1] DAG Files : Định nghĩa luồng bằng mã Python (Cấm viết query",
+        "  nặng ở Top-Level vì bộ phân tích đọc lại tệp mỗi 30 giây!).",
+        "• [2] Scheduler : Quét Metadata DB, kiểm tra lịch & phụ thuộc để",
+        "  đưa các Task Instance đủ điều kiện vào hàng đợi thực thi.",
+        "• [3] Executor  : Quyết định cách thức và nơi tác vụ được chạy.",
+    ], inner_width=INNER_HALF)
+    s32_c2 = make_box([
+        "[4-6. NHÓM THỰC THI, LƯU TRỮ & GIAO DIỆN (DATA/UI PLANE)]",
+        "• [4] Workers     : Tiến trình/Container thực sự chạy mã Operator.",
+        "• [5] Metadata DB : Lưu toàn bộ DAG runs, task states, retries,",
+        "  variables, connections (mã hóa Fernet) và bảng truyền tin XCom.",
+        "• [6] Web UI      : Giao diện theo dõi trạng thái, đọc log từ xa",
+        "  (S3/GCS) và kích hoạt chạy lại (Clear / Trigger DAG).",
+    ], inner_width=INNER_HALF)
+    row_32 = join_horizontal([s32_c1, s32_c2], ["    "])
+
+    diagrams["3.2"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU 6 THÀNH PHẦN KIẾN TRÚC APACHE AIRFLOW & LUỒNG TƯƠNG TÁC (SLIDE 23-24)")
+            + [""]
+            + s32_arch
+            + v_arrow("Phân tách rạch ròi trách nhiệm đơn lẻ (Single Responsibility) giữa 6 thành phần")
+            + row_32
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 3.3: Hệ sinh thái Operators & 3 Chế độ Sensor (Poke vs Reschedule vs Deferrable)
+    # -------------------------------------------------------------------------
+    s33_ops = make_box([
+        "[HỆ SINH THÁI AIRFLOW OPERATORS: ĐÓNG GÓI MỌI TÁC VỤ THÀNH KHỐI LẮP GHÉP CHUẨN HÓA (SLIDE 25-26)]",
+        "├── [1] PythonOperator / @task : Chạy hàm Python bất kỳ (Feature engineering, gọi thư viện biến đổi nhẹ)",
+        "├── [2] BashOperator           : Thực thi câu lệnh Shell / CLI (Ví dụ: dbt run --select fact_orders)",
+        "├── [3] PostgresOperator / SQL : Chạy câu lệnh SQL trực tiếp trên kho dữ liệu (Tạo bảng, gộp dữ liệu)",
+        "├── [4] DockerOperator / K8sPod: Chạy mã trong Container cô lập (Ví dụ: Huấn luyện LightGBM image airflow-lgb-stage:0.0.1)",
+        "├── [5] HttpOperator & EmailOp : Gọi REST API / Webhook ngoài và gửi cảnh báo Email/Slack khi hoàn tất",
+        "└── [6] Sensors (S3KeySensor, FileSensor, SqlSensor): Chờ một điều kiện bên ngoài thỏa mãn trước khi mở khóa luồng!",
+    ], inner_width=INNER_FULL)
+
+    s33_m1 = make_box([
+        "[A. MODE='POKE' (MẶC ĐỊNH - NGUY HIỂM)]",
+        "• Worker kiểm tra S3 -> Chưa có tệp",
+        "  -> Ngủ sleep(60s) NGAY TRONG WORKER!",
+        "• [x] Chiếm giữ khư khư 1 Worker Slot",
+        "  suốt thời gian chờ (Dễ gây kẹt cứng",
+        "  Sensor Deadlock toàn cụm!).",
+    ], inner_width=INNER_THIRD)
+    s33_m2 = make_box([
+        "[B. MODE='RESCHEDULE' (TIẾT KIỆM SLOT)]",
+        "• Kiểm tra S3 chưa có tệp -> Tác vụ tự",
+        "  kết thúc lượt chạy và NHẢ Worker Slot!",
+        "• Trạng thái chuyển về up_for_reschedule",
+        "• [+] Giải phóng Worker cho việc khác;",
+        "  nhưng tốn phí khởi tạo lại tiến trình.",
+    ], inner_width=INNER_THIRD)
+    s33_m3 = make_box([
+        "[C. DEFERRABLE + TRIGGERER (CHUẨN MỚI)]",
+        "• Tác vụ tự tạm hoãn (deceased/deferred)",
+        "  và bàn giao sự kiện cho [Triggerer].",
+        "• 1 tiến trình asyncio Triggerer lắng",
+        "  nghe 1.000+ sự kiện S3/SQL cùng lúc!",
+        "• [+] 0 Worker Slot bị chiếm dụng!",
+    ], inner_width=INNER_THIRD)
+    row_33 = join_horizontal([s33_m1, s33_m2, s33_m3], ["    ", "    "], {2: [" ──►", " ──►"]})
+
+    diagrams["3.3"] = {
+        "ascii": "\n".join(
+            banner("HỆ SINH THÁI OPERATORS & CƠ HỌC 3 CHẾ ĐỘ CHỜ CỦA SENSOR (SLIDE 25-27 & CHƯƠNG 7, 9)")
+            + [""]
+            + s33_ops
+            + v_arrow("Tiến hóa cơ chế chờ đợi của Sensor: Từ chiếm dụng Worker (Poke) sang bất đồng bộ (Deferrable Triggerer)")
+            + row_33
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 3.4: Cô lập Tác vụ (Task Isolation) & Truyền tin XCom (Pass-by-Reference)
+    # -------------------------------------------------------------------------
+    s34_xcom = make_box([
+        "[CƠ CHẾ TRUYỀN SIÊU DỮ LIỆU XCOM (CROSS-COMMUNICATION) QUA METADATA DATABASE (SLIDE 28-29)]",
+        "  ┌──────────────────────────────┐                                      ┌───────────────────────────────────────┐",
+        "  │ Task 1: train_model          │ ──(1) xcom_push('model_path')──────► │ METADATA DATABASE (Bảng xcom)         │",
+        "  │ (PythonOperator trên Node A) │                                      │ • dag_id : 'daily_sales_pipeline'     │",
+        "  └──────────────────────────────┘                                      │ • task_id: 'train_model'              │",
+        "                                                                        │ • key    : 'model_path'               │",
+        "  ┌──────────────────────────────┐                                      │ • value  : '/models/v2' (JSON < 1KB)  │",
+        "  │ Task 2: evaluate_model       │ ◄─(2) xcom_pull('model_path')─────── └───────────────────────────────────────┘",
+        "  │ (PythonOperator trên Node B) │",
+        "  └──────────────────────────────┘",
+    ], inner_width=INNER_FULL)
+
+    s34_bad = make_box([
+        "[SAI LẦM CHẾT NGƯỜI: ĐẨY DATAFRAME LỚN QUA XCOM (SLIDE 29)]",
+        "• [x] Trả về trực tiếp bảng Pandas DataFrame (500MB - 5GB) chứa",
+        "  hàng triệu đơn hàng vào hàm return của @task.",
+        "• Hậu quả vật lý: Airflow cố tuần tự hóa toàn bộ bảng dữ liệu",
+        "  nhét vào cột BLOB/BYTEA của Metadata Database -> Tràn RAM",
+        "  Worker (OOM Killed) và làm treo cứng PostgreSQL Metastore!",
+    ], inner_width=INNER_HALF)
+    s34_good = make_box([
+        "[CHUẨN KIẾN TRÚC: TRUYỀN THAM CHIẾU ĐƯỜNG DẪN (PASS-BY-URI)]",
+        "• [+] Task 1 ghi dữ liệu nặng xuống Object Storage (S3 / MinIO):",
+        "  s3://fsds-lake/orders/dt=2026-05-15/orders_clean.parquet",
+        "• [+] Task 1 chỉ đẩy chuỗi địaẵn URI (82 bytes) hoặc row_count",
+        "  qua XCom; Task 2 kéo URI về và đọc tệp trực tiếp từ S3!",
+        "• Giữ Metadata DB siêu nhẹ (<1KB/XCom) và mở rộng không giới hạn.",
+    ], inner_width=INNER_HALF)
+    row_34 = join_horizontal([s34_bad, s34_good], ["    "], {2: [" ──►"]})
+
+    diagrams["3.4"] = {
+        "ascii": "\n".join(
+            banner("CÔ LẬP TÁC VỤ (TASK ISOLATION) & QUY TẮC VÀNG TRUYỀN THAM CHIẾU QUA XCOM (SLIDE 28-29)")
+            + [""]
+            + s34_xcom
+            + v_arrow("Tại sao tuyệt đối cấm dùng XCom mặc định để truyền tập dữ liệu lớn (DataFrames)?")
+            + row_34
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 4.1: Variables & Connections (No Hardcoding Credentials in DAG Files)
+    # -------------------------------------------------------------------------
+    s41_bad = make_box([
+        "[A. CÁCH LÀM NGUY HIỂM: HARDCODE TRONG TỆP DAG (SLIDE 31)]",
+        "  # tệp: dags/daily_sales_pipeline.py",
+        "  password = \"abc123\"       # [x] Lộ mật khẩu trên Git & UI!",
+        "  host     = \"prod-db\"      # [x] Đổi DB phải sửa 50 tệp DAG!",
+        "  • Hậu quả 1: Bất kỳ ai đọc kho Git hoặc tab Code trên UI",
+        "    đều thấy toàn bộ mật khẩu cơ sở dữ liệu Production.",
+        "  • Hậu quả 2: Khi xoay vòng mật khẩu định kỳ, hàng chục",
+        "    đường ống đồng loạt gãy vỡ vì chưa sửa kịp mã nguồn.",
+    ], inner_width=INNER_HALF)
+    s41_good = make_box([
+        "[B. CHUẨN BẢO MẬT: VARIABLES, CONNECTIONS & VAULT (SLIDE 31)]",
+        "  ┌────────────────────────────────────────────────────────┐",
+        "  │ 1. VARIABLES (Lưu cấu hình & Tham số vận hành)         │",
+        "  │    VD: s3_bucket='fsds-lake', date_range, feature_flag │",
+        "  ├────────────────────────────────────────────────────────┤",
+        "  │ 2. CONNECTIONS (Lưu thông tin đăng nhập & Điểm cuối)   │",
+        "  │    VD: conn_id='postgres_prod', API key, S3 token      │",
+        "  │    [+] Mã hóa AES-128 Fernet Key hoặc HashiCorp Vault! │",
+        "  └────────────────────────────────────────────────────────┘",
+    ], inner_width=INNER_HALF)
+    row_41 = join_horizontal([s41_bad, s41_good], ["    "], {3: [" ──►"]})
+
+    s41_tip = make_box([
+        "[CẠM BẪY HIỆU NĂNG TOP-LEVEL CODE KHI DÙNG VARIABLE (CHƯƠNG 12 HARENSLAK)]",
+        "• [x] Sai lầm: Đặt lệnh bucket = Variable.get('s3_bucket') ở ngoài hàm (Top-level của tệp .py) -> Mỗi 30 giây khi DAG Processor",
+        "      quét 100 tệp DAG, nó bắn hàng trăm câu SELECT thừa vào Metadata DB dù không có Task nào đang chạy!",
+        "• [+] Giải pháp chuẩn: Truy xuất thông qua Jinja Template '{{ var.value.s3_bucket }}' để chỉ đọc DB đúng lúc Task thực thi!",
+    ], inner_width=INNER_FULL)
+
+    diagrams["4.1"] = {
+        "ascii": "\n".join(
+            banner("QUẢN LÝ CẤU HÌNH TẬP TRUNG: VARIABLES, CONNECTIONS & MÃ HÓA FERNET (SLIDE 31 & CHƯƠNG 12, 16)")
+            + [""]
+            + row_41
+            + [""]
+            + s41_tip
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 4.2: Giải phẫu 4 Chế độ Thực thi (Executors: Sequential, Local, Celery, K8s)
+    # -------------------------------------------------------------------------
+    s42_e1 = make_box([
+        "[1. SEQUENTIAL & LOCAL EXECUTOR (CỤC BỘ - SLIDE 32)]",
+        "├── [A] SequentialExecutor (Chạy 1 Task / lần):",
+        "│       • Chạy tuần tự từng tác vụ trong 1 tiến trình duy nhất.",
+        "│       • Chỉ dùng để thử nghiệm sơ bộ trên máy cá nhân.",
+        "└── [B] LocalExecutor (Đa tiến trình trên 1 máy chủ):",
+        "        • Scheduler đẻ nhiều tiến trình con (multiprocessing)",
+        "          chạy song song ngay trên cùng máy chủ.",
+        "        • [+] Khởi động cực nhanh (<1s), không cần cài Redis.",
+        "        • [x] Bị giới hạn bởi CPU/RAM của 1 máy vật lý duy nhất.",
+    ], inner_width=INNER_HALF)
+    s42_e2 = make_box([
+        "[2. CELERY & KUBERNETES EXECUTOR (PHÂN TÁN - SLIDE 32)]",
+        "├── [C] CeleryExecutor (Cụm Worker phân tán cố định):",
+        "│       • Đẩy task qua hàng đợi Redis/RabbitMQ tới cụm N máy",
+        "│         Worker trực sẵn. Độ trễ thấp (~1s), thông lượng lớn.",
+        "└── [D] KubernetesExecutor (1 Pod cô lập cho mỗi Task):",
+        "        • Gọi K8s API tạo 1 Pod riêng biệt cho từng Task Instance",
+        "          rồi hủy Pod ngay khi chạy xong!",
+        "        • [+] Cô lập 100% thư viện/RAM/GPU, co giãn về 0 khi rỗi.",
+        "        • [!] Độ trễ tạo Pod (5-20s) cao hơn Celery Worker có sẵn.",
+    ], inner_width=INNER_HALF)
+    row_42 = join_horizontal([s42_e1, s42_e2], ["    "], {4: [" ──►"]})
+
+    s42_hybrid = make_box([
+        "[LUỒNG ĐIỀU PHỐI KẾT HỢP (CELERYKUBERNETESEXECUTOR) CHO ĐƯỜNG ỐNG DAILY_SALES_PIPELINE]",
+        "  [Scheduler] ──┬──(95% Task nhẹ: Sensor, SQL, Check #8888)──► [CeleryExecutor (Redis -> Warm Workers)] : Chạy ngay trong 0.5s!",
+        "                └──(5% Task nặng: Huấn luyện ML / Spark Docker)──► [KubernetesExecutor (Kube API -> Pod Riêng)] : Cấp 32GB RAM / 1 GPU!",
+    ], inner_width=INNER_FULL)
+
+    diagrams["4.2"] = {
+        "ascii": "\n".join(
+            banner("BỐN CHẾ ĐỘ THỰC THI (EXECUTORS): SEQUENTIAL, LOCAL, CELERY & KUBERNETES (SLIDE 32 & CHƯƠNG 15)")
+            + [""]
+            + row_42
+            + v_arrow("Chiến lược chọn Executor theo quy mô tải và yêu cầu cô lập môi trường")
+            + s42_hybrid
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 4.3: Ba Tầng Kiểm soát Đồng thời (parallelism -> max_active_runs -> Pools)
+    # -------------------------------------------------------------------------
+    s43_funnel = make_box([
+        "[PHỄU KIỂM SOÁT ĐỒNG THỜI 3 TẦNG (THREE LEVELS OF CONCURRENCY - SLIDE 33-37)]",
+        "  ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐",
+        "  │ TẦNG 1 — GLOBAL LEVEL: parallelism = 64 (Cấu hình trong tệp airflow.cfg - Slide 35)                              │",
+        "  │ • Trần tối đa 64 Task Instances được phép chạy cùng lúc trên TOÀN BỘ hệ thống Airflow (Tất cả các DAG cộng lại). │",
+        "  └────────────────────────────────────────────────────────┬─────────────────────────────────────────────────────────┘",
+        "                                                           ▼",
+        "  ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐",
+        "  │ TẦNG 2 — DAG LEVEL: max_active_runs = 1 (Khai báo trên từng đối tượng DAG - Slide 36)                            │",
+        "  │ • Khóa không cho phép nhiều phiên chạy (DAG Runs) của cùng 1 DAG đè lên nhau (Chặn ngày 14/05 đụng độ ngày 15/05)│",
+        "  └────────────────────────────────────────────────────────┬─────────────────────────────────────────────────────────┘",
+        "                                                           ▼",
+        "  ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐",
+        "  │ TẦNG 3 — RESOURCE LEVEL: Pool 'postgres_pool' = 5 slots (Gắn trên từng Task qua tham số pool - Slide 37)         │",
+        "  │ • Nhóm các Task từ mọi DAG cùng truy cập 1 DB nguồn: Chỉ tối đa 5 Task được cấp quyền chạy, 195 Task xếp hàng!   │",
+        "  └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘",
+    ], inner_width=INNER_FULL)
+
+    diagrams["4.3"] = {
+        "ascii": "\n".join(
+            banner("BA TẦNG KIỂM SOÁT ĐỒNG THỜI: PARALLELISM, MAX_ACTIVE_RUNS & POOLS (SLIDE 33-37)")
+            + [""]
+            + s43_funnel
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 4.4: Giám sát Chủ động (Monitoring) & Điểm mù Silent Data Corruption
+    # -------------------------------------------------------------------------
+    s44_m1 = make_box([
+        "[1. AIRFLOW UI (GRID VIEW)]",
+        "• Ma trận Lịch sử: Cột = DAG Run,",
+        "  Hàng = Task Instance (Slide 38).",
+        "• Quan sát trực quan thời gian chạy,",
+        "  số lần Retry và đọc Log tập trung.",
+    ], inner_width=INNER_THIRD)
+    s44_m2 = make_box([
+        "[2. ALERTS (SLACK / EMAIL / SLA)]",
+        "• Tự động bắn cảnh báo qua callback",
+        "  on_failure_callback / on_retry.",
+        "• Thiết lập linh hoạt ở cấp độ từng",
+        "  Task hoặc toàn bộ DAG (Slide 38).",
+    ], inner_width=INNER_THIRD)
+    s44_m3 = make_box([
+        "[3. EXTERNAL METRICS (GRAFANA)]",
+        "• Đẩy chỉ số hệ thống qua StatsD /",
+        "  Prometheus sang Grafana, Datadog.",
+        "• Theo dõi xu hướng độ sâu hàng đợi",
+        "  (Queue Depth) & nhịp đập Scheduler.",
+    ], inner_width=INNER_THIRD)
+    row_44_top = join_horizontal([s44_m1, s44_m2, s44_m3], ["    ", "    "])
+
+    s44_blind = make_box([
+        "[ĐIỂM MÙ CHẾT NGƯỜI: TẠI SAO PIPELINE BÁO XANH (SUCCESS) MÀ BÁO CÁO VẪN SAI? (SLIDE 38 FOOTER)]",
+        "  [extract_orders: SUCCESS] ──► [transform_sales: SUCCESS] ──► [load_warehouse: SUCCESS] ──► [Airflow UI: 100% GREEN!]",
+        "              │                             │                              │",
+        "              ▼                             ▼                              ▼",
+        "  (Tệp nguồn bị rỗng 0 dòng)   (Phép JOIN nhân bản x10 dòng)   (Order #8888 có amount = -450.000đ)",
+        "  [!] Sự thật cơ học: Airflow chỉ biết câu lệnh Python/SQL trả về Exit Code == 0, hoàn toàn KHÔNG BIẾT dữ liệu bên trong đã hỏng!",
+        "  [+] Đó là lý do bắt buộc phải nhúng Tầng Kiểm Định Chất Lượng (Data Validation) vào ngay bên trong luồng điều phối (Chặng 5).",
+    ], inner_width=INNER_FULL)
+
+    diagrams["4.4"] = {
+        "ascii": "\n".join(
+            banner("GIÁM SÁT CHỦ ĐỘNG (MONITORING) & NGHỊCH LÝ 'PIPELINE XANH NHƯNG DỮ LIỆU SAI' (SLIDE 38)")
+            + [""]
+            + row_44_top
+            + v_arrow("Airflow giám sát tiến trình (Process Health), nhưng ai giám sát ruột dữ liệu (Data Health)?")
+            + s44_blind
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 5.1: 6 Chiều Chất lượng Dữ liệu (Six Dimensions) & Chu trình 5 Bước
+    # -------------------------------------------------------------------------
+    s51_dims = make_box([
+        "[SÁU CHIỀU ĐO LƯỜNG CHẤT LƯỢNG DỮ LIỆU & QUY TẮC KIỂM ĐỊNH THỰC THI (SLIDE 42-43)]",
+        "├── [1] Accuracy (Độ chính xác)   : Phản ánh đúng giá trị thực tế   ──► Quy tắc: price == 450000; price > 0; event_time <= NOW()",
+        "├── [2] Completeness (Độ đầy đủ)  : Không khuyết trường bắt buộc    ──► Quy tắc: customer_id IS NOT NULL; tỷ lệ thiếu email < 1%",
+        "├── [3] Consistency (Tính nhất quán): Khớp nhau giữa các hệ thống   ──► Quy tắc: Mã user_id và định dạng SĐT (+84-...) đồng nhất",
+        "├── [4] Timeliness (Tính kịp thời): Sẵn sàng đúng khung giờ cam kết ──► Quy tắc: Cập nhật mỗi 5 phút; sản lượng ngày không tụt >30%",
+        "├── [5] Validity (Tính hợp lệ)    : Tuân thủ định dạng & miền giá trị──► Quy tắc: email khớp biểu thức Regex; SĐT đúng 10 chữ số",
+        "└── [6] Uniqueness (Tính duy nhất): Không tồn tại bản ghi trùng lặp ──► Quy tắc: COUNT(order_id) == COUNT(DISTINCT order_id)",
+    ], inner_width=INNER_FULL)
+
+    s51_life = make_box([
+        "[CHU TRÌNH CẢI TIẾN CHẤT LƯỢNG DỮ LIỆU LIÊN TỤC 5 BƯỚC (DATA QUALITY LIFECYCLE - SLIDE 44-46)]",
+        "  [1. Define Business Case] ──► [2. Data Discovery & Profiling] ──► [3. Define Validation Rules]",
+        "     (Bài toán CRM Bán lẻ)         (Phát hiện 15% thiếu email,         (Đặt luật Completeness,",
+        "              ▲                     10% sai định dạng, trùng ID)        Validity, Uniqueness)",
+        "              │                                                                   │",
+        "  [5. Correct Data & Improve Upstream] ◄─────── [4. Monitor Quality Metrics] ◄────┘",
+        "     (Khử trùng, chuẩn hóa SĐT, đào tạo)         (Dashboard theo dõi tuần, báo động khi lỗi > 5%)",
+    ], inner_width=INNER_FULL)
+
+    diagrams["5.1"] = {
+        "ascii": "\n".join(
+            banner("SÁU CHIỀU CHẤT LƯỢNG DỮ LIỆU (SIX DIMENSIONS) & CHU TRÌNH CẢI TIẾN 5 BƯỚC (SLIDE 40-48)")
+            + [""]
+            + s51_dims
+            + v_arrow("Biến các tiêu chuẩn chất lượng thành vòng lặp kiểm định tự động liên tục (Continuous Validation)")
+            + s51_life
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 5.2: Mẫu Cầu dao Tự ngắt (Circuit Breaker Pattern) trong Airflow DAG
+    # -------------------------------------------------------------------------
+    s52_leak = make_box([
+        "[A. KHI KHÔNG CÓ CẦU DAO: DỮ LIỆU BẨN CHẢY THẲNG XUỐNG HẠ NGUỒN (SLIDE 50)]",
+        "  [Ingest Raw Data] ──► [Validation Check: [x] FAILS!] ──(Vẫn chạy tiếp!)──► [Transform] ──► [Load to DW] ──► [Dashboard / ML]",
+        "                                                                                  │               │                  │",
+        "                                                                           (Chạy trên rác)  (Lưu dữ liệu bẩn)  (Báo cáo sai số!)",
+    ], inner_width=INNER_FULL)
+
+    s52_cb = make_box([
+        "[B. MẪU CẦU DAO TỰ NGẮT (CIRCUIT BREAKER PATTERN) TRONG AIRFLOW DAG (SLIDE 49, 51-52 & 58)]",
+        "                                                                       ┌──► [Transform => Load DW => Dashboard]",
+        "                                              (PASS [+] Đạt chuẩn 100%)│    (Không một dòng rác nào lọt xuống đích!)",
+        "  [1. Create / Ingest Raw Data] ──► [2. Validation Task] ──► [3. Branch Decision] ",
+        "      (Postgres / S3 Staging)        (GX / Python Check)      (BranchPythonOp) │",
+        "                                                              (FAIL [x] Vi phạm)└──► [4. Halt Pipeline + Send Alert]",
+        "                                                                                     (Ngắt nhánh đích & Báo động Slack/Email)",
+    ], inner_width=INNER_FULL)
+
+    diagrams["5.2"] = {
+        "ascii": "\n".join(
+            banner("MẪU CẦU DAO TỰ NGẮT (CIRCUIT BREAKER PATTERN): BIẾN KIỂM ĐỊNH THÀNH CỔNG QUYẾT ĐỊNH (SLIDE 49-52)")
+            + [""]
+            + s52_leak
+            + v_arrow("Áp dụng nguyên lý Cầu dao Điện (Circuit Breaker) để cô lập sự cố trước khi chạm vào Data Warehouse")
+            + s52_cb
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 5.3: Hợp đồng Dữ liệu (Data Contracts — Giao kèo Producer & Consumer)
+    # -------------------------------------------------------------------------
+    s53_break = make_box([
+        "[A. NỖI ĐAU KHI THIẾU HỢP ĐỒNG: THƯỢNG NGUỒN ĐỔI CODE, HẠ NGUỒN SẬP (SLIDE 53)]",
+        "├── Đổi tên cột user_id -> userId          ──► [x] Câu truy vấn SQL hạ nguồn gãy lập tức",
+        "├── Xóa cột purchase_date không báo trước  ──► [x] Đường ống trích xuất đặc trưng ML sập",
+        "├── Đổi kiểu dữ liệu cột (INT -> VARCHAR)  ──► [x] Sai lệch kiểm định & hỏng mô hình",
+        "└── Cho phép trường bắt buộc nhận giá trị NULL ──► [x] Dashboard báo cáo sai lệch doanh thu",
+    ], inner_width=INNER_HALF)
+    s53_contract = make_box([
+        "[B. CẤU TRÚC HỢP ĐỒNG DỮ LIỆU (DATA CONTRACT - SLIDE 54-55)]",
+        "  [Producer Team] ◄═════(Hợp đồng Máy đọc được YAML/JSON)═════► [Consumer Team]",
+        "  ├── 1. Schema      : user_id (INTEGER), amount (DECIMAL)",
+        "  ├── 2. Nullability : purchase_date & order_id cấm NULL",
+        "  ├── 3. Value Range : age từ 0..120; amount > 0",
+        "  ├── 4. Freshness   : Cập nhật tối đa mỗi 24 giờ",
+        "  └── 5. Uniqueness  : transaction_id / order_id duy nhất",
+    ], inner_width=INNER_HALF)
+    row_53 = join_horizontal([s53_break, s53_contract], ["    "], {2: [" ──►"]})
+
+    s53_gate = make_box([
+        "[CƯỠNG CHẾ HỢP ĐỒNG TỰ ĐỘNG TẠI RANH GIỚI ĐỘI NGŨ (CONTRACT VALIDATOR GATE - SLIDE 54-55)]",
+        "  [Producer CI/CD & DB] ──► [Contract Validator (DataHub / GX / Schema Registry)] ──(Hợp lệ [+] )──► [Consumer Pipeline (Airflow)]",
+        "                                                    │",
+        "                                         (Vi phạm hợp đồng [x]) ──► Chặn PR / Dừng luồng & Cảnh báo đồng thời cả 2 đội ngũ!",
+    ], inner_width=INNER_FULL)
+
+    diagrams["5.3"] = {
+        "ascii": "\n".join(
+            banner("HỢP ĐỒNG DỮ LIỆU (DATA CONTRACTS): GIAO DIỆN CAM KẾT GIỮA PRODUCER & CONSUMER (SLIDE 53-55)")
+            + [""]
+            + row_53
+            + v_arrow("Biến thỏa thuận miệng thành hợp đồng máy đọc được (Machine-Readable Contract) và cưỡng chế tự động")
+            + s53_gate
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 5.4: Hệ sinh thái GX, Spark Deequ & Quản trị Phả hệ Toàn cục DataHub
+    # -------------------------------------------------------------------------
+    s54_gx = make_box([
+        "[1. GREAT EXPECTATIONS (GX - SLIDE 57-58)]",
+        "• Kiểm định dựa trên bộ quy tắc (Expectation Suite):",
+        "  - expect_column_values_to_not_be_null",
+        "  - expect_column_values_to_be_unique",
+        "  - expect_column_values_to_be_between",
+        "  - expect_column_values_to_match_regex",
+        "• Nhúng trực tiếp vào Airflow DAG làm cổng gác!",
+    ], inner_width=INNER_HALF)
+    s54_deequ = make_box([
+        "[2. APACHE SPARK DEEQU (QUY MÔ LỚN - SLIDE 59-60)]",
+        "• Chạy phân tán trên Spark qua 3 bước:",
+        "  (1) Profiling -> (2) Analyzing -> (3) Verification Suite",
+        "• Tính năng nâng cao cho dữ liệu tỷ dòng:",
+        "  - Anomaly Detection (Phát hiện sụt giảm dòng bất thường)",
+        "  - Incremental Metric Computation (Tái sử dụng trạng thái",
+        "    đo lường cũ mà không cần quét lại toàn bộ lịch sử!).",
+    ], inner_width=INNER_HALF)
+    row_54_top = join_horizontal([s54_gx, s54_deequ], ["    "])
+
+    s54_hub = make_box([
+        "[3. MẶT PHẲNG QUẢN TRỊ SIÊU DỮ LIỆU & ĐỒ THỊ PHẢ HỆ DATAHUB (METADATA & LINEAGE GRAPH - SLIDE 61)]",
+        "  [Nguồn: Postgres orders] ──(Airflow + OpenLineage)──► [Kho: gold.fact_sales (#8888)] ──► [Đích: CEO Revenue Dashboard & ML]",
+        "             │                                                        │                                      │",
+        "             └──────────────────────────► [DATAHUB METADATA PLATFORM] ◄──────────────────────────────────────┘",
+        "  • 6 Thực thể quản trị : Datasets | Schemas | Owners | Pipelines | Lineage | Quality Metrics & Data Contracts (MCP / MCL)",
+        "  • 4 Câu hỏi Lineage trả lời tức thì: (1) Dữ liệu từ đâu tới? | (2) Pipeline nào tạo ra? | (3) Dashboard/ML nào phụ thuộc?",
+        "                                       (4) Ai bị ảnh hưởng khi kiểm định chất lượng thất bại (Blast Radius)?",
+        "  [+] Đúc kết vàng (Slide 61): Kiểm định (Validation) cho biết CÁI GÌ SAI; Phả hệ (Lineage) cho biết AI BỊ ẢNH HƯỞNG!",
+    ], inner_width=INNER_FULL)
+
+    diagrams["5.4"] = {
+        "ascii": "\n".join(
+            banner("CÔNG CỤ KIỂM ĐỊNH (GX, SPARK DEEQU) & QUẢN TRỊ PHẢ HỆ TOÀN CỤC VỚI DATAHUB (SLIDE 56-61)")
+            + [""]
+            + row_54_top
+            + v_arrow("Đẩy kết quả kiểm định từ GX / Deequ / dbt và luồng thực thi Airflow hội tụ về mặt phẳng DataHub")
+            + s54_hub
+        ),
+        "kind": "boxes",
+    }
+
+    for k, meta in diagrams.items():
+        errs = verify_diagram(meta["ascii"], f"ORCH-{k}", kind=meta["kind"])
+        if errs:
+            raise SystemExit(f"ASCII verification failed for ORCH-{k} ({meta['kind']}): {errs}")
+    return diagrams
+
 
 _LESSON_FUNC_SPECS = [
     ("renderStorageChang1", "D02", 1, "storage_diagrams"),
@@ -1247,10 +4521,23 @@ _LESSON_FUNC_SPECS = [
     ("renderLinuxChang2", "F01", 2, "linux_diagrams"),
     ("renderLinuxChang3", "F01", 3, "linux_diagrams"),
     ("renderLinuxChang4", "F01", 4, "linux_diagrams"),
+    ("renderPythonChang1", "F02", 1, "python_diagrams"),
+    ("renderPythonChang2", "F02", 2, "python_diagrams"),
+    ("renderPythonChang3", "F02", 3, "python_diagrams"),
+    ("renderPythonChang4", "F02", 4, "python_diagrams"),
     ("renderDatabaseChang1", "F03", 1, "db_diagrams"),
     ("renderDatabaseChang2", "F03", 2, "db_diagrams"),
     ("renderDatabaseChang3", "F03", 3, "db_diagrams"),
     ("renderDatabaseChang4", "F03", 4, "db_diagrams"),
+    ("renderApiChang1", "F04", 1, "api_diagrams"),
+    ("renderApiChang2", "F04", 2, "api_diagrams"),
+    ("renderApiChang3", "F04", 3, "api_diagrams"),
+    ("renderApiChang4", "F04", 4, "api_diagrams"),
+    ("renderApiChang5", "F04", 5, "api_diagrams"),
+    ("renderValidationChang1", "F05", 1, "validation_diagrams"),
+    ("renderValidationChang2", "F05", 2, "validation_diagrams"),
+    ("renderValidationChang3", "F05", 3, "validation_diagrams"),
+    ("renderValidationChang4", "F05", 4, "validation_diagrams"),
     ("renderContainerChang1", "F06", 1, "container_diagrams"),
     ("renderContainerChang2", "F06", 2, "container_diagrams"),
     ("renderContainerChang3", "F06", 3, "container_diagrams"),
@@ -1260,6 +4547,27 @@ _LESSON_FUNC_SPECS = [
     ("renderIngestionChang3", "D01", 3, "ingestion_diagrams"),
     ("renderIngestionChang4", "D01", 4, "ingestion_diagrams"),
     ("renderIngestionChang5", "D01", 5, "ingestion_diagrams"),
+    ("renderSparkChang1", "D03", 1, "spark_diagrams"),
+    ("renderSparkChang2", "D03", 2, "spark_diagrams"),
+    ("renderSparkChang3", "D03", 3, "spark_diagrams"),
+    ("renderSparkChang4", "D03", 4, "spark_diagrams"),
+    ("renderSparkChang5", "D03", 5, "spark_diagrams"),
+    ("renderSparkChang6", "D03", 6, "spark_diagrams"),
+    ("renderFlinkChang1", "D04", 1, "flink_diagrams"),
+    ("renderFlinkChang2", "D04", 2, "flink_diagrams"),
+    ("renderFlinkChang3", "D04", 3, "flink_diagrams"),
+    ("renderFlinkChang4", "D04", 4, "flink_diagrams"),
+    ("renderFlinkChang5", "D04", 5, "flink_diagrams"),
+    ("renderFlinkChang6", "D04", 6, "flink_diagrams"),
+    ("renderConsumptionChang1", "D05", 1, "consumption_diagrams"),
+    ("renderConsumptionChang2", "D05", 2, "consumption_diagrams"),
+    ("renderConsumptionChang3", "D05", 3, "consumption_diagrams"),
+    ("renderConsumptionChang4", "D05", 4, "consumption_diagrams"),
+    ("renderConsumptionChang5", "D05", 5, "consumption_diagrams"),    ("renderOrchestrationChang1", "D06", 1, "orchestration_diagrams"),
+    ("renderOrchestrationChang2", "D06", 2, "orchestration_diagrams"),
+    ("renderOrchestrationChang3", "D06", 3, "orchestration_diagrams"),
+    ("renderOrchestrationChang4", "D06", 4, "orchestration_diagrams"),
+    ("renderOrchestrationChang5", "D06", 5, "orchestration_diagrams"),
 ]
 
 _X_SPINE_RE = _re_mod.compile(
@@ -1271,7 +4579,17 @@ _X_FIGURE_RE = _re_mod.compile(
     _re_mod.DOTALL,
 )
 _X_INFRA2D_RE = _re_mod.compile(r"<x-infra2d></x-infra2d>")
+_X_LINUX2D_RE = _re_mod.compile(r"<x-linux2d>\s*</x-linux2d>")
+_X_DATABASE2D_RE = _re_mod.compile(r"<x-database2d>\s*</x-database2d>")
+_X_STORAGE2D_RE = _re_mod.compile(r"<x-storage2d>\s*</x-storage2d>")
+_X_API2D_RE = _re_mod.compile(r"<x-api2d>\s*</x-api2d>")
+_X_VALIDATION2D_RE = _re_mod.compile(r"<x-validation2d>\s*</x-validation2d>")
+_X_PYTHON2D_RE = _re_mod.compile(r"<x-python2d>\s*</x-python2d>")
 _X_INGESTION2D_RE = _re_mod.compile(r"<x-ingestion2d>\s*</x-ingestion2d>")
+_X_SPARK2D_RE = _re_mod.compile(r"<x-spark2d>\s*</x-spark2d>")
+_X_FLINK2D_RE = _re_mod.compile(r"<x-flink2d>\s*</x-flink2d>")
+_X_CONSUMPTION2D_RE = _re_mod.compile(r"<x-consumption2d>\s*</x-consumption2d>")
+_X_ORCHESTRATION2D_RE = _re_mod.compile(r"<x-orchestration2d>\s*</x-orchestration2d>")
 
 
 def _js_str_escape(s: str) -> str:
@@ -1320,8 +4638,18 @@ def _compile_lesson_html_to_js(html_content: str) -> str:
 
     out = _X_SPINE_RE.sub(repl_x_spine, out)
     out = _X_FIGURE_RE.sub(repl_x_figure, out)
+    out = _X_LINUX2D_RE.sub("${buildLinux2DSimulatorHtml()}", out)
+    out = _X_DATABASE2D_RE.sub("${buildDatabase2DSimulatorHtml()}", out)
+    out = _X_STORAGE2D_RE.sub("${buildStorage2DSimulatorHtml()}", out)
     out = _X_INFRA2D_RE.sub("${buildInfra2DSimulatorHtml()}", out)
+    out = _X_API2D_RE.sub("${buildApi2DSimulatorHtml()}", out)
+    out = _X_VALIDATION2D_RE.sub("${buildValidation2DSimulatorHtml()}", out)
+    out = _X_PYTHON2D_RE.sub("${buildPython2DSimulatorHtml()}", out)
     out = _X_INGESTION2D_RE.sub("${buildIngestion2DSimulatorHtml()}", out)
+    out = _X_SPARK2D_RE.sub("${buildSpark2DSimulatorHtml()}", out)
+    out = _X_FLINK2D_RE.sub("${buildFlink2DSimulatorHtml()}", out)
+    out = _X_CONSUMPTION2D_RE.sub("${buildConsumption2DSimulatorHtml()}", out)
+    out = _X_ORCHESTRATION2D_RE.sub("${buildOrchestration2DSimulatorHtml()}", out)
     return out
 
 
@@ -1357,11 +4685,30 @@ def compile_lesson_templates_js() -> str:
       3: renderLinuxChang3,
       4: renderLinuxChang4
     },
+    F02: {
+      1: renderPythonChang1,
+      2: renderPythonChang2,
+      3: renderPythonChang3,
+      4: renderPythonChang4
+    },
     F03: {
       1: renderDatabaseChang1,
       2: renderDatabaseChang2,
       3: renderDatabaseChang3,
       4: renderDatabaseChang4
+    },
+    F04: {
+      1: renderApiChang1,
+      2: renderApiChang2,
+      3: renderApiChang3,
+      4: renderApiChang4,
+      5: renderApiChang5
+    },
+    F05: {
+      1: renderValidationChang1,
+      2: renderValidationChang2,
+      3: renderValidationChang3,
+      4: renderValidationChang4
     },
     F06: {
       1: renderContainerChang1,
@@ -1375,9 +4722,44 @@ def compile_lesson_templates_js() -> str:
       3: renderIngestionChang3,
       4: renderIngestionChang4,
       5: renderIngestionChang5
+    },
+    D03: {
+      1: renderSparkChang1,
+      2: renderSparkChang2,
+      3: renderSparkChang3,
+      4: renderSparkChang4,
+      5: renderSparkChang5,
+      6: renderSparkChang6
+    },
+    D04: {
+      1: renderFlinkChang1,
+      2: renderFlinkChang2,
+      3: renderFlinkChang3,
+      4: renderFlinkChang4,
+      5: renderFlinkChang5,
+      6: renderFlinkChang6
+    },
+    D05: {
+      1: renderConsumptionChang1,
+      2: renderConsumptionChang2,
+      3: renderConsumptionChang3,
+      4: renderConsumptionChang4,
+      5: renderConsumptionChang5
+    },
+    D06: {
+      1: renderOrchestrationChang1,
+      2: renderOrchestrationChang2,
+      3: renderOrchestrationChang3,
+      4: renderOrchestrationChang4,
+      5: renderOrchestrationChang5
     }
   };"""
     )
+    js_blocks.append(LINUX_SIM2D_JS)
+    js_blocks.append(DATABASE_SIM2D_JS)
+    js_blocks.append(STORAGE_SIM2D_JS)
+    js_blocks.append(API_SIM2D_JS)
+    js_blocks.append(VALIDATION_SIM2D_JS)
     return "\n\n".join(js_blocks)
 
 
@@ -4994,13 +8376,13 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   const SYLLABUS_GROUPS = [
     {
       id: "track-1",
-      shortTitle: "I. Engineering Foundation",
-      title: "I. Engineering Foundation (Slides 01–06)",
+      shortTitle: "I. [EDAI] Engineering Foundation",
+      title: "I. [EDAI] Engineering Foundation (Slides 01–06)",
       items: [
         {
           code: "F01",
           title: "Linux Fundamentals",
-          slide: "01-linux-fundamentals.pdf",
+          slide: "01-edai/edai-1/01-linux-fundamentals.pdf",
           pages: 78,
           hasContent: true,
           contentNote: "Chặng 1–4",
@@ -5018,8 +8400,10 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         {
           code: "F02",
           title: "Python Fundamentals",
-          slide: "02-python-fundamentals.pdf",
+          slide: "01-edai/edai-1/02-python-fundamentals.pdf",
           pages: 73,
+          hasContent: true,
+          contentNote: "Chặng 1–4",
           slideToc: [
             "01/ Introduction to Python",
             "02/ Core Syntax & Data Structure",
@@ -5027,14 +8411,14 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
             "04/ File Handling",
             "05/ Sync vs. Async Programming"
           ],
-          modules: "Cấu trúc dữ liệu Python, môi trường ảo, xử lý ngoại lệ và lập trình bất đồng bộ (Async/Sync)",
+          modules: "Cấu trúc dữ liệu Python, môi trường ảo (venv, conda, uv), xử lý ngoại lệ và lập trình bất đồng bộ (Async/Sync)",
           lab: "Xây dựng trình thu thập dữ liệu (Data Crawler) bằng Python",
-          stack: "Python, venv, asyncio"
+          stack: "Python, venv, uv, asyncio"
         },
         {
           code: "F03",
           title: "Database Fundamentals",
-          slide: "03-database-fundamentals.pdf",
+          slide: "01-edai/edai-1/03-database-fundamentals.pdf",
           pages: 70,
           hasContent: true,
           contentNote: "Chặng 1–4",
@@ -5044,15 +8428,17 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
             "03/ SQL Command Groups (DDL, DML, DQL, DCL, TCL)",
             "04/ Cost & Performance Optimization Techniques"
           ],
-          modules: "Thiết kế CSDL quan hệ & NoSQL, nhóm lệnh DDL, DML, DQL, DCL, TCL và tối ưu hóa truy vấn",
+          modules: "OOP cho kỹ thuật, thiết kế CSDL quan hệ & NoSQL, nhóm lệnh DDL, DML, DQL, DCL, TCL và tối ưu hóa chi phí/hiệu năng",
           lab: "Khởi tạo PostgreSQL và tối ưu hóa câu lệnh SQL thực tế",
           stack: "PostgreSQL, SQLAlchemy ORM"
         },
         {
           code: "F04",
           title: "Web API",
-          slide: "04-web-api.pdf",
+          slide: "01-edai/edai-1/04-web-api.pdf",
           pages: 87,
+          hasContent: true,
+          contentNote: "Chặng 1–5",
           slideToc: [
             "01/ Introduction & Core Concepts (HTTP / Network Stack)",
             "02/ API Architectures (REST, gRPC, GraphQL, WebSocket, SSE, Webhook)",
@@ -5060,29 +8446,31 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
             "04/ API Performance Testing (Healthcheck, Metrics, Load/Stress Testing)",
             "05/ FastAPI Implementation"
           ],
-          modules: "Kiến trúc REST, gRPC, GraphQL, xác thực JWT/OAuth, kiểm tra kiểu dữ liệu và đo kiểm tải FastAPI",
+          modules: "Kiến trúc REST, gRPC, GraphQL, xác thực JWT/OAuth, Middleware, kiểm tra kiểu dữ liệu Pydantic, Healthcheck và đo kiểm tải FastAPI",
           lab: "Triển khai dịch vụ Web API đa kiến trúc và kiểm thử chịu tải",
-          stack: "FastAPI, Locust"
+          stack: "FastAPI, Pydantic, Locust"
         },
         {
           code: "F05",
           title: "Validation & Verification",
-          slide: "05-validation-and-verification.pdf",
+          slide: "01-edai/edai-1/05-validation-and-verification.pdf",
           pages: 70,
+          hasContent: true,
+          contentNote: "Chặng 1–4",
           slideToc: [
             "01/ Validation & Verification Model (V-Model)",
             "02/ Fundamentals of Testing (Black-box, White-box, Mutation, Hoare Logic, Symbolic Execution)",
             "03/ Testing Frameworks: pytest",
             "04/ Test-Driven Development (TDD)"
           ],
-          modules: "Mô hình V-Model, kiểm thử hộp đen/hộp trắng, Mutation Testing, Hoare Logic và quy trình TDD",
+          modules: "Mô hình V-Model, kiểm thử hộp đen/hộp trắng, Mutation Testing, Hoare Logic, Symbolic Execution và quy trình TDD",
           lab: "Xây dựng bộ kiểm thử tự động toàn diện cho hệ thống API",
-          stack: "pytest, unittest"
+          stack: "pytest, unittest, tox"
         },
         {
           code: "F06",
           title: "Containerization & Orchestration",
-          slide: "06-containerization-and-orchestration.pdf",
+          slide: "01-edai/edai-1/06-containerization-and-orchestration.pdf",
           pages: 72,
           hasContent: true,
           contentNote: "Chặng 1–4",
@@ -5096,21 +8484,21 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
             "07/ Docker Compose",
             "08/ Guide to Build, Run, Optimize and Manage Containers"
           ],
-          modules: "Ảo hóa cấp OS (Namespaces, cgroups), kiến trúc Docker/OCI, quản lý mạng, ổ đĩa và Docker Compose",
-          lab: "Đóng gói API với Docker, dựng cụm dịch vụ bằng Compose và kiểm thử",
+          modules: "Ảo hóa cấp OS (Namespaces, cgroups), kiến trúc Docker/OCI, quản lý mạng, ổ đĩa, Private Registry và Docker Compose",
+          lab: "Đóng gói API với Docker, dựng cụm dịch vụ bằng Compose và kiểm thử dựa trên Container",
           stack: "Docker, Docker Compose, Kubernetes"
         }
       ]
     },
     {
       id: "track-2",
-      shortTitle: "II. Data Engineering",
-      title: "II. Data Engineering (Slides 07–12)",
+      shortTitle: "II. [EDAI] Data Engineering",
+      title: "II. [EDAI] Data Engineering & Mini Coursework (Slides 07–12)",
       items: [
         {
           code: "D01",
           title: "Ingestion Layer",
-          slide: "07-ingestion-layer.pdf",
+          slide: "01-edai/edai-1/07-ingestion-layer.pdf",
           pages: 45,
           hasContent: true,
           contentNote: "Chặng 1–5",
@@ -5122,14 +8510,14 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
             "05/ Kafka's Challenges & Operations",
             "06/ Change Data Capture (CDC) & Debezium"
           ],
-          modules: "Kiến trúc thu thập dữ liệu, hệ sinh thái Apache Kafka, vận hành cụm broker và đồng bộ CDC với Debezium",
-          lab: "Xây dựng đường ống thu thập dữ liệu CDC thời gian thực",
+          modules: "Kiến trúc thu thập dữ liệu, hệ sinh thái Apache Kafka, vận hành cụm broker nâng cao và đồng bộ CDC với Debezium",
+          lab: "Xây dựng đường ống thu thập dữ liệu CDC thời gian thực End-to-End",
           stack: "Kafka, Debezium, PostgreSQL"
         },
         {
           code: "D02",
           title: "Storage Layer",
-          slide: "08-storage-layer.pdf",
+          slide: "01-edai/edai-1/08-storage-layer.pdf",
           pages: 59,
           hasContent: true,
           contentNote: "Chặng 1–7",
@@ -5139,14 +8527,19 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
             "03/ Lake House (Delta Lake, Apache Iceberg, Apache Hudi)",
             "04/ Multi-hop Architecture (Bronze / Silver / Gold)"
           ],
-          modules: "Lưu trữ phân tán, định dạng cột Parquet, mô hình hóa DWH, Open Lakehouse (Delta, Iceberg, Hudi) & Medallion",
+          modules: "Lưu trữ phân tán, định dạng cột Parquet, mô hình hóa DWH, Open Lakehouse (Delta, Iceberg, Hudi) & kiến trúc Medallion",
           lab: "Triển khai kiến trúc Data Lakehouse hoàn chỉnh từ con số 0",
-          stack: "Delta Lake, Trino, Hive, MinIO"
+          stack: "Delta Lake, Iceberg, Trino, Hive, MinIO"
         },
         {
           code: "D03",
-          title: "Transformation Layer (Batch · Spark)",
-          slide: "09-transformation-layer-batch.pdf",
+          title: "Transformation Layer I (Batch · Spark)",
+          hasContent: true,
+          contentNote: "Chặng 1–6",
+          status: "ready",
+          readyStages: 6,
+          totalStages: 6,
+          slide: "01-edai/edai-1/09-transformation-layer-batch.pdf",
           pages: 90,
           slideToc: [
             "01/ Why Spark",
@@ -5156,15 +8549,22 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
             "05/ Challenges, Optimization & Tuning",
             "06/ Spark Operational Techniques"
           ],
-          modules: "Kiến trúc thực thi Apache Spark, RDD/DataFrame API, quản lý bộ nhớ, chống lệch dữ liệu và tối ưu hiệu năng",
-          lab: "Viết tác vụ Spark Batch xử lý và kiểm định chất lượng dữ liệu",
-          stack: "Apache Spark"
+          bookRefs: [
+            "Learning Spark, 2nd Edition (Jules S. Damji, Brooke Wenig, Tathagata Das & Denny Lee)",
+            "Spark: The Definitive Guide (Bill Chambers & Matei Zaharia)",
+            "Fundamentals of Data Engineering (Joe Reis & Matt Housley — Ch. 8)"
+          ],
+          modules: "Kiến trúc cụm Apache Spark (Driver, Cluster Manager, Executors), phân cấp thực thi (Job → Stage → Task & Shuffle), RDD Lineage vs. DataFrame, Serialization (Java vs. Kryo), In-Memory Computing (cache/persist & Unified Memory Manager), 5 thách thức xử lý lô, bộ 3 tối ưu hóa nội sinh (Catalyst, Project Tungsten, AQE), 6 kỹ thuật tinh chỉnh thủ công (Key Salting, Broadcast Join, HyperLogLog, Column Pruning) và vận hành thực chiến (Spark UI, Dynamic Allocation, Data Compaction)",
+          lab: "Xây dựng và tối ưu tác vụ daily_revenue_attribution.py xử lý 2 tỷ bản ghi (500GB Parquet) với Broadcast Join, Key Salting chống Data Skew và Data Compaction",
+          stack: "Apache Spark, PySpark, Catalyst, Tungsten, AQE, Parquet, Iceberg/Delta Lake"
         },
         {
           code: "D04",
-          title: "Transformation Layer (Stream · Flink)",
-          slide: "10-transformation-layer-ii-stream.pdf",
+          title: "Transformation Layer II (Stream · Flink)",
+          slide: "01-edai/edai-1/10-transformation-layer-ii-stream.pdf",
           pages: 75,
+          hasContent: true,
+          contentNote: "Chặng 1–6",
           slideToc: [
             "01/ Flink Overview",
             "02/ Time Semantics & Watermarks",
@@ -5174,15 +8574,17 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
             "06/ Optimization Techniques",
             "07/ Deployment Modes"
           ],
-          modules: "Ngữ nghĩa thời gian (Event/Processing Time), Watermark, cửa sổ trượt, quản lý State và chịu lỗi trên Flink",
-          lab: "Xây dựng tác vụ xử lý luồng (Stream Processing) kiểm soát chất lượng dữ liệu",
-          stack: "Apache Flink"
+          modules: "Kiến trúc Master–Worker (JobManager, TaskManager, Task Slots), ngữ nghĩa thời gian (Event/Ingestion/Processing Time), đồng hồ logic Watermark, 4 kiểu cửa sổ (Tumbling, Sliding, Session, Global), Allowed Lateness & Side Output, tháp API (DataStream, Dynamic Table, Flink SQL), RocksDB State, rào chắn Checkpoint Barriers (Chandy-Lamport), Operator Chaining, Backpressure và triển khai Application Mode",
+          lab: "Xây dựng đường ống xử lý luồng (Stream Processing) thời gian thực cho sự kiện Order #8888 với Watermarks, Windowing, Side Output và Exactly-Once Checkpointing",
+          stack: "Apache Flink, PyFlink, Flink SQL, RocksDB, Kafka"
         },
         {
           code: "D05",
           title: "Consumption Layer",
-          slide: "11-consumption-layer.pdf",
+          slide: "01-edai/edai-1/11-consumption-layer.pdf",
           pages: 63,
+          hasContent: true,
+          contentNote: "Chặng 1–5",
           slideToc: [
             "01/ Data Warehouse",
             "02/ Data Modeling",
@@ -5194,169 +8596,644 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
             "08/ Feature Store",
             "09/ Feast: A Practical Feature Store"
           ],
-          modules: "Mô hình chiều (Kimball, SCD, Data Vault), động cơ OLAP tốc độ cao (ClickHouse, Pinot) và Feature Store",
-          lab: "Xây dựng Feature Store và đường ống cung cấp đặc trưng cho ML",
+          modules: "Data Warehouse & BI (Dimensional modeling, SCD, OLAP ClickHouse & Pinot, Materialized Views) và Feature Store (Feature core, Feature view design, Feature transformation, ML integration)",
+          lab: "Xây dựng Feature Store và đường ống xử lý đặc trưng với Feast",
           stack: "ClickHouse, Pinot, Feast"
         },
         {
           code: "D06",
           title: "Orchestration & Governance",
-          slide: "12-orchestration-layer.pdf",
+          slide: "01-edai/edai-1/12-orchestration-layer.pdf",
           pages: 63,
+          hasContent: true,
+          contentNote: "Chặng 1–5",
           slideToc: [
             "01/ Pipeline Orchestration (Motivation & Benefits)",
             "02/ Cron Job & Beyond Cron",
             "03/ Apache Airflow (Architecture, Operators, Data Passing, Administration & Scaling)",
             "04/ Data Validation, Data Contracts & Governance (DataHub)"
           ],
-          modules: "Điều phối DAG với Apache Airflow, tính lũy đẳng (Idempotency), Backfill, hợp đồng dữ liệu và quản trị DataHub",
-          lab: "Triển khai Airflow điều phối đa tầng kèm truy vết dòng chảy dữ liệu (Lineage)",
-          stack: "Apache Airflow, DataHub"
+          modules: "Lợi ích điều phối đường ống, vượt qua Cronjob (Idempotency, Backfill, Dynamic Pipelines), kiến trúc/quản trị/mở rộng Airflow, kiểm định dữ liệu (Circuit Breaker, Validation Frameworks, Data Contracts) và quản trị DataHub",
+          lab: "Triển khai, quản trị Airflow và phát triển đường ống dữ liệu/đặc trưng đa bước kèm truy vết Lineage",
+          stack: "Apache Airflow, Great Expectations, Deequ, DataHub"
         },
         {
           code: "C01",
-          title: "Mini Coursework (1–2 tuần)",
-          slide: null,
-          pages: null,
+          title: "EDAI Mini Coursework (1–2 tuần)",
+          slide: "01-edai/edai-1/coursework/edai-k11-cw/coursework_proposal.md",
+          pages: 100,
+          contentNote: "Đồ án giữa kỳ EDAI · 100đ",
           slideToc: [
-            "01/ Kết hợp API, Database, Container, Ingestion, Storage, Transformation & Orchestration",
-            "02/ Kiểm thử toàn trình (Testing & Data Quality Validation)",
-            "03/ Data Lineage & Tài liệu vận hành"
+            "01/ Tích hợp toàn trình API (F04), Database (F03), Container (F06), CDC Ingestion (D01), Lakehouse Storage (D02), Spark/Flink Transformation (D03/D04), ClickHouse/Feast Consumption (D05) & Airflow Orchestration (D06)",
+            "02/ Kiểm thử toàn trình (End-to-End API Testing, Circuit Breaker, Data Quality Validation & Data Contracts)",
+            "03/ Truy vết huyết thống dữ liệu (DataHub Lineage) & Tài liệu vận hành (Production Runbook)"
           ],
-          modules: "Tích hợp toàn trình đường ống dữ liệu từ nguồn đến tầng phục vụ kèm kiểm thử và truy vết Lineage",
-          lab: "Đồ án thực chiến tổng hợp Data Engineering (Mini Coursework)",
-          stack: "FastAPI, PostgreSQL, Docker, Kafka, Delta Lake, Spark, Airflow"
+          modules: "Ghép nối toàn bộ 12 học phần F01–D06 thành một hệ thống Data Pipeline quy mô sản xuất có kiểm thử tự động, kiểm định chất lượng dữ liệu, truy vết Lineage và tài liệu vận hành",
+          lab: "Đồ án thực chiến tổng hợp Data Engineering giữa kỳ khóa EDAI (1–2 tuần)",
+          stack: "FastAPI, PostgreSQL, Docker, Kafka, Debezium, Delta Lake, Spark, Flink, ClickHouse, Feast, Airflow, DataHub"
         }
       ]
     },
     {
       id: "track-3",
-      shortTitle: "III. Data Science, ML & LLM",
-      title: "III. Data Science, ML & LLM",
+      shortTitle: "III. [EDAI-2] AI/LLM & Serving",
+      title: "III. [EDAI-2] Data Science, LLM/RAG/Agent & High-Performance Model Serving",
       items: [
         {
           code: "A01",
           title: "Introduction to Data Science & ML",
-          slide: null,
-          slideToc: ["01/ NumPy, Pandas & Matplotlib", "02/ PyTorch Fundamentals", "03/ Machine Learning & Deep Learning"],
-          modules: "Xử lý ma trận với NumPy, phân tích bằng Pandas, trực quan hóa Matplotlib và nền tảng học sâu với PyTorch",
-          lab: "Dự án Khoa học Dữ liệu toàn trình và ứng dụng nhận diện ký tự (OCR)",
+          slide: "01-edai/edai-2/01-intro-to-ds-and-ml.pdf",
+          pages: 86,
+          contentNote: "1.0 buổi · Slide 86p",
+          slideToc: [
+            "01/ Introduction to Data Science Libraries: NumPy, Pandas, Matplotlib, PyTorch",
+            "02/ Introduction to Machine Learning & Deep Learning",
+            "03/ End-to-End Data Science Workflow & OCR Architecture"
+          ],
+          modules: "Thư viện Khoa học Dữ liệu cốt lõi (NumPy, Pandas, Matplotlib, PyTorch) và nền tảng Machine Learning & Deep Learning cho kỹ sư hệ thống",
+          lab: "Triển khai dự án Data Science toàn trình (End-to-End) và xây dựng ứng dụng nhận diện ký tự quang học (OCR)",
           stack: "NumPy, Pandas, Matplotlib, PyTorch"
         },
         {
           code: "A02",
           title: "Introduction to LLM, RAG & Agent",
-          slide: null,
-          slideToc: ["01/ Transformer Architecture & LLM", "02/ Retrieval-Augmented Generation (RAG)", "03/ AI Agents & Guardrails"],
-          modules: "Kiến trúc Transformer, mô hình ngôn ngữ lớn (LLM), hệ thống truy hồi tri thức (RAG), AI Agent và Guardrails",
-          lab: "Tinh chỉnh LLM mã nguồn mở, xây dựng hệ thống RAG và tác tử tự hành (Agentic AI)",
-          stack: "LLM Stack, Vector DB, Agent Framework"
+          slide: "01-edai/edai-2/02-intro-to-llm-rag-and-agent.pdf",
+          pages: 59,
+          contentNote: "1.0 buổi · Slide 59p",
+          slideToc: [
+            "01/ Introduction to Transformer Architecture and LLM",
+            "02/ Introduction to Retrieval-Augmented Generation (RAG)",
+            "03/ Introduction to AI Agents",
+            "04/ Guardrails & Output Safety"
+          ],
+          modules: "Kiến trúc Transformer và mô hình ngôn ngữ lớn (LLM), hệ thống truy hồi tri thức (RAG), tác tử AI (Agents) và lớp rào chắn bảo vệ (Guardrails)",
+          lab: "Tinh chỉnh (Fine-tune) LLM mã nguồn mở, triển khai ứng dụng RAG và xây dựng hệ thống Agentic AI",
+          stack: "LLM Stack, Vector DB, Agent Framework, Guardrails"
         },
         {
           code: "A03",
           title: "Model Serving Design Patterns",
-          slide: null,
-          slideToc: ["01/ Model Serving Patterns", "02/ Model Loading Patterns", "03/ Asynchronous Task Queue ML System"],
-          modules: "Các mẫu thiết kế phục vụ mô hình (Online, Batch, Streaming), cơ chế nạp trọng số và hàng đợi tác vụ bất đồng bộ",
-          lab: "Xây dựng hệ thống suy luận ML phân tán qua hàng đợi RabbitMQ",
-          stack: "LLM, RabbitMQ"
+          slide: "01-edai/edai-2/03-model-serving-design-patterns.pdf",
+          pages: 49,
+          contentNote: "2.0 buổi · Slide 49p",
+          slideToc: [
+            "01/ Model Serving Design Patterns (Caching, Micro-batching, Serverless, High-density & Streaming Serving)",
+            "02/ Model Loading Patterns (Model-in-Image vs. Dynamic Model-Load)",
+            "03/ Asynchronous Task Queue ML System Architecture"
+          ],
+          modules: "Các mẫu thiết kế phục vụ mô hình (Caching, Micro-batching, Serverless, High-density, Streaming), mẫu nạp trọng số mô hình và kiến trúc hàng đợi tác vụ ML bất đồng bộ",
+          lab: "Triển khai hệ thống suy luận Machine Learning phân tán qua hàng đợi tác vụ RabbitMQ",
+          stack: "LLM, RabbitMQ, FastAPI"
         },
         {
           code: "A04",
           title: "Dive into LLM Serving",
-          slide: null,
-          slideToc: ["01/ KV Cache Mechanics", "02/ LLM Serving Challenges & Throughput Optimization", "03/ High-Performance Engines (vLLM, TensorRT-LLM, SGLang)"],
-          modules: "Cơ chế bộ nhớ KV Cache, PagedAttention, Continuous Batching và tối ưu hóa thông lượng suy luận LLM",
-          lab: "Triển khai điểm cuối phục vụ LLM hiệu năng cao",
+          slide: "01-edai/edai-2/04-dive-into-llm-serving.pdf",
+          pages: 42,
+          contentNote: "1.0 buổi · Slide 42p",
+          slideToc: [
+            "01/ KV Cache Mechanics (Prefill vs. Decode Phase & Memory-Bandwidth Bottleneck)",
+            "02/ LLM Serving Challenges & Throughput Optimization (PagedAttention, Continuous Batching, Speculative Decoding, Quantization)",
+            "03/ High-Performance LLM Serving Engines (vLLM, TensorRT-LLM, SGLang)"
+          ],
+          modules: "Cơ chế bộ nhớ KV Cache, các thách thức khi phục vụ LLM quy mô lớn và giải pháp tối ưu thông lượng (PagedAttention, Continuous Batching) với vLLM, TensorRT-LLM, SGLang",
+          lab: "Triển khai điểm cuối phục vụ suy luận LLM (LLM Serving Endpoint) hiệu năng cao",
           stack: "vLLM, TensorRT-LLM, SGLang"
         }
       ]
     },
     {
       id: "track-4",
-      shortTitle: "IV. Distributed Platform & Cloud",
-      title: "IV. Distributed Platform & Cloud",
+      shortTitle: "IV. [EDAI-2] Distributed Platform & MLOps",
+      title: "IV. [EDAI-2] Distributed Platform, Kubernetes, Cloud & MLOps",
       items: [
         {
           code: "P01",
           title: "Distributed Systems",
-          slide: null,
-          slideToc: ["01/ Fallacies of Distributed Computing & Scaling", "02/ CAP, PACELC, ACID vs BASE", "03/ Consensus, Replication, Sharding & Eventual Consistency"],
-          modules: "Định lý CAP/PACELC, đồng thuận phân tán (Raft/Paxos), nhân bản, phân mảnh (Sharding) và tính nhất quán",
-          lab: "Thiết kế hệ thống phân tán và mô phỏng kịch bản chịu lỗi mạng",
-          stack: "Distributed Systems"
+          slide: "01-edai/edai-2/05-distributed-systems.pdf",
+          pages: 42,
+          contentNote: "1.0 buổi · Slide 42p",
+          slideToc: [
+            "01/ Introduction to Distributed Systems & Fallacies of Distributed Computing",
+            "02/ Fundamentals: Vertical vs. Horizontal Scaling, Statefulness vs. Statelessness",
+            "03/ Failure Models: Network Partitions, Packet Loss & Node Crashes",
+            "04/ Core Trade-offs: CAP, PACELC, BASE & ACID",
+            "05/ Consensus Protocols (Raft, Paxos) & Storage Logic (Replication, Sharding, Eventual Consistency)"
+          ],
+          modules: "Nguyên lý hệ phân tán, 8 ngụy biện mạng phân tán, mở rộng dọc/ngang, mô hình lỗi mạng, định lý CAP/PACELC/BASE/ACID, đồng thuận Raft/Paxos, nhân bản và phân mảnh (Sharding)",
+          lab: "Bài tập thiết kế hệ thống phân tán và mô phỏng kịch bản chịu lỗi (Failure Simulation)",
+          stack: "Distributed Systems, Raft, Paxos"
         },
         {
           code: "P02",
           title: "Kubernetes",
-          slide: null,
-          slideToc: ["01/ K8s Architecture & Core Workloads (Pod, Deployment, Service, Ingress, PV/PVC)", "02/ Sidecars, Init Containers & Operators", "03/ Deployment Strategies, Helm/Helmfile, Secrets & Resources"],
-          modules: "Kiến trúc K8s, đối tượng Pod, Deployment, Service, Ingress, PV/PVC, mẫu Sidecar/Operator và quản lý gói bằng Helm",
-          lab: "Xử lý tác vụ bất đồng bộ và triển khai hệ thống API trên cụm Kubernetes",
-          stack: "Kubernetes, Helm, KServe, Vault"
+          slide: "01-edai/edai-2/06-kubernetes.pdf",
+          pages: 167,
+          contentNote: "2.0 buổi · Slide 167p",
+          slideToc: [
+            "01/ Kubernetes Architecture & Core Objects (Pod, Deployment, Service, Ingress, PV/PVC)",
+            "02/ Kubernetes Patterns (Sidecars, Init Containers, Operators)",
+            "03/ Kubernetes Deployment Strategies (Rolling Update, Recreate, Blue/Green, Canary)",
+            "04/ Application Management with Helm & Helmfile, Secret Management (Vault) & Resource Management"
+          ],
+          modules: "Kiến trúc K8s, đối tượng Pod/Deployment/Service/Ingress/PV/PVC, mẫu Sidecar/Init Container/Operator, chiến lược triển khai, quản lý gói bằng Helm/Helmfile, quản trị Secret và tài nguyên",
+          lab: "Xây dựng hệ thống xử lý tác vụ bất đồng bộ và triển khai ứng dụng API cục bộ trên cụm Kubernetes",
+          stack: "Kubernetes, Helm, Helmfile, KServe, HashiCorp Vault"
         },
         {
           code: "P03",
           title: "Kubeflow & Distributed Training",
-          slide: null,
-          slideToc: ["01/ Kubeflow Architecture & Operators", "02/ Distributed Training & Distributed Storage", "03/ GPU Scheduling"],
-          modules: "Kiến trúc Kubeflow Operator, huấn luyện phân tán đa nút, lưu trữ phân tán và lập lịch tài nguyên GPU",
-          lab: "Triển khai Kubeflow và đường ống huấn luyện mô hình phân tán",
-          stack: "Kubeflow"
+          slide: "01-edai/edai-2/07-kubeflow-and-distributed-training.pdf",
+          pages: 73,
+          contentNote: "2.0 buổi · Slide 73p",
+          slideToc: [
+            "01/ Kubeflow Architecture & Open-Source ML Platforms",
+            "02/ Kubeflow Operators & End-to-End Pipelines",
+            "03/ Distributed Training Mechanisms (Data Parallelism vs. Model Parallelism, Parameter Server, All-Reduce)",
+            "04/ Distributed Storage for ML & GPU Scheduling"
+          ],
+          modules: "Kiến trúc Kubeflow, Kubeflow Operators, cơ chế huấn luyện phân tán (Data/Model Parallelism, Parameter Server, Multi-worker), lưu trữ phân tán cho ML và lập lịch tài nguyên GPU",
+          lab: "Triển khai Kubeflow và xây dựng đường ống huấn luyện mô hình phân tán trên Kubeflow",
+          stack: "Kubeflow, PyTorch DDP/FSDP, GPU Scheduling"
         },
         {
           code: "P04",
-          title: "Cloud Services (GCP / FinOps)",
-          slide: null,
-          slideToc: ["01/ Cloud Hierarchy & IAM", "02/ VPC Networking & Storage Lifecycle/Locality", "03/ GCP ML/Data Stack, IaaS/PaaS/SaaS & FinOps"],
-          modules: "Phân quyền IAM, mạng ảo VPC, vòng đời lưu trữ đám mây, hệ sinh thái Data/ML trên GCP và tối ưu chi phí FinOps",
-          lab: "Khởi tạo hạ tầng đám mây GCP bằng Terraform và tự động hóa triển khai với Ansible",
-          stack: "GCP, NGINX"
+          title: "Cloud Services (GCP & FinOps)",
+          slide: "01-edai/edai-2/08-cloud-services.pdf",
+          pages: 96,
+          contentNote: "1.0 buổi · Slide 96p",
+          slideToc: [
+            "01/ Cloud Hierarchy & Identity and Access Management (IAM)",
+            "02/ VPC & Cloud Networking",
+            "03/ Cloud Storage, Data Lifecycle & Data Locality",
+            "04/ Dive into GCP ML & Data Stack: IaaS, PaaS & SaaS",
+            "05/ Cloud Billing & FinOps Cost Optimization"
+          ],
+          modules: "Phân cấp đám mây & IAM, mạng ảo VPC, vòng đời và tính cục bộ lưu trữ, hệ sinh thái Data & ML trên Google Cloud Platform (IaaS/PaaS/SaaS) và quản trị chi phí FinOps",
+          lab: "Khởi tạo GCP Free-tier, cấp phát hạ tầng K8s bằng Terraform, triển khai ứng dụng với Ansible và dựng cổng Gateway",
+          stack: "GCP, NGINX, Terraform, Ansible"
         },
         {
           code: "P05",
           title: "Routing & Gateway",
-          slide: null,
-          slideToc: ["01/ Routing, Load Balancing & Service Discovery", "02/ Resiliency (Retry, Circuit Breaker, Fallback, Timeout)", "03/ AuthN/AuthZ, Rate Limits, Semantic Caching & Tracing"],
-          modules: "Cân bằng tải, khám phá dịch vụ, mẫu chịu lỗi (Circuit Breaker, Retry), giới hạn lưu lượng và Semantic Caching",
-          lab: "Thiết kế kịch bản định tuyến và áp dụng chính sách bảo vệ tại tầng API Gateway",
-          stack: "API Gateway Stack"
+          slide: "01-edai/edai-2/09-routing-and-gateway.pdf",
+          pages: 64,
+          contentNote: "1.0 buổi · Slide 64p",
+          slideToc: [
+            "01/ Traffic Control & Routing (Routing Strategies, Load Balancing, Service Discovery)",
+            "02/ Resilience & Fallback (Retry Policy, Circuit Breakers, Fallback Strategies, Timeout Handling)",
+            "03/ Security & Access Management (AuthN & AuthZ, IP Restriction & Geo-fencing, PII Handling, Protocol Translation)",
+            "04/ Financial & Resource Management (Request/Data/Token-based Rate Limiting, Quota & Budget Management, Prioritization)",
+            "05/ Advanced Gateway Capabilities (Semantic Caching, Distributed Tracing & A/B Testing)"
+          ],
+          modules: "Điều khiển lưu lượng & cân bằng tải, mẫu chịu lỗi (Retry, Circuit Breaker, Fallback, Timeout), bảo mật AuthN/AuthZ/PII, giới hạn tốc độ theo Token/Quota/Budget và Semantic Caching",
+          lab: "Thiết kế kịch bản định tuyến chịu tải và thực hành áp dụng chính sách tại tầng API/AI Gateway",
+          stack: "API Gateway, NGINX, Envoy, Semantic Cache"
         },
         {
           code: "P06",
-          title: "Infrastructure as Code",
-          slide: null,
-          slideToc: ["01/ IaC Fundamentals", "02/ Terraform & Ansible Architecture, Commands & Best Practices", "03/ Hybrid Workflow & Drift Detection"],
-          modules: "Nguyên lý Hạ tầng dưới dạng Mã (IaC), kiến trúc Terraform & Ansible, quy trình kết hợp và phát hiện sai lệch cấu hình",
-          lab: "Cấp phát tự động và đồng bộ hóa trạng thái hạ tầng máy chủ",
+          title: "Infrastructure as Code (IaC)",
+          slide: "01-edai/edai-2/10-infrastructure-as-code-iac.pdf",
+          pages: 57,
+          contentNote: "1.0 buổi · Slide 57p",
+          slideToc: [
+            "01/ Fundamentals of Infrastructure as Code (IaC)",
+            "02/ Terraform & Ansible: Architecture, Commands & Best Practices",
+            "03/ Hybrid Provisioning & Configuration Workflows",
+            "04/ Infrastructure Drift Detection & Reconciliation"
+          ],
+          modules: "Nguyên lý Hạ tầng dưới dạng Mã (IaC), kiến trúc và bộ lệnh thực chiến của Terraform & Ansible, quy trình kết hợp (Hybrid Workflow) và phát hiện trôi cấu hình (Infra Drift Detection)",
+          lab: "Tự động hóa cấp phát hạ tầng đám mây và đồng bộ hóa trạng thái cấu hình máy chủ",
           stack: "Terraform, Ansible"
         },
         {
           code: "P07",
           title: "Versioning & CI/CD",
-          slide: null,
-          slideToc: ["01/ Code, Data, Model & Experiment Versioning (Git/DVC/MLflow)", "02/ CI/CD & AIDE Pipelines", "03/ Jenkins, DVC & MLflow Architectures"],
-          modules: "Quản lý phiên bản mã nguồn, dữ liệu và mô hình (Git, DVC, MLflow) cùng đường ống tích hợp liên tục CI/CD",
-          lab: "Xây dựng đa đường ống CI/CD tự động hóa kiểm thử và phát hành mô hình",
-          stack: "Jenkins, DVC, MLflow"
+          slide: "01-edai/edai-2/11-versioning-and-cicd.pdf",
+          pages: 66,
+          contentNote: "1.0 buổi · Slide 66p",
+          slideToc: [
+            "01/ Introduction to Versioning: Code, Data, Model & Experiment",
+            "02/ Git, GitHub & CI/CD Fundamentals",
+            "03/ CI/CD Pipelines for AIDE: From Idea to Designing Each Pipeline Type",
+            "04/ Jenkins, DVC & MLflow Architectures"
+          ],
+          modules: "Quản lý phiên bản toàn diện (Code, Data, Model, Experiment), quy trình Git/GitHub, thiết kế đa đường ống CI/CD cho hệ thống Data/AI và giải phẫu kiến trúc Jenkins, DVC, MLflow",
+          lab: "Thiết lập hệ thống đa đường ống CI/CD tự động hóa kiểm thử, đóng gói và phát hành mô hình",
+          stack: "Git, Jenkins, DVC, MLflow"
         },
         {
           code: "P08",
           title: "Observable Systems",
-          slide: null,
-          slideToc: ["01/ Logs, Metrics & Distributed Traces", "02/ Observable Architecture & Drift Detection", "03/ LLM & Agent Telemetry"],
-          modules: "Ba trụ cột quan sát hệ thống (Logs, Metrics, Traces), phát hiện trôi dữ liệu (Data Drift) và giám sát tác tử LLM",
-          lab: "Thiết lập hệ thống giám sát toàn diện với Prometheus, Grafana, Jaeger và Langfuse",
+          slide: "01-edai/edai-2/12-observable-systems.pdf",
+          pages: 72,
+          contentNote: "2.0 buổi · Slide 72p",
+          slideToc: [
+            "01/ Three Pillars of Observability: Logs, Metrics & Distributed Traces",
+            "02/ Observable System Architecture (Prometheus, Grafana, ELK, Jaeger)",
+            "03/ Data & Model Drift Detection: From Theory to Practical Approaches (Evidently)",
+            "04/ LLM & Agent Specific Telemetry (OpenTelemetry, Langfuse)"
+          ],
+          modules: "Ba trụ cột quan sát hệ thống (Logs, Metrics, Traces), kiến trúc giám sát tập trung, lý thuyết và thực hành phát hiện trôi dữ liệu/mô hình (Drift Detection) cùng Telemetry chuyên biệt cho LLM/Agent",
+          lab: "Thiết lập hệ thống giám sát toàn diện với OpenTelemetry, Evidently, Prometheus/Grafana, ELK, Jaeger và Langfuse",
           stack: "OpenTelemetry, Evidently, Prometheus, Grafana, ELK, Jaeger, Langfuse"
         },
         {
           code: "P09",
-          title: "Misc Problems & Final Coursework",
+          title: "Misc Problems & EDAI Final Coursework (2 tháng)",
+          slide: "01-edai/edai-2/13-security-and-misc-problems.pdf",
+          pages: 26,
+          contentNote: "Slide 26p + Đồ án 100đ",
+          slideToc: [
+            "01/ Security Best Practices, Cert-Manager & LDAP",
+            "02/ Site Reliability Engineering (SLI, SLO, SLA, Error Budgets)",
+            "03/ Repository Design (Monorepo vs. Polyrepo) & Service Mesh (Istio)",
+            "04/ EDAI Final Coursework (2 tháng): End-to-End Production Data & AI Platform (VD: RecSys-MLOps)"
+          ],
+          modules: "Bảo mật hệ thống, nguyên lý SRE (SLI/SLO/SLA & Error Budgets), thiết kế kho mã nguồn, Service Mesh (Istio) và Đồ án Tốt nghiệp khóa EDAI kéo dài 2 tháng",
+          lab: "Xây dựng, triển khai và vận hành hệ thống Data & AI Production End-to-End (từ API, CDC, Lakehouse, Spark/Flink, Feast đến K8s, Kubeflow, CI/CD, Observability)",
+          stack: "SRE, Istio, Cert-Manager, Full-Stack Data & AI"
+        }
+      ]
+    },
+    {
+      id: "track-5",
+      shortTitle: "V. [DSAI-1] Math, Causal & Classical ML",
+      title: "V. [DSAI-1] Math for ML, Causal Reasoning & Classical Machine Learning",
+      items: [
+        {
+          code: "S01",
+          title: "Introduction to DSAI & Python for Data Science",
+          slide: "02-dsai/dsai-1/01-intro-to-dsai.pdf",
+          pages: 50,
+          contentNote: "1.0 buổi · Slide 50p",
+          slideToc: [
+            "01/ Course Roadmap: Overview of Topics and Skills",
+            "02/ Introduction to Machine Learning: Types & Real-World Applications",
+            "03/ Introduction to Python for Data Science"
+          ],
+          modules: "Lộ trình khóa học DSAI, phân loại các nhánh Machine Learning kèm ứng dụng thực tế và nền tảng Python cho Khoa học Dữ liệu",
+          lab: "Market Basket Analysis (Phân tích giỏ hàng siêu thị / thương mại điện tử)",
+          stack: "Python, NumPy, Pandas"
+        },
+        {
+          code: "S02",
+          title: "Math for Machine Learning (Linear Algebra, Calculus, Prob & Stat)",
+          slide: "02-dsai/dsai-1/02-math-for-ml.pdf",
+          pages: 186,
+          contentNote: "2.0 buổi · Slide 186p",
+          slideToc: [
+            "01/ Linear Algebra: Scalars, Vectors, Matrices, Norms, Eigenvalues/Eigenvectors & Eigendecomposition",
+            "02/ Calculus: Univariate Differentiation, Partial Derivatives, Gradients, Integration & Optimization",
+            "03/ Probability & Statistics: Bayes Theorem, Distributions (Normal, Bernoulli, Binomial, Poisson), Moments & Covariance",
+            "04/ Statistical Inference: Hypothesis Testing & Confidence Intervals"
+          ],
+          modules: "Đại số tuyến tính (Chuẩn ma trận, Trị riêng/Vector riêng, Phân rã trị riêng), Giải tích (Đạo hàm riêng, Gradient, Tối ưu hóa) và Xác suất Thống kê (Định lý Bayes, Phân phối xác suất, Kiểm định giả thuyết & Khoảng tin cậy)",
+          lab: "Triển khai dự án Khoa học Dữ liệu toàn trình từ EDA đến Phân tích Nhân quả (Causal Analysis) để đánh giá tác động kinh doanh",
+          stack: "NumPy, SciPy, Statsmodels, Causal Inference"
+        },
+        {
+          code: "S03",
+          title: "The ML Lifecycle: From EDA to Causal Reasoning",
+          slide: "02-dsai/dsai-1/03-the-ml-lifecycle.pdf",
+          pages: 75,
+          contentNote: "1.0 buổi · Slide 75p (+376p đọc thêm)",
+          slideToc: [
+            "01/ OOP for Data Science & Structuring a Production Data Science Project",
+            "02/ The Machine Learning Lifecycle & Experiment Tracking",
+            "03/ Methodology for Efficient Exploratory Data Analysis (EDA) & Data Visualization",
+            "04/ Causal Analysis & Reasoning for Business Impact"
+          ],
+          modules: "Lập trình hướng đối tượng (OOP) cho DS, chuẩn hóa cấu trúc dự án, vòng đời ML & theo dõi thực nghiệm (Experiment Tracking), phương pháp luận EDA hiệu quả và suy luận nhân quả (Causal Reasoning)",
+          lab: "Chuẩn hóa cấu trúc dự án Data Science, theo dõi thực nghiệm và phân tích nhân quả",
+          stack: "Python OOP, MLflow, Matplotlib, Seaborn, DoWhy/EconML"
+        },
+        {
+          code: "S04",
+          title: "Supervised Learning: Linear Regression & Optimization",
+          slide: "02-dsai/dsai-1/04-linear-regression.pdf",
+          pages: 164,
+          contentNote: "2.0 buổi · Slide 164p",
+          slideToc: [
+            "01/ Basic Linear Regression & The Error Function",
+            "02/ Optimization Methods: Closed-Form (Normal Equation), First-Order, Second-Order (Newton/Quasi-Newton) & Metaheuristics",
+            "03/ Gradient Descent Variants (Batch, Stochastic, Mini-Batch, Momentum, Adam)",
+            "04/ Regression Evaluation Metrics, Model Diagnostics & Validation Splitting (Train/Test, K-Fold, Subsampling, Bootstrap)",
+            "05/ Industrial Tips & Domain Case Studies (Finance/Banking & Marketing)"
+          ],
+          modules: "Hồi quy tuyến tính, 4 họ thuật toán tối ưu (Closed-form, Bậc 1, Bậc 2, Metaheuristics), các biến thể Gradient Descent, chẩn đoán phần dư, kỹ thuật lấy mẫu kiểm định (K-Fold, Bootstrap) và kinh nghiệm công nghiệp",
+          lab: "3 Domain Labs (Finance/Banking & Marketing): (1) Customer Churn Modeling & Business Impact; (2) Credit Scoring với WoE Engineering, Scorecard Modelling & Drift Monitoring; (3) Marketing Segmentation, Attribution & Experimentation",
+          stack: "Scikit-learn, Statsmodels, Optbinning (WoE/IV), SciPy"
+        },
+        {
+          code: "S05",
+          title: "Supervised Learning: Logistic Regression & Classification",
+          slide: "02-dsai/dsai-1/05-logistic-regression.pdf",
+          pages: 71,
+          contentNote: "1.0 buổi · Slide 71p (+33p Guide)",
+          slideToc: [
+            "01/ The Foundation: Logistic Regression & The Logistic (Sigmoid) Function",
+            "02/ Solving the Model: Maximum Likelihood Estimation (MLE), Gradient Descent & Log-Loss Function",
+            "03/ Multivariate (Multinomial) Logistic Regression & Softmax",
+            "04/ Classification Evaluation & Metrics: Confusion Matrix, Precision/Recall, ROC & AUC",
+            "05/ Industrial Tips for Imbalanced Classification & Probability Calibration"
+          ],
+          modules: "Hàm Logistic/Sigmoid, ước lượng hợp lý cực đại (MLE), hàm mất mát Log-Loss, hồi quy Logistic đa lớp, ma trận nhầm lẫn, đường cong ROC/AUC và hiệu chỉnh xác suất thực chiến",
+          lab: "Xây dựng và hiệu chỉnh mô hình phân loại rủi ro & rời bỏ khách hàng trên dữ liệu mất cân bằng",
+          stack: "Scikit-learn, NumPy, Matplotlib"
+        },
+        {
+          code: "S06",
+          title: "Feature Engineering: Basic to Advanced Topics",
+          slide: "02-dsai/dsai-1/06-feature-engineering.pdf",
+          pages: 126,
+          contentNote: "2.0 buổi · Slide 126p (+18p MI)",
+          slideToc: [
+            "01/ Data Types (Structured vs. Unstructured, Qualitative vs. Quantitative) & 4 Levels of Measurement (Nominal, Ordinal, Interval, Ratio)",
+            "02/ The Big Five of Feature Engineering: Improvement, Construction, Selection, Extraction & Representation Learning",
+            "03/ Statistical Feature Evaluation Metrics: Correlation, Mutual Information & Chi-Squared Tests",
+            "04/ Automated ML Pipelines, Feature Leakage Prevention & Industrial Best Practices"
+          ],
+          modules: "Bốn cấp độ thang đo dữ liệu, 5 trụ cột lớn của Feature Engineering (Improvement, Construction, Selection, Extraction, Representation Learning), kiểm định thống kê chọn đặc trưng (Mutual Information, Chi-Squared) và tự động hóa ML Pipeline",
+          lab: "Thiết kế đường ống Feature Engineering tự động chống rò rỉ dữ liệu (Data Leakage)",
+          stack: "Scikit-learn Pipelines, Feature-engine, SciPy"
+        },
+        {
+          code: "S07",
+          title: "Supervised Learning: Support Vector Machine (SVM)",
+          slide: "02-dsai/dsai-1/07-svm.pdf",
+          pages: 78,
+          contentNote: "1.0 buổi · Slide 78p",
+          slideToc: [
+            "01/ Generative vs. Discriminative Classification Models",
+            "02/ Linear SVM: Large Margin Intuition & Support Vectors",
+            "03/ The Objective Function: Hinge Loss, Regularization (C) & Dual Optimization",
+            "04/ Hard Margin vs. Soft Margin Classifications",
+            "05/ Kernel Trick & Nonlinear SVM (Polynomial & Gaussian RBF Kernels)"
+          ],
+          modules: "Đối chiếu mô hình Sinh (Generative) vs. Phân biệt (Discriminative), trực giác lề cực đại (Large Margin), hàm mục tiêu Hinge Loss, quy hoạch toàn phương đối ngẫu và thủ thuật hạt nhân (Kernel Trick)",
+          lab: "Domain E-commerce Lab — Personalization: Xây dựng Hệ thống Gợi ý (Recommender Systems) xuyên suốt hành trình người dùng",
+          stack: "Scikit-learn, LIBSVM, Implicit / RecSys Stack"
+        },
+        {
+          code: "S08",
+          title: "Advanced ML: Decision Trees",
+          slide: "02-dsai/dsai-1/08-decision-tree.pdf",
+          pages: 78,
+          contentNote: "1.0 buổi · Slide 78p",
+          slideToc: [
+            "01/ Foundations of Tree Learning & Recursive Binary Splitting",
+            "02/ Decision Tree Classifier: Splitting Criteria (Entropy, Information Gain, Gini Impurity)",
+            "03/ Decision Tree Regressor & Variance Reduction Criterion",
+            "04/ Visualizing, Pruning & Interpreting Tree-Based Models",
+            "05/ Industrial Tips"
+          ],
+          modules: "Nền tảng học cây quyết định, tiêu chuẩn phân nhánh phân loại (Gini Impurity, Information Gain) và hồi quy (MSE/MAE), cắt tỉa chống Overfitting (Cost-Complexity Pruning) và giải thích mô hình",
+          lab: "Trực quan hóa, cắt tỉa và giải thích quyết định của mô hình cây trên dữ liệu bảng",
+          stack: "Scikit-learn, Graphviz, SHAP"
+        },
+        {
+          code: "S09",
+          title: "Advanced ML: Ensemble Learning & Gradient Boosting",
+          slide: "02-dsai/dsai-1/09-ensemble-learning-and-random-forest.pdf",
+          pages: 90,
+          contentNote: "1.0 buổi · Slide 90p",
+          slideToc: [
+            "01/ Ensemble Methods: Averaging, Bagging, Blending & Stacking",
+            "02/ Tree-Based Ensembles: Random Forest, XGBoost & LightGBM Internals",
+            "03/ Model-Based Feature Importance & Evaluation (Gain, Split, Permutation, SHAP)",
+            "04/ Hyperparameter Optimization: Grid Search, Random Search, Bayesian Optimization & Metaheuristics",
+            "05/ AutoML Frameworks & Industrial Tips"
+          ],
+          modules: "Các phương pháp kết hợp mô hình (Bagging, Blending, Stacking), giải phẫu nội tại Random Forest, XGBoost (đạo hàm bậc 2 Taylor) & LightGBM (GOSS, EFB), tối ưu siêu tham số Bayesian và AutoML",
+          lab: "Tối ưu hóa tổ hợp XGBoost/LightGBM/Stacking với Optuna Bayesian Optimization và giải thích bằng SHAP",
+          stack: "XGBoost, LightGBM, Optuna, SHAP, AutoGluon"
+        },
+        {
+          code: "S10",
+          title: "Supervised Learning: kNN & Approximate Nearest Neighbors (ANN)",
+          slide: "02-dsai/dsai-1/10-knn-and-ann.pdf",
+          pages: 58,
+          contentNote: "1.0 buổi · Slide 58p",
+          slideToc: [
+            "01/ Geometry of Distance Metrics: Euclidean (L2), Manhattan (L1) & Cosine Similarity",
+            "02/ k-Nearest Neighbors (kNN) Algorithm, Neighborhood Size (k) & Elbow Plots",
+            "03/ Curse of Dimensionality & Exact Search Bottlenecks",
+            "04/ Approximate Nearest Neighbors (ANN): Motivation & Core Indexing Algorithms (HNSW, IVF, LSH, PQ)"
+          ],
+          modules: "Không gian độ đo khoảng cách (Euclidean, Manhattan, Cosine), thuật toán kNN, lời nguyền chiều cao và các cấu trúc chỉ mục tìm kiếm láng giềng xấp xỉ (ANN: HNSW, IVF, Product Quantization)",
+          lab: "Benchmark tốc độ và độ chính xác truy hồi giữa Exact kNN và chỉ mục ANN (FAISS / HNSW)",
+          stack: "Scikit-learn, FAISS, HNSWlib"
+        },
+        {
+          code: "S11",
+          title: "Unsupervised Learning: Clustering & Dimensionality Reduction",
+          slide: "02-dsai/dsai-1/11-clustering-and-dimensionality-reduction.pdf",
+          pages: 140,
+          contentNote: "2.0 buổi · Slide 140p",
+          slideToc: [
+            "01/ Hard vs. Soft Clustering (GMM / EM Algorithm)",
+            "02/ Clustering Algorithms: K-Means, DBSCAN (Density-Based) & Hierarchical Clustering",
+            "03/ Dimensionality Reduction: Linear Projection (PCA, SVD) vs. Nonlinear Manifold Learning (t-SNE, UMAP)",
+            "04/ Computational Complexity Analysis of ML Models & Industrial Tips"
+          ],
+          modules: "Phân cụm cứng và mềm, giải phẫu K-Means, DBSCAN và Hierarchical Clustering, giảm chiều dữ liệu bằng phép chiếu tuyến tính (PCA) & học đa tạp phi tuyến (t-SNE, UMAP) cùng độ phức tạp tính toán",
+          lab: "Domain Retail Lab — Demand Planning: Phân tích Chuỗi Thời gian và Dự báo Nhu cầu (Time Series Analysis & Forecasting)",
+          stack: "Scikit-learn, UMAP, Statsmodels, Prophet / Time-Series Stack"
+        },
+        {
+          code: "SC1",
+          title: "DSAI Mini Coursework (1–2 tuần)",
+          slide: "02-dsai/dsai-1/00-quizzes-dsai-1.pdf",
+          pages: 74,
+          contentNote: "6 Domain Packs + 74p Quiz",
+          slideToc: [
+            "01/ 6 Bộ Đề bài Ngành dọc (Churn, Credit Risk, E-commerce, Logistics, Marketing, Real Estate) trong course-slides/dsai-1/mini-coursework/",
+            "02/ Thực thi toàn trình: EDA, Suy luận Nhân quả, Feature Engineering (Big Five) & Huấn luyện/Tối ưu hóa Mô hình",
+            "03/ Báo cáo phân tích sai số, giải thích mô hình (XAI) & Đánh giá tác động tài chính"
+          ],
+          modules: "Đồ án tích hợp nửa đầu khóa DSAI: kết hợp Toán thống kê, EDA, Causal Reasoning, Feature Engineering và hệ thuật toán Classical ML giải quyết 1 trong 6 bài toán ngành dọc",
+          lab: "Đồ án thực chiến giữa kỳ khóa DSAI (1–2 tuần) với 6 gói dữ liệu thực tế",
+          stack: "Python, Pandas, Scikit-learn, XGBoost, LightGBM, Optuna, SHAP"
+        }
+      ]
+    },
+    {
+      id: "track-6",
+      shortTitle: "VI. [DSAI-2] Deep Learning, CV, NLP, LLM & Triton",
+      title: "VI. [DSAI-2] Deep Learning, CV, NLP, Advanced LLM (RLHF/DPO) & GPU Triton",
+      items: [
+        {
+          code: "S12",
+          title: "DL Fundamentals: Neural Networks, Autoencoders & Model Compression",
+          slide: "02-dsai/dsai-2/01-neural-network-1.pdf",
+          pages: 167,
+          contentNote: "2.0 buổi · Slide 167p (NN1+NN2+IIoT)",
+          slideToc: [
+            "01/ Feed-Forward Neural Networks (FFNN), Activation Functions & Universal Approximation",
+            "02/ Backpropagation Calculus, Loss Functions, Optimizers (SGD, Momentum, AdamW) & Regularization / Early Stopping",
+            "03/ Autoencoder Architectures (Undercomplete, Denoising, Sparse, Variational Autoencoder - VAE)",
+            "04/ Model Operation & Optimization: Performance Profiling, Checkpointing & Model Compression (Pruning, Quantization, Distillation)"
+          ],
+          modules: "Mạng nơ-ron truyền thẳng (FFNN), giải tích lan truyền ngược (Backpropagation), hàm kích hoạt/tối ưu hóa, kiến trúc Autoencoder & các kỹ thuật nén mô hình (Pruning, Quantization, Knowledge Distillation)",
+          lab: "Domain IoT Lab — Predictive Maintenance: Từ Phát hiện Bất thường (Anomaly Detection) đến Dự báo Tuổi thọ Còn lại (RUL) và Phân tích Nguyên nhân Gốc (RCA)",
+          stack: "PyTorch, TorchScript, ONNX"
+        },
+        {
+          code: "S13",
+          title: "Computer Vision (I): Image Processing, CNN & Image Classification",
+          slide: "02-dsai/dsai-2/03-image-processing.pdf",
+          pages: 153,
+          contentNote: "2.0 buổi · Slide 153p (ImgProc + CNN)",
+          slideToc: [
+            "01/ Image Fundamentals, Color Spaces, Preprocessing & Classical Feature Extraction",
+            "02/ Mathematics of Convolution, Pooling Layers, Receptive Field & Stride/Padding Mechanics",
+            "03/ Data Augmentation Strategies, Adversarial Attacks (FGSM/PGD) & Robustness",
+            "04/ Modern Image Classification & Visual Model Explanations (CAM / Grad-CAM / Saliency Maps)"
+          ],
+          modules: "Cơ học ảnh số, tiền xử lý & trích xuất đặc trưng, phép tích chập (Convolution) & Pooling, tăng cường dữ liệu, tấn công đối kháng (Adversarial Attacks) và giải thích mô hình thị giác",
+          lab: "2 Labs: (1) Image Processing 101; (2) Real-Time Computer Vision: Hệ thống Phát hiện, Theo dõi và Đếm Phương tiện Giao thông theo Thời gian thực (Vehicle Detection, Tracking & Counting)",
+          stack: "PyTorch, OpenCV, Torchvision, Grad-CAM"
+        },
+        {
+          code: "S14",
+          title: "Advanced Computer Vision (II): Object Detection & Segmentation",
+          slide: "02-dsai/dsai-2/05-advanced-computer-vision-1.pdf",
+          pages: 210,
+          contentNote: "2.0 buổi · Slide 210p (AdvCV 1 & 2)",
+          slideToc: [
+            "01/ Evolution of Advanced CNN Architectures (ResNet, DenseNet, EfficientNet, ConvNeXt) & Transfer Learning",
+            "02/ Object Detection Models: Two-Stage (Faster R-CNN) vs. Single-Stage (YOLO, SSD, DETR), Anchor Boxes & NMS",
+            "03/ CNNs in Generative Art (Neural Style Transfer) & Super-Resolution / Image Enhancement",
+            "04/ Image Segmentation: Semantic (U-Net/DeepLab), Instance (Mask R-CNN) & Panoptic Segmentation"
+          ],
+          modules: "Kiến trúc CNN hiện đại, học chuyển giao (Transfer Learning), mô hình phát hiện vật thể (Object Detection), nâng cấp chất lượng ảnh và 3 cấp độ phân vùng ảnh (Semantic, Instance, Panoptic Segmentation)",
+          lab: "Huấn luyện mô hình phát hiện vật thể (Object Detection) và phân vùng ảnh (Segmentation) chuyên sâu",
+          stack: "PyTorch, Ultralytics YOLO, Detectron2, MMSegmentation"
+        },
+        {
+          code: "S15",
+          title: "Natural Language Processing (I): Text Processing, Embeddings & RNN/LSTM",
+          slide: "02-dsai/dsai-2/07-text-processing-and-rnn.pdf",
+          pages: 147,
+          contentNote: "2.0 buổi · Slide 147p",
+          slideToc: [
+            "01/ Language Building Blocks, NLP Pipeline, Tokenization (BPE, WordPiece, Unigram) & Numericalization",
+            "02/ Vector Space Models & Word Embeddings (TF-IDF, Word2Vec Skip-gram/CBOW, GloVe, FastText)",
+            "03/ Recurrent Neural Networks (RNN), Backpropagation Through Time (BPTT) & Vanishing/Exploding Gradients",
+            "04/ Gated Architectures (LSTM, GRU), Variants (CNN-LSTM, Deep RNN, Bi-RNN) & Text Model Explanation"
+          ],
+          modules: "Đường ống xử lý ngôn ngữ tự nhiên, Tokenization, không gian nhúng từ (Word Embeddings), mạng hồi quy RNN & thuật toán BPTT, hiện tượng tiêu biến/bùng nổ đạo hàm, cổng nhớ LSTM/GRU và giải thích mô hình văn bản",
+          lab: "2 Labs: (1) Text Processing & Analysis 101; (2) Document AI: Trích xuất Thông tin Thông minh từ Hồ sơ Ứng viên (Intelligent Information Extraction from Resumes)",
+          stack: "PyTorch, HuggingFace Tokenizers, Gensim, SpaCy"
+        },
+        {
+          code: "S16",
+          title: "Advanced NLP (II): Information Extraction (POS & NER)",
+          slide: "02-dsai/dsai-2/08-information-extraction.pdf",
+          pages: 78,
+          contentNote: "1.0 buổi · Slide 78p",
+          slideToc: [
+            "01/ Introduction to Information Extraction (IE) & End-to-End IE Pipelines",
+            "02/ Sequence Labeling & Part-of-Speech (POS) Tagging (HMM, CRF, BiLSTM-CRF)",
+            "03/ Named-Entity Recognition (NER), Entity Linking & Relation Extraction"
+          ],
+          modules: "Kiến trúc đường ống trích xuất thông tin (Information Extraction), bài toán gán nhãn chuỗi, gán nhãn từ loại (POS Tagging) và nhận diện thực thể có tên (NER)",
+          lab: "Xây dựng đường ống trích xuất thực thể (NER) và cấu trúc hóa tài liệu phi cấu trúc",
+          stack: "PyTorch, HuggingFace Transformers, SpaCy"
+        },
+        {
+          code: "S17",
+          title: "Large Language Model (I): Attention & Transformers",
+          slide: "02-dsai/dsai-2/09-attention-and-transformers.pdf",
+          pages: 120,
+          contentNote: "1.0 buổi · Slide 120p",
+          slideToc: [
+            "01/ Neural Machine Translation & The Seq2Seq Encoder–Decoder Bottleneck",
+            "02/ Attention Mechanisms (Bahdanau Additive, Luong Multiplicative & Scaled Dot-Product Multi-Head Attention)",
+            "03/ Inside the Transformer Architecture (Positional Encoding/RoPE, LayerNorm, Residual, FFN)",
+            "04/ Decoding Strategies (Greedy, Beam Search, Temperature, Top-k, Nucleus Top-p) & Contextual Embeddings (BERT, GPT, T5)"
+          ],
+          modules: "Bài toán dịch máy, kiến trúc Encoder–Decoder, cơ chế Attention & Multi-Head Self-Attention, giải phẫu Transformer, các thuật toán giải mã sinh từ (Decoding) và Contextual Embeddings",
+          lab: "Cài đặt cơ chế Multi-Head Self-Attention và khối Transformer từ các phép nhân tensor cơ bản",
+          stack: "PyTorch, Transformers"
+        },
+        {
+          code: "S18",
+          title: "Large Language Model (II): Intro to LLM & Reinforcement Learning",
+          slide: "02-dsai/dsai-2/10-intro-to-llm.pdf",
+          pages: 162,
+          contentNote: "2.0 buổi · Slide 162p (LLM + RL)",
+          slideToc: [
+            "01/ LLM Pre-training, Scaling Laws, Applications & Core Challenges (Hallucination, Context Limit)",
+            "02/ Advanced Prompt Engineering & Controlling LLM Output (Logit Bias, Grammar/JSON Constrained Decoding)",
+            "03/ Foundations of Reinforcement Learning (MDP, Bellman Equation, Policy Gradient, PPO) & Deep RL for LLMs"
+          ],
+          modules: "Quy luật mở rộng (Scaling Laws) của LLM, kỹ thuật Prompt Engineering & kiểm soát cấu trúc đầu ra, nền tảng Học tăng cường (Reinforcement Learning & Deep RL) làm tiền đề cho căn chỉnh LLM",
+          lab: "Chuỗi 5 Labs lớn: (1) Prompt Engineering 101; (2) Tự code một LLM từ con số 0 (Implement an LLM from scratch); (3) Fine-tune & Evaluate LLMs; (4) Implement & Evaluate RAG; (5) Build a Multi-Agent System",
+          stack: "PyTorch, HuggingFace TRL, PEFT, vLLM"
+        },
+        {
+          code: "S19",
+          title: "Large Language Model (III): Advanced LLM — RLHF, DPO & Constitutional AI",
+          slide: "02-dsai/dsai-2/12-advanced-llm-rlhf-dpo.pdf",
+          pages: 74,
+          contentNote: "1.0 buổi · Slide 74p",
+          slideToc: [
+            "01/ Parameter-Efficient Fine-Tuning (LoRA, QLoRA, DoRA) & Comprehensive LLM Evaluation",
+            "02/ Reinforcement Learning from Human Feedback (RLHF: Reward Modeling + PPO) & Direct Preference Optimization (DPO / IPO / KTO / GRPO)",
+            "03/ Constitutional AI (RLAIF) & Automated Red-Teaming",
+            "04/ Evaluating LLM Safety, Honesty, Helpfulness & Alignment"
+          ],
+          modules: "Tinh chỉnh hiệu quả tham số (LoRA/QLoRA), toán học đằng sau RLHF (Reward Model + PPO) vs. DPO (tối ưu trực tiếp không cần Reward Model), Constitutional AI và đánh giá an toàn/căn chỉnh LLM",
+          lab: "Căn chỉnh mô hình ngôn ngữ mở bằng SFT + DPO/RLHF và kiểm định độ an toàn (Safety & Alignment Evaluation)",
+          stack: "HuggingFace TRL, PEFT, BitsAndBytes, DeepEval"
+        },
+        {
+          code: "S20",
+          title: "Large Language Model (IV): RAG Architectures & Production Agentic Systems",
+          slide: "02-dsai/dsai-2/13-rag-and-agents.pdf",
+          pages: 130,
+          contentNote: "2.0 buổi · Slide 130p",
+          slideToc: [
+            "01/ From Classical Information Retrieval (BM25) to Hybrid Search, Reranking & Advanced RAG (GraphRAG, Corrective/Self-RAG)",
+            "02/ Quantitative RAG Evaluation Frameworks (RAGAS, TruLens: Context Precision/Recall, Faithfulness, Answer Relevance)",
+            "03/ Agentic AI Cognitive Architectures (ReAct, Plan-and-Solve, Reflexion, Tool Use / MCP)",
+            "04/ Multi-Agent Orchestration & Production Design Patterns"
+          ],
+          modules: "Tiến hóa từ tìm kiếm cổ điển đến Hybrid/Graph/Self-RAG, khung đo lường định lượng RAG, kiến trúc nhận thức của AI Agent và các mẫu thiết kế hệ thống Multi-Agent cấp độ Production",
+          lab: "Xây dựng và đánh giá định lượng hệ thống Advanced Hybrid RAG & Multi-Agent thực chiến",
+          stack: "LangGraph, LlamaIndex, Qdrant/Milvus, RAGAS"
+        },
+        {
+          code: "S21",
+          title: "Large Language Model (V): GPU Architecture, CUDA & Triton Programming",
+          slide: "02-dsai/dsai-2/00-quizzes-dsai-2.pdf",
+          pages: 78,
+          contentNote: "2.0 buổi · Lab Kernel + 78p Quiz",
+          slideToc: [
+            "01/ Modern GPU Hardware Architecture: Streaming Multiprocessors (SMs), Tensor Cores, HBM vs. SRAM Hierarchy & Roofline Model",
+            "02/ CUDA Core Concepts: Thread/Block/Grid Hierarchy, Warp Scheduling, Coalesced Memory Access & Shared Memory Bank Conflicts",
+            "03/ SPMD (Single Program, Multiple Data) Programming Model & OpenAI Triton Compiler",
+            "04/ Writing High-Performance Fused GPU Kernels (Fused Softmax, LayerNorm, FlashAttention Mechanics)"
+          ],
+          modules: "Giải phẫu phần cứng GPU (SM, Tensor Cores, phân cấp bộ nhớ HBM/SRAM, mô hình Roofline), nguyên lý cốt lõi của CUDA, mô hình lập trình SPMD và tối ưu hóa nhân tính toán gộp (Kernel Fusion) bằng OpenAI Triton",
+          lab: "Tự viết các nhân tăng tốc GPU bằng OpenAI Triton từ con số 0 (Implement Triton Kernels from scratch) và đo kiểm băng thông so với PyTorch chuẩn",
+          stack: "OpenAI Triton, CUDA, PyTorch Profiler"
+        },
+        {
+          code: "SC2",
+          title: "DSAI Final Coursework (2 tháng — Research Paper / ArXiv)",
           slide: null,
-          slideToc: ["01/ Security Best Practices & SRE", "02/ Repository Design & Service Mesh", "03/ Final Coursework (2 tháng): End-to-End Data/AI System"],
-          modules: "Bảo mật hệ thống, nguyên lý SRE, thiết kế Monorepo/Polyrepo, Service Mesh và Đồ án Tốt nghiệp (2 tháng)",
-          lab: "Xây dựng, triển khai và vận hành hệ thống Data & AI thực chiến quy mô sản xuất",
-          stack: "Full Stack Data & AI"
+          contentNote: "Đồ án 2 tháng · Research Paper",
+          slideToc: [
+            "01/ Xác định bài toán nghiên cứu, tổng quan tài liệu (Literature Review) & Phát biểu giả thuyết khoa học",
+            "02/ Thiết kế kiến trúc mô hình / thuật toán mới, thiết lập thực nghiệm công bằng (Ablation Studies & Baselines)",
+            "03/ Viết và công bố bài báo khoa học chuẩn quốc tế trên ArXiv / Hội nghị AI (VD: arXiv:2607.24332, arXiv:2607.24331)"
+          ],
+          modules: "Thực hiện đề tài nghiên cứu khoa học chuyên sâu kéo dài 2 tháng dưới sự hướng dẫn trực tiếp của Supervisor (cựu nghiên cứu sinh UCL/SMU), từ thiết kế thuật toán, chạy Ablation Study đến xuất bản bài báo ArXiv",
+          lab: "Hoàn thành công trình nghiên cứu khoa học / Đồ án Tốt nghiệp khóa DSAI (2 tháng)",
+          stack: "LaTeX, PyTorch, Triton, ArXiv Research Workflow"
         }
       ]
     }
@@ -5403,6 +9280,49 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     if (stageId === 2) return LINUX_CHANG2_STATIONS;
     if (stageId === 3) return LINUX_CHANG3_STATIONS;
     if (stageId === 4) return LINUX_CHANG4_STATIONS;
+    return [];
+  }
+
+  const PYTHON_STAGES = [
+    { id: 1, shortTitle: "CPython Runtime, PyObject GC & Môi trường Ảo (venv, Poetry, uv)", title: "Chặng 1: Cơ Học CPython Runtime, Quản Lý Bộ Nhớ (PyObject / GC) & Hệ Sinh Thái Môi Trường Ảo (venv, Poetry, uv)" },
+    { id: 2, shortTitle: "Name Binding (is vs ==), Bảng Băm O(1) & Hợp đồng Hàm", title: "Chặng 2: Mô Hình Tham Chiếu Đối Tượng, Độ Phức Tạp Cấu Trúc Dữ Liệu (O(1) vs O(n)) & Hợp Đồng Giao Diện Hàm" },
+    { id: 3, shortTitle: "Specific Exceptions, Context Manager (with), File I/O & CLI", title: "Chặng 3: Quản Trị Ngoại Lệ, Giao Thức Context Manager (with), Streaming File I/O & Tự Động Hóa CLI (argparse)" },
+    { id: 4, shortTitle: "Sync vs. Async Event Loop (asyncio) & WSGI / ASGI Frameworks", title: "Chặng 4: Cơ Học Lập Trình Đồng Bộ (Sync) vs. Bất Đồng Bộ (Async) & Hệ Sinh Thái Framework (WSGI / ASGI)" }
+  ];
+
+  const PYTHON_CHANG1_STATIONS = [
+    { id: "python-0-map", code: "0.0", title: "Nhân vật chính market-crawler & Bản đồ 4 Chặng", fullTitle: "Trạm 0.0: Nhân vật chính market-crawler (crawler.py) & Bản đồ Kiến trúc 4 Chặng Python Engineering" },
+    { id: "python-1-0-sim", code: "2D", title: "Mô phỏng 2D (4 Slide): PyObject, uv Cache, Context Manager & Async", fullTitle: "Trạm 1.0 (Mô phỏng 2D): Phòng Thí Nghiệm Cơ Học CPython, uv Hardlink Cache, Context Manager & Async Event Loop" },
+    { id: "python-1-1", code: "1.1", title: "Giải phẫu CPython Runtime, PyObject (28B) & Bộ thu gom rác GC", fullTitle: "Trạm 1.1: Giải phẫu CPython Runtime — Trừu tượng hóa, Cấu trúc PyObject & Bộ thu gom rác (Reference Counting + Cyclic GC)" },
+    { id: "python-1-2", code: "1.2", title: "Giải quyết Dependency Hell & 3 Thế hệ Môi trường Ảo (venv, Poetry, uv)", fullTitle: "Trạm 1.2: Giải quyết 'Dependency Hell' & Cơ chế Vận hành 3 Thế hệ Công cụ Môi trường Ảo (venv, Poetry, uv)" },
+    { id: "python-1-summary", code: "Kết", title: "Tóm tắt bỏ túi & Checklist Chặng 1", fullTitle: "Tóm tắt bỏ túi Chặng 1 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const PYTHON_CHANG2_STATIONS = [
+    { id: "python-2-1", code: "2.1", title: "Mô hình Biến Tham chiếu (Name Binding), is vs. == & Mutable/Immutable", fullTitle: "Trạm 2.1: Mô hình Biến Tham chiếu (Name Binding), Toán tử Định danh (is vs. ==) & Ranh giới Mutable / Immutable" },
+    { id: "python-2-2", code: "2.2", title: "Giải phẫu Bộ tứ Collection: Bảng Băm O(1) vs. Mảng Động O(n)", fullTitle: "Trạm 2.2: Giải phẫu Bộ tứ Collection (list, tuple, set, dict) — Bảng Băm O(1) Đối đầu Mảng Động O(n)" },
+    { id: "python-2-3", code: "2.3", title: "Điểm nhập __name__, Gói Tham số (*args, **kwargs) & Type Hints", fullTitle: "Trạm 2.3: Điểm nhập Thực thi (__name__ == '__main__'), Gói Tham số (*args, **kwargs) & Hợp đồng Type Hints trong Framework" },
+    { id: "python-2-summary", code: "Kết", title: "Tóm tắt bỏ túi & Checklist Chặng 2", fullTitle: "Tóm tắt bỏ túi Chặng 2 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const PYTHON_CHANG3_STATIONS = [
+    { id: "python-3-1", code: "3.1", title: "Specific Exceptions & Giao thức Context Manager (with → __exit__)", fullTitle: "Trạm 3.1: Phân cấp Ngoại lệ (Specific Exceptions) & Giao thức Context Manager (with → __enter__ / __exit__) Chống Rò rỉ Tài nguyên" },
+    { id: "python-3-2", code: "3.2", title: "File I/O Modes (r, a, w, x) & Streaming Iterator O(1) RAM", fullTitle: "Trạm 3.2: Cơ học File I/O Modes (r, a, w, x) & Đánh đổi Bộ nhớ giữa Đọc Toàn khối (read / readlines) và Luồng Lười (Streaming Iterator)" },
+    { id: "python-3-3", code: "3.3", title: "Giao diện CLI với argparse & 6 Module Chuẩn (Standard Library)", fullTitle: "Trạm 3.3: Vũ khí hóa Script thành Công cụ Production — Giao diện CLI với argparse & Hệ sinh thái Python Standard Library" },
+    { id: "python-3-summary", code: "Kết", title: "Tóm tắt bỏ túi & Checklist Chặng 3", fullTitle: "Tóm tắt bỏ túi Chặng 3 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const PYTHON_CHANG4_STATIONS = [
+    { id: "python-4-1", code: "4.1", title: "Blocking vs. Non-Blocking I/O & Bài toán Đại kiện tướng Judit Polgár", fullTitle: "Trạm 4.1: Bản chất Blocking vs. Non-Blocking I/O — Bài toán Đại kiện tướng Judit Polgár & Căn bệnh Chết Đói CPU (92% Idle)" },
+    { id: "python-4-2", code: "4.2", title: "Giải phẫu asyncio Event Loop & Hệ sinh thái Framework (WSGI vs. ASGI)", fullTitle: "Trạm 4.2: Giải phẫu Vòng lặp Sự kiện (asyncio Event Loop, Coroutines) & Đối chiếu Hệ sinh thái Framework (Flask/Django/Requests vs. FastAPI/httpx)" },
+    { id: "python-4-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 4 (Khép kín F02)", fullTitle: "Tóm tắt bỏ túi Chặng 4 & Khép kín Toàn bộ Học phần F02 · Python Fundamentals" }
+  ];
+
+  function getPythonStations(stageId = activeStorageStage) {
+    if (stageId === 1) return PYTHON_CHANG1_STATIONS;
+    if (stageId === 2) return PYTHON_CHANG2_STATIONS;
+    if (stageId === 3) return PYTHON_CHANG3_STATIONS;
+    if (stageId === 4) return PYTHON_CHANG4_STATIONS;
     return [];
   }
 
@@ -5633,21 +9553,381 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     return [];
   }
 
+  const SPARK_STAGES = [
+    { id: 1, shortTitle: "Why Spark, Kiến Trúc Cụm (Driver/Executor) & Job → Stage → Task", title: "Chặng 1: Tại Sao Phải Là Apache Spark? Kiến Trúc Cụm & Phân Cấp Thực Thi (Job → Stage → Task)" },
+    { id: 2, shortTitle: "Spark RDD, Đồ Thị Lineage vs. DataFrame & Dataset[T]", title: "Chặng 2: Các Tầng Trừu Tượng Dữ Liệu — Giải Phẫu Spark RDD, Đồ Thị Huyết Thống Lineage & Spark DataFrame" },
+    { id: 3, shortTitle: "Serialization (Java vs. Kryo), cache/persist & Unified Memory", title: "Chặng 3: Tuần Tự Hóa (Java vs. Kryo), Tính Toán Trong Bộ Nhớ (cache / persist) & Quản Trị Bộ Nhớ Hợp Nhất" },
+    { id: 4, shortTitle: "5 Thách Thức Batch & Bộ 3 Tối Ưu Nội Sinh (Catalyst, Tungsten, AQE)", title: "Chặng 4: Năm Thách Thức Xử Lý Lô & Bộ Ba Tối Ưu Hóa Nội Sinh (Catalyst Optimizer, Project Tungsten & AQE)" },
+    { id: 5, shortTitle: "6 Kỹ Thuật Tinh Chỉnh Thủ Công (Shuffle, Broadcast, Key Salting)", title: "Chặng 5: Sáu Kỹ Thuật Tinh Chỉnh Hiệu Năng Thủ Công — Shuffle, Join, Key Salting, High Cardinality & Wide Schema" },
+    { id: 6, shortTitle: "Vận Hành Thực Chiến: Spark UI, Dynamic Allocation & Compaction", title: "Chặng 6: Kỹ Thuật Vận Hành Thực Chiến — Giải Phẫu Spark UI, Dynamic Allocation & Data Compaction" }
+  ];
+
+  const SPARK_CHANG1_STATIONS = [
+    { id: "spark-0-map", code: "0.0", title: "Nhân vật chính daily_revenue_attribution.py & Bản đồ 6 Chặng", fullTitle: "Trạm 0.0: Nhân vật chính daily_revenue_attribution.py & Bản đồ Kiến trúc 6 Chặng Batch Transformation" },
+    { id: "spark-1-0-sim", code: "2D", title: "Mô phỏng 2D: DAG Shuffle, Tungsten, Skew Salting & AQE", fullTitle: "Trạm 1.0 (Mô phỏng 2D): Phòng Thí Nghiệm DAG Stage/Shuffle, RDD vs. DataFrame, Unified Memory, Catalyst/Tungsten, Key Salting & Dynamic Allocation" },
+    { id: "spark-1-1", code: "1.1", title: "Vai trò Transformation, Giới hạn Máy đơn & MapReduce vs. Spark", fullTitle: "Trạm 1.1: Vai trò Tầng Transformation, Giới hạn Máy đơn & Sự Sụp đổ Đọc/Ghi Đĩa của Hadoop MapReduce trước Spark" },
+    { id: "spark-1-2", code: "1.2", title: "Kiến trúc Cụm: Driver, Cluster Manager & Worker (Executors)", fullTitle: "Trạm 1.2: Giải phẫu Kiến trúc Cụm Apache Spark — Driver Program, Cluster Manager & Bên trong Worker Node (Executors)" },
+    { id: "spark-1-3", code: "1.3", title: "Partition vs. Task, Lazy Evaluation & Luồng 8 Bước Thực Thi", fullTitle: "Trạm 1.3: Giải phẫu Partition vs. Task, Lazy Evaluation & Luồng 8 Bước Thực Thi (Application → Job → Stage → Task)" },
+    { id: "spark-1-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 1 & Checklist 5 câu hỏi", fullTitle: "Tóm tắt bỏ túi Chặng 1 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const SPARK_CHANG2_STATIONS = [
+    { id: "spark-2-1", code: "2.1", title: "Spark RDD: Phân tán Logic & Tự phục hồi qua Lineage Graph", fullTitle: "Trạm 2.1: Giải phẫu Spark RDD (Resilient Distributed Dataset) — Phân tán Logic & Tự Phục hồi Qua Đồ thị Huyết thống (Lineage)" },
+    { id: "spark-2-2", code: "2.2", title: "Khởi tạo RDD (parallelize) & Chi phí Python Subprocess IPC", fullTitle: "Trạm 2.2: Khởi tạo Spark RDD (SparkSession, SparkContext, parallelize) & Nút thắt Cổ chai Python Subprocess IPC" },
+    { id: "spark-2-3", code: "2.3", title: "Spark DataFrame: Schema, Tính Bất Biến & Đa Nguồn Dữ liệu", fullTitle: "Trạm 2.3: Giải phẫu Spark DataFrame — Bảng Cấu trúc Có Lược đồ (Schema), Tính Bất Biến (Immutability) & Đa Nguồn Dữ liệu" },
+    { id: "spark-2-4", code: "2.4", title: "Đối chiếu RDD vs. DataFrame vs. Dataset[T] & Khởi tạo", fullTitle: "Trạm 2.4: Đối chiếu Toàn diện RDD vs. DataFrame vs. Dataset[T] & Thực chiến Khởi tạo DataFrame" },
+    { id: "spark-2-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 2 & Checklist 5 câu hỏi", fullTitle: "Tóm tắt bỏ túi Chặng 2 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const SPARK_CHANG3_STATIONS = [
+    { id: "spark-3-1", code: "3.1", title: "Serialization & Deserialization tại 3 Điểm Nóng trong Spark", fullTitle: "Trạm 3.1: Giải phẫu Serialization & Deserialization — Ba Điểm Nóng Di Chuyển Dữ Liệu Trong Cụm Spark" },
+    { id: "spark-3-2", code: "3.2", title: "Java Serialization vs. Kryo Serialization & Cấu hình chuẩn", fullTitle: "Trạm 3.2: Đọ sức Java Serialization vs. Kryo Serialization & Cấu hình Đăng ký Lớp Chuẩn Production" },
+    { id: "spark-3-3", code: "3.3", title: "In-Memory Computing: cache() vs. persist() & 5 Chế độ Lưu trữ", fullTitle: "Trạm 3.3: Tính toán Trong Bộ nhớ (In-Memory Computing) — cache() vs. persist() & Giải phẫu 5 Chế độ Lưu trữ (Storage Choices)" },
+    { id: "spark-3-4", code: "3.4", title: "Khi nào nên Cache & Bộ Quản lý Bộ nhớ Hợp nhất (Unified Memory)", fullTitle: "Trạm 3.4: Chiến lược Khi Nào Nên Cache & Giải phẫu Bộ Quản lý Bộ nhớ Hợp nhất (Unified Memory Manager)" },
+    { id: "spark-3-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 3 & Checklist 5 câu hỏi", fullTitle: "Tóm tắt bỏ túi Chặng 3 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const SPARK_CHANG4_STATIONS = [
+    { id: "spark-4-1", code: "4.1", title: "5 Thách thức Xử lý Lô (Data Skew, Shuffle Explosion, Wide Schema)", fullTitle: "Trạm 4.1: Năm Thách thức Cốt lõi của Xử lý Lô — Tại sao Thêm Máy Chủ Không Tự Động Cứu Được Job Chậm?" },
+    { id: "spark-4-2", code: "4.2", title: "Catalyst Optimizer: Predicate Pushdown & Constant Folding", fullTitle: "Trạm 4.2: Bộ Tối ưu Nội sinh #1 — Catalyst Optimizer & Phẫu thuật Cây Kế hoạch Thực thi (Predicate Pushdown, Constant Folding)" },
+    { id: "spark-4-3", code: "4.3", title: "Project Tungsten: Off-Heap, Cache-Aware (~1ns) & CodeGen", fullTitle: "Trạm 4.3: Bộ Tối ưu Nội sinh #2 — Project Tungsten & Ba Kỹ thuật Vắt kiệt Phần cứng (Off-Heap, Cache-Aware, Whole-Stage CodeGen)" },
+    { id: "spark-4-4", code: "4.4", title: "Adaptive Query Execution (AQE): 3 Phép Hiệu chỉnh Lúc Chạy", fullTitle: "Trạm 4.4: Bộ Tối ưu Nội sinh #3 — Adaptive Query Execution (AQE) & Ba Phép Hiệu chỉnh Động Lúc Runtime" },
+    { id: "spark-4-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 4 & Checklist 5 câu hỏi", fullTitle: "Tóm tắt bỏ túi Chặng 4 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const SPARK_CHANG5_STATIONS = [
+    { id: "spark-5-1", code: "5.1", title: "Tinh chỉnh Shuffle/Partition & Chiến lược Join (Broadcast vs. SMJ)", fullTitle: "Trạm 5.1: Tinh chỉnh Shuffle & Partition Count và Lựa chọn Chiến lược Join (Broadcast Hash Join vs. Sort-Merge Join)" },
+    { id: "spark-5-2", code: "5.2", title: "Hóa giải Khóa Bị Lệch bằng Kỹ thuật Rắc Muối (Key Salting)", fullTitle: "Trạm 5.2: Hóa giải Khóa Bị Lệch Bằng Kỹ thuật Rắc Muối (Handling Skewed Keys with Salting)" },
+    { id: "spark-5-3", code: "5.3", title: "High Cardinality (approx_count_distinct), Wide Schema & Schema Evolution", fullTitle: "Trạm 5.3: Tối ưu hóa High Cardinality (approx_count_distinct), Wide Schema (Column Pruning) & Quản trị Schema Evolution" },
+    { id: "spark-5-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 5 & Checklist 5 câu hỏi", fullTitle: "Tóm tắt bỏ túi Chặng 5 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const SPARK_CHANG6_STATIONS = [
+    { id: "spark-6-1", code: "6.1", title: "Giải phẫu Spark UI Dashboard: Chẩn đoán Stages, Shuffle & Spill", fullTitle: "Trạm 6.1: Giải phẫu Spark UI Dashboard — Chẩn đoán Stages, Tiến độ Task, Shuffle Cost, Disk Spill & OOM" },
+    { id: "spark-6-2", code: "6.2", title: "Dynamic Allocation: Tự động Co giãn Executors (2 → 10 → 1)", fullTitle: "Trạm 6.2: Cơ học Dynamic Allocation — Tự động Co giãn Executors Theo Tải Thực Tế" },
+    { id: "spark-6-3", code: "6.3", title: "Data Compaction: Gộp 1.000.000 File Nhỏ (coalesce / OPTIMIZE)", fullTitle: "Trạm 6.3: Giải cứu Bài toán Triệu File Nhỏ Với Data Compaction (coalesce, repartition & OPTIMIZE)" },
+    { id: "spark-6-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 6 & Khép kín Học phần D03", fullTitle: "Tóm tắt bỏ túi Chặng 6 & Khép kín Toàn bộ Học phần D03 · Batch Transformation (Apache Spark)" }
+  ];
+
+  function getSparkStations(stageId = activeStorageStage) {
+    if (stageId === 1) return SPARK_CHANG1_STATIONS;
+    if (stageId === 2) return SPARK_CHANG2_STATIONS;
+    if (stageId === 3) return SPARK_CHANG3_STATIONS;
+    if (stageId === 4) return SPARK_CHANG4_STATIONS;
+    if (stageId === 5) return SPARK_CHANG5_STATIONS;
+    if (stageId === 6) return SPARK_CHANG6_STATIONS;
+    return [];
+  }
+
+  const CONSUMPTION_STAGES = [
+    { id: 1, shortTitle: "Data Warehouse, Đường ống ETL & Chuẩn hóa 3NF", title: "Chặng 1: Kiến Trúc Data Warehouse, Đường Ống ETL & Chuẩn Hóa ER Modeling (1NF → 2NF → 3NF)" },
+    { id: 2, shortTitle: "Dimensional Modeling (Kimball), Fact/Dim & Star/Snowflake", title: "Chặng 2: Dimensional Modeling (Kimball), Bảng Fact/Dimension, Star vs. Snowflake Schema" },
+    { id: 3, shortTitle: "Slowly Changing Dimensions (SCD 0–6), Data Vault & Medallion", title: "Chặng 3: Slowly Changing Dimensions (SCD Type 0–6), Data Vault & Trường Phái Inmon vs. Kimball Trên Medallion" },
+    { id: 4, shortTitle: "Động cơ OLAP Tốc độ Cao: SIMD, ClickHouse & Apache Pinot", title: "Chặng 4: Động Cơ OLAP Hiệu Năng Cao — Vectorized Execution, ClickHouse & Apache Pinot" },
+    { id: 5, shortTitle: "Feature Store & Feast Thực chiến (Xóa sổ Training-Serving Skew)", title: "Chặng 5: Feature Store & Feast Thực Chiến — Xóa Sổ Training-Serving Skew Cho Hệ Thống ML" }
+  ];
+
+  const CONSUMPTION_CHANG1_STATIONS = [
+    { id: "consumption-0-map", code: "0.0", title: "Nhân vật chính #8888 (txn_9f3a21c8) & Bản đồ 5 Chặng", fullTitle: "Trạm 0.0: Nhân vật chính Giao dịch #8888 (txn_9f3a21c8) & Bản đồ Kiến trúc 5 Chặng Consumption Layer" },
+    { id: "consumption-1-0-sim", code: "2D", title: "Mô phỏng 2D (6 Slide): Star Schema, SCD, Data Vault, SIMD & Feast", fullTitle: "Trạm 1.0 (Mô phỏng 2D): Phòng Thí Nghiệm Star Schema, SCD Type 0–6, Data Vault, SIMD OLAP & Feast Feature Store" },
+    { id: "consumption-1-1", code: "1.1", title: "Giải phẫu Data Warehouse, Vùng đệm Staging, Data Marts & ETL", fullTitle: "Trạm 1.1: Giải phẫu Data Warehouse, Vùng đệm Staging, Data Marts & Quy trình ETL" },
+    { id: "consumption-1-2", code: "1.2", title: "ER vs. Dimensional Modeling & Lộ trình Chuẩn hóa 1NF → 2NF → 3NF", fullTitle: "Trạm 1.2: Hai Trường phái Mô hình hóa Logic (ER vs. Dimensional) & Lộ trình Chuẩn hóa 1NF → 2NF → 3NF" },
+    { id: "consumption-1-3", code: "1.3", title: "Phẫu thuật Bảng Order_Detail sang 4 Bảng 3NF & Điểm nghẽn Join OLAP", fullTitle: "Trạm 1.3: Phẫu thuật Bảng Phẳng Order_Detail sang 4 Bảng 3NF & Điểm nghẽn Phép Kết (Join Penalty) khi Phân tích" },
+    { id: "consumption-1-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 1", fullTitle: "Tóm tắt bỏ túi Chặng 1 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const CONSUMPTION_CHANG2_STATIONS = [
+    { id: "consumption-2-1", code: "2.1", title: "Bản chất Dimensional Modeling & Quy trình 4 Bước Kimball", fullTitle: "Trạm 2.1: Bản chất Dimensional Modeling, Vai trò trong Consumption Layer & Quy trình 4 Bước Kimball" },
+    { id: "consumption-2-2", code: "2.2", title: "Giải phẫu Bảng Fact (factSales) & Additive vs. Semi-Additive", fullTitle: "Trạm 2.2: Giải phẫu Bảng Sự kiện (Fact Tables): Fact Keys, Độ mịn (Grain) & Chỉ số Additive vs. Semi-Additive" },
+    { id: "consumption-2-3", code: "2.3", title: "Giải phẫu Bảng Chiều (dimDate 20260501) & Star Schema 1-Hop", fullTitle: "Trạm 2.3: Giải phẫu Bảng Chiều (Dimension Tables: dimDate, dimCustomer) & Kiến trúc Star Schema" },
+    { id: "consumption-2-4", code: "2.4", title: "Phân nhánh Snowflake Schema & Ma trận Star vs. Snowflake vs. OBT", fullTitle: "Trạm 2.4: Phân nhánh Snowflake Schema (DIM_CITY → DIM_STATE → DIM_COUNTRY) & Ma trận Đối chiếu Star vs. Snowflake" },
+    { id: "consumption-2-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 2", fullTitle: "Tóm tắt bỏ túi Chặng 2 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const CONSUMPTION_CHANG3_STATIONS = [
+    { id: "consumption-3-1", code: "3.1", title: "Biến đổi Chiều theo Thời gian & SCD Type 0, Type 1, Type 2 (Surrogate Key)", fullTitle: "Trạm 3.1: Bài toán Biến đổi Chiều theo Thời gian & Giải phẫu SCD Type 0, Type 1 (Overwrite) và Type 2 (Row Versioning + Surrogate Key)" },
+    { id: "consumption-3-2", code: "3.2", title: "Giải phẫu SCD Type 3, Type 4 (History Table) & SCD Type 6 (1+2+3)", fullTitle: "Trạm 3.2: Giải phẫu SCD Type 3 (Previous Column), Type 4 (History Table), Type 6 (Hybrid 1+2+3) & Ma trận Quyết định" },
+    { id: "consumption-3-3", code: "3.3", title: "Mô hình Data Vault (Hub, Link, Satellite) tại Tầng Silver", fullTitle: "Trạm 3.3: Mô hình Data Vault (Hub, Link, Satellite) — Hấp thụ Trôi Lược đồ & Tích hợp Đa Nguồn ERP/CRM tại Tầng Silver" },
+    { id: "consumption-3-4", code: "3.4", title: "Inmon (Top-Down) vs. Kimball (Bottom-Up) & Quy ước Medallion", fullTitle: "Trạm 3.4: Hai Trường phái Tư tưởng Inmon (Top-Down 3NF) vs. Kimball (Bottom-Up Star) & Quy ước Đặt tên Medallion Architecture" },
+    { id: "consumption-3-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 3", fullTitle: "Tóm tắt bỏ túi Chặng 3 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const CONSUMPTION_CHANG4_STATIONS = [
+    { id: "consumption-4-1", code: "4.1", title: "Cơ học Động cơ OLAP: Columnar Storage, Vectorized SIMD & MPP", fullTitle: "Trạm 4.1: Cơ học Động cơ OLAP vs. OLTP — Lưu trữ Cột (Columnar), Thực thi Vector hóa (SIMD) & Truy vấn Phân tán MPP" },
+    { id: "consumption-4-2", code: "4.2", title: "Kiến trúc ClickHouse: 4 Thành phần, MergeTree 8,192 Granule & Keeper", fullTitle: "Trạm 4.2: Giải phẫu Kiến trúc ClickHouse: 4 Thành phần Cốt lõi, Chỉ mục Thưa MergeTree (8,192 Granule) & ZooKeeper/Keeper" },
+    { id: "consumption-4-3", code: "4.3", title: "Kiến trúc Apache Pinot: Dimensions/Metrics/Time & Hybrid Tables", fullTitle: "Trạm 4.3: Giải phẫu Apache Pinot: Lược đồ Dimensions/Metrics/Time & Ba Loại Bảng (Real-time, Offline, Hybrid Tables)" },
+    { id: "consumption-4-4", code: "4.4", title: "Đối chiếu ClickHouse vs. Apache Pinot (Batch/Log SQL vs. User-Facing)", fullTitle: "Trạm 4.4: Đối chiếu Kiến trúc ClickHouse vs. Apache Pinot — Phân tích Lô Phức tạp hay Phục vụ Trực tiếp Độ trễ Mili-giây?" },
+    { id: "consumption-4-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 4", fullTitle: "Tóm tắt bỏ túi Chặng 4 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const CONSUMPTION_CHANG5_STATIONS = [
+    { id: "consumption-5-1", code: "5.1", title: "Kịch bản Fraud (txn_9f3a21c8), Training-Serving Skew & Duplicated Effort", fullTitle: "Trạm 5.1: Bài toán Phát hiện Gian lận (txn_9f3a21c8) & Hai Căn bệnh Chí mạng: Training-Serving Skew và Duplicated Effort" },
+    { id: "consumption-5-2", code: "5.2", title: "Kiến trúc Feature Store Kép (Offline vs. Online <10ms) & Tần suất Cập nhật", fullTitle: "Trạm 5.2: Kiến trúc Feature Store Kép (Offline Store vs. Online Store < 10ms) & Chiến lược Tần suất Cập nhật (Static, Contextual, Critical)" },
+    { id: "consumption-5-3", code: "5.3", title: "Giải phẫu Feast: Entity, DataSource, FeatureView & Lệnh feast apply", fullTitle: "Trạm 5.3: Giải phẫu Feast (A Practical Feature Store) — Khai báo Entity, FileSource, FeatureView & Đồng bộ Registry (feast apply)" },
+    { id: "consumption-5-4", code: "5.4", title: "Vòng đời Feast: Point-in-Time ASOF Join, Materialize & Online Serving", fullTitle: "Trạm 5.4: Vòng đời Vận hành Feast Thực chiến — Point-in-Time Join (get_historical_features), Materialization & Suy luận Online (get_online_features)" },
+    { id: "consumption-5-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 5 (Khép kín D05)", fullTitle: "Tóm tắt bỏ túi Chặng 5 & Khép kín Toàn bộ Học phần D05 · Consumption Layer" }
+  ];
+
+  function getConsumptionStations(stageId = activeStorageStage) {
+    if (stageId === 1) return CONSUMPTION_CHANG1_STATIONS;
+    if (stageId === 2) return CONSUMPTION_CHANG2_STATIONS;
+    if (stageId === 3) return CONSUMPTION_CHANG3_STATIONS;
+    if (stageId === 4) return CONSUMPTION_CHANG4_STATIONS;
+    if (stageId === 5) return CONSUMPTION_CHANG5_STATIONS;
+    return [];
+  }
+
+  const FLINK_STAGES = [
+    { id: 1, shortTitle: "Tổng Quan Flink, Master–Worker, Task Slots & Chu Trình Thực Thi", title: "Chặng 1: Tổng Quan Apache Flink, Kiến Trúc Master–Worker, Task Slots & Chu Trình Thực Thi" },
+    { id: 2, shortTitle: "Ngữ Nghĩa Thời Gian (Event/Processing Time) & Cơ Học Watermarks", title: "Chặng 2: Ngữ Nghĩa Thời Gian (Time Semantics), Cơ Học Watermarks & Ba Chiến Lược Sinh Watermark" },
+    { id: 3, shortTitle: "Cửa Sổ Thời Gian (Windowing), Triggers, Allowed Lateness & Side Output", title: "Chặng 3: Cơ Học Cửa Sổ Thời Gian (Windowing), Bộ Kích Hoạt (Triggers) & Chiến Lược Xử Lý Dữ Liệu Trễ (Late Data)" },
+    { id: 4, shortTitle: "Hệ Sinh Thái Flink APIs: DataStream, Dynamic Tables & Flink SQL", title: "Chặng 4: Hệ Sinh Thái Flink APIs — DataStream API, Dynamic Tables, Table API & Flink SQL Interoperability" },
+    { id: 5, shortTitle: "Quản Lý State (RocksDB), Checkpoint Barriers & Exactly-Once", title: "Chặng 5: Quản Lý Trạng Thái (State Management), Rào Chắn Checkpoint Barriers & Đảm Bảo Exactly-Once" },
+    { id: 6, shortTitle: "Tối Ưu Hóa (Operator Chaining, Backpressure) & Deployment Modes", title: "Chặng 6: Kỹ Thuật Tối Ưu Hóa (Operator Chaining, Backpressure) & Kiến Trúc Triển Khai Cụm (Deployment Modes)" }
+  ];
+
+  const FLINK_CHANG1_STATIONS = [
+    { id: "flink-0-map", code: "0.0", title: "Nhân vật chính Order #8888 & Bản đồ 6 Chặng Flink", fullTitle: "Trạm 0.0: Nhân vật chính Sự kiện Order #8888 & Bản đồ Kiến trúc 6 Chặng Transformation Layer (Stream · Flink)" },
+    { id: "flink-1-0-sim", code: "2D", title: "Mô phỏng 2D (6 Slide): Slots, Watermark, Window, Late Data & Checkpoint", fullTitle: "Trạm 1.0 (Mô phỏng 2D): Phòng Thí Nghiệm Động Cơ Flink — Task Slots, Watermark, Window, Late Data, Checkpoint & Backpressure" },
+    { id: "flink-1-1", code: "1.1", title: "Bản chất Flink (Unbounded vs. Bounded, Stateful, Exactly-Once)", fullTitle: "Trạm 1.1: Bản chất Apache Flink (Unbounded vs. Bounded Data, Stateful, Exactly-Once) & Vị trí tại Transformation Layer" },
+    { id: "flink-1-2", code: "1.2", title: "Kiến trúc Master–Worker: Client, JobManager & TaskManagers", fullTitle: "Trạm 1.2: Giải phẫu Kiến trúc Master – Worker: Client, JobManager (Dispatcher, Scheduler, Checkpoint Coordinator) & TaskManagers" },
+    { id: "flink-1-3", code: "1.3", title: "Task Slots (Managed Memory vs. CPU), Sub-tasks & Parallelism", fullTitle: "Trạm 1.3: Cơ học Task Slots, Chia sẻ Tài nguyên (Managed Memory vs. CPU), Sub-tasks & Độ song song (Parallelism)" },
+    { id: "flink-1-4", code: "1.4", title: "Heartbeats, Lưu Tiến độ (Checkpointing) & Tua ngược Nguồn (Rewind)", fullTitle: "Trạm 1.4: Giám sát Sức khỏe Thực thi (Heartbeats), Lưu Tiến độ (Checkpointing) & Tua ngược Nguồn khi Phục hồi (Source Rewind)" },
+    { id: "flink-1-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 1", fullTitle: "Tóm tắt bỏ túi Chặng 1 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const FLINK_CHANG2_STATIONS = [
+    { id: "flink-2-1", code: "2.1", title: "Ba Định nghĩa Thời gian: Event vs. Ingestion vs. Processing Time", fullTitle: "Trạm 2.1: Ba Định nghĩa Thời gian trong Xử lý Luồng — Event Time vs. Ingestion Time vs. Processing Time" },
+    { id: "flink-2-2", code: "2.2", title: "Cơ học Watermark W(t) = max(ts) - delay & Luồng 4 Thành phần", fullTitle: "Trạm 2.2: Bản chất Cơ học của Watermark, Công thức Định lượng & Luồng Truyền Watermark qua Pipeline" },
+    { id: "flink-2-3", code: "2.3", title: "3 Chiến lược Sinh Watermark: Monotonous, Bounded (p95) & Custom", fullTitle: "Trạm 2.3: Ba Chiến lược Sinh Watermark — Monotonous Timestamps, Bounded Out-of-Orderness (p95/p99) & Custom WatermarkGenerator" },
+    { id: "flink-2-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 2", fullTitle: "Tóm tắt bỏ túi Chặng 2 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const FLINK_CHANG3_STATIONS = [
+    { id: "flink-3-1", code: "3.1", title: "Giải phẫu 4 Kiểu Cửa sổ: Tumbling, Sliding, Session & Global", fullTitle: "Trạm 3.1: Bản chất Cửa sổ (Window) & Giải phẫu 4 Kiểu Cửa sổ — Tumbling, Sliding, Session & Global Windows" },
+    { id: "flink-3-2", code: "3.2", title: "Bộ kích hoạt (Window Triggers) & Bẫy Rò rỉ Bộ nhớ Global Window", fullTitle: "Trạm 3.2: Cơ học Bộ kích hoạt (Window Triggers), Trigger Mặc định & Cạm bẫy Rò rỉ Bộ nhớ của Global Window" },
+    { id: "flink-3-3", code: "3.3", title: "Sự kiện Đến Muộn (Late Events) & Máy Trạng thái 3 Pha Allowed Lateness", fullTitle: "Trạm 3.3: Giải phẫu Sự kiện Đến Muộn (Late Events) & Máy Trạng thái 3 Pha của Allowed Lateness" },
+    { id: "flink-3-4", code: "3.4", title: "Rẽ nhánh Side Output & Phác đồ Allowed Lateness + Side Output", fullTitle: "Trạm 3.4: Rẽ nhánh Sự kiện Trễ bằng Side Output & Phác đồ Kết hợp Allowed Lateness + Side Output trên Production" },
+    { id: "flink-3-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 3", fullTitle: "Tóm tắt bỏ túi Chặng 3 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const FLINK_CHANG4_STATIONS = [
+    { id: "flink-4-1", code: "4.1", title: "Tháp Trừu tượng 3 Tầng API & Giải phẫu DataStream / ProcessFunction", fullTitle: "Trạm 4.1: Tháp Trừu tượng Flink APIs & Giải phẫu Tầng Đáy DataStream API / ProcessFunction" },
+    { id: "flink-4-2", code: "4.2", title: "Đối ngẫu Luồng – Bảng (Stream-Table Duality), Dynamic Tables & Table API", fullTitle: "Trạm 4.2: Nguyên lý Đối ngẫu Luồng – Bảng (Stream-Table Duality), Dynamic Tables & Table API" },
+    { id: "flink-4-3", code: "4.3", title: "Động cơ Flink SQL (TUMBLE, HOP, SESSION) & Phối hợp Đa Tầng API", fullTitle: "Trạm 4.3: Động cơ Thực thi Flink SQL, Các Hàm Cửa sổ (TUMBLE, HOP, SESSION) & Phối hợp Đa Tầng API (Interoperability)" },
+    { id: "flink-4-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 4", fullTitle: "Tóm tắt bỏ túi Chặng 4 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const FLINK_CHANG5_STATIONS = [
+    { id: "flink-5-1", code: "5.1", title: "Tại sao Cần State? Chu trình 5 Bước Đọc – Ghi State trên Từng Sự kiện", fullTitle: "Trạm 5.1: Tại sao Xử lý Luồng Cần Trạng thái (State)? Chu trình 5 Bước Đọc – Ghi State trên Từng Sự kiện" },
+    { id: "flink-5-2", code: "5.2", title: "Keyed State vs. Operator State, State Backends (Heap vs. RocksDB)", fullTitle: "Trạm 5.2: Giải phẫu Keyed State vs. Operator State, State Backends (Heap vs. RocksDB) & Co giãn Quy mô với Key Groups" },
+    { id: "flink-5-3", code: "5.3", title: "Cơ học Rào chắn Checkpoint Barriers (Chandy-Lamport) & Exactly-Once", fullTitle: "Trạm 5.3: Cơ học Rào chắn Checkpoint Barriers (Chandy-Lamport), Phục hồi Sự cố (Fault Recovery) & Cam kết Exactly-Once Toàn trình" },
+    { id: "flink-5-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 5", fullTitle: "Tóm tắt bỏ túi Chặng 5 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const FLINK_CHANG6_STATIONS = [
+    { id: "flink-6-1", code: "6.1", title: "4 Trụ cột Tối ưu Hiệu năng & Cơ học Hàn gắn Toán tử (Operator Chaining)", fullTitle: "Trạm 6.1: Bốn Trụ cột Tối ưu Hiệu năng & Cơ học Hàn gắn Toán tử (Operator Chaining vs. Unchained)" },
+    { id: "flink-6-2", code: "6.2", title: "Giải phẫu Backpressure: Lan truyền Ngược dòng, Web UI & 3 Phác đồ Xử lý", fullTitle: "Trạm 6.2: Giải phẫu Áp lực Ngược (Backpressure): Lan truyền Ngược dòng, Chẩn đoán trên Flink Web UI & Ba Phác đồ Xử lý" },
+    { id: "flink-6-3", code: "6.3", title: "Kiến trúc Triển khai Cụm: Session Mode vs. Application Mode trên K8s", fullTitle: "Trạm 6.3: Kiến trúc Triển khai Cụm Flink — Session Mode vs. Application Mode trên Kubernetes" },
+    { id: "flink-6-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 6 (Khép kín D04)", fullTitle: "Tóm tắt bỏ túi Chặng 6 & Khép kín Toàn bộ Học phần Transformation Layer (Stream · Flink)" }
+  ];
+
+  function getFlinkStations(stageId = activeStorageStage) {
+    if (stageId === 1) return FLINK_CHANG1_STATIONS;
+    if (stageId === 2) return FLINK_CHANG2_STATIONS;
+    if (stageId === 3) return FLINK_CHANG3_STATIONS;
+    if (stageId === 4) return FLINK_CHANG4_STATIONS;
+    if (stageId === 5) return FLINK_CHANG5_STATIONS;
+    if (stageId === 6) return FLINK_CHANG6_STATIONS;
+    return [];
+  }
+
+  const ORCHESTRATION_STAGES = [
+    { id: 1, shortTitle: "Bài Toán Điều Phối Đường Ống & 5 Trụ Cột Cốt Lõi", title: "Chặng 1: Bài Toán Điều Phối Đường Ống (Pipeline Orchestration) & 5 Trụ Cột Cốt Lõi" },
+    { id: 2, shortTitle: "Vượt Qua Giới Hạn Cron Job: Idempotency, Backfill & Dynamic DAG", title: "Chặng 2: Vượt Qua Giới Hạn Cron Job — Tính Lũy Đẳng (Idempotency), Backfill & Dynamic Pipelines" },
+    { id: 3, shortTitle: "Kiến Trúc Apache Airflow, Đồ Thị DAG, Operators, Sensors & XCom", title: "Chặng 3: Kiến Trúc Apache Airflow, Đồ Thị DAG, Operators, Sensors & Cơ Học Truyền Tin XCom" },
+    { id: 4, shortTitle: "Quản Trị Vận Hành, Executors, Đồng Thời 3 Tầng & Giám Sát", title: "Chặng 4: Quản Trị Vận Hành, Mở Rộng Quy Mô (Executors), Kiểm Soát Đồng Thời 3 Tầng & Giám Sát Airflow" },
+    { id: 5, shortTitle: "Kiểm Định Dữ Liệu (GX, Deequ), Circuit Breaker, Data Contracts & DataHub", title: "Chặng 5: Kiểm Định Chất Lượng Dữ Liệu (GX, Deequ), Cầu Dao Tự Ngắt (Circuit Breaker), Hợp Đồng Dữ Liệu & Quản Trị DataHub" }
+  ];
+
+  const ORCHESTRATION_CHANG1_STATIONS = [
+    { id: "orchestration-0-map", code: "0.0", title: "Nhân vật chính daily_sales_pipeline (#8888) & Bản đồ 5 Chặng", fullTitle: "Trạm 0.0: Nhân vật chính daily_sales_pipeline (Order #8888) & Bản đồ Kiến trúc 5 Chặng Orchestration Layer" },
+    { id: "orchestration-1-0-sim", code: "2D", title: "Mô phỏng 2D: DAG, Idempotency Backfill, Pools, Circuit Breaker & DataHub", fullTitle: "Trạm 1.0 (Mô phỏng 2D): Phòng Thí Nghiệm Điều Phối DAG, Lũy Đẳng Backfill, Concurrency Pools, Cầu Dao Circuit Breaker & DataHub Lineage" },
+    { id: "orchestration-1-1", code: "1.1", title: "Đường ống Hàng ngày, Cạm bẫy Lập lịch Ngây thơ & Sự cố Trễ 03:20 AM", fullTitle: "Trạm 1.1: Đường Ống Dữ Liệu Hàng Ngày, Cạm Bẫy Lập Lịch Theo Giờ Ngây Thơ (Naive Scheduling) & Sự Cố Trễ Thượng Nguồn 03:20 AM" },
+    { id: "orchestration-1-2", code: "1.2", title: "Quản lý Phụ thuộc (Tuần tự & Song song), 4 Cơ chế Trigger & State", fullTitle: "Trạm 1.2: Quản Lý Phụ Thuộc (Tuần Tự & Song Song), 4 Cơ Chế Kích Hoạt (Triggers) & Máy Trạng Thái Tác Vụ (State Tracking)" },
+    { id: "orchestration-1-3", code: "1.3", title: "Xử lý Sự cố Có Kiểm soát & Điều phối Tài nguyên Dùng chung (Pools)", fullTitle: "Trạm 1.3: Xử Lý Sự Cố Có Kiểm Soát (Failure Handling) & Điều Phối Tài Nguyên Dùng Chung (Resource Coordination Pools)" },
+    { id: "orchestration-1-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 1 & Checklist 5 câu hỏi", fullTitle: "Tóm tắt bỏ túi Chặng 1 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const ORCHESTRATION_CHANG2_STATIONS = [
+    { id: "orchestration-2-1", code: "2.1", title: "Giải phẫu Cronjob (5 trường) & 4 Giới hạn Tử huyệt với Data Pipeline", fullTitle: "Trạm 2.1: Giải Phẫu Bộ Định Thời Cronjob & 4 Giới Hạn Tử Huyệt Đối Với Đường Ống Dữ Liệu" },
+    { id: "orchestration-2-2", code: "2.2", title: "Atomicity & Tính Lũy Đẳng (Idempotency) Chống Nhân Bản Khi Retry", fullTitle: "Trạm 2.2: Tính Nguyên Tử (Atomicity) & Tính Lũy Đẳng (Idempotency) — Chốt Chặn Sinh Tử Chống Nhân Bản Dữ Liệu Khi Retry" },
+    { id: "orchestration-2-3", code: "2.3", title: "Cơ học Cửa sổ Dữ liệu (Data Intervals), Backfill & Kiểm soát Catchup", fullTitle: "Trạm 2.3: Cơ Học Cửa Sổ Dữ Liệu (Data Intervals), Lấp Đầy Lịch Sử (Backfill) & Kiểm Soát Catchup" },
+    { id: "orchestration-2-4", code: "2.4", title: "Đường ống Động (Dynamic Task Mapping) & Asset-Aware Scheduling", fullTitle: "Trạm 2.4: Đường Ống Động (Dynamic Pipelines — Dynamic Task Mapping) & Lập Lịch Nhận Biết Tài Sản (Asset-Aware Scheduling)" },
+    { id: "orchestration-2-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 2 & Checklist 5 câu hỏi", fullTitle: "Tóm tắt bỏ túi Chặng 2 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const ORCHESTRATION_CHANG3_STATIONS = [
+    { id: "orchestration-3-1", code: "3.1", title: "Bản chất Airflow, Đồ thị DAG Không Chu Trình & 4 Khái niệm Cốt lõi", fullTitle: "Trạm 3.1: Bản Chất Apache Airflow (\"Nhạc Trưởng, Không Phải Công Nhân\"), Đồ Thị DAG & Bộ Tứ Khái Niệm Cốt Lõi" },
+    { id: "orchestration-3-2", code: "3.2", title: "Giải phẫu 6 Thành phần Kiến trúc Airflow & Vòng lặp Metadata DB", fullTitle: "Trạm 3.2: Giải Phẫu 6 Thành Phần Kiến Trúc Airflow & Luồng Phối Hợp Qua Metadata Database (Từ Airflow 2.x Đến Airflow 3.0)" },
+    { id: "orchestration-3-3", code: "3.3", title: "Hệ sinh thái Operators & Cơ học Sensors (Poke, Reschedule, Deferrable)", fullTitle: "Trạm 3.3: Hệ Sinh Thái Operators (Action / Transfer) & Cơ Học Sensors (Poke vs. Reschedule vs. Deferrable Triggerer)" },
+    { id: "orchestration-3-4", code: "3.4", title: "Cô lập Tác vụ (Task Isolation) & Truyền Siêu dữ liệu XCom (URI Pattern)", fullTitle: "Trạm 3.4: Cô Lập Tác Vụ (Task Isolation) & Cơ Chế Truyền Siêu Dữ Liệu XCom (Tại Sao Cấm Đẩy DataFrame Qua XCom?)" },
+    { id: "orchestration-3-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 3 & Checklist 5 câu hỏi", fullTitle: "Tóm tắt bỏ túi Chặng 3 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const ORCHESTRATION_CHANG4_STATIONS = [
+    { id: "orchestration-4-1", code: "4.1", title: "Quản lý Cấu hình & Định danh Bảo mật (Variables, Connections, Fernet)", fullTitle: "Trạm 4.1: Quản Lý Cấu Hình & Định Danh Bảo Mật (Variables & Connections — Tuyệt Đối Không Hardcode Trong Mã DAG)" },
+    { id: "orchestration-4-2", code: "4.2", title: "Giải phẫu 4 Chế độ Thực thi (Executors: Sequential, Local, Celery, K8s)", fullTitle: "Trạm 4.2: Giải Phẫu 4 Chế Độ Thực Thi (Executors: Sequential, Local, Celery, Kubernetes) & Đánh Đổi Hạ Tầng" },
+    { id: "orchestration-4-3", code: "4.3", title: "Ba Tầng Kiểm soát Đồng thời (parallelism, max_active_runs & Pools)", fullTitle: "Trạm 4.3: Ba Tầng Kiểm Soát Đồng Thời (Three Levels of Concurrency: Global parallelism, DAG max_active_runs & Resource Pools)" },
+    { id: "orchestration-4-4", code: "4.4", title: "Giám sát Chủ động (UI Grid, Alerts, Prometheus) & Điểm mù Dữ liệu Sai", fullTitle: "Trạm 4.4: Giám Sát Chủ Động (Monitoring: UI Grid, Alerts, Prometheus/Grafana) & Nghịch Lý \"Pipeline Xanh Nhưng Dữ Liệu Sai\"" },
+    { id: "orchestration-4-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 4 & Checklist 5 câu hỏi", fullTitle: "Tóm tắt bỏ túi Chặng 4 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const ORCHESTRATION_CHANG5_STATIONS = [
+    { id: "orchestration-5-1", code: "5.1", title: "Cái giá $11.8M của Dữ liệu Bẩn, 6 Chiều Chất lượng & Vòng lặp 5 Bước", fullTitle: "Trạm 5.1: Cái Giá $11.8M Của Dữ Liệu Bẩn, 6 Chiều Chất Lượng Dữ Liệu (Six Data Quality Dimensions) & Chu Trình Cải Tiến 5 Bước" },
+    { id: "orchestration-5-2", code: "5.2", title: "Tại sao Kiểm định Nằm trong Điều phối & Cầu dao Tự ngắt Circuit Breaker", fullTitle: "Trạm 5.2: Tại Sao Kiểm Định Phải Nằm Trong Điều Phối & Mẫu Cầu Dao Tự Ngắt (Circuit Breaker Pattern Trong Airflow)" },
+    { id: "orchestration-5-3", code: "5.3", title: "Phòng bệnh Từ Thượng nguồn Với Hợp đồng Dữ liệu (Data Contracts)", fullTitle: "Trạm 5.3: Phòng Bệnh Từ Thượng Nguồn Với Hợp Đồng Dữ Liệu (Data Contracts — Giao Diện Cam Kết Giữa Producer & Consumer)" },
+    { id: "orchestration-5-4", code: "5.4", title: "Hệ sinh thái Kiểm định (GX, Spark Deequ) & Quản trị Phả hệ DataHub", fullTitle: "Trạm 5.4: Hệ Sinh Thái Công Cụ Kiểm Định (Great Expectations, Spark Deequ, dbt, Soda) & Quản Trị Siêu Dữ Liệu / Phả Hệ Với DataHub" },
+    { id: "orchestration-5-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 5 (Khép kín D06)", fullTitle: "Tóm tắt bỏ túi Chặng 5 & Khép kín Toàn bộ Học phần D06 · Orchestration & Governance" }
+  ];
+
+  function getOrchestrationStations(stageId = activeStorageStage) {
+    if (stageId === 1) return ORCHESTRATION_CHANG1_STATIONS;
+    if (stageId === 2) return ORCHESTRATION_CHANG2_STATIONS;
+    if (stageId === 3) return ORCHESTRATION_CHANG3_STATIONS;
+    if (stageId === 4) return ORCHESTRATION_CHANG4_STATIONS;
+    if (stageId === 5) return ORCHESTRATION_CHANG5_STATIONS;
+    return [];
+  }
+
+  const VALIDATION_STAGES = [
+    { id: 1, shortTitle: "V-Model, Chi phí Lỗi Shift-Left (1x→30x) & Black/Grey/White-box", title: "Chặng 1: Mô Hình V-Model, Chi Phí Lỗi Shift-Left & Ba Phương Pháp Kiểm Thử" },
+    { id: 2, shortTitle: "Phạm vi Kiểm thử: Functional (Unit→UAT) & Non-Functional (Load/Stress)", title: "Chặng 2: Phạm Vi Kiểm Thử — Functional (Unit → UAT) & Non-Functional (Load, Stress, Smoke, Regression)" },
+    { id: 3, shortTitle: "Thực chiến pytest: Discovery, Fixtures (yield, conftest.py), Markers & Parametrize", title: "Chặng 3: Thực Chiến Framework pytest — Discovery, Fixtures (yield, conftest.py), Markers & Parametrize" },
+    { id: 4, shortTitle: "Cô lập Phụ thuộc (mocker.patch, Testcontainers), tox, pytest-cov & TDD", title: "Chặng 4: Cô Lập Phụ Thuộc (mocker.patch, MagicMock, Testcontainers), Đa Môi Trường (tox, pytest-cov) & Quy Trình TDD" }
+  ];
+
+  const VALIDATION_CHANG1_STATIONS = [
+    { id: "validation-0-map", code: "0.0", title: "Nhân vật chính checkout_order('ORD-8888') & Bản đồ 4 Chặng", fullTitle: "Trạm 0.0: Nhân vật chính checkout_order('ORD-8888') & Bản đồ Kiến trúc 4 Chặng Validation & Verification" },
+    { id: "validation-1-0-sim", code: "2D", title: "Mô phỏng 2D (6 Slide): V-Model, mocker.patch, Fixtures yield & TDD", fullTitle: "Trạm 1.0 (Mô phỏng 2D): Phòng Thí Nghiệm V-Model, Bẫy mocker.patch, Fixtures yield & Vòng Lặp TDD" },
+    { id: "validation-1-1", code: "1.1", title: "Verification vs. Validation, V-Model & Quy luật Nhân 30x Chi phí Lỗi", fullTitle: "Trạm 1.1: Verification vs. Validation, Mô hình Chữ V (V-Model) & Quy luật Nhân 30 Lần Chi phí Lỗi (Shift-Left)" },
+    { id: "validation-1-2", code: "1.2", title: "Black-box, Grey-box, White-box & Hoare Logic / Symbolic / Mutation", fullTitle: "Trạm 1.2: Ba Trục Phân loại & Kiểm thử Hộp Đen, Hộp Xám, Hộp Trắng (Kèm Hoare Logic, Symbolic Execution & Mutation)" },
+    { id: "validation-1-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 1 & Checklist 5 câu hỏi", fullTitle: "Tóm tắt bỏ túi Chặng 1 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const VALIDATION_CHANG2_STATIONS = [
+    { id: "validation-2-1", code: "2.1", title: "Functional Testing: 4 Cấp độ từ Unit, Integration, System đến Alpha/Beta/UAT", fullTitle: "Trạm 2.1: Kiểm thử Chức năng (Functional Testing) — Bốn Cấp độ từ Unit, Integration, System đến Acceptance (Alpha, Beta, UAT)" },
+    { id: "validation-2-2", code: "2.2", title: "Non-Functional: Load (500 CCU) vs. Stress (5000 CCU), Security & Smoke/Regression", fullTitle: "Trạm 2.2: Kiểm thử Phi chức năng (Non-Functional) — Load (500 CCU) vs. Stress (5000 CCU), Security & Bộ tứ Regression / Smoke / Recovery / Monkey" },
+    { id: "validation-2-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 2 & Checklist 5 câu hỏi", fullTitle: "Tóm tắt bỏ túi Chặng 2 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const VALIDATION_CHANG3_STATIONS = [
+    { id: "validation-3-1", code: "3.1", title: "Cơ chế Tự động Dò tìm (test_*.py) & Vòng đời @pytest.fixture (yield, conftest.py)", fullTitle: "Trạm 3.1: Cơ chế Tự động Dò tìm (test_*.py, Test*) & Vòng đời Tài nguyên với @pytest.fixture (yield & conftest.py)" },
+    { id: "validation-3-2", code: "3.2", title: "Phân luồng bằng Markers (-m, pyproject.toml) & Nhân bản với @pytest.mark.parametrize", fullTitle: "Trạm 3.2: Phân luồng Kiểm thử bằng Markers (-m, pyproject.toml) & Nhân bản Kịch bản Biên với @pytest.mark.parametrize" },
+    { id: "validation-3-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 3 & Checklist 5 câu hỏi", fullTitle: "Tóm tắt bỏ túi Chặng 3 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const VALIDATION_CHANG4_STATIONS = [
+    { id: "validation-4-1", code: "4.1", title: "Cô lập Phụ thuộc với pytest-mock (mocker.patch, MagicMock) & Quy tắc Patch Where Used", fullTitle: "Trạm 4.1: Cô lập Phụ thuộc với pytest-mock (mocker.patch, MagicMock, side_effect) & Quy tắc Vàng 'Patch Where Used'" },
+    { id: "validation-4-2", code: "4.2", title: "Hạ tầng Thật với Testcontainers, Đa môi trường tox, pytest-cov & Vòng lặp TDD", fullTitle: "Trạm 4.2: Kiểm thử Hạ tầng Thật với Testcontainers, Ma trận Đa môi trường tox, Độ phủ pytest-cov & Vòng lặp TDD (Red-Green-Refactor)" },
+    { id: "validation-4-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 4 & Khép kín Học phần F05", fullTitle: "Tóm tắt bỏ túi Chặng 4 & Khép kín Toàn bộ Học phần F05 · Validation & Verification" }
+  ];
+
+  function getValidationStations(stageId = activeStorageStage) {
+    if (stageId === 1) return VALIDATION_CHANG1_STATIONS;
+    if (stageId === 2) return VALIDATION_CHANG2_STATIONS;
+    if (stageId === 3) return VALIDATION_CHANG3_STATIONS;
+    if (stageId === 4) return VALIDATION_CHANG4_STATIONS;
+    return [];
+  }
+
+  const API_STAGES = [
+    { id: 1, shortTitle: "4 Tầng TCP/IP, Khung HTTP (CRLF), DNS, TLS & TCP 3-Way Handshake", title: "Chặng 1: Giải Phẫu Giao Thức Web & Bốn Tầng Mạng TCP/IP (Network Stack)" },
+    { id: 2, shortTitle: "6 Phong cách Kiến trúc API: REST, GraphQL, gRPC, WebSocket, SSE & Webhook", title: "Chặng 2: Sáu Phong Cách Kiến Trúc API — Giải Phẫu Cơ Học & Ma Trận Đánh Đổi" },
+    { id: 3, shortTitle: "Bảo mật Web API: 6 Mối nguy, Khung AAA, Basic Auth, JWT & OAuth 2.0", title: "Chặng 3: Bảo Mật Web API — Khung Quản Trị AAA, Basic Auth, Chữ Ký Số JWT & Ủy Quyền OAuth 2.0" },
+    { id: 4, shortTitle: "Giám sát Sức khỏe (/liveness, /readiness), Phân vị p50/p95/p99 & Load/Stress Testing", title: "Chặng 4: Giám Sát Sức Khỏe (/liveness, /readiness), Phân Vị Độ Trễ (p50/p95/p99) & Kiểm Thử Chịu Tải" },
+    { id: 5, shortTitle: "Thực chiến FastAPI: Động cơ ASGI (uvloop), Pydantic v2, Middleware & Locust", title: "Chặng 5: Kiến Trúc FastAPI Thực Chiến — Động Cơ ASGI (uvloop), Pydantic v2, Middleware & Kiểm Thử Tải Locust" }
+  ];
+
+  const API_CHANG1_STATIONS = [
+    { id: "api-0-map", code: "0.0", title: "Nhân vật chính order-api (Order #8888) & Bản đồ 5 Chặng Web API", fullTitle: "Trạm 0.0: Nhân vật chính order-api (Order #8888) & Bản đồ Kiến trúc 5 Chặng Web API" },
+    { id: "api-1-0-sim", code: "2D", title: "Mô phỏng 2D (6 Slide): TCP/IP Stack, 6 Kiến trúc API, JWT/OAuth & FastAPI ASGI", fullTitle: "Trạm 1.0 (Mô phỏng 2D): Phòng Thí Nghiệm Cắt Lớp TCP/IP, 6 Kiến Trúc API, JWT/OAuth & Động Cơ FastAPI ASGI" },
+    { id: "api-1-1", code: "1.1", title: "Bản chất API vs. Web API & Đối chiếu Mô hình OSI (7 Tầng) ↔ TCP/IP (4 Tầng)", fullTitle: "Trạm 1.1: Bản chất API vs. Web API & Đối chiếu Mô hình OSI (7 Tầng) với TCP/IP (4 Tầng Thực chiến)" },
+    { id: "api-1-2", code: "1.2", title: "Tầng Ứng dụng: Giải phẫu HTTP Request, Endpoint 6 Thành phần & HTTP Response", fullTitle: "Trạm 1.2: Tầng Ứng dụng (Application Layer) — Giải phẫu HTTP Request, Endpoint URL 6 Thành phần & HTTP Response" },
+    { id: "api-1-3", code: "1.3", title: "Bộ đôi Bảo hộ Tầng Ứng dụng: Phân giải Tên miền DNS & Kênh Mã hóa TLS (HTTPS)", fullTitle: "Trạm 1.3: Bộ đôi Bảo hộ Tầng Ứng dụng — Phân giải Tên miền DNS & Kênh Mã hóa TLS (HTTPS)" },
+    { id: "api-1-4", code: "1.4", title: "Tầng Giao vận (TCP 3-Way Handshake vs. UDP), IP/NAT/MAC & Luồng 10 Bước", fullTitle: "Trạm 1.4: Tầng Giao vận (TCP 3-Way Handshake vs. UDP), Tầng Mạng & Liên kết (IP, NAT, MAC) & Luồng 10 Bước Thực tế" },
+    { id: "api-1-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 1 & Checklist 5 câu hỏi", fullTitle: "Tóm tắt bỏ túi Chặng 1 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const API_CHANG2_STATIONS = [
+    { id: "api-2-1", code: "2.1", title: "Hệ sinh thái Kiến trúc API (Postman Report) & 6 Nguyên lý Bất biến của REST", fullTitle: "Trạm 2.1: Toàn cảnh Hệ sinh thái Kiến trúc API (Postman Report) & Sáu Nguyên lý Bất biến của REST API" },
+    { id: "api-2-2", code: "2.2", title: "Điểm nghẽn REST (Over/Under-fetching) & Truy vấn Đồ thị theo Yêu cầu với GraphQL", fullTitle: "Trạm 2.2: Điểm nghẽn của REST (Over-fetching & Under-fetching) & Truy vấn Đồ thị theo Yêu cầu với GraphQL" },
+    { id: "api-2-3", code: "2.3", title: "gRPC & Protocol Buffers (Protobuf): Gọi Hàm Từ Xa Nhị phân Đa luồng trên HTTP/2", fullTitle: "Trạm 2.3: gRPC & Protocol Buffers (Protobuf) — Gọi Hàm Từ Xa Nhị phân Đa luồng trên HTTP/2" },
+    { id: "api-2-4", code: "2.4", title: "Truyền thông Thời gian thực: WebSocket (Song công 2 Chiều) vs. SSE (1 Chiều)", fullTitle: "Trạm 2.4: Truyền thông Thời gian thực Duy trì Kết nối — WebSocket (Song công 2 Chiều) vs. Server-Sent Events (SSE 1 Chiều)" },
+    { id: "api-2-5", code: "2.5", title: "Kiến trúc Hướng Sự kiện Đảo chiều với Webhook & Đại Ma trận 6 Kiến trúc API", fullTitle: "Trạm 2.5: Kiến trúc Hướng Sự kiện Đảo chiều với Webhook & Đại Ma trận Quyết định 6 Kiến trúc API" },
+    { id: "api-2-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 2 & Checklist 5 câu hỏi", fullTitle: "Tóm tắt bỏ túi Chặng 2 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const API_CHANG3_STATIONS = [
+    { id: "api-3-1", code: "3.1", title: "Bức tranh 6 Mối Đe dọa Bảo mật API & Khung Quản trị AAA (AuthN / AuthZ / Accounting)", fullTitle: "Trạm 3.1: Bức tranh 6 Mối Đe dọa Bảo mật API & Khung Quản trị AAA (Authentication, Authorization, Accounting)" },
+    { id: "api-3-2", code: "3.2", title: "Basic Authentication: Cơ chế Mã hóa Base64 & Tử huyệt Lộ Mật khẩu khi Thiếu HTTPS", fullTitle: "Trạm 3.2: Basic Authentication — Cơ chế Mã hóa Base64 và Tử huyệt Lộ Mật khẩu khi Thiếu HTTPS/TLS" },
+    { id: "api-3-3", code: "3.3", title: "JSON Web Token (JWT): Cấu trúc Header.Payload.Signature & Xác thực Không Trạng thái", fullTitle: "Trạm 3.3: JSON Web Token (JWT) — Giải phẫu Cấu trúc Header.Payload.Signature & Xác thực Không Trạng thái" },
+    { id: "api-3-4", code: "3.4", title: "OAuth 2.0: Luồng Ủy quyền 8 Bước Không Lộ Mật khẩu & Ma trận Đối chiếu Xác thực", fullTitle: "Trạm 3.4: OAuth 2.0 — Luồng Ủy quyền Truy cập 8 Bước Không Lộ Mật khẩu & Ma trận Đối chiếu Xác thực" },
+    { id: "api-3-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 3 & Checklist 5 câu hỏi", fullTitle: "Tóm tắt bỏ túi Chặng 3 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const API_CHANG4_STATIONS = [
+    { id: "api-4-1", code: "4.1", title: "Giải phẫu Health Check Endpoints: Phân tách Sinh tử giữa /liveness và /readiness", fullTitle: "Trạm 4.1: Giải phẫu Health Check Endpoints — Phân tách Sinh tử giữa /liveness và /readiness trên Kubernetes" },
+    { id: "api-4-2", code: "4.2", title: "Chỉ số Hiệu năng API: Response Time, RPS, Error Rate & Phân vị Độ trễ p50 / p95 / p99", fullTitle: "Trạm 4.2: Hệ thống Chỉ số Hiệu năng API — Response Time, RPS, Error Rate & Toán học Phân vị Độ trễ (p50 / p95 / p99)" },
+    { id: "api-4-3", code: "4.3", title: "6 Kịch bản Kiểm thử Hiệu năng (Load, Stress, Spike, Soak) & Graceful Degradation", fullTitle: "Trạm 4.3: Sáu Kịch bản Kiểm thử Hiệu năng (Load, Stress, Spike, Soak, Capacity, Volume) & Suy thoái Êm dịu (Graceful Degradation)" },
+    { id: "api-4-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 4 & Checklist 5 câu hỏi", fullTitle: "Tóm tắt bỏ túi Chặng 4 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const API_CHANG5_STATIONS = [
+    { id: "api-5-1", code: "5.1", title: "Bước ngoặt Python Web: Từ WSGI Đồng bộ (Flask) sang ASGI Bất đồng bộ (Uvicorn uvloop)", fullTitle: "Trạm 5.1: Bước ngoặt Kiến trúc Python Web — Từ WSGI Đồng bộ (Flask) sang ASGI Bất đồng bộ (Uvicorn + Starlette + FastAPI)" },
+    { id: "api-5-2", code: "5.2", title: "Cưỡng chế Hợp đồng Kiểu với Pydantic v2 (Rust), Dependency Injection (Depends) & Middleware", fullTitle: "Trạm 5.2: Cưỡng chế Hợp đồng Kiểu Dữ liệu với Pydantic v2, Dependency Injection (Depends) & Chuỗi Middleware" },
+    { id: "api-5-3", code: "5.3", title: "Phòng Thí nghiệm Thực chiến: Triển khai Dịch vụ Đa Kiến trúc & Bắn Tải bằng Locust", fullTitle: "Trạm 5.3: Phòng Thí nghiệm Thực chiến — Triển khai Dịch vụ Đa Kiến trúc & Bắn Tải Chịu đựng bằng Locust" },
+    { id: "api-5-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 5 & Khép kín Toàn bộ Học phần F04", fullTitle: "Tóm tắt bỏ túi Chặng 5 & Khép kín Toàn bộ Học phần F04 · Web API" }
+  ];
+
+  function getApiStations(stageId = activeStorageStage) {
+    if (stageId === 1) return API_CHANG1_STATIONS;
+    if (stageId === 2) return API_CHANG2_STATIONS;
+    if (stageId === 3) return API_CHANG3_STATIONS;
+    if (stageId === 4) return API_CHANG4_STATIONS;
+    if (stageId === 5) return API_CHANG5_STATIONS;
+    return [];
+  }
+
   function getTopicStages(topic = activeTopic) {
     if (topic === "F01") return LINUX_STAGES;
+    if (topic === "F02") return PYTHON_STAGES;
     if (topic === "F03") return DB_STAGES;
+    if (topic === "F04") return API_STAGES;
+    if (topic === "F05") return VALIDATION_STAGES;
     if (topic === "F06") return CONTAINER_STAGES;
     if (topic === "D01") return INGESTION_STAGES;
     if (topic === "D02") return STORAGE_STAGES;
+    if (topic === "D03") return SPARK_STAGES;
+    if (topic === "D04") return FLINK_STAGES;
+    if (topic === "D05") return CONSUMPTION_STAGES;
+    if (topic === "D06") return ORCHESTRATION_STAGES;
     return [];
   }
 
   function getTopicStations(topic = activeTopic, stageId = activeStorageStage) {
     if (topic === "F01") return getLinuxStations(stageId);
+    if (topic === "F02") return getPythonStations(stageId);
     if (topic === "F03") return getDbStations(stageId);
+    if (topic === "F04") return getApiStations(stageId);
+    if (topic === "F05") return getValidationStations(stageId);
     if (topic === "F06") return getContainerStations(stageId);
     if (topic === "D01") return getIngestionStations(stageId);
     if (topic === "D02") return getStorageStations(stageId);
+    if (topic === "D03") return getSparkStations(stageId);
+    if (topic === "D04") return getFlinkStations(stageId);
+    if (topic === "D05") return getConsumptionStations(stageId);
+    if (topic === "D06") return getOrchestrationStations(stageId);
     return [];
   }
 
@@ -7455,6 +11735,3032 @@ __LESSON_TEMPLATES_JS__
     }
   }
 
+
+  /* ==========================================================================
+     CLAUDE ACADEMY CDS 2D INTERACTIVE SIMULATOR FOR D03 (APACHE SPARK BATCH)
+     ========================================================================== */
+  const SPK2D_SLIDES = [
+    {
+      id: 1,
+      chapter: "Chặng 1 · DAG Stage & Shuffle",
+      title: "Giải Phẫu Đồ Thị DAG: Narrow Pipelining Trong RAM vs. Ranh Giới Cắt Stage Tại Shuffle",
+      analogy: "Lát Cắt 1: Job → Stage → Task",
+      leadTitle: "Khi nào Spark gộp các phép biến đổi vào 1 Stage, và khi nào buộc phải cắt Stage?",
+      leadStory: "Khi xử lý 2 tỷ dòng orders (500GB Parquet), các phép Narrow Transformation (filter, select) chạy nối tiếp ngay trong RAM của từng Executor. Nhưng ngay khi gặp Wide Transformation (groupBy, join), DAGScheduler buộc phải cắt Stage và ghi tệp Shuffle xuống đĩa local.",
+      keypoints: [
+        { b: "1", t: "Narrow Transformation (Stage 1 Pipelining)", d: "Mỗi Partition con chỉ phụ thuộc vào đúng 1 Partition cha (filter, select, map). Toàn bộ chuỗi chạy trong 1 Task duy nhất trên RAM với 0% di chuyển mạng." },
+        { b: "2", t: "Wide Transformation & Shuffle Barrier", d: "Các bản ghi cùng khóa nằm rải rác trên nhiều máy phải gom về chung 1 nơi (groupBy, join, repartition), buộc Spark cắt thành Stage 1 (Shuffle Write) và Stage 2 (Shuffle Read)." },
+        { b: "3", t: "Bỏ xa Hadoop MapReduce Đĩa Cứng", d: "MapReduce phải ghi HDFS 3 bản sao sau MỖI phép toán; Spark gộp tối đa các bước vào RAM, giúp nhanh gấp 10–100 lần." }
+      ],
+      verdict: "Nguyên tắc thiết kế số 1: Luôn đặt filter() và select() (Narrow) TRƯỚC join() và groupBy() (Wide) để thu nhỏ tối đa lượng dữ liệu phải đi qua ranh giới Shuffle.",
+      simMode: "dag"
+    },
+    {
+      id: 2,
+      chapter: "Chặng 2 · RDD vs. DataFrame",
+      title: "Đường Đi Vật Lý Trong PySpark: Nút Thắt Python RDD IPC vs. Cao Tốc DataFrame JVM",
+      analogy: "Lát Cắt 2: Abstractions & Lineage",
+      leadTitle: "Tại sao cùng viết bằng Python nhưng DataFrame lại nhanh gấp 10 lần RDD?",
+      leadStory: "Với rdd.map(lambda x: x*2), JVM Executor không hiểu hàm lambda Python nên phải tuần tự hóa từng dòng qua ống dẫn Pipe sang tiến trình Python Worker bên ngoài. Ngược lại, df.select(col('price')*2) được biên dịch thành kế hoạch Catalyst chạy 100% trong JVM!",
+      keypoints: [
+        { b: "1", t: "Python RDD Double Serialization Penalty", d: "Dữ liệu đi qua vòng lặp tốn kém: JVM Executor → Serialize → Pipe Socket → Python Subprocess (pickle) → chạy hàm → Pipe → JVM Executor." },
+        { b: "2", t: "DataFrame Chạy Thuần Trong JVM", d: "PySpark chỉ dùng Python để khai báo biểu thức logic; toàn bộ việc quét dữ liệu và nhân số học diễn ra trực tiếp trên vùng nhớ nhị phân Tungsten trong JVM." },
+        { b: "3", t: "Tự Phục Hồi Bằng Đồ Thị Lineage", d: "Khi Worker B sập làm mất Partition 3, cả RDD và DataFrame đều tra cứu Lineage Graph để tính lại đúng Partition 3 từ nguồn mà không cần nhân bản RAM." }
+      ],
+      verdict: "Luôn ưu tiên Spark DataFrame và các hàm built-in trong pyspark.sql.functions; chỉ xuống tầng RDD hoặc Python UDF khi xử lý dữ liệu phi cấu trúc đặc thù.",
+      simMode: "api"
+    },
+    {
+      id: 3,
+      chapter: "Chặng 3 · Memory & Serialization",
+      title: "Giải Phẫu Unified Memory Manager (Storage vs. Execution) & 5 Chế Độ Lưu Trữ persist()",
+      analogy: "Lát Cắt 3: In-Memory & Kryo",
+      leadTitle: "Chuyện gì xảy ra bên trong RAM của Executor khi Cache đụng độ với Shuffle lớn?",
+      leadStory: "Bên trong mỗi Executor, Spark Unified Memory (60% Heap) chia sẻ động giữa Storage Memory (lưu cache/broadcast) và Execution Memory (chạy Shuffle/Join/Sort). Khi phép Join lớn cần thêm RAM, Execution được quyền đuổi (evict) các khối Storage sang đĩa!",
+      keypoints: [
+        { b: "1", t: "Sự Khác Biệt Ngầm Định Của cache()", d: "Trên RDD, cache() mặc định là MEMORY_ONLY (tràn RAM là phải tính lại); trên DataFrame, cache() mặc định là MEMORY_AND_DISK (tràn RAM tự đẩy xuống đĩa an toàn)." },
+        { b: "2", t: "Kryo Serialization + MEMORY_ONLY_SER", d: "Nén các đối tượng Java cồng kềnh thành 1 mảng byte gọn nhẹ trên mỗi Partition giúp giảm 5x–10x dung lượng RAM và tốc độ truyền Shuffle." },
+        { b: "3", t: "Quy Tắc Ranh Giới Động (Dynamic Eviction)", d: "Execution Memory được phép lấn sang và đẩy các phân vùng Cache vượt ngưỡng 50% xuống đĩa; nhưng Storage không bao giờ được đuổi Execution đang chạy." }
+      ],
+      verdict: "Chỉ gọi cache()/persist() cho tập dữ liệu trung gian được dùng lại trong nhiều Actions, và luôn gọi unpersist() ngay sau khi nhánh tính toán kết thúc.",
+      simMode: "memory"
+    },
+    {
+      id: 4,
+      chapter: "Chặng 4 · Catalyst, Tungsten & AQE",
+      title: "Bộ Ba Tối Ưu Hóa Nội Sinh: Catalyst Pushdown, Project Tungsten (~1ns L1 Cache) & AQE",
+      analogy: "Lát Cắt 4: Built-in Optimizers",
+      leadTitle: "Cách Spark tự động viết lại truy vấn và vắt kiệt từng chu kỳ CPU trước & trong lúc chạy",
+      leadStory: "Khi bạn viết câu SQL kết nối t1 và t2 rồi mới lọc t2.id > 50*1000, Catalyst tự động tính trước 50*1000 = 50000 (Constant Folding) và đẩy bộ lọc xuống TRƯỚC phép Join (Predicate Pushdown). Sau đó Tungsten chạy mã máy trên Off-Heap và AQE tinh chỉnh tiếp lúc runtime!",
+      keypoints: [
+        { b: "1", t: "Catalyst Optimizer (What to do)", d: "Áp dụng Constant Folding, Predicate Pushdown (lọc bỏ 95% dòng của t2 trước khi Join) và Column Pruning (chỉ đọc cột cần thiết từ Parquet)." },
+        { b: "2", t: "Project Tungsten (How to execute)", d: "3 vũ khí phần cứng: (1) Off-Heap UnsafeRow triệt tiêu JVM GC, (2) Bố cục nhị phân tuần tự nạp khít L1 Cache (~1ns so với RAM ~100ns), (3) Whole-Stage CodeGen." },
+        { b: "3", t: "Adaptive Query Execution — AQE (Runtime)", d: "Đọc thống kê byte thực tế sau Stage Shuffle để tự động chuyển Sort-Merge Join sang Broadcast Join, gộp Partition nhỏ và chẻ nhỏ Partition lệch." }
+      ],
+      verdict: "Bộ ba Catalyst + Tungsten + AQE hoạt động tự động khi bạn dùng DataFrame/SQL, biến truy vấn khai báo thành mã máy tối ưu sát phần cứng.",
+      simMode: "optimizer"
+    },
+    {
+      id: 5,
+      chapter: "Chặng 5 · Manual Tuning & Salting",
+      title: "Cấp Cứu Data Skew (199/200 Tasks Treo) Bằng Kỹ Thuật Rắc Muối Khóa (Key Salting) & Broadcast Join",
+      analogy: "Lát Cắt 5: Skew & Join Tuning",
+      leadTitle: "Tại sao 199 Tasks chạy xong trong 15 giây nhưng Task thứ 200 treo suốt 45 phút?",
+      leadStory: "Khi một khóa nóng (VD: quốc gia 'US' = 700 triệu dòng hoặc đại lý 'VIP123') chiếm 85% bảng, hàm hash(key) % P dồn toàn bộ 700 triệu dòng vào duy nhất Partition 1. Kỹ thuật Rắc Muối (Key Salting) gắn hậu tố ngẫu nhiên VIP123_1..3 để xé nhỏ khối đá tảng này chia đều cho mọi Executor!",
+      keypoints: [
+        { b: "1", t: "Triệu Chứng Lệch Tải (Straggler Task)", d: "Trên Spark UI, tiến độ Stage đứng hình ở 199/200 Tasks; chỉ có 1 CPU core gồng gánh 700M dòng kèm Disk Spill đỏ rực trong khi cả cụm ngồi chờ." },
+        { b: "2", t: "Kỹ Thuật Rắc Muối Khóa (Key Salting)", d: "Biến khóa 'VIP123' thành 'VIP123_1', 'VIP123_2', 'VIP123_3' trên bảng lớn (và nhân bản tương ứng trên bảng nhỏ khi Join) để chia tải phẳng lỳ 100%." },
+        { b: "3", t: "Broadcast Hash Join & approx_count_distinct", d: "Khi bảng đối ứng nhỏ (< 10MB), dùng broadcast(small_df) để phát sóng tới mọi Executor và xóa sổ hoàn toàn bước Shuffle bảng lớn!" }
+      ],
+      verdict: "Không bao giờ giải quyết Data Skew hay Shuffle Explosion bằng cách mù quáng thuê thêm máy chủ — hãy dùng Broadcast Join, Filter Early và Key Salting.",
+      simMode: "skew"
+    },
+    {
+      id: 6,
+      chapter: "Chặng 6 · Spark Ops, Dynamic Alloc & Compaction",
+      title: "Vận Hành Thực Chiến: Chẩn Đoán Spark UI, Dynamic Allocation (2 → 10 → 1) & Data Compaction",
+      analogy: "Lát Cắt 6: Production Operations",
+      leadTitle: "Làm sao vừa tiết kiệm 75% chi phí cụm Cloud, vừa xóa sổ thảm họa 1.000.000 file nhỏ?",
+      leadStory: "Cấp phát tĩnh 20 Executors khi tải nhẹ làm lãng phí 15 máy chủ, còn ghi thẳng hàng nghìn Partitions xuống S3 mỗi giờ sẽ đẻ ra 1.000.000 file 1MB làm tê liệt các truy vấn BI. Dynamic Allocation và Data Compaction (coalesce / OPTIMIZE) là 2 chốt chặn vận hành bắt buộc.",
+      keypoints: [
+        { b: "1", t: "Đọc Vị Bệnh Lý Qua Spark UI Dashboard", d: "So sánh Duration, Tasks Succeeded/Total, Shuffle Read/Write và Spill (Disk) giữa các Stages để bắt tận tay nút thắt cổ chai." },
+        { b: "2", t: "Dynamic Allocation Co Giãn Đàn Hồi", d: "Khởi đầu với 2 Executors → tự động tăng lên 10 khi Task chờ > schedulerBacklogTimeout (1s) → thu hồi về 1 khi nhàn rỗi > executorIdleTimeout (60s)." },
+        { b: "3", t: "Data Compaction (1.000.000 Files → 200 Files)", d: "Dùng coalesce(200) (gộp không qua Shuffle), repartition(200) hoặc lệnh OPTIMIZE trên Iceberg/Delta Lake để gộp các file 1MB thành file chuẩn 256MB–512MB." }
+      ],
+      verdict: "Một đường ống Spark chuẩn Production phải bật Dynamic Allocation kèm External Shuffle Service và định kỳ chạy Data Compaction cho bảng đích.",
+      simMode: "ops"
+    }
+  ];
+
+  let spk2dCurrentSlide = 0;
+  const spk2dState = {
+    dagMode: "wide",
+    apiMode: "df",
+    memMode: "mem_and_disk",
+    optMode: "tungsten_aqe",
+    skewMode: "salted",
+    opsMode: "compaction"
+  };
+
+  function buildSpark2DSimulatorHtml() {
+    return `
+      <div class="infra2d-wrap" id="spk2dWidgetRoot">
+        <div class="infra2d-header">
+          <div class="infra2d-brand">
+            <div class="infra2d-brand-icon">2D</div>
+            <div>
+              <div class="infra2d-brand-badges">
+                <span class="infra2d-tag">Cắt Lớp Kiến Trúc &amp; Luồng Thực Thi 2D</span>
+                <span class="infra2d-chapter" id="spk2dChapterBadge">Chặng 1 · DAG Stage &amp; Shuffle</span>
+              </div>
+              <h4 class="infra2d-title-bar">Phòng Thí Nghiệm Tương Tác D03: Hành Trình Job daily_revenue_attribution.py Trên Cụm Apache Spark</h4>
+            </div>
+          </div>
+          <div class="infra2d-dots" id="spk2dDots"></div>
+          <button type="button" class="infra2d-btn" onclick="toggleSpark2DSummaryModal()">Bảng Tóm Tắt Thông Số</button>
+        </div>
+
+        <div id="spk2dSummaryDrawer" style="display:none;padding:14px 16px;background:var(--sim-canvas);border-bottom:1px solid var(--sim-border);">
+          <div style="padding:10px 12px;border-radius:8px;background:var(--sim-flow-soft);border:1px solid color-mix(in oklab, var(--sim-flow) 35%, transparent);font-size:12.5px;color:var(--sim-flow);margin-bottom:10px;">
+            <strong>Chuẩn kiến trúc D03 (Batch Transformation · Spark):</strong> Sử dụng <strong>Spark DataFrame API</strong> để kích hoạt bộ 3 tối ưu tự động (<strong>Catalyst + Project Tungsten Off-Heap + AQE</strong>), kết hợp <strong>Broadcast Hash Join / Key Salting</strong> chống lệch tải và <strong>Data Compaction</strong> trước khi ghi xuống Gold Lakehouse.
+          </div>
+          <div class="table-wrap" style="margin:0;">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tầng Cắt Lớp</th>
+                  <th>Cơ Chế Cốt Lõi</th>
+                  <th>Thông Số &amp; Cú Pháp Chuẩn Production</th>
+                  <th>Rủi Ro Sinh Tử Cần Chặn</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. DAG &amp; Execution</strong></td>
+                  <td><code>Job → Stage → Task</code> cắt tại ranh giới <code>Shuffle</code></td>
+                  <td><code>128MB–256MB / Partition</code>, ~5 Cores / Executor</td>
+                  <td>Gọi <code>.collect()</code> kéo hàng chục GB về làm nổ <code>Driver OOM</code></td>
+                </tr>
+                <tr>
+                  <td><strong>2. API &amp; Serialization</strong></td>
+                  <td><code>DataFrame</code> (JVM Tungsten) + <code>KryoSerializer</code></td>
+                  <td><code>spark.serializer = ...KryoSerializer</code>, Schema tường minh</td>
+                  <td>Dùng Python RDD <code>lambda</code> gây nghẽn IPC hoặc <code>inferSchema</code> quét 2 lần</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Memory &amp; Caching</strong></td>
+                  <td><code>Unified Memory (60%) = Storage (50%) + Execution (50%)</code></td>
+                  <td><code>df.persist(StorageLevel.MEMORY_AND_DISK)</code> + <code>df.unpersist()</code></td>
+                  <td>Cache bảng dùng 1 lần hoặc quên <code>unpersist()</code> gây <code>Disk Spill</code></td>
+                </tr>
+                <tr>
+                  <td><strong>4. Skew, Join &amp; Ops</strong></td>
+                  <td><code>Catalyst + Tungsten + AQE</code> + <code>Key Salting</code> + <code>Compaction</code></td>
+                  <td><code>spark.sql.adaptive.enabled = true</code>, <code>broadcast(df)</code>, <code>coalesce(N)</code></td>
+                  <td>Khóa lệch <code>199/200 Tasks</code> treo cả Stage hoặc đẻ <code>1.000.000 Small Files</code></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="infra2d-grid">
+          <div class="infra2d-col-left">
+            <div>
+              <div class="infra2d-pills">
+                <span class="infra2d-pill-num" id="spk2dSlideNumPill">SLIDE 1 / 6</span>
+                <span class="infra2d-pill-analogy" id="spk2dAnalogyPill">Lát Cắt Kiến Trúc</span>
+              </div>
+              <h3 class="infra2d-slide-h3" id="spk2dSlideTitle"></h3>
+              <div class="infra2d-story-box">
+                <div class="infra2d-avatar" title="Job daily_revenue_attribution.py">SPK</div>
+                <div>
+                  <span class="infra2d-story-title" id="spk2dLeadTitle"></span>
+                  <p class="infra2d-story-text" id="spk2dLeadStory"></p>
+                </div>
+              </div>
+              <div class="infra2d-keypoints" id="spk2dKeypoints"></div>
+            </div>
+            <div class="infra2d-verdict" id="spk2dVerdictBox"></div>
+          </div>
+
+          <div class="infra2d-col-right">
+            <div>
+              <div class="infra2d-sim-top">
+                <div class="infra2d-sim-live">
+                  <span class="infra2d-sim-dot"></span>
+                  <span>Sơ Đồ Cắt Lớp Cụm Spark &amp; Luồng Dữ Liệu Chuyển Động (Animated SVG)</span>
+                </div>
+                <span class="infra2d-sim-hint">Bấm các nút kịch bản bên dưới để đổi cơ chế!</span>
+              </div>
+              <div class="infra2d-stage" id="spk2dSimStage" style="padding:10px;"></div>
+            </div>
+            <div>
+              <div class="infra2d-status" id="spk2dSimStatusText">Sẵn sàng mô phỏng.</div>
+              <div class="infra2d-controls" id="spk2dSimControls"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="infra2d-footer">
+          <button type="button" class="infra2d-btn" id="spk2dBtnPrev" onclick="changeSpark2DSlide(-1)">← Mô Phỏng Trước</button>
+          <div class="infra2d-progress-wrap">
+            <div class="infra2d-progress-track">
+              <div class="infra2d-progress-fill" id="spk2dProgressFill" style="width:16.6%;"></div>
+            </div>
+            <span style="font-size:11px;color:var(--sim-muted);">Chọn 1 trong 6 lát cắt kiến trúc Spark (1–6) hoặc bấm nút điều khiển để đối chiếu trước/sau tối ưu</span>
+          </div>
+          <button type="button" class="infra2d-btn infra2d-btn-primary" id="spk2dBtnNext" onclick="changeSpark2DSlide(1)">Mô Phỏng Tiếp Theo →</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function toggleSpark2DSummaryModal() {
+    const d = document.getElementById("spk2dSummaryDrawer");
+    if (!d) return;
+    d.style.display = (d.style.display === "none" || !d.style.display) ? "block" : "none";
+  }
+
+  function changeSpark2DSlide(delta) {
+    const next = spk2dCurrentSlide + delta;
+    if (next < 0 || next >= SPK2D_SLIDES.length) return;
+    spk2dCurrentSlide = next;
+    renderSpark2DSlide();
+  }
+
+  function jumpSpark2DSlide(idx) {
+    if (idx < 0 || idx >= SPK2D_SLIDES.length) return;
+    spk2dCurrentSlide = idx;
+    renderSpark2DSlide();
+  }
+
+  function renderSpark2DSlide() {
+    const root = document.getElementById("spk2dWidgetRoot");
+    if (!root) return;
+    const slide = SPK2D_SLIDES[spk2dCurrentSlide] || SPK2D_SLIDES[0];
+
+    document.getElementById("spk2dChapterBadge").textContent = slide.chapter;
+    document.getElementById("spk2dSlideNumPill").textContent = `SLIDE ${slide.id} / ${SPK2D_SLIDES.length}`;
+    document.getElementById("spk2dAnalogyPill").textContent = slide.analogy;
+    document.getElementById("spk2dSlideTitle").textContent = slide.title;
+    document.getElementById("spk2dLeadTitle").textContent = slide.leadTitle;
+    document.getElementById("spk2dLeadStory").textContent = slide.leadStory;
+
+    const kpEl = document.getElementById("spk2dKeypoints");
+    kpEl.innerHTML = slide.keypoints.map(kp => `
+      <div class="infra2d-kp-item">
+        <div class="infra2d-kp-badge">${escapeHtml(kp.b)}</div>
+        <div>
+          <span class="infra2d-kp-title">${escapeHtml(kp.t)}</span>
+          <p class="infra2d-kp-desc">${escapeHtml(kp.d)}</p>
+        </div>
+      </div>
+    `).join("");
+
+    document.getElementById("spk2dVerdictBox").textContent = slide.verdict;
+
+    const dotsEl = document.getElementById("spk2dDots");
+    dotsEl.innerHTML = SPK2D_SLIDES.map((s, idx) => `
+      <button type="button" class="infra2d-dot-btn ${idx === spk2dCurrentSlide ? 'active' : ''}" onclick="jumpSpark2DSlide(${idx})">${s.id}</button>
+    `).join("");
+
+    const prevBtn = document.getElementById("spk2dBtnPrev");
+    const nextBtn = document.getElementById("spk2dBtnNext");
+    if (prevBtn) prevBtn.disabled = (spk2dCurrentSlide === 0);
+    if (nextBtn) nextBtn.disabled = (spk2dCurrentSlide === SPK2D_SLIDES.length - 1);
+
+    const fillEl = document.getElementById("spk2dProgressFill");
+    if (fillEl) fillEl.style.width = `${((spk2dCurrentSlide + 1) / SPK2D_SLIDES.length) * 100}%`;
+
+    renderSpark2DInteractiveStage(slide.simMode);
+  }
+
+  function renderSpark2DInteractiveStage(mode) {
+    const stage = document.getElementById("spk2dSimStage");
+    const status = document.getElementById("spk2dSimStatusText");
+    const ctrls = document.getElementById("spk2dSimControls");
+    if (!stage || !status || !ctrls) return;
+
+    if (mode === "dag") {
+      const m = spk2dState.dagMode;
+      const isNarrow = m === "narrow";
+      const isWide = m === "wide";
+      const isMr = m === "mapreduce";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="27" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isMr ? 'HADOOP MAPREDUCE (GHI ĐĨA HDFS TRUNG GIAN LẶP LẠI)' : 'APACHE SPARK DAG EXECUTION (STAGE 1 PIPELINING → SHUFFLE → STAGE 2)'}</text>
+
+          <!-- Stage 1 Box -->
+          <rect x="20" y="38" width="235" height="150" rx="7" fill="var(--sim-card)" stroke="${isMr ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.5"/>
+          <text x="30" y="55" fill="${isMr ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="10.5" font-weight="700" font-family="var(--cds-font-mono)">${isMr ? 'MAP & HDFS DISK I/O PER STEP' : 'STAGE 1 (NARROW PIPELINE TRONG RAM)'}</text>
+
+          <!-- Executor 1 & 2 inside Stage 1 -->
+          <rect x="30" y="65" width="215" height="50" rx="5" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="38" y="81" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">Executor 1 · Task 1 (Partition 1)</text>
+          <text x="38" y="98" fill="var(--sim-sub)" font-size="9.5" font-family="var(--cds-font-mono)">Scan(orders) → Filter(ok) → Select</text>
+
+          <rect x="30" y="125" width="215" height="50" rx="5" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="38" y="141" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">Executor 2 · Task 2 (Partition 2)</text>
+          <text x="38" y="158" fill="var(--sim-sub)" font-size="9.5" font-family="var(--cds-font-mono)">Scan(orders) → Filter(ok) → Select</text>
+
+          <!-- Shuffle Boundary in Middle -->
+          <rect x="268" y="38" width="54" height="150" rx="6" fill="${isNarrow ? 'var(--sim-ok-soft)' : (isMr ? 'var(--sim-danger-soft)' : 'var(--sim-warn-soft)')}" stroke="${isNarrow ? 'var(--sim-ok)' : (isMr ? 'var(--sim-danger)' : 'var(--sim-warn)')}" stroke-dasharray="4 3" stroke-width="1.5"/>
+          <text x="295" y="95" text-anchor="middle" fill="${isNarrow ? 'var(--sim-ok)' : (isMr ? 'var(--sim-danger)' : 'var(--sim-warn)')}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isNarrow ? '0%' : (isMr ? 'HDFS' : 'SHUFFLE')}</text>
+          <text x="295" y="110" text-anchor="middle" fill="var(--sim-ink)" font-size="8.5" font-family="var(--cds-font-mono)">${isNarrow ? 'NO' : (isMr ? '3x REP' : 'WRITE /')}</text>
+          <text x="295" y="123" text-anchor="middle" fill="var(--sim-ink)" font-size="8.5" font-family="var(--cds-font-mono)">${isNarrow ? 'SHUFFLE' : (isMr ? 'DISK I/O' : 'READ')}</text>
+
+          <!-- Stage 2 Box -->
+          <rect x="335" y="38" width="205" height="150" rx="7" fill="var(--sim-card)" stroke="${isNarrow ? 'var(--sim-ok)' : 'var(--sim-flow)'}" stroke-width="1.5"/>
+          <text x="345" y="55" fill="${isNarrow ? 'var(--sim-ok)' : 'var(--sim-flow)'}" font-size="10.5" font-weight="700" font-family="var(--cds-font-mono)">${isNarrow ? 'GHI THẲNG PARQUET (1 STAGE)' : 'STAGE 2 (WIDE GROUPBY / JOIN)'}</text>
+
+          <rect x="345" y="65" width="185" height="50" rx="5" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="353" y="81" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isNarrow ? 'Partition 1 Output' : 'Task 3 · Key country=VN'}</text>
+          <text x="353" y="98" fill="var(--sim-sub)" font-size="9.5" font-family="var(--cds-font-mono)">${isNarrow ? 'Direct In-Memory Write' : 'sum(amount) → Gold Table'}</text>
+
+          <rect x="345" y="125" width="185" height="50" rx="5" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="353" y="141" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isNarrow ? 'Partition 2 Output' : 'Task 4 · Key country=US'}</text>
+          <text x="353" y="158" fill="var(--sim-sub)" font-size="9.5" font-family="var(--cds-font-mono)">${isNarrow ? 'Direct In-Memory Write' : 'sum(amount) → Gold Table'}</text>
+
+          <!-- Animated Exchange Lines & Packets -->
+          <path d="M 245 90 L 345 90" stroke="${isNarrow ? 'var(--sim-ok)' : 'var(--sim-flow)'}" stroke-width="2"/>
+          <path d="M 245 150 L 345 150" stroke="${isNarrow ? 'var(--sim-ok)' : 'var(--sim-flow)'}" stroke-width="2"/>
+          ${!isNarrow ? `
+            <path d="M 245 90 L 345 150" stroke="var(--sim-warn)" stroke-width="1.8" stroke-dasharray="4 3"/>
+            <path d="M 245 150 L 345 90" stroke="var(--sim-warn)" stroke-width="1.8" stroke-dasharray="4 3"/>
+            <circle r="4.5" fill="var(--sim-warn)">
+              <animateMotion dur="1.7s" repeatCount="indefinite" path="M 245 90 L 345 150"/>
+            </circle>
+            <circle r="4.5" fill="var(--sim-warn)">
+              <animateMotion dur="1.7s" begin="0.6s" repeatCount="indefinite" path="M 245 150 L 345 90"/>
+            </circle>
+          ` : ''}
+          <circle r="4.5" fill="${isNarrow ? 'var(--sim-ok)' : 'var(--sim-flow)'}">
+            <animateMotion dur="1.3s" repeatCount="indefinite" path="M 245 90 L 345 90"/>
+          </circle>
+          <circle r="4.5" fill="${isNarrow ? 'var(--sim-ok)' : 'var(--sim-flow)'}">
+            <animateMotion dur="1.3s" begin="0.4s" repeatCount="indefinite" path="M 245 150 L 345 150"/>
+          </circle>
+
+          <!-- Bottom Telemetry Bar -->
+          <rect x="20" y="198" width="520" height="32" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="218" fill="var(--sim-ink)" font-size="10.5" font-weight="700" font-family="var(--cds-font-mono)">
+            Stages: ${isNarrow ? '1 Stage (Pipelined)' : (isMr ? '4 MapReduce Jobs (HDFS)' : '2 Stages (Cut at Shuffle)')}  |  Network Shuffle: ${isNarrow ? '0 GB' : (isMr ? '1,500 GB (3x HDFS)' : '42 GB (Filtered)')}  |  Thời gian: ${isNarrow ? '18 giây' : (isMr ? '38 phút' : '54 giây')}
+          </text>
+        </svg>
+      `;
+
+      status.textContent = isNarrow
+        ? "Chế độ Narrow Transformations (filter + select): Toàn bộ chuỗi xử lý nằm gọn trong 1 Stage trên RAM, 0% trao đổi mạng giữa các Executors."
+        : (isMr
+          ? "Chế độ Hadoop MapReduce cổ điển: Phải ghi kết quả trung gian xuống đĩa HDFS (nhân bản 3x) sau mỗi bước, làm thời gian vọt lên 38 phút!"
+          : "Chế độ Wide Transformation (groupBy / join): Spark gộp filter+select vào Stage 1 để giảm kích thước dữ liệu, sau đó cắt Stage tại ranh giới Shuffle để gom các khóa cùng quốc gia.");
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isNarrow ? 'infra2d-btn-emerald' : ''}" onclick="spk2dState.dagMode='narrow';renderSpark2DInteractiveStage('dag')">1. Narrow Pipeline (1 Stage · 0% Shuffle)</button>
+        <button type="button" class="infra2d-btn ${isWide ? 'infra2d-btn-cyan' : ''}" onclick="spk2dState.dagMode='wide';renderSpark2DInteractiveStage('dag')">2. Wide Transformation (2 Stages · Shuffle Cut)</button>
+        <button type="button" class="infra2d-btn ${isMr ? 'infra2d-btn-rose' : ''}" onclick="spk2dState.dagMode='mapreduce';renderSpark2DInteractiveStage('dag')">3. Đối chiếu: Hadoop MapReduce (Ghi Đĩa Lặp Lại)</button>
+      `;
+    } else if (mode === "api") {
+      const m = spk2dState.apiMode;
+      const isRdd = m === "rdd";
+      const isDf = m === "df";
+      const isLin = m === "lineage";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="27" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isLin ? 'CƠ CHẾ TỰ PHỤC HỒI LỖI QUA ĐỒ THỊ HUYẾT THỐNG (RDD / DATAFRAME LINEAGE)' : 'ĐỐI CHIẾU ĐƯỜNG ĐI VẬT LÝ: PYTHON RDD IPC VS. DATAFRAME TUNGSTEN JVM'}</text>
+
+          <!-- JVM Executor Box -->
+          <rect x="20" y="38" width="${isRdd ? '290' : '520'}" height="148" rx="7" fill="var(--sim-card)" stroke="${isRdd ? 'var(--sim-warn)' : 'var(--sim-ok)'}" stroke-width="1.5"/>
+          <text x="30" y="56" fill="${isRdd ? 'var(--sim-warn)' : 'var(--sim-ok)'}" font-size="10.5" font-weight="700" font-family="var(--cds-font-mono)">EXECUTOR JVM PROCESS (CẤP PHÁT TRÊN WORKER NODE)</text>
+
+          ${isRdd ? `
+            <rect x="32" y="68" width="120" height="102" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+            <text x="42" y="88" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">JVM Heap Objects</text>
+            <text x="42" y="106" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">1. Đọc Partition</text>
+            <text x="42" y="122" fill="var(--sim-danger)" font-size="9" font-family="var(--cds-font-mono)">2. Serialize ra Byte</text>
+            <text x="42" y="138" fill="var(--sim-danger)" font-size="9" font-family="var(--cds-font-mono)">5. Nhận lại từ Pipe</text>
+
+            <rect x="172" y="68" width="124" height="102" rx="6" fill="var(--sim-danger-soft)" stroke="var(--sim-danger)"/>
+            <text x="182" y="88" fill="var(--sim-danger)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">Socket / Pipe IPC</text>
+            <text x="182" y="108" fill="var(--sim-ink)" font-size="9" font-family="var(--cds-font-mono)">Pickle Dump / Load</text>
+            <text x="182" y="124" fill="var(--sim-ink)" font-size="9" font-family="var(--cds-font-mono)">Context Switch x2</text>
+            <text x="182" y="142" fill="var(--sim-danger)" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">NGHẼN CỔ CHAI CPU!</text>
+
+            <!-- External Python Subprocess -->
+            <rect x="335" y="38" width="205" height="148" rx="7" fill="var(--sim-danger-soft)" stroke="var(--sim-danger)" stroke-width="1.5"/>
+            <text x="345" y="56" fill="var(--sim-danger)" font-size="10.5" font-weight="700" font-family="var(--cds-font-mono)">PYTHON WORKER SUBPROCESS</text>
+            <rect x="347" y="68" width="180" height="102" rx="6" fill="var(--sim-card)" stroke="var(--sim-danger)"/>
+            <text x="357" y="90" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">rdd.map(lambda x: x * 2)</text>
+            <text x="357" y="110" fill="var(--sim-sub)" font-size="9.5" font-family="var(--cds-font-mono)">3. pickle.loads(bytes)</text>
+            <text x="357" y="126" fill="var(--sim-sub)" font-size="9.5" font-family="var(--cds-font-mono)">4. Thực thi bytecode Python</text>
+            <text x="357" y="142" fill="var(--sim-sub)" font-size="9.5" font-family="var(--cds-font-mono)">5. pickle.dumps(result)</text>
+
+            <path d="M 296 105 L 347 105" stroke="var(--sim-danger)" stroke-width="2.2"/>
+            <path d="M 347 135 L 296 135" stroke="var(--sim-danger)" stroke-width="2.2"/>
+            <circle r="4.5" fill="var(--sim-danger)"><animateMotion dur="1.1s" repeatCount="indefinite" path="M 296 105 L 347 105"/></circle>
+            <circle r="4.5" fill="var(--sim-warn)"><animateMotion dur="1.1s" begin="0.5s" repeatCount="indefinite" path="M 347 135 L 296 135"/></circle>
+          ` : (isDf ? `
+            <rect x="32" y="68" width="150" height="102" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+            <text x="42" y="88" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">1. Parquet Scan</text>
+            <text x="42" y="108" fill="var(--sim-sub)" font-size="9.5" font-family="var(--cds-font-mono)">Schema tường minh</text>
+            <text x="42" y="124" fill="var(--sim-ok)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">0% Python IPC!</text>
+
+            <rect x="205" y="68" width="155" height="102" rx="6" fill="var(--sim-ok-soft)" stroke="var(--sim-ok)"/>
+            <text x="215" y="88" fill="var(--sim-ok)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">2. Catalyst + Tungsten</text>
+            <text x="215" y="108" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">df.select(col('price')*2)</text>
+            <text x="215" y="124" fill="var(--sim-sub)" font-size="9.5" font-family="var(--cds-font-mono)">Chạy thẳng trên UnsafeRow</text>
+            <text x="215" y="140" fill="var(--sim-ok)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">Whole-Stage Java CodeGen</text>
+
+            <rect x="382" y="68" width="144" height="102" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-flow)"/>
+            <text x="392" y="88" fill="var(--sim-flow)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">3. New DataFrame</text>
+            <text x="392" y="108" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">Bất biến (Immutable)</text>
+            <text x="392" y="124" fill="var(--sim-sub)" font-size="9.5" font-family="var(--cds-font-mono)">Nhanh gấp 17 lần RDD!</text>
+
+            <path d="M 182 118 L 205 118" stroke="var(--sim-ok)" stroke-width="2.5"/>
+            <path d="M 360 118 L 382 118" stroke="var(--sim-ok)" stroke-width="2.5"/>
+            <circle r="5" fill="var(--sim-ok)"><animateMotion dur="0.9s" repeatCount="indefinite" path="M 182 118 L 382 118"/></circle>
+          ` : `
+            <!-- Lineage Graph Recovery View -->
+            <rect x="32" y="68" width="140" height="102" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+            <text x="42" y="88" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">RDD 1 (Source Block 3)</text>
+            <text x="42" y="108" fill="var(--sim-sub)" font-size="9.5" font-family="var(--cds-font-mono)">S3 / HDFS Block 3</text>
+            <text x="42" y="126" fill="var(--sim-ok)" font-size="9.5" font-family="var(--cds-font-mono)">Lineage gốc còn nguyên</text>
+
+            <rect x="202" y="68" width="150" height="102" rx="6" fill="var(--sim-danger-soft)" stroke="var(--sim-danger)"/>
+            <text x="212" y="88" fill="var(--sim-danger)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">Worker B Sập Đột Ngột!</text>
+            <text x="212" y="108" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">Mất Partition 3 trong RAM</text>
+            <text x="212" y="126" fill="var(--sim-warn)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">Tra cứu Đồ thị Lineage...</text>
+
+            <rect x="382" y="68" width="144" height="102" rx="6" fill="var(--sim-ok-soft)" stroke="var(--sim-ok)"/>
+            <text x="392" y="88" fill="var(--sim-ok)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">Worker C Tái Tạo!</text>
+            <text x="392" y="108" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">Chạy lại filter → map</text>
+            <text x="392" y="126" fill="var(--sim-ok)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">Chỉ tính lại đúng Part 3!</text>
+
+            <path d="M 172 118 L 382 118" stroke="var(--sim-ok)" stroke-width="2.5" stroke-dasharray="5 3"/>
+            <circle r="5" fill="var(--sim-ok)"><animateMotion dur="1.2s" repeatCount="indefinite" path="M 172 118 L 382 118"/></circle>
+          `)}
+
+          <rect x="20" y="198" width="520" height="32" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="218" fill="var(--sim-ink)" font-size="10.5" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isRdd ? 'Chế độ: Python RDD (lambda)  |  IPC Serialization: 200M lần  |  Thời gian chạy: 145.0 giây' : (isDf ? 'Chế độ: Spark DataFrame (Catalyst + Tungsten)  |  IPC: 0 lần  |  Thời gian chạy: 8.2 giây (Nhanh gấp 17.6x!)' : 'Chế độ: Resilient Lineage Recovery  |  Chỉ tính lại 1/200 Partition bị mất  |  0% tốn RAM nhân bản 3x')}
+          </text>
+        </svg>
+      `;
+
+      status.textContent = isRdd
+        ? "Python RDD (`rdd.map(lambda x: x*2)`): Từng bản ghi phải Serialize khỏi JVM, đẩy qua Pipe sang Python Subprocess rồi gửi ngược về, làm chậm gấp 17 lần!"
+        : (isDf
+          ? "Spark DataFrame (`df.select(col('price')*2)`): Chạy 100% bên trong JVM Executor bằng mã máy Whole-Stage CodeGen và vùng nhớ nhị phân Tungsten."
+          : "Cơ chế Resilient Lineage: Khi Worker B sập làm mất Partition 3, Spark dựa vào đồ thị Lineage để tính lại đúng Partition 3 trên Worker C trong vài giây.");
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isDf ? 'infra2d-btn-emerald' : ''}" onclick="spk2dState.apiMode='df';renderSpark2DInteractiveStage('api')">1. Spark DataFrame (100% JVM · 8.2s)</button>
+        <button type="button" class="infra2d-btn ${isRdd ? 'infra2d-btn-rose' : ''}" onclick="spk2dState.apiMode='rdd';renderSpark2DInteractiveStage('api')">2. Python RDD lambda (Nghẽn Pipe IPC · 145s)</button>
+        <button type="button" class="infra2d-btn ${isLin ? 'infra2d-btn-cyan' : ''}" onclick="spk2dState.apiMode='lineage';renderSpark2DInteractiveStage('api')">3. Sập Worker B: Phục hồi qua Lineage Graph</button>
+      `;
+    } else if (mode === "memory") {
+      const m = spk2dState.memMode;
+      const isDef = m === "mem_and_disk";
+      const isSer = m === "mem_ser";
+      const isEvict = m === "evict";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="27" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">CẮT LỚP EXECUTOR JVM HEAP (UNIFIED MEMORY MANAGER: STORAGE VS. EXECUTION)</text>
+
+          <!-- Reserved Memory -->
+          <rect x="20" y="42" width="68" height="105" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="54" y="84" text-anchor="middle" fill="var(--sim-muted)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">Reserved</text>
+          <text x="54" y="100" text-anchor="middle" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">300 MB</text>
+
+          <!-- Storage Region -->
+          <rect x="96" y="42" width="${isEvict ? '110' : '165'}" height="105" rx="6" fill="${isSer ? 'var(--sim-ok-soft)' : 'var(--sim-flow-soft)'}" stroke="${isSer ? 'var(--sim-ok)' : 'var(--sim-flow)'}" stroke-width="1.5"/>
+          <text x="106" y="62" fill="${isSer ? 'var(--sim-ok)' : 'var(--sim-flow)'}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">STORAGE MEMORY (${isEvict ? '20%' : '30%'})</text>
+          <text x="106" y="80" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isSer ? 'Kryo Byte Array (Gọn 5x)' : 'Cached DataFrame Blocks'}</text>
+          <text x="106" y="98" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">${isSer ? 'MEMORY_ONLY_SER' : 'MEMORY_AND_DISK'}</text>
+          <text x="106" y="116" fill="${isEvict ? 'var(--sim-warn)' : 'var(--sim-ok)'}" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">${isEvict ? 'Bị Execution đẩy xuống Đĩa!' : '100% Hit trong RAM'}</text>
+
+          <!-- Execution Region -->
+          <rect x="${isEvict ? '212' : '267'}" y="42" width="${isEvict ? '220' : '165'}" height="105" rx="6" fill="${isEvict ? 'var(--sim-warn-soft)' : 'var(--sim-card)'}" stroke="${isEvict ? 'var(--sim-warn)' : 'var(--sim-border)'}" stroke-width="1.5"/>
+          <text x="${isEvict ? '222' : '277'}" y="62" fill="${isEvict ? 'var(--sim-warn)' : 'var(--sim-ink)'}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">EXECUTION MEMORY (${isEvict ? '40% LẤN SANG!' : '30%'})</text>
+          <text x="${isEvict ? '222' : '277'}" y="80" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">Shuffle, Join, Sort, Agg</text>
+          <text x="${isEvict ? '222' : '277'}" y="98" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">Ưu tiên số 1 trong Unified Pool</text>
+          <text x="${isEvict ? '222' : '277'}" y="116" fill="${isEvict ? 'var(--sim-warn)' : 'var(--sim-muted)'}" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">${isEvict ? '◄══ Lấn ranh giới động!' : '◄══ Ranh giới động 50/50 ══►'}</text>
+
+          <!-- User Memory -->
+          <rect x="440" y="42" width="100" height="105" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="490" y="76" text-anchor="middle" fill="var(--sim-muted)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">User Memory</text>
+          <text x="490" y="94" text-anchor="middle" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">40% Heap</text>
+          <text x="490" y="112" text-anchor="middle" fill="var(--sim-sub)" font-size="8.5" font-family="var(--cds-font-mono)">UDF &amp; Metadata</text>
+
+          <!-- Local NVMe Spill / Disk Layer -->
+          <rect x="20" y="158" width="520" height="32" rx="6" fill="${isEvict ? 'var(--sim-warn-soft)' : 'var(--sim-card)'}" stroke="${isEvict ? 'var(--sim-warn)' : 'var(--sim-border)'}"/>
+          <text x="32" y="178" fill="${isEvict ? 'var(--sim-warn)' : 'var(--sim-sub)'}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">
+            ĐĨA NVME CỤC BỘ (LOCAL DISK SPILL STORE): ${isEvict ? 'Đang hứng các khối Cache bị Execution Memory đuổi xuống đĩa (Không mất dữ liệu!)' : '0 MB Spilled (Toàn bộ Partitions nằm vừa khít trong RAM)'}
+          </text>
+
+          <rect x="20" y="198" width="520" height="32" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="218" fill="var(--sim-ink)" font-size="10.5" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isDef ? 'Chế độ: DataFrame.cache() (MEMORY_AND_DISK)  |  Đọc lại: 1.2s từ RAM' : (isSer ? 'Chế độ: persist(MEMORY_ONLY_SER) + Kryo  |  Dung lượng RAM giảm 72%!' : 'Chế độ: Dynamic Eviction  |  Execution lấn sang Storage, đẩy khối Cache tràn xuống Đĩa')}
+          </text>
+        </svg>
+      `;
+
+      status.textContent = isDef
+        ? "Chế độ DataFrame.cache() (mặc định là MEMORY_AND_DISK): Lưu dữ liệu đã tính trong RAM để Action 1, 2, 3 tái sử dụng tức thì."
+        : (isSer
+          ? "Chế độ MEMORY_ONLY_SER + KryoSerializer: Đóng gói mỗi Partition thành 1 mảng byte tuần tự hóa nhỏ gọn, tiết kiệm tới 72% bộ nhớ RAM!"
+          : "Quy tắc Dynamic Eviction: Khi phép Sort-Merge Join cần thêm Execution Memory, nó tự động dịch chuyển vách ngăn sang trái và đẩy bớt khối Storage xuống đĩa NVMe.");
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isDef ? 'infra2d-btn-cyan' : ''}" onclick="spk2dState.memMode='mem_and_disk';renderSpark2DInteractiveStage('memory')">1. DataFrame.cache() (MEMORY_AND_DISK)</button>
+        <button type="button" class="infra2d-btn ${isSer ? 'infra2d-btn-emerald' : ''}" onclick="spk2dState.memMode='mem_ser';renderSpark2DInteractiveStage('memory')">2. persist(MEMORY_ONLY_SER) + Kryo</button>
+        <button type="button" class="infra2d-btn ${isEvict ? 'infra2d-btn-amber' : ''}" onclick="spk2dState.memMode='evict';renderSpark2DInteractiveStage('memory')">3. Bơm Tải Join: Execution Đuổi Storage Ra Đĩa</button>
+      `;
+    } else if (mode === "optimizer") {
+      const m = spk2dState.optMode;
+      const isUnopt = m === "unopt";
+      const isCat = m === "catalyst";
+      const isFull = m === "tungsten_aqe";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="27" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isUnopt ? 'KẾ HOẠCH THÔ CHƯA TỐI ƯU (JOIN TOÀN BỘ 2 BẢNG LỚN RỒI MỚI FILTER)' : 'BỘ BA TỐI ƯU HÓA NỘI SINH: CATALYST PUSHDOWN + TUNGSTEN + AQE'}</text>
+
+          <!-- Step 1: Scan & Pushdown -->
+          <rect x="20" y="42" width="160" height="142" rx="7" fill="var(--sim-card)" stroke="${isUnopt ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.5"/>
+          <text x="30" y="60" fill="${isUnopt ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">1. CATALYST PLANNER</text>
+          <text x="30" y="80" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isUnopt ? '• Đọc SELECT * (1000 cột)' : '• Column Pruning: 2 cột'}</text>
+          <text x="30" y="98" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isUnopt ? '• Tính 1+2 trên từng dòng' : '• Constant Fold: 50*1000'}</text>
+          <text x="30" y="116" fill="${isUnopt ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isUnopt ? '• Join xong mới lọc t2!' : '• Pushdown: Lọc t2 trước!'}</text>
+          <text x="30" y="136" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">${isUnopt ? 'Bảng t2 giữ nguyên 80 GB' : 'Bảng t2 giảm còn 8 MB!'}</text>
+
+          <!-- Step 2: Project Tungsten -->
+          <rect x="198" y="42" width="164" height="142" rx="7" fill="var(--sim-card)" stroke="${isFull ? 'var(--sim-ok)' : 'var(--sim-border)'}" stroke-width="1.5"/>
+          <text x="208" y="60" fill="${isFull ? 'var(--sim-ok)' : 'var(--sim-sub)'}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">2. PROJECT TUNGSTEN</text>
+          <text x="208" y="80" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isFull ? '• Off-Heap UnsafeRow (0 GC)' : '• JVM Heap Objects'}</text>
+          <text x="208" y="98" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isFull ? '• L1/L2 Cache-Aware (~1ns)' : '• Random RAM Access (~100ns)'}</text>
+          <text x="208" y="116" fill="${isFull ? 'var(--sim-ok)' : 'var(--sim-sub)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isFull ? '• Whole-Stage CodeGen' : '• Volcano Virtual Calls'}</text>
+          <text x="208" y="136" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">${isFull ? 'Gộp 4 toán tử vào 1 vòng for' : 'Gọi hàm ảo qua từng bước'}</text>
+
+          <!-- Step 3: Adaptive Query Execution -->
+          <rect x="380" y="42" width="160" height="142" rx="7" fill="var(--sim-card)" stroke="${isFull ? 'var(--sim-flow)' : 'var(--sim-border)'}" stroke-width="1.5"/>
+          <text x="390" y="60" fill="${isFull ? 'var(--sim-flow)' : 'var(--sim-sub)'}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">3. AQE RUNTIME</text>
+          <text x="390" y="80" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isFull ? '• Thấy t2 = 8MB (< 10MB)' : '• Giữ cứng Sort-Merge Join'}</text>
+          <text x="390" y="98" fill="${isFull ? 'var(--sim-flow)' : 'var(--sim-sub)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isFull ? '• Đổi sang Broadcast Join!' : '• Phải Shuffle cả 500GB'}</text>
+          <text x="390" y="116" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isFull ? '• Gộp 200 Partitions -> 16' : '• Giữ 200 Partitions nhỏ'}</text>
+          <text x="390" y="136" fill="var(--sim-ok)" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">${isFull ? '• Tự chẻ Skewed Partition' : '• Không tự sửa lúc chạy'}</text>
+
+          <path d="M 180 112 L 198 112" stroke="var(--sim-flow)" stroke-width="2.2"/>
+          <path d="M 362 112 L 380 112" stroke="var(--sim-flow)" stroke-width="2.2"/>
+          <circle r="4.5" fill="${isUnopt ? 'var(--sim-danger)' : 'var(--sim-ok)'}"><animateMotion dur="1.2s" repeatCount="indefinite" path="M 180 112 L 380 112"/></circle>
+
+          <rect x="20" y="198" width="520" height="32" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="218" fill="var(--sim-ink)" font-size="10.5" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isUnopt ? 'Kế hoạch Thô: Shuffle 580 GB  |  Truy cập RAM ~100ns  |  Thời gian: 42 phút' : (isCat ? 'Bật Catalyst Pushdown: Lọc t2 còn 8 MB trước Join  |  Thời gian giảm còn: 6.5 phút' : 'Full Catalyst + Tungsten (~1ns L1) + AQE Broadcast: 0 GB Shuffle t1  |  Thời gian: 1.8 phút!')}
+          </text>
+        </svg>
+      `;
+
+      status.textContent = isUnopt
+        ? "Kế hoạch chưa tối ưu (Slide 66): Nạp toàn bộ bảng t1 và t2 vào Join trước rồi mới kiểm tra điều kiện t2.id > 50*1000, gây bùng nổ Shuffle!"
+        : (isCat
+          ? "Catalyst Optimizer (Slide 67): Tự động tính hằng số 50*1000=50000 và đẩy Filter xuống dưới phép Join (Predicate Pushdown), loại bỏ 99% dòng rác của t2."
+          : "Bật trọn bộ Catalyst + Project Tungsten (Off-Heap, L1 Cache ~1ns, Whole-Stage CodeGen) + AQE: Tự động đổi sang Broadcast Join ngay lúc chạy!");
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isUnopt ? 'infra2d-btn-rose' : ''}" onclick="spk2dState.optMode='unopt';renderSpark2DInteractiveStage('optimizer')">1. Kế hoạch Thô (Join Trước, Filter Sau · 42p)</button>
+        <button type="button" class="infra2d-btn ${isCat ? 'infra2d-btn-cyan' : ''}" onclick="spk2dState.optMode='catalyst';renderSpark2DInteractiveStage('optimizer')">2. Catalyst (Predicate Pushdown · 6.5p)</button>
+        <button type="button" class="infra2d-btn ${isFull ? 'infra2d-btn-emerald' : ''}" onclick="spk2dState.optMode='tungsten_aqe';renderSpark2DInteractiveStage('optimizer')">3. Catalyst + Tungsten (~1ns) + AQE (1.8p)</button>
+      `;
+    } else if (mode === "skew") {
+      const m = spk2dState.skewMode;
+      const isSkew = m === "skewed";
+      const isSalt = m === "salted";
+      const isBhj = m === "broadcast";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="27" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isSkew ? 'THẢM HỌA DATA SKEW: KHÓA VIP123 (700M DÒNG) DỒN VÀO PARTITION 1 (199/200 TASKS TREO!)' : (isSalt ? 'GIẢI CỨU BẰNG KEY SALTING: TÁCH VIP123 THÀNH VIP123_1, VIP123_2, VIP123_3 CHIA ĐỀU 3 EXECUTORS' : 'BROADCAST HASH JOIN: PHÁT SÓNG BẢNG NHỎ 15MB TỚI MỌI EXECUTOR (0% SHUFFLE BẢNG LỚN)')}</text>
+
+          <!-- Left Source Key Box -->
+          <rect x="20" y="45" width="145" height="135" rx="7" fill="var(--sim-card)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="30" y="65" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">Dữ Liệu Đầu Vào</text>
+          <text x="30" y="85" fill="${isSkew ? 'var(--sim-danger)' : 'var(--sim-flow)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">Key: VIP123 (US)</text>
+          <text x="30" y="102" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">700M dòng (85%)</text>
+          <text x="30" y="124" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">${isSkew ? 'hash("VIP123") % 3 = 0' : (isSalt ? 'concat(key, "_", 1..3)' : 'broadcast(dim_15MB)')}</text>
+          <text x="30" y="144" fill="var(--sim-ok)" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">${isSkew ? '1 Partition gánh hết!' : 'Chia đều 3 luồng!'}</text>
+
+          <!-- 3 Target Partitions / Executors -->
+          <rect x="235" y="40" width="305" height="44" rx="6" fill="${isSkew ? 'var(--sim-danger-soft)' : 'var(--sim-ok-soft)'}" stroke="${isSkew ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.5"/>
+          <text x="245" y="58" fill="${isSkew ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">Executor 1 · Partition 1: ${isSkew ? 'VIP123 (700M rows — SPILL & TREO!)' : (isSalt ? 'VIP123_1 (240M rows — OK)' : 'Local Hash Join (240M rows — 0 Shuffle)')}</text>
+          <rect x="245" y="66" width="${isSkew ? '285' : '110'}" height="10" rx="3" fill="${isSkew ? 'var(--sim-danger)' : 'var(--sim-ok)'}"/>
+
+          <rect x="235" y="92" width="305" height="44" rx="6" fill="var(--sim-card)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="245" y="110" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">Executor 2 · Partition 2: ${isSkew ? 'VN (10M rows — Xong sau 15s, ngồi chờ)' : (isSalt ? 'VIP123_2 + VN (243M rows — OK)' : 'Local Hash Join (243M rows — 0 Shuffle)')}</text>
+          <rect x="245" y="118" width="${isSkew ? '18' : '112'}" height="10" rx="3" fill="var(--sim-flow)"/>
+
+          <rect x="235" y="144" width="305" height="44" rx="6" fill="var(--sim-card)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="245" y="162" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">Executor 3 · Partition 3: ${isSkew ? 'SG/JP (20M rows — Xong sau 18s, ngồi chờ)' : (isSalt ? 'VIP123_3 + SG (247M rows — OK)' : 'Local Hash Join (247M rows — 0 Shuffle)')}</text>
+          <rect x="245" y="170" width="${isSkew ? '24' : '115'}" height="10" rx="3" fill="var(--sim-flow)"/>
+
+          <!-- Routing paths -->
+          <path d="M 165 95 L 235 62" stroke="${isSkew ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="${isSkew ? '3.5' : '2'}"/>
+          <path d="M 165 112 L 235 114" stroke="var(--sim-flow)" stroke-width="2"/>
+          <path d="M 165 130 L 235 166" stroke="var(--sim-flow)" stroke-width="2"/>
+
+          <circle r="5" fill="${isSkew ? 'var(--sim-danger)' : 'var(--sim-ok)'}"><animateMotion dur="1.0s" repeatCount="indefinite" path="M 165 95 L 235 62"/></circle>
+          ${!isSkew ? `
+            <circle r="5" fill="var(--sim-flow)"><animateMotion dur="1.0s" begin="0.3s" repeatCount="indefinite" path="M 165 112 L 235 114"/></circle>
+            <circle r="5" fill="var(--sim-flow)"><animateMotion dur="1.0s" begin="0.6s" repeatCount="indefinite" path="M 165 130 L 235 166"/></circle>
+          ` : ''}
+
+          <rect x="20" y="198" width="520" height="32" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="218" fill="var(--sim-ink)" font-size="10.5" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isSkew ? 'Trạng thái: 199/200 Tasks (Straggler!)  |  Disk Spill: 142 GB  |  Thời gian Stage: 45 phút' : (isSalt ? 'Sau khi Key Salting (VIP123_1..3): 200/200 Tasks đều nhau  |  Spill: 0 GB  |  Thời gian: 3.2 phút!' : 'Broadcast Hash Join: Phát sóng bảng nhỏ 15MB, 0 GB Shuffle bảng Fact  |  Thời gian: 52 giây!')}
+          </text>
+        </svg>
+      `;
+
+      status.textContent = isSkew
+        ? "Data Skew (Slide 58): Partition 1 chứa 700M dòng (US / VIP123) trong khi các Partition khác chỉ có 8M–12M dòng. Cả Stage bị cầm tù bởi đúng 1 Task chậm nhất!"
+        : (isSalt
+          ? "Key Salting (Slides 79–80): Gắn muối ngẫu nhiên biến khóa VIP123 thành VIP123_1, VIP123_2, VIP123_3 giúp chia đều 700M dòng ra tất cả Executors."
+          : "Broadcast Hash Join: Khi kết nối bảng Fact lớn với bảng Dimension nhỏ, dùng broadcast() để gửi bảng nhỏ tới mọi Executor và xóa bỏ hoàn toàn Shuffle!");
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isSkew ? 'infra2d-btn-rose' : ''}" onclick="spk2dState.skewMode='skewed';renderSpark2DInteractiveStage('skew')">1. Chưa Rắc Muối: Data Skew (700M vs 10M · Treo 199/200)</button>
+        <button type="button" class="infra2d-btn ${isSalt ? 'infra2d-btn-emerald' : ''}" onclick="spk2dState.skewMode='salted';renderSpark2DInteractiveStage('skew')">2. Bật Key Salting (VIP123_1..3 · Cân Bằng Tải)</button>
+        <button type="button" class="infra2d-btn ${isBhj ? 'infra2d-btn-cyan' : ''}" onclick="spk2dState.skewMode='broadcast';renderSpark2DInteractiveStage('skew')">3. Bật Broadcast Hash Join (0% Shuffle)</button>
+      `;
+    } else if (mode === "ops") {
+      const m = spk2dState.opsMode;
+      const isBad = m === "static_small";
+      const isDyn = m === "dyn_alloc";
+      const isComp = m === "compaction";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="27" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isBad ? 'VẬN HÀNH THÔ: LÃNG PHÍ 15 EXECUTORS TĨNH & ĐẺ RA 1.000.000 TỆP NHỎ (1MB)' : (isDyn ? 'DYNAMIC ALLOCATION (SLIDE 87): TỰ ĐỘNG CO GIÃN 2 → 10 → 1 EXECUTORS THEO TẢI' : 'DATA COMPACTION (SLIDE 88): GỘP 20.000 FILE NHỎ → 200 FILE PARQUET CHUẨN 256MB')}</text>
+
+          <!-- Left Box: Executor Cluster Allocation -->
+          <rect x="20" y="42" width="250" height="142" rx="7" fill="var(--sim-card)" stroke="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.5"/>
+          <text x="30" y="60" fill="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">1. QUẢN LÝ EXECUTOR CLUSTER</text>
+          <text x="30" y="80" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isBad ? '• Cấp phát tĩnh: 20 Executors' : '• Start: 2 Executors'}</text>
+          <text x="30" y="98" fill="${isBad ? 'var(--sim-danger)' : 'var(--sim-flow)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isBad ? '• Tải thực tế chỉ cần: 5 Executors' : '• Backlog > 1s → Scale Up: 10 Exec'}</text>
+          <text x="30" y="116" fill="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isBad ? '• 15 Executors ngồi chơi (Phí 75%!)' : '• Idle > 60s → Scale Down: 1 Exec'}</text>
+          <text x="30" y="138" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">spark.dynamicAllocation.enabled=true</text>
+
+          <!-- Right Box: Storage File Layout -->
+          <rect x="290" y="42" width="250" height="142" rx="7" fill="var(--sim-card)" stroke="${isComp ? 'var(--sim-ok)' : (isBad ? 'var(--sim-danger)' : 'var(--sim-flow)')}" stroke-width="1.5"/>
+          <text x="300" y="60" fill="${isComp ? 'var(--sim-ok)' : (isBad ? 'var(--sim-danger)' : 'var(--sim-flow)')}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">2. DATA COMPACTION (S3 / LAKEHOUSE)</text>
+          <text x="300" y="80" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isBad ? '• 1 TB = 1.000.000 file nhỏ (~1MB)' : '• Gộp 20.000 file nhỏ → 200 file lớn'}</text>
+          <text x="300" y="98" fill="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isBad ? '• 1.000.000 lần mở/đọc file gây treo!' : '• Kích thước chuẩn: ~256MB / file'}</text>
+          <text x="300" y="116" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isBad ? '• Metadata S3/NameNode quá tải' : '• Công cụ: coalesce(200) / OPTIMIZE'}</text>
+          <text x="300" y="138" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">Tổng dung lượng 1 TB không đổi, đọc nhanh 20x!</text>
+
+          <path d="M 270 112 L 290 112" stroke="var(--sim-ok)" stroke-width="2.5"/>
+          <circle r="4.5" fill="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}"><animateMotion dur="1.1s" repeatCount="indefinite" path="M 270 112 L 290 112"/></circle>
+
+          <rect x="20" y="198" width="520" height="32" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="218" fill="var(--sim-ink)" font-size="10.5" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isBad ? 'Chưa tối ưu vận hành: Lãng phí 15 Executors  |  1.000.000 Small Files  |  Query BI mất 18 phút' : (isDyn ? 'Dynamic Allocation: Co giãn 2 → 10 → 1 Executors  |  Tiết kiệm 68% chi phí cụm Cloud' : 'Data Compaction (coalesce / OPTIMIZE): 200 file Parquet chuẩn  |  Query BI giảm xuống 12 giây!')}
+          </text>
+        </svg>
+      `;
+
+      status.textContent = isBad
+        ? "Chưa tối ưu vận hành (Slides 87–88): Cấp phát cứng 20 Executors gây lãng phí 15 máy nhàn rỗi, đồng thời ghi ra 1.000.000 file nhỏ làm sập tốc độ đọc hạ nguồn."
+        : (isDyn
+          ? "Dynamic Allocation (Slide 87): Tự động tăng từ 2 lên 10 Executors khi hàng đợi chờ > 1s (schedulerBacklogTimeout) và thu về 1 Executor khi rảnh > 60s."
+          : "Data Compaction (Slide 88): Dùng df.coalesce(200) hoặc lệnh OPTIMIZE trên Delta/Iceberg để gộp 20.000 file nhỏ thành 200 file lớn chuẩn 256MB–512MB.");
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isBad ? 'infra2d-btn-rose' : ''}" onclick="spk2dState.opsMode='static_small';renderSpark2DInteractiveStage('ops')">1. Chưa Tối Ưu: 15 Exec Thừa + 1.000.000 Small Files</button>
+        <button type="button" class="infra2d-btn ${isDyn ? 'infra2d-btn-cyan' : ''}" onclick="spk2dState.opsMode='dyn_alloc';renderSpark2DInteractiveStage('ops')">2. Bật Dynamic Allocation (2 → 10 → 1 Executors)</button>
+        <button type="button" class="infra2d-btn ${isComp ? 'infra2d-btn-emerald' : ''}" onclick="spk2dState.opsMode='compaction';renderSpark2DInteractiveStage('ops')">3. Chạy Data Compaction (coalesce(200) / OPTIMIZE)</button>
+      `;
+    }
+  }
+
+  /* ==========================================================================
+     CLAUDE ACADEMY CDS 2D INTERACTIVE SIMULATOR FOR D05 (CONSUMPTION LAYER)
+     ========================================================================== */
+  const CNS2D_SLIDES = [
+    {
+      id: 1,
+      chapter: "Chặng 1 · DWH, ETL & ER 1NF→3NF",
+      title: "Giải Phẫu Đường Ống ETL Qua Vùng Đệm Staging & Chuẩn Hóa Bảng Order_Detail (1NF → 2NF → 3NF)",
+      analogy: "Lát Cắt 1: ER Modeling & 3NF Joins",
+      leadTitle: "Tại sao chuẩn hóa 3NF tối ưu tuyệt đối cho OLTP nhưng lại trở thành nút thắt khi chạy báo cáo BI?",
+      leadStory: "Khi đơn hàng #8888 (Order 1001, khách hàng C01 Anna mua P01 Keyboard $50 và P02 Mouse $20) nằm trên một bảng phẳng Order_Detail, mọi thao tác sửa SĐT của Anna hoặc xóa đơn hàng đều gây dị thường dữ liệu. Chuẩn hóa 1NF → 2NF → 3NF tách thành 4 bảng độc lập giúp ghi OLTP cực nhanh, nhưng buộc truy vấn OLAP phải thực hiện chuỗi Hash Join 4 bảng!",
+      keypoints: [
+        { b: "1NF", t: "Chuẩn 1NF (Atomic Values — Không Lặp Cột/ Đa Giá Trị)", d: "Loại bỏ các cột lặp Phone1, Phone2, Phone3 và ô gộp 'P01, P02' bằng cách tách mỗi mặt hàng trong đơn #1001 thành một dòng nguyên tử riêng biệt." },
+        { b: "2NF", t: "Chuẩn 2NF (Xóa Phụ Thuộc Bộ Phận Trên Khóa Ghép)", d: "Trên khóa chính ghép (OrderID, ProductID), thuộc tính CustomerName = 'Anna' chỉ phụ thuộc vào OrderID nên phải tách riêng ra bảng Orders." },
+        { b: "3NF", t: "Chuẩn 3NF (Xóa Phụ Thuộc Bắc Cầu) & Cái Giá Phải Trả", d: "Tách tiếp OrderID → CustomerID → CustomerPhone thành 4 bảng (Customers, Products, Orders, OrderItems). Ghi cực nhanh nhưng đọc báo cáo tốn 3 phép Join lớn!" }
+      ],
+      verdict: "Quy tắc kiến trúc: Dùng chuẩn hóa 3NF cho cơ sở dữ liệu giao dịch đầu nguồn (OLTP) và chuyển sang Dimensional Modeling (Star Schema) tại tầng Consumption cho BI.",
+      simMode: "er_norm"
+    },
+    {
+      id: 2,
+      chapter: "Chặng 2 · Kimball Star Schema",
+      title: "Dimensional Modeling (Kimball): Star Schema 1-Hop vs. Snowflake 4-Hop & Bẫy Cộng Nhầm Semi-Additive",
+      analogy: "Lát Cắt 2: Fact, Dim & Measures",
+      leadTitle: "Làm sao thiết kế bảng Fact/Dimension để BI quét 1 tỷ dòng trong vài trăm mili-giây mà không cộng sai số liệu?",
+      leadStory: "Ralph Kimball đặt bảng factSales ở trung tâm (Grain = 1 dòng / mặt hàng trong đơn #8888) nối trực tiếp 1-hop tới dimDate (DateKey = 20260501), dimCustomer, dimProduct và dimTerritory. Tuy nhiên, nếu dùng hàm SUM() trên cột tồn kho (InventoryLevel: 100, 80, 120), báo cáo sẽ cộng dồn thành 300 sản phẩm ảo!",
+      keypoints: [
+        { b: "1-HOP", t: "Star Schema vs. Snowflake Schema (DIM_CITY → STATE → COUNTRY)", d: "Star Schema giữ bảng chiều phẳng (phi chuẩn hóa) để chỉ tốn 1 bước Join từ Fact; Snowflake chuẩn hóa chiều thành chuỗi 3–4 bảng con làm chậm tốc độ đọc OLAP." },
+        { b: "DATE", t: "Role-Playing Dimension Trên Bảng dimDate (20260501)", d: "Ba khóa ngoại OrderDateKey, ShipDateKey, PaymentDateKey trong factSales cùng tham chiếu về 1 bảng vật lý dimDate duy nhất qua các bí danh (Aliases)." },
+        { b: "SEMI", t: "Phân Biệt Additive (SalesAmount) vs. Semi-Additive (InventoryLevel)", d: "Doanh thu (500 + 700 = 1200) cộng được trên mọi chiều; nhưng Tồn kho (100, 80, 120) CẤM cộng theo chiều thời gian (SUM = 300 sai!), phải lấy AVG = 100 hoặc LAST_VALUE = 120." }
+      ],
+      verdict: "Luôn tuyên bố độ mịn (Declare the Grain) trước khi chọn Dimensions và Facts, đồng thời khóa chặt quy tắc tổng hợp AVG/LAST_VALUE cho các chỉ số Semi-Additive.",
+      simMode: "star_semi"
+    },
+    {
+      id: 3,
+      chapter: "Chặng 3 · SCD Type 0–6",
+      title: "Slowly Changing Dimensions (SCD Type 0, 1, 2, 3, 4, 6): Bảo Toàn Lịch Sử Khi Peter Pan (#123456) Đổi Tiền Tệ",
+      analogy: "Lát Cắt 3: Time-Variant Dimensions",
+      leadTitle: "Khi khách hàng Peter Pan (#123456) chuyển từ Anh sang Mỹ (GBP → USD) ngày 26/09/2025, báo cáo doanh thu cũ có bị sai lệch?",
+      leadStory: "Nếu bạn dùng lệnh UPDATE ghi đè GBP thành USD (SCD Type 1), toàn bộ các đơn hàng của Peter Pan trước ngày 26/09/2025 lập tức bị quy đổi nhầm sang USD! Để bảo toàn lịch sử (As-Was), SCD Type 2 sinh thêm một dòng mới với Surrogate Key = 2 và đóng khung hiệu lực dòng cũ (01/09/2025 → 25/09/2025).",
+      keypoints: [
+        { b: "T1", t: "SCD Type 1 (Overwrite — Xóa Sạch Lịch Sử)", d: "Ghi đè trực tiếp Currency = 'USD' lên dòng 123456. Chỉ dùng khi sửa lỗi chính tả hoặc khi nghiệp vụ tuyệt đối không cần truy vết quá khứ." },
+        { b: "T2", t: "SCD Type 2 (Add New Row + Surrogate Key — Chuẩn Vàng DWH)", d: "Giữ dòng cũ (SK=1, GBP, 01/09→25/09, Flag=1) và chèn dòng mới (SK=2, USD, 26/09→9999, Flag=0). Bảng factSales neo vào Surrogate Key (SK) thay vì Natural Key." },
+        { b: "T6", t: "SCD Type 6 (Hybrid 1 + 2 + 3 = 6) & Type 4 (History Table)", d: "SCD Type 6 kết hợp Row Versioning (Type 2), ghi đè cột Current_Currency = 'USD' trên mọi dòng (Type 1) và lưu Previous_Currency = 'GBP' (Type 3) để truy vấn cả As-Was lẫn As-Is!" }
+      ],
+      verdict: "SCD Type 2 kết hợp Surrogate Key là tiêu chuẩn bắt buộc cho các chiều khách hàng/sản phẩm cần kiểm toán lịch sử; dùng SCD Type 4 khi bảng chiều đổi liên tục làm phình kích thước.",
+      simMode: "scd"
+    },
+    {
+      id: 4,
+      chapter: "Chặng 3 · Data Vault & Medallion",
+      title: "Data Vault (Hub, Link, Satellite) & Sự Hội Tụ Giữa Inmon (Top-Down) và Kimball (Bottom-Up) Trên Medallion",
+      analogy: "Lát Cắt 4: Enterprise Architecture",
+      leadTitle: "Làm sao tích hợp 20 hệ thống ERP/CRM liên tục đổi lược đồ mà không phải đập đi xây lại kho dữ liệu mỗi tuần?",
+      leadStory: "Khi doanh nghiệp mở rộng, Dimensional Modeling ở tầng đầu vào dễ bị vỡ trước Schema Drift. Kiến trúc Medallion hiện đại giải quyết triệt để cuộc chiến 30 năm giữa Inmon và Kimball: nạp thô vào Bronze (raw_), chuẩn hóa/Data Vault tại Silver (hub_, lnk_, sat_), và xuất bản Star Schema tại Gold (fact_, dim_)!",
+      keypoints: [
+        { b: "HUB", t: "Hub (Business Keys — WHAT) & Link (Relationships — HOW)", d: "HUB_CUSTOMER, HUB_ORDER, HUB_PRODUCT chỉ lưu khóa nghiệp vụ bất biến và LOAD_DATE; LINK_ORDER_CUSTOMER lưu sự kiện kết nối mà không chứa thuộc tính mô tả." },
+        { b: "SAT", t: "Satellite (Attributes + History — CONTEXT)", d: "SAT_CUSTOMER, SAT_ORDER, SAT_PRODUCT lưu toàn bộ thuộc tính và lịch sử theo dạng chỉ ghi nối đuôi (Insert-Only). Nguồn thêm cột mới chỉ cần gắn thêm 1 bảng SAT_ mới!" },
+        { b: "MED", t: "Quy Ước Đặt Tên Chuẩn Medallion (Bronze → Silver → Gold)", d: "Bronze: bronze_crm_orders (None) → Silver: hub_customer / sat_customer_details (3NF / Data Vault) → Gold: fact_sales / dim_customer / mart_finance (Star Schema / OBT)." }
+      ],
+      verdict: "Kết hợp Data Vault / 3NF ở tầng Silver (tư duy Inmon: Single Source of Truth) với Star Schema ở tầng Gold (tư duy Kimball: Tốc độ BI) là kiến trúc tham chiếu chuẩn mực nhất hiện nay.",
+      simMode: "vault_medallion"
+    },
+    {
+      id: 5,
+      chapter: "Chặng 4 · OLAP, ClickHouse & Pinot",
+      title: "Cơ Học Động Cơ OLAP: Thực Thi Vector Hóa SIMD, ClickHouse MergeTree (8.192 Granule) & Apache Pinot Hybrid Table",
+      analogy: "Lát Cắt 5: Sub-Second Analytics",
+      leadTitle: "Tại sao ClickHouse và Apache Pinot quét hàng tỷ giao dịch trong vài chục mili-giây trong khi PostgreSQL mất hàng chục phút?",
+      leadStory: "Thay vì đọc cả dòng và cộng từng cặp số mất 4 chu kỳ lệnh CPU, động cơ OLAP chỉ đọc đúng tệp cột cần thiết và nạp 4–16 giá trị vào thanh ghi SIMD (AVX2/AVX-512) để cộng đồng thời trong 1 chu kỳ lệnh duy nhất! ClickHouse tối ưu cho SQL phức tạp, còn Apache Pinot gánh hàng chục nghìn QPS từ Kafka + S3.",
+      keypoints: [
+        { b: "SIMD", t: "Columnar Storage + Vectorized Execution (1 Instruction = 4 Phép Cộng)", d: "Cắt bỏ 90% I/O cột thừa và dùng tập lệnh SIMD CPU cộng cả mảng vector [1, 2, 3, 4] + [5, 6, 7, 8] = [6, 8, 10, 12] chỉ trong 1 chu kỳ lệnh." },
+        { b: "CH", t: "ClickHouse: Sparse Index (8.192 Granule) + S3 + Keeper", d: "Chia dữ liệu đã sắp xếp thành các Granule 8.192 dòng để chỉ mục thưa nằm gọn trong RAM; gộp các Data Part bất biến ở nền và đồng bộ Metadata qua ClickHouse Keeper." },
+        { b: "PINOT", t: "Apache Pinot Hybrid Table (Real-time Kafka + Offline S3 Segments)", d: "Pinot Broker tự động cắt truy vấn tại mốc Time Boundary: đọc lịch sử đã làm sạch từ Offline Segments (S3) và đọc dữ liệu tươi từng giây từ Real-time Segments (Kafka)." }
+      ],
+      verdict: "Chọn ClickHouse cho báo cáo nội bộ, Log/Trace Analytics và SQL phức tạp; chọn Apache Pinot cho ứng dụng phân tích hướng người dùng cuối (User-Facing Analytics) cần độ trễ vài mili-giây.",
+      simMode: "olap_simd"
+    },
+    {
+      id: 6,
+      chapter: "Chặng 5 · Feature Store & Feast",
+      title: "Feast Feature Store Thực Chiến: Xóa Sổ Training-Serving Skew (45.73 vs. 46) & Suy Luận < 10ms Cho Giao Dịch txn_9f3a21c8",
+      analogy: "Lát Cắt 6: ML Consumption Layer",
+      leadTitle: "Tại sao mô hình phát hiện gian lận đạt F1 = 0.98 khi huấn luyện nhưng lại chấm điểm sai bét khi chạy thật trên Production?",
+      leadStory: "Khi giao dịch nghi vấn txn_9f3a21c8 ($1,250.00 của user_48291 lúc 14:32:10Z) chạm cổng thanh toán, đội Data Science từng tính avg_tx_30d bằng SQL ra 45.73 (thay NULL=0, làm tròn 2 chữ số), nhưng đội Backend viết lại bằng Python lúc chạy thật lại ra 46! Feast xóa sổ hoàn toàn độ lệch này bằng 1 định nghĩa duy nhất cho cả Offline lẫn Online Store.",
+      keypoints: [
+        { b: "SKEW", t: "Chặn Đứng Training-Serving Skew (45.73 vs. 46) & Duplicated Effort", d: "Một FeatureView duy nhất trong Feast cung cấp dữ liệu cho cả Fraud Detection lẫn Credit Limit, chấm dứt cảnh 2 đội tính ra 2 con số khác nhau (45.73 vs. 47.10)." },
+        { b: "PIT", t: "Point-in-Time ASOF Join (get_historical_features — Chống Data Leakage)", d: "Khi tạo tập huấn luyện cho sự kiện lúc 14:32:10Z, Feast chỉ nối với bản ghi đặc trưng lúc <= 14:32:10Z (45.73), tuyệt đối không nhìn trộm giá trị lúc 16:00 (390.00)!" },
+        { b: "1.8ms", t: "Materialize-Incremental & Redis Online Store (< 10ms SLA)", d: "Lệnh feast materialize-incremental đẩy giá trị mới nhất 45.73 sang Redis; hàm get_online_features() trả kết quả trong 1.8ms để chặn đứng giao dịch lừa đảo $1,250!" }
+      ],
+      verdict: "Feature Store (Feast) là mảnh ghép khép kín tầng Consumption cho AI/ML: Offline Store (Parquet/BigQuery) giữ lịch sử sâu để huấn luyện chuẩn Point-in-Time, còn Online Store (Redis) giữ giá trị mới nhất để suy luận dưới 10ms.",
+      simMode: "feast"
+    }
+  ];
+
+  let cns2dCurrentSlide = 0;
+  const cns2dState = {
+    erMode: "3nf",
+    starMode: "star",
+    scdMode: "type2",
+    vaultMode: "medallion",
+    olapMode: "simd",
+    feastMode: "online"
+  };
+
+  function buildConsumption2DSimulatorHtml() {
+    return `
+      <div class="infra2d-wrap" id="cns2dWidgetRoot">
+        <div class="infra2d-header">
+          <div class="infra2d-brand">
+            <div class="infra2d-brand-icon">2D</div>
+            <div>
+              <div class="infra2d-brand-badges">
+                <span class="infra2d-tag">Cắt Lớp Kiến Trúc &amp; Luồng Phục Vụ 2D</span>
+                <span class="infra2d-chapter" id="cns2dChapterBadge">Chặng 1 · DWH, ETL &amp; ER 1NF→3NF</span>
+              </div>
+              <h4 class="infra2d-title-bar">Phòng Thí Nghiệm Tương Tác D05: Hành Trình Đơn Hàng #8888 &amp; Giao Dịch txn_9f3a21c8 Qua DWH, OLAP &amp; Feast</h4>
+            </div>
+          </div>
+          <div class="infra2d-dots" id="cns2dDots"></div>
+          <button type="button" class="infra2d-btn" onclick="toggleConsumption2DSummaryModal()">Bảng Tóm Tắt Thông Số</button>
+        </div>
+
+        <div id="cns2dSummaryDrawer" style="display:none;padding:14px 16px;background:var(--sim-canvas);border-bottom:1px solid var(--sim-border);">
+          <div style="padding:10px 12px;border-radius:8px;background:var(--sim-flow-soft);border:1px solid color-mix(in oklab, var(--sim-flow) 35%, transparent);font-size:12.5px;color:var(--sim-flow);margin-bottom:10px;">
+            <strong>Chuẩn kiến trúc D05 (Consumption Layer):</strong> Kết hợp <strong>Medallion Architecture</strong> (Silver <code>Data Vault / 3NF</code> → Gold <code>Kimball Star Schema + SCD Type 2</code>), động cơ <strong>Columnar Vectorized OLAP</strong> (<code>ClickHouse MergeTree</code> / <code>Apache Pinot Hybrid Table</code>) và <strong>Feast Feature Store</strong> (<code>Offline ASOF Join</code> + <code>Online Redis &lt; 10ms</code>).
+          </div>
+          <div class="table-wrap" style="margin:0;">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tầng Tiêu Thụ</th>
+                  <th>Cơ Chế Cốt Lõi</th>
+                  <th>Thông Số &amp; Quy Tắc Chuẩn Production</th>
+                  <th>Rủi Ro Sinh Tử Cần Chặn</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. ER vs. Star Schema</strong></td>
+                  <td><code>1NF → 2NF → 3NF</code> (OLTP) vs. <code>Fact + Dimension</code> (OLAP)</td>
+                  <td>Tuyên bố <code>Grain</code> rõ ràng; dùng <code>DateKey (YYYYMMDD)</code> &amp; <code>Surrogate Key</code></td>
+                  <td>Dùng hàm <code>SUM()</code> cộng nhầm chỉ số <code>Semi-Additive (InventoryLevel)</code> theo ngày</td>
+                </tr>
+                <tr>
+                  <td><strong>2. SCD &amp; Data Vault</strong></td>
+                  <td><code>SCD Type 0–6</code> &amp; <code>Hub + Link + Satellite</code></td>
+                  <td><code>SCD Type 2</code> (<code>valid_from, valid_to, is_current</code>); Silver <code>Insert-Only</code></td>
+                  <td>Ghi đè <code>SCD Type 1</code> làm sai lệch báo cáo lịch sử khi khách đổi vùng/tiền tệ</td>
+                </tr>
+                <tr>
+                  <td><strong>3. OLAP Engines</strong></td>
+                  <td><code>Columnar + SIMD Vectorized</code> (ClickHouse / Apache Pinot)</td>
+                  <td>ClickHouse <code>Granule = 8,192 rows</code>; Pinot <code>Hybrid Table (Time Boundary)</code></td>
+                  <td>Bắn <code>ALTER TABLE UPDATE</code> liên tục vào ClickHouse gây nghẽn Background Merge</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Feast Feature Store</strong></td>
+                  <td><code>Offline Store</code> (Parquet/BQ) + <code>Online Store</code> (Redis <code>&lt; 10ms</code>)</td>
+                  <td><code>get_historical_features()</code> (ASOF Join) + <code>feast materialize-incremental</code></td>
+                  <td>Viết 2 nhánh code SQL/Python riêng gây <code>Training-Serving Skew (45.73 vs 46)</code></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="infra2d-grid">
+          <div class="infra2d-col-left">
+            <div>
+              <div class="infra2d-pills">
+                <span class="infra2d-pill-num" id="cns2dSlideNumPill">SLIDE 1 / 6</span>
+                <span class="infra2d-pill-analogy" id="cns2dAnalogyPill">Lát Cắt Kiến Trúc</span>
+              </div>
+              <h3 class="infra2d-slide-h3" id="cns2dSlideTitle"></h3>
+              <div class="infra2d-story-box">
+                <div class="infra2d-avatar" title="Sự kiện #8888 / txn_9f3a21c8">D05</div>
+                <div>
+                  <span class="infra2d-story-title" id="cns2dLeadTitle"></span>
+                  <p class="infra2d-story-text" id="cns2dLeadStory"></p>
+                </div>
+              </div>
+              <div class="infra2d-keypoints" id="cns2dKeypoints"></div>
+            </div>
+            <div class="infra2d-verdict" id="cns2dVerdictBox"></div>
+          </div>
+
+          <div class="infra2d-col-right">
+            <div>
+              <div class="infra2d-sim-top">
+                <div class="infra2d-sim-live">
+                  <span class="infra2d-sim-dot"></span>
+                  <span>Sơ Đồ Cắt Lớp Tầng Consumption &amp; Luồng Truy Vấn Chuyển Động (Animated SVG)</span>
+                </div>
+                <span class="infra2d-sim-hint">Bấm các nút kịch bản bên dưới để đổi cơ chế!</span>
+              </div>
+              <div class="infra2d-stage" id="cns2dSimStage" style="padding:10px;"></div>
+            </div>
+            <div>
+              <div class="infra2d-status" id="cns2dSimStatusText">Sẵn sàng mô phỏng.</div>
+              <div class="infra2d-controls" id="cns2dSimControls"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="infra2d-footer">
+          <button type="button" class="infra2d-btn" id="cns2dBtnPrev" onclick="changeConsumption2DSlide(-1)">← Mô Phỏng Trước</button>
+          <div class="infra2d-progress-wrap">
+            <div class="infra2d-progress-track">
+              <div class="infra2d-progress-fill" id="cns2dProgressFill" style="width:16.6%;"></div>
+            </div>
+            <span style="font-size:11px;color:var(--sim-muted);">Chọn 1 trong 6 lát cắt kiến trúc Consumption Layer (1–6) hoặc bấm nút điều khiển để đối chiếu cơ chế</span>
+          </div>
+          <button type="button" class="infra2d-btn infra2d-btn-primary" id="cns2dBtnNext" onclick="changeConsumption2DSlide(1)">Mô Phỏng Tiếp Theo →</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function toggleConsumption2DSummaryModal() {
+    const d = document.getElementById("cns2dSummaryDrawer");
+    if (!d) return;
+    d.style.display = (d.style.display === "none" || !d.style.display) ? "block" : "none";
+  }
+
+  function changeConsumption2DSlide(delta) {
+    const next = cns2dCurrentSlide + delta;
+    if (next < 0 || next >= CNS2D_SLIDES.length) return;
+    cns2dCurrentSlide = next;
+    renderConsumption2DSlide();
+  }
+
+  function jumpConsumption2DSlide(idx) {
+    if (idx < 0 || idx >= CNS2D_SLIDES.length) return;
+    cns2dCurrentSlide = idx;
+    renderConsumption2DSlide();
+  }
+
+  function renderConsumption2DSlide() {
+    const root = document.getElementById("cns2dWidgetRoot");
+    if (!root) return;
+    const slide = CNS2D_SLIDES[cns2dCurrentSlide] || CNS2D_SLIDES[0];
+
+    document.getElementById("cns2dChapterBadge").textContent = slide.chapter;
+    document.getElementById("cns2dSlideNumPill").textContent = `SLIDE ${slide.id} / ${CNS2D_SLIDES.length}`;
+    document.getElementById("cns2dAnalogyPill").textContent = slide.analogy;
+    document.getElementById("cns2dSlideTitle").textContent = slide.title;
+    document.getElementById("cns2dLeadTitle").textContent = slide.leadTitle;
+    document.getElementById("cns2dLeadStory").textContent = slide.leadStory;
+
+    const kpEl = document.getElementById("cns2dKeypoints");
+    kpEl.innerHTML = slide.keypoints.map(kp => `
+      <div class="infra2d-kp-item">
+        <div class="infra2d-kp-badge">${escapeHtml(kp.b)}</div>
+        <div>
+          <span class="infra2d-kp-title">${escapeHtml(kp.t)}</span>
+          <p class="infra2d-kp-desc">${escapeHtml(kp.d)}</p>
+        </div>
+      </div>
+    `).join("");
+
+    document.getElementById("cns2dVerdictBox").textContent = slide.verdict;
+
+    const dotsEl = document.getElementById("cns2dDots");
+    dotsEl.innerHTML = CNS2D_SLIDES.map((s, idx) => `
+      <button type="button" class="infra2d-dot-btn ${idx === cns2dCurrentSlide ? 'active' : ''}" onclick="jumpConsumption2DSlide(${idx})">${s.id}</button>
+    `).join("");
+
+    const prevBtn = document.getElementById("cns2dBtnPrev");
+    const nextBtn = document.getElementById("cns2dBtnNext");
+    if (prevBtn) prevBtn.disabled = (cns2dCurrentSlide === 0);
+    if (nextBtn) nextBtn.disabled = (cns2dCurrentSlide === CNS2D_SLIDES.length - 1);
+
+    const fillEl = document.getElementById("cns2dProgressFill");
+    if (fillEl) fillEl.style.width = `${((cns2dCurrentSlide + 1) / CNS2D_SLIDES.length) * 100}%`;
+
+    renderConsumption2DInteractiveStage(slide.simMode);
+  }
+
+  function renderConsumption2DInteractiveStage(mode) {
+    const stage = document.getElementById("cns2dSimStage");
+    const status = document.getElementById("cns2dSimStatusText");
+    const ctrls = document.getElementById("cns2dSimControls");
+    if (!stage || !status || !ctrls) return;
+
+    if (mode === "er_norm") {
+      const m = cns2dState.erMode;
+      const isUnf = m === "unf";
+      const is12nf = m === "12nf";
+      const is3nf = m === "3nf";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="27" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isUnf ? 'BẢNG PHẲNG ORDER_DETAIL CHƯA CHUẨN HÓA (VI PHẠM 1NF, 2NF, 3NF — SLIDE 12)' : (is12nf ? 'CHUẨN HÓA 1NF (ATOMIC VALUES) & 2NF (XÓA PHỤ THUỘC BỘ PHẬN — SLIDE 09-10)' : 'CHUẨN HÓA 3NF (4 BẢNG ĐỘC LẬP — SLIDE 13): TỐI ƯU OLTP NHƯNG GÂY NGHẼN JOIN OLAP')}</text>
+
+          <!-- Left Box: Source / Flat or Normalized Tables -->
+          <rect x="20" y="38" width="250" height="150" rx="7" fill="var(--sim-card)" stroke="${isUnf ? 'var(--sim-danger)' : 'var(--sim-flow)'}" stroke-width="1.5"/>
+          <text x="30" y="56" fill="${isUnf ? 'var(--sim-danger)' : 'var(--sim-flow)'}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isUnf ? '1. BẢNG ORDER_DETAIL (DƯ THỪA)' : (is12nf ? '1. TÁCH BẢNG THEO 1NF & 2NF' : '1. LƯỢC ĐỒ 4 BẢNG CHUẨN 3NF')}</text>
+          <text x="30" y="76" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isUnf ? '• Order 1001 | C01 Anna | 0901 | P01, P02' : (is12nf ? '• 1NF: Tách P01 và P02 thành 2 dòng đơn' : '• Customers (C01, Anna, 0901)')}</text>
+          <text x="30" y="94" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isUnf ? '• Order 1001 | C01 Anna | 0901 | Mouse $20' : (is12nf ? '• 2NF: Tách Orders(OrderID, CustName)' : '• Products (P01 $50, P02 $20)')}</text>
+          <text x="30" y="112" fill="var(--sim-sub)" font-size="9.5" font-family="var(--cds-font-mono)">${isUnf ? '• Order 1002 | C01 Anna | 0901 | P01 $50' : (is12nf ? '• 2NF: OrderItems(OrderID, ProdID, Qty)' : '• Orders (1001, C01, 2026-05-01)')}</text>
+          <text x="30" y="132" fill="${isUnf ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">${isUnf ? '[!] Dị thường Update / Insert / Delete!' : (is12nf ? '[!] Vẫn còn bắc cầu OrderID→C01→Phone' : '[+] OrderItems (1001, P01, 1) — 0% Redundancy!')}</text>
+          <text x="30" y="152" fill="var(--sim-muted)" font-size="8.8" font-family="var(--cds-font-mono)">Staging ETL: Cleanse + Deduplicate + Load</text>
+
+          <!-- Right Box: Query / Workload Impact -->
+          <rect x="290" y="38" width="250" height="150" rx="7" fill="var(--sim-card)" stroke="${is3nf ? 'var(--sim-ok)' : 'var(--sim-warn)'}" stroke-width="1.5"/>
+          <text x="300" y="56" fill="${is3nf ? 'var(--sim-ok)' : 'var(--sim-warn)'}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">2. TÁC ĐỘNG LÊN OLTP VS. OLAP BI</text>
+          <text x="300" y="76" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isUnf ? '• Sửa SĐT Anna: Phải quét sửa N dòng' : (is12nf ? '• Đã xóa lặp cột Phone1, Phone2, Phone3' : '• Ghi OLTP: Chạm đúng 1 dòng (< 5ms)')}</text>
+          <text x="300" y="94" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isUnf ? '• Xóa đơn 1001: Mất luôn thông tin SP!' : (is12nf ? '• Tách khóa ghép (OrderID, ProductID)' : '• Toàn vẹn tham chiếu FK 100% ACID')}</text>
+          <text x="300" y="114" fill="${is3nf ? 'var(--sim-warn)' : 'var(--sim-danger)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${is3nf ? '• Điểm nghẽn BI: Phải JOIN 4 bảng lớn!' : '• Rủi ro lệch trạng thái tiền tệ/giá'}</text>
+          <text x="300" y="134" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">${is3nf ? 'Orders ⋈ OrderItems ⋈ Products ⋈ Cust' : 'Cần tiếp tục chuẩn hóa lên 3NF'}</text>
+
+          <path d="M 270 112 L 290 112" stroke="var(--sim-flow)" stroke-width="2.2"/>
+          <circle r="4.5" fill="${isUnf ? 'var(--sim-danger)' : 'var(--sim-ok)'}"><animateMotion dur="1.1s" repeatCount="indefinite" path="M 270 112 L 290 112"/></circle>
+
+          <rect x="20" y="198" width="520" height="32" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="218" fill="var(--sim-ink)" font-size="10.2" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isUnf ? 'Vi phạm 1NF/2NF/3NF: Lặp nhóm cột, phụ thuộc bộ phận & bắc cầu  |  Rủi ro hỏng dữ liệu OLTP' : (is12nf ? 'Đạt 1NF & 2NF: Ô nguyên tử + tách bảng Orders / OrderItems  |  Còn phụ thuộc bắc cầu CustomerID' : 'Đạt chuẩn 3NF (4 bảng): Ghi OLTP hoàn hảo  |  Nhưng truy vấn BI phải chuyển sang Star Schema!')}
+          </text>
+        </svg>
+      `;
+
+      status.innerHTML = isUnf
+        ? `<strong style="color:var(--sim-danger);">[Bảng phẳng Order_Detail vi phạm 1NF–3NF (Slide 12)]:</strong> Lưu gộp cả thông tin khách hàng <code>Anna (C01)</code> và sản phẩm <code>P01, P02</code> vào chung một bảng gây dị thường cập nhật, chèn và xóa.`
+        : (is12nf
+          ? `<strong style="color:var(--sim-flow);">[Chuẩn 1NF &amp; 2NF (Slides 08–10)]:</strong> <code>1NF</code> ép mọi ô chứa giá trị nguyên tử; <code>2NF</code> tách các cột chỉ phụ thuộc một phần vào khóa chính ghép <code>(OrderID, ProductID)</code> sang bảng riêng.`
+          : `<strong style="color:var(--sim-ok);">[Chuẩn 3NF (Slides 11 &amp; 13)]:</strong> Loại bỏ phụ thuộc bắc cầu <code>OrderID → CustomerID → CustomerName</code> bằng cách tách thành 4 bảng (<code>Customers, Products, Orders, OrderItems</code>). Tối ưu cho OLTP nhưng gây tốn kém phép kết (Multi-Table Join) khi phân tích OLAP.`);
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isUnf ? 'infra2d-btn-rose' : ''}" onclick="cns2dState.erMode='unf';renderConsumption2DInteractiveStage('er_norm')">1. Bảng Phẳng Order_Detail (Vi phạm 1NF–3NF)</button>
+        <button type="button" class="infra2d-btn ${is12nf ? 'infra2d-btn-cyan' : ''}" onclick="cns2dState.erMode='12nf';renderConsumption2DInteractiveStage('er_norm')">2. Chuẩn Hóa 1NF (Atomic) &amp; 2NF (No Partial)</button>
+        <button type="button" class="infra2d-btn ${is3nf ? 'infra2d-btn-emerald' : ''}" onclick="cns2dState.erMode='3nf';renderConsumption2DInteractiveStage('er_norm')">3. Đạt Chuẩn 3NF (4 Bảng Độc Lập · Tối Ưu OLTP)</button>
+      `;
+    } else if (mode === "star_semi") {
+      const m = cns2dState.starMode;
+      const isStar = m === "star";
+      const isSnow = m === "snowflake";
+      const isSemi = m === "semi";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="27" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isStar ? 'KIMBALL STAR SCHEMA: BẢNG FACTSALES Ở TÂM NỐI 1-HOP TỚI 4 BẢNG CHIỀU PHẲNG (SLIDE 19-22)' : (isSnow ? 'SNOWFLAKE SCHEMA: BẢNG CHIỀU BỊ PHÂN NHÁNH 4 TẦNG (DIM_CUSTOMER → CITY → STATE → COUNTRY)' : 'BẪY CỘNG NHẦM CHỈ SỐ SEMI-ADDITIVE (INVENTORYLEVEL) TRÊN BẢNG FACT (SLIDE 20)')}</text>
+
+          ${!isSemi ? `
+            <!-- Center Fact Table -->
+            <rect x="185" y="55" width="180" height="118" rx="8" fill="var(--sim-card)" stroke="var(--sim-clay)" stroke-width="1.8"/>
+            <text x="195" y="75" fill="var(--sim-clay)" font-size="10.5" font-weight="800" font-family="var(--cds-font-mono)">factSales (Center)</text>
+            <text x="195" y="93" fill="var(--sim-ink)" font-size="9" font-family="var(--cds-font-mono)">• Grain: 1 Order Line (#8888)</text>
+            <text x="195" y="109" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">• OrderDateKey: 20260501</text>
+            <text x="195" y="125" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">• CustomerKey, ProductKey</text>
+            <text x="195" y="143" fill="var(--sim-ok)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">• SalesAmount: $90.00 [+]</text>
+
+            <!-- Left Dimensions -->
+            <rect x="20" y="45" width="135" height="58" rx="6" fill="var(--sim-card)" stroke="var(--sim-ok)" stroke-width="1.5"/>
+            <text x="28" y="65" fill="var(--sim-ok)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">dimDate (20260501)</text>
+            <text x="28" y="82" fill="var(--sim-sub)" font-size="8.8" font-family="var(--cds-font-mono)">2026-05-01 · Q2 · Fri</text>
+
+            <rect x="20" y="120" width="135" height="58" rx="6" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.5"/>
+            <text x="28" y="140" fill="var(--sim-flow)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">dimProduct</text>
+            <text x="28" y="157" fill="var(--sim-sub)" font-size="8.8" font-family="var(--cds-font-mono)">P01 Keyboard · P02 Mouse</text>
+
+            <!-- Right Dimension: Flat Star vs Chained Snowflake -->
+            <rect x="395" y="45" width="145" height="${isStar ? '133' : '52'}" rx="6" fill="var(--sim-card)" stroke="${isStar ? 'var(--sim-ok)' : 'var(--sim-warn)'}" stroke-width="1.5"/>
+            <text x="403" y="65" fill="${isStar ? 'var(--sim-ok)' : 'var(--sim-warn)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">dimCustomer</text>
+            <text x="403" y="82" fill="var(--sim-ink)" font-size="8.8" font-family="var(--cds-font-mono)">${isStar ? 'C01 Anna | NYC | NY | US' : 'C01 Anna → city_id (FK)'}</text>
+            ${isStar ? `
+              <text x="403" y="102" fill="var(--sim-ok)" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">[+] Phẳng 100% (1-Hop)</text>
+              <text x="403" y="120" fill="var(--sim-sub)" font-size="8.5" font-family="var(--cds-font-mono)">Không cần Join dây chuyền</text>
+            ` : `
+              <rect x="395" y="108" width="145" height="72" rx="6" fill="var(--sim-warn-soft)" stroke="var(--sim-warn)" stroke-width="1.4"/>
+              <text x="403" y="126" fill="var(--sim-warn)" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">Chuỗi 3NF (Snowflake):</text>
+              <text x="403" y="143" fill="var(--sim-ink)" font-size="8.5" font-family="var(--cds-font-mono)">→ DIM_CITY → DIM_STATE</text>
+              <text x="403" y="160" fill="var(--sim-danger)" font-size="8.5" font-weight="700" font-family="var(--cds-font-mono)">→ DIM_COUNTRY (4 Joins!)</text>
+            `}
+
+            <path d="M 155 74 L 185 95" stroke="var(--sim-ok)" stroke-width="2"/>
+            <path d="M 155 149 L 185 135" stroke="var(--sim-flow)" stroke-width="2"/>
+            <path d="M 365 112 L 395 75" stroke="${isStar ? 'var(--sim-ok)' : 'var(--sim-warn)'}" stroke-width="2.2"/>
+            <circle r="4.5" fill="var(--sim-ok)"><animateMotion dur="1.0s" repeatCount="indefinite" path="M 155 74 L 185 95"/></circle>
+            <circle r="4.5" fill="${isStar ? 'var(--sim-ok)' : 'var(--sim-warn)'}"><animateMotion dur="1.0s" repeatCount="indefinite" path="M 365 112 L 395 75"/></circle>
+          ` : `
+            <!-- Semi-Additive vs Additive comparison -->
+            <rect x="20" y="42" width="250" height="142" rx="7" fill="var(--sim-ok-soft)" stroke="var(--sim-ok)" stroke-width="1.6"/>
+            <text x="30" y="62" fill="var(--sim-ok)" font-size="10" font-weight="800" font-family="var(--cds-font-mono)">1. ADDITIVE MEASURE (SALESAMOUNT)</text>
+            <text x="30" y="82" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">• May 1: Sales = 500  |  May 2: Sales = 700</text>
+            <text x="30" y="102" fill="var(--sim-ok)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">• SUM(SalesAmount) = 500 + 700 = 1,200 [+]</text>
+            <text x="30" y="124" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">Hợp lệ 100% khi cộng gộp trên MỌI chiều</text>
+            <text x="30" y="142" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">(Thời gian, Sản phẩm, Cửa hàng, Khách hàng)</text>
+
+            <rect x="290" y="42" width="250" height="142" rx="7" fill="var(--sim-danger-soft)" stroke="var(--sim-danger)" stroke-width="1.6"/>
+            <text x="300" y="62" fill="var(--sim-danger)" font-size="10" font-weight="800" font-family="var(--cds-font-mono)">2. SEMI-ADDITIVE (INVENTORYLEVEL)</text>
+            <text x="300" y="82" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">• May 1: 100 | May 2: 80 | May 3: 120</text>
+            <text x="300" y="102" fill="var(--sim-danger)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">• [x] SAI: SUM = 100 + 80 + 120 = 300 (Ảo!)</text>
+            <text x="300" y="124" fill="var(--sim-ok)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">• [+] ĐÚNG: AVG = 100 hoặc LAST_VALUE = 120</text>
+            <text x="300" y="144" fill="var(--sim-sub)" font-size="8.8" font-family="var(--cds-font-mono)">Cộng được theo Kho, CẤM cộng theo Thời gian!</text>
+          `}
+
+          <rect x="20" y="198" width="520" height="32" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="218" fill="var(--sim-ink)" font-size="10.2" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isStar ? 'Star Schema (Slide 22): Chỉ 1 bước Join từ Fact sang Dimension  |  Tối ưu tuyệt đối cho BI & OLAP' : (isSnow ? 'Snowflake Schema (Slide 23): Tách DIM_CITY → STATE → COUNTRY  |  Tiết kiệm đĩa nhưng chậm do nhiều Join' : 'Quy tắc Slide 20: Additive dùng SUM() mọi chiều  |  Semi-Additive (Tồn kho/Số dư) phải dùng AVG / LAST_VALUE')}
+          </text>
+        </svg>
+      `;
+
+      status.innerHTML = isStar
+        ? `<strong style="color:var(--sim-ok);">[Kiến trúc Star Schema (Slides 19–22)]:</strong> Bảng <code>factSales</code> ở trung tâm nối trực tiếp 1-hop tới các bảng chiều phẳng (<code>dimDate, dimCustomer, dimProduct, dimTerritory</code>), giúp công cụ BI quét và gom nhóm với tốc độ tối đa.`
+        : (isSnow
+          ? `<strong style="color:var(--sim-warn);">[Kiến trúc Snowflake Schema (Slides 23–24)]:</strong> Chuẩn hóa bảng <code>DIM_CUSTOMER</code> thành chuỗi phân cấp <code>DIM_CITY → DIM_STATE → DIM_COUNTRY</code>. Giảm trùng lặp tên quốc gia nhưng bắt truy vấn OLAP phải gánh thêm 3 phép Join phụ.`
+          : `<strong style="color:var(--sim-danger);">[Bẫy cộng nhầm chỉ số Semi-Additive (Slide 20)]:</strong> Tồn kho <code>InventoryLevel</code> ngày 1, 2, 3 lần lượt là <code>100, 80, 120</code>. Nếu dùng <code>SUM()</code> theo thời gian sẽ ra <code>300</code> (sai hoàn toàn bản chất vật lý!). Phải dùng <code>AVG = 100</code> hoặc tồn cuối kỳ <code>LAST_VALUE = 120</code>.`);
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isStar ? 'infra2d-btn-emerald' : ''}" onclick="cns2dState.starMode='star';renderConsumption2DInteractiveStage('star_semi')">1. Star Schema (1-Hop Flat Dimension · Tốc Độ Cao)</button>
+        <button type="button" class="infra2d-btn ${isSnow ? 'infra2d-btn-amber' : ''}" onclick="cns2dState.starMode='snowflake';renderConsumption2DInteractiveStage('star_semi')">2. Snowflake Schema (4-Hop Geo Hierarchy)</button>
+        <button type="button" class="infra2d-btn ${isSemi ? 'infra2d-btn-rose' : ''}" onclick="cns2dState.starMode='semi';renderConsumption2DInteractiveStage('star_semi')">3. Kiểm Chứng: Additive vs. Semi-Additive (Inventory)</button>
+      `;
+    } else if (mode === "scd") {
+      const m = cns2dState.scdMode;
+      const isT1 = m === "type1";
+      const isT2 = m === "type2";
+      const isT6 = m === "type6";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="27" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">SỰ KIỆN: KHÁCH HÀNG PETER PAN (PK=123456) CHUYỂN TỪ UK SANG US (GBP → USD NGÀY 26/09/2025)</text>
+
+          <rect x="20" y="40" width="520" height="145" rx="7" fill="var(--sim-card)" stroke="${isT1 ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.6"/>
+          <text x="32" y="60" fill="${isT1 ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="10.5" font-weight="800" font-family="var(--cds-font-mono)">${isT1 ? 'SCD TYPE 1 (OVERWRITE — GHI ĐÈ XÓA SẠCH LỊCH SỬ GBP — SLIDE 28)' : (isT2 ? 'SCD TYPE 2 (ADD NEW ROW + SURROGATE KEY 1 → 2 — CHUẨN VÀNG SLIDE 29)' : 'SCD TYPE 6 (HYBRID: TYPE 1 + TYPE 2 + TYPE 3 = 6 — SLIDE 32)')}</text>
+
+          ${isT1 ? `
+            <rect x="32" y="72" width="496" height="54" rx="5" fill="var(--sim-danger-soft)" stroke="var(--sim-danger)"/>
+            <text x="42" y="92" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">PK: 123456  |  Customer: Peter Pan  |  Currency: USD (Đã ghi đè đè mất GBP!)</text>
+            <text x="42" y="112" fill="var(--sim-danger)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">[!] Hậu quả: Các đơn hàng của Peter Pan tại Anh trước 26/09/2025 bị tính nhầm sang USD!</text>
+          ` : (isT2 ? `
+            <rect x="32" y="70" width="496" height="46" rx="5" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+            <text x="42" y="88" fill="var(--sim-sub)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">SK=1 | NK=123456 | Peter Pan | Currency: GBP | From: 01/09/2025 | To: 25/09/2025 | DelFlag=1</text>
+            <text x="42" y="106" fill="var(--sim-muted)" font-size="9" font-family="var(--cds-font-mono)">→ Các đơn hàng cũ trong factSales neo vào Surrogate Key SK=1 (Giữ chuẩn GBP 100%)</text>
+
+            <rect x="32" y="124" width="496" height="48" rx="5" fill="var(--sim-ok-soft)" stroke="var(--sim-ok)" stroke-width="1.5"/>
+            <text x="42" y="143" fill="var(--sim-ok)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">SK=2 | NK=123456 | Peter Pan | Currency: USD | From: 26/09/2025 | To: 31/12/9999 | DelFlag=0</text>
+            <text x="42" y="161" fill="var(--sim-ink)" font-size="9" font-family="var(--cds-font-mono)">→ Đơn hàng mới #8888 phát sinh sau 26/09 tự động neo vào SK=2 (Chuẩn USD hiện hành)</text>
+          ` : `
+            <rect x="32" y="70" width="496" height="46" rx="5" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+            <text x="42" y="88" fill="var(--sim-sub)" font-size="9.2" font-weight="700" font-family="var(--cds-font-mono)">SK=1 | 123456 | Curr(T2): GBP | Current_Curr(T1): USD | Prev_Curr(T3): NULL | Active=0</text>
+            <text x="42" y="106" fill="var(--sim-muted)" font-size="8.8" font-family="var(--cds-font-mono)">→ Dòng lịch sử 01/09→25/09 vừa giữ GBP gốc, vừa biết trạng thái hiện tại là USD!</text>
+
+            <rect x="32" y="124" width="496" height="48" rx="5" fill="var(--sim-flow-soft)" stroke="var(--sim-flow)" stroke-width="1.5"/>
+            <text x="42" y="143" fill="var(--sim-flow)" font-size="9.2" font-weight="700" font-family="var(--cds-font-mono)">SK=2 | 123456 | Curr(T2): USD | Current_Curr(T1): USD | Prev_Curr(T3): GBP  | Active=1</text>
+            <text x="42" y="161" fill="var(--sim-ink)" font-size="8.8" font-family="var(--cds-font-mono)">→ Cho phép chạy báo cáo As-Was (GROUP BY Curr) hoặc As-Is (GROUP BY Current_Curr) tức thì!</text>
+          `)}
+
+          <rect x="20" y="198" width="520" height="32" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="218" fill="var(--sim-ink)" font-size="10.2" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isT1 ? 'SCD Type 1: 1 dòng duy nhất  |  Không tốn thêm dung lượng  |  Mất 100% lịch sử quá khứ' : (isT2 ? 'SCD Type 2: Sinh dòng mới + Surrogate Key (SK=1, SK=2)  |  Bảo toàn tuyệt đối lịch sử Point-in-Time' : 'SCD Type 6 (1+2+3): Kết hợp Versioning + Current Overwrite + Previous Column trên cùng bảng')}
+          </text>
+        </svg>
+      `;
+
+      status.innerHTML = isT1
+        ? `<strong style="color:var(--sim-danger);">[SCD Type 1 — Overwrite (Slide 28)]:</strong> Cập nhật đè <code>Currency = 'USD'</code> lên bản ghi <code>123456</code>. Đơn giản nhưng phá hỏng tính đúng đắn lịch sử của mọi báo cáo tài chính trước ngày <code>26/09/2025</code>.`
+        : (isT2
+          ? `<strong style="color:var(--sim-ok);">[SCD Type 2 — Add New Row (Slide 29)]:</strong> Khép hiệu lực dòng cũ (<code>SK=1, GBP, Delete Flag=1</code>) và thêm dòng mới (<code>SK=2, USD, Delete Flag=0</code>). Đây là kỹ thuật phổ biến nhất trong Data Warehouse.`
+          : `<strong style="color:var(--sim-flow);">[SCD Type 6 — Hybrid 1+2+3 (Slide 32)]:</strong> Vừa tách dòng theo thời gian (Type 2), vừa ghi đè cột <code>Current Currency = USD</code> trên toàn bộ các dòng của Peter Pan (Type 1), vừa lưu <code>Previous Currency = GBP</code> (Type 3).`);
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isT1 ? 'infra2d-btn-rose' : ''}" onclick="cns2dState.scdMode='type1';renderConsumption2DInteractiveStage('scd')">1. SCD Type 1 (Overwrite · Mất Lịch Sử GBP)</button>
+        <button type="button" class="infra2d-btn ${isT2 ? 'infra2d-btn-emerald' : ''}" onclick="cns2dState.scdMode='type2';renderConsumption2DInteractiveStage('scd')">2. SCD Type 2 (Row Versioning + Surrogate Key)</button>
+        <button type="button" class="infra2d-btn ${isT6 ? 'infra2d-btn-cyan' : ''}" onclick="cns2dState.scdMode='type6';renderConsumption2DInteractiveStage('scd')">3. SCD Type 6 (Hybrid 1+2+3 · As-Was &amp; As-Is)</button>
+      `;
+    } else if (mode === "vault_medallion") {
+      const m = cns2dState.vaultMode;
+      const isDv = m === "dv";
+      const isIk = m === "inmon_kimball";
+      const isMed = m === "medallion";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="27" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isDv ? 'DATA VAULT MODELING TẠI TẦNG SILVER: TÁCH HUB (WHAT), LINK (HOW) & SATELLITE (CONTEXT)' : (isIk ? 'ĐỐI CHIẾU HAI TRƯỜNG PHÁI: BILL INMON (TOP-DOWN 3NF) VS. RALPH KIMBALL (BOTTOM-UP STAR)' : 'KIẾN TRÚC MEDALLION HIỆN ĐẠI: BRONZE (RAW_) → SILVER (HUB_/SAT_) → GOLD (FACT_/DIM_)')}</text>
+
+          <!-- 3 Columns -->
+          <rect x="20" y="42" width="160" height="142" rx="7" fill="var(--sim-card)" stroke="var(--sim-clay)" stroke-width="1.5"/>
+          <text x="30" y="60" fill="var(--sim-clay)" font-size="10" font-weight="800" font-family="var(--cds-font-mono)">${isDv ? '1. HUB (BUSINESS KEYS)' : (isIk ? '1. INMON (TOP-DOWN)' : '1. BRONZE (RAW ZONE)')}</text>
+          <text x="30" y="80" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">${isDv ? '• HUB_CUSTOMER (C01)' : (isIk ? '• Nguồn → Enterprise 3NF' : '• Giữ nguyên trạng từ nguồn')}</text>
+          <text x="30" y="98" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">• ${isDv ? 'HUB_ORDER (1001)' : (isIk ? '• Sau đó mới tách Marts' : '• Modeling: None (Append)')}</text>
+          <text x="30" y="116" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">• ${isDv ? 'HUB_PRODUCT (P01)' : (isIk ? '• Nhất quán cao, tốn kém' : '• bronze_crm_orders')}</text>
+          <text x="30" y="136" fill="var(--sim-ok)" font-size="8.8" font-weight="700" font-family="var(--cds-font-mono)">${isDv ? 'Chỉ lưu ID + LOAD_DATE' : (isIk ? 'Single Source of Truth' : 'bronze_erp_customers')}</text>
+
+          <rect x="200" y="42" width="160" height="142" rx="7" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.5"/>
+          <text x="210" y="60" fill="var(--sim-flow)" font-size="10" font-weight="800" font-family="var(--cds-font-mono)">${isDv ? '2. LINK (RELATIONSHIPS)' : (isIk ? '2. KIMBALL (BOTTOM-UP)' : '2. SILVER (INTEGRATED)')}</text>
+          <text x="210" y="80" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">• ${isDv ? 'LINK_ORDER_CUSTOMER' : (isIk ? '• Nguồn → Star Data Marts' : '• Làm sạch, khử trùng lặp')}</text>
+          <text x="210" y="98" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">• ${isDv ? 'LINK_ORDER_PRODUCT' : (isIk ? '• Hợp nhất qua Conformed' : '• Modeling: 3NF / Data Vault')}</text>
+          <text x="210" y="116" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">• ${isDv ? '(ORDER_ID + PROD_ID)' : (isIk ? '• Triển khai cực nhanh' : '• hub_customer / lnk_order')}</text>
+          <text x="210" y="136" fill="var(--sim-flow)" font-size="8.8" font-weight="700" font-family="var(--cds-font-mono)">${isDv ? 'Kết nối linh hoạt N-N' : (isIk ? 'Tối ưu trực tiếp cho BI' : 'sat_customer_details')}</text>
+
+          <rect x="380" y="42" width="160" height="142" rx="7" fill="var(--sim-card)" stroke="var(--sim-ok)" stroke-width="1.5"/>
+          <text x="390" y="60" fill="var(--sim-ok)" font-size="10" font-weight="800" font-family="var(--cds-font-mono)">${isDv ? '3. SATELLITE (CONTEXT)' : (isIk ? '3. KẾT HỢP HIỆN ĐẠI' : '3. GOLD (CONSUMPTION)')}</text>
+          <text x="390" y="80" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">• ${isDv ? 'SAT_CUSTOMER (Name,Addr)' : (isIk ? '• Silver = Inmon / Vault' : '• Phục vụ BI, OLAP & ML')}</text>
+          <text x="390" y="98" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">• ${isDv ? 'SAT_ORDER (Status,Total)' : (isIk ? '• Gold = Kimball Star' : '• Modeling: Star / OBT')}</text>
+          <text x="390" y="116" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">• ${isDv ? 'SAT_PRODUCT (Price,Cat)' : (isIk ? '• Vừa chuẩn vừa nhanh!' : '• fact_sales, dim_customer')}</text>
+          <text x="390" y="136" fill="var(--sim-ok)" font-size="8.8" font-weight="700" font-family="var(--cds-font-mono)">${isDv ? 'Insert-Only · Chống Drift!' : (isIk ? 'Chuẩn Medallion Slide 41' : 'mart_finance (BI Ready)')}</text>
+
+          <path d="M 180 112 L 200 112" stroke="var(--sim-flow)" stroke-width="2.2"/>
+          <path d="M 360 112 L 380 112" stroke="var(--sim-ok)" stroke-width="2.2"/>
+          <circle r="4.5" fill="var(--sim-ok)"><animateMotion dur="1.2s" repeatCount="indefinite" path="M 180 112 L 380 112"/></circle>
+
+          <rect x="20" y="198" width="520" height="32" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="218" fill="var(--sim-ink)" font-size="10.2" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isDv ? 'Data Vault (Slides 34-37): Thêm nguồn mới chỉ cần gắn thêm Link/Satellite  |  Không sửa bảng cũ!' : (isIk ? 'Inmon vs. Kimball (Slides 38-40): Top-Down 3NF mạnh về quản trị  |  Bottom-Up Star mạnh về tốc độ BI' : 'Medallion Naming (Slide 41): bronze_<src>_<entity> → hub_/lnk_/sat_ → fact_<event> / dim_<entity>')}
+          </text>
+        </svg>
+      `;
+
+      status.innerHTML = isDv
+        ? `<strong style="color:var(--sim-ok);">[Data Vault Modeling (Slides 34–37)]:</strong> Tách rời hoàn toàn khóa nghiệp vụ (<code>Hub</code>), mối quan hệ (<code>Link</code>) và thuộc tính lịch sử (<code>Satellite</code>). Giúp tầng Silver hấp thụ mọi thay đổi lược đồ từ hàng chục nguồn ERP/CRM.`
+        : (isIk
+          ? `<strong style="color:var(--sim-flow);">[Inmon vs. Kimball (Slides 38–40)]:</strong> Inmon đi từ kho <code>3NF</code> toàn doanh nghiệp xuống Data Marts; Kimball đi từ các <code>Star Schema</code> phòng ban lên. Kiến trúc hiện đại dùng cả hai trên các tầng khác nhau.`
+          : `<strong style="color:var(--sim-ok);">[Medallion Architecture &amp; Naming Convention (Slide 41)]:</strong> Tầng <strong>Bronze</strong> lưu thô (<code>bronze_crm_orders</code>), tầng <strong>Silver</strong> tích hợp bằng 3NF/Data Vault (<code>hub_customer, sat_customer_details</code>), tầng <strong>Gold</strong> phục vụ BI bằng Star Schema (<code>fact_sales, dim_customer</code>).`);
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isDv ? 'infra2d-btn-cyan' : ''}" onclick="cns2dState.vaultMode='dv';renderConsumption2DInteractiveStage('vault_medallion')">1. Data Vault (Hub, Link, Satellite · Chống Schema Drift)</button>
+        <button type="button" class="infra2d-btn ${isIk ? 'infra2d-btn-amber' : ''}" onclick="cns2dState.vaultMode='inmon_kimball';renderConsumption2DInteractiveStage('vault_medallion')">2. Đối Chiếu Inmon (Top-Down) vs. Kimball (Bottom-Up)</button>
+        <button type="button" class="infra2d-btn ${isMed ? 'infra2d-btn-emerald' : ''}" onclick="cns2dState.vaultMode='medallion';renderConsumption2DInteractiveStage('vault_medallion')">3. Hợp Nhất Trên Medallion (Bronze → Silver → Gold)</button>
+      `;
+    } else if (mode === "olap_simd") {
+      const m = cns2dState.olapMode;
+      const isSimd = m === "simd";
+      const isCh = m === "clickhouse";
+      const isPinot = m === "pinot";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="27" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isSimd ? 'VECTORIZED EXECUTION (SIMD CPU — SLIDE 43): 1 CHU KỲ LỆNH CỘNG ĐỒNG THỜI 4 PHẦN TỬ CỘT' : (isCh ? 'KIẾN TRÚC CLICKHOUSE (SLIDES 45-50): NODES + MERGETREE (8.192 GRANULE) + S3 + KEEPER' : 'APACHE PINOT HYBRID TABLE (SLIDES 51-53): HỢP NHẤT REAL-TIME KAFKA & OFFLINE S3 QUA TIME BOUNDARY')}</text>
+
+          ${isSimd ? `
+            <rect x="20" y="42" width="245" height="142" rx="7" fill="var(--sim-danger-soft)" stroke="var(--sim-danger)" stroke-width="1.5"/>
+            <text x="30" y="60" fill="var(--sim-danger)" font-size="10" font-weight="800" font-family="var(--cds-font-mono)">1. TRADITIONAL ROW-BY-ROW (SCALAR)</text>
+            <text x="30" y="80" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">• Chu kỳ 1: 1 + 5 = 6</text>
+            <text x="30" y="98" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">• Chu kỳ 2: 2 + 6 = 8</text>
+            <text x="30" y="116" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">• Chu kỳ 3: 3 + 7 = 10  |  Chu kỳ 4: 4 + 8 = 12</text>
+            <text x="30" y="138" fill="var(--sim-danger)" font-size="9.2" font-weight="700" font-family="var(--cds-font-mono)">[x] Tốn 4 CPU Instructions + Đọc thừa mọi cột</text>
+
+            <rect x="295" y="42" width="245" height="142" rx="7" fill="var(--sim-ok-soft)" stroke="var(--sim-ok)" stroke-width="1.6"/>
+            <text x="305" y="60" fill="var(--sim-ok)" font-size="10" font-weight="800" font-family="var(--cds-font-mono)">2. COLUMNAR + SIMD VECTORIZED</text>
+            <text x="305" y="80" fill="var(--sim-ink)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">• Thanh ghi A: [ 1 | 2 | 3 | 4 ]</text>
+            <text x="305" y="98" fill="var(--sim-ink)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">• Thanh ghi B: [ 5 | 6 | 7 | 8 ]</text>
+            <text x="305" y="118" fill="var(--sim-ok)" font-size="10" font-weight="800" font-family="var(--cds-font-mono)">• 1 Lệnh SIMD: [ 6 | 8 | 10 | 12 ] [+]</text>
+            <text x="305" y="140" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">Nạp thẳng mảng cột nén vào L1/L2 CPU Cache!</text>
+          ` : (isCh ? `
+            <rect x="20" y="42" width="250" height="142" rx="7" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.5"/>
+            <text x="30" y="60" fill="var(--sim-flow)" font-size="10" font-weight="800" font-family="var(--cds-font-mono)">1. CLICKHOUSE NODE &amp; MERGETREE</text>
+            <text x="30" y="80" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">• Vectorized Parallel Query Engine + Cache</text>
+            <text x="30" y="98" fill="var(--sim-ok)" font-size="9.2" font-weight="700" font-family="var(--cds-font-mono)">• Sparse Primary Index: 1 mục / 8.192 dòng</text>
+            <text x="30" y="116" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">• Immutable Data Parts → Background Merge</text>
+            <text x="30" y="138" fill="var(--sim-warn)" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">[!] Cấm UPDATE/DELETE lẻ tẻ thường xuyên!</text>
+
+            <rect x="290" y="42" width="250" height="142" rx="7" fill="var(--sim-card)" stroke="var(--sim-ok)" stroke-width="1.5"/>
+            <text x="300" y="60" fill="var(--sim-ok)" font-size="10" font-weight="800" font-family="var(--cds-font-mono)">2. S3 OBJECT STORAGE &amp; KEEPER</text>
+            <text x="300" y="80" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">• S3-Compatible: Tách rời Storage &amp; Compute</text>
+            <text x="300" y="98" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">• ZooKeeper / ClickHouse Keeper (Raft):</text>
+            <text x="300" y="116" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">  Chỉ lưu Metadata (KHÔNG lưu dữ liệu bảng)</text>
+            <text x="300" y="138" fill="var(--sim-ok)" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">[+] Đồng bộ nhân bản ReplicatedMergeTree</text>
+          ` : `
+            <rect x="20" y="42" width="245" height="142" rx="7" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.5"/>
+            <text x="30" y="60" fill="var(--sim-flow)" font-size="10" font-weight="800" font-family="var(--cds-font-mono)">1. REAL-TIME + OFFLINE SEGMENTS</text>
+            <text x="30" y="80" fill="var(--sim-ok)" font-size="9.2" font-weight="700" font-family="var(--cds-font-mono)">• Real-time Table: Hút trực tiếp từ Kafka</text>
+            <text x="30" y="98" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">• Offline Table: Nạp Pre-built Segments (S3)</text>
+            <text x="30" y="116" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">• Schema: Dimensions + Metrics + Time Col</text>
+            <text x="30" y="138" fill="var(--sim-flow)" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">Star-Tree Index + Inverted Index siêu tốc</text>
+
+            <rect x="295" y="42" width="245" height="142" rx="7" fill="var(--sim-ok-soft)" stroke="var(--sim-ok)" stroke-width="1.6"/>
+            <text x="305" y="60" fill="var(--sim-ok)" font-size="10" font-weight="800" font-family="var(--cds-font-mono)">2. HYBRID TABLE (TIME BOUNDARY)</text>
+            <text x="305" y="80" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">• Truy vấn 1 tên bảng: orders_CLEAN</text>
+            <text x="305" y="98" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">• t &lt;= Boundary → Đọc Offline S3 giá rẻ</text>
+            <text x="305" y="116" fill="var(--sim-ok)" font-size="9.2" font-weight="700" font-family="var(--cds-font-mono)">• t &gt; Boundary → Đọc Real-time Kafka</text>
+            <text x="305" y="138" fill="var(--sim-ink)" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">[+] Độ trễ vài ms cho hàng triệu User (Uber/LI)</text>
+          `)}
+
+          <rect x="20" y="198" width="520" height="32" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="218" fill="var(--sim-ink)" font-size="10.2" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isSimd ? 'Columnar + SIMD (Slide 43): Nén cột 10x + Cộng 4–16 số/lệnh CPU  |  Quét hàng tỷ dòng trong vài trăm ms' : (isCh ? 'ClickHouse (Slide 46-50): Mạnh về Complex SQL, Joins & Log Analytics  |  Độ trễ ~Sub-second đến Seconds' : 'Apache Pinot (Slide 51-53): Mạnh về User-Facing Real-time Dashboards  |  Độ trễ ~Milliseconds ở QPS cực cao')}
+          </text>
+        </svg>
+      `;
+
+      status.innerHTML = isSimd
+        ? `<strong style="color:var(--sim-ok);">[Cơ học Columnar + Vectorized SIMD (Slide 43)]:</strong> Thay vì cộng từng dòng mất 4 chu kỳ lệnh CPU, động cơ OLAP nạp cả khối cột liên tiếp vào thanh ghi SIMD để cộng <code>[1, 2, 3, 4] + [5, 6, 7, 8] = [6, 8, 10, 12]</code> chỉ trong 1 chu kỳ lệnh.`
+        : (isCh
+          ? `<strong style="color:var(--sim-flow);">[Kiến trúc ClickHouse 4 Thành phần (Slides 45–50)]:</strong> Gồm <code>ClickHouse Nodes</code>, <code>Columnar MergeTree Storage</code> (chỉ mục thưa <code>8.192</code> dòng/granule), <code>S3 Object Storage</code> và <code>ZooKeeper / ClickHouse Keeper</code> (điều phối bản sao).`
+          : `<strong style="color:var(--sim-ok);">[Kiến trúc Apache Pinot Hybrid Table (Slides 51–53)]:</strong> Hợp nhất vô hình giữa <code>Offline Segments</code> (từ S3/Data Lake) và <code>Real-time Segments</code> (từ Kafka) qua mốc cắt <code>Time Boundary</code>, phục vụ ứng dụng người dùng cuối với độ trễ vài mili-giây.`);
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isSimd ? 'infra2d-btn-emerald' : ''}" onclick="cns2dState.olapMode='simd';renderConsumption2DInteractiveStage('olap_simd')">1. Cơ Học Columnar &amp; SIMD (1 Lệnh = 4 Phép Cộng)</button>
+        <button type="button" class="infra2d-btn ${isCh ? 'infra2d-btn-cyan' : ''}" onclick="cns2dState.olapMode='clickhouse';renderConsumption2DInteractiveStage('olap_simd')">2. ClickHouse (MergeTree 8.192 Granule + Keeper)</button>
+        <button type="button" class="infra2d-btn ${isPinot ? 'infra2d-btn-amber' : ''}" onclick="cns2dState.olapMode='pinot';renderConsumption2DInteractiveStage('olap_simd')">3. Apache Pinot (Hybrid Table · Kafka + S3)</button>
+      `;
+    } else {
+      // feast
+      const m = cns2dState.feastMode;
+      const isSkew = m === "skew";
+      const isPit = m === "pit";
+      const isOn = m === "online";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="27" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isSkew ? 'THẢM HỌA KHI KHÔNG CÓ FEATURE STORE: TRAINING-SERVING SKEW (45.73 VS 46 — SLIDE 56-57)' : (isPit ? 'FEAST OFFLINE STORE: POINT-IN-TIME ASOF JOIN CHỐNG RÒ RỈ TƯƠNG LAI (DATA LEAKAGE)' : 'FEAST ONLINE STORE (REDIS < 10MS): CHẤM ĐIỂM GIAO DỊCH GIAN LẬN TXN_9F3A21C8 ($1,250.00)')}</text>
+
+          ${isSkew ? `
+            <rect x="20" y="42" width="245" height="142" rx="7" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.5"/>
+            <text x="30" y="60" fill="var(--sim-flow)" font-size="10" font-weight="800" font-family="var(--cds-font-mono)">1. LÚC TRAIN (DATA SCIENCE SQL)</text>
+            <text x="30" y="80" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">• Viết bằng SQL trên Data Warehouse</text>
+            <text x="30" y="98" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">• Xử lý NULL: Thay thế bằng 0</text>
+            <text x="30" y="116" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">• Làm tròn: ROUND(AVG(amt), 2)</text>
+            <text x="30" y="138" fill="var(--sim-ok)" font-size="10" font-weight="800" font-family="var(--cds-font-mono)">→ avg_tx_30d = 45.73</text>
+
+            <rect x="295" y="42" width="245" height="142" rx="7" fill="var(--sim-danger-soft)" stroke="var(--sim-danger)" stroke-width="1.6"/>
+            <text x="305" y="60" fill="var(--sim-danger)" font-size="10" font-weight="800" font-family="var(--cds-font-mono)">2. LÚC SERVE (BACKEND PYTHON)</text>
+            <text x="305" y="80" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">• Viết lại bằng Python trong App</text>
+            <text x="305" y="98" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">• Xử lý NULL: Bỏ qua (Ignore NULLs)</text>
+            <text x="305" y="116" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">• Làm tròn: round(sum / len) nguyên</text>
+            <text x="305" y="138" fill="var(--sim-danger)" font-size="10" font-weight="800" font-family="var(--cds-font-mono)">→ avg_tx_30d = 46 (LỆCH SKEW!)</text>
+          ` : (isPit ? `
+            <rect x="20" y="42" width="520" height="142" rx="7" fill="var(--sim-card)" stroke="var(--sim-ok)" stroke-width="1.6"/>
+            <text x="32" y="62" fill="var(--sim-ok)" font-size="10" font-weight="800" font-family="var(--cds-font-mono)">TRỤC THỜI GIAN CỦA USER_48291 TRÊN OFFLINE STORE (get_historical_features):</text>
+            <line x1="40" y1="100" x2="510" y2="100" stroke="var(--sim-border)" stroke-width="2.5"/>
+
+            <circle cx="110" cy="100" r="7" fill="var(--sim-ok)"/>
+            <text x="110" y="84" text-anchor="middle" fill="var(--sim-ok)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">14:00 (avg = 45.73)</text>
+
+            <circle cx="275" cy="100" r="8" fill="var(--sim-flow)"/>
+            <text x="275" y="82" text-anchor="middle" fill="var(--sim-flow)" font-size="9.5" font-weight="800" font-family="var(--cds-font-mono)">▼ 14:32:10Z (txn_9f3a21c8)</text>
+
+            <circle cx="445" cy="100" r="7" fill="var(--sim-danger)"/>
+            <text x="445" y="84" text-anchor="middle" fill="var(--sim-danger)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">16:00 (avg = 390.00 · Tương lai!)</text>
+
+            <path d="M 275 112 Q 192 145 110 112" stroke="var(--sim-ok)" stroke-width="2.2" fill="none"/>
+            <text x="192" y="150" text-anchor="middle" fill="var(--sim-ok)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">[+] ASOF Join lùi về 14:00 (Lấy chuẩn 45.73)</text>
+            <text x="395" y="150" text-anchor="middle" fill="var(--sim-danger)" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">[x] Chặn nhìn trộm mốc 16:00!</text>
+          ` : `
+            <rect x="20" y="42" width="245" height="142" rx="7" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.5"/>
+            <text x="30" y="60" fill="var(--sim-flow)" font-size="10" font-weight="800" font-family="var(--cds-font-mono)">1. MATERIALIZE TO REDIS ONLINE</text>
+            <text x="30" y="80" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">• $ feast apply (Đăng ký FeatureView)</text>
+            <text x="30" y="98" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">• $ feast materialize-incremental</text>
+            <text x="30" y="116" fill="var(--sim-ok)" font-size="9.2" font-weight="700" font-family="var(--cds-font-mono)">• Redis Key: user_48291</text>
+            <text x="30" y="136" fill="var(--sim-flow)" font-size="9.2" font-weight="700" font-family="var(--cds-font-mono)">  {avg_tx_30d: 45.73, failed_1h: 3}</text>
+
+            <rect x="295" y="42" width="245" height="142" rx="7" fill="var(--sim-ok-soft)" stroke="var(--sim-ok)" stroke-width="1.6"/>
+            <text x="305" y="60" fill="var(--sim-ok)" font-size="10" font-weight="800" font-family="var(--cds-font-mono)">2. REAL-TIME SERVING (&lt; 10MS)</text>
+            <text x="305" y="80" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">• Sự kiện: txn_9f3a21c8 ($1,250.00)</text>
+            <text x="305" y="98" fill="var(--sim-ink)" font-size="9.2" font-family="var(--cds-font-mono)">• store.get_online_features(user_48291)</text>
+            <text x="305" y="118" fill="var(--sim-ok)" font-size="9.5" font-weight="800" font-family="var(--cds-font-mono)">• Độ trễ Redis: 1.8ms (&lt; 10ms SLA) [+]</text>
+            <text x="305" y="138" fill="var(--sim-danger)" font-size="9.2" font-weight="700" font-family="var(--cds-font-mono)">→ $1,250 vs avg 45.73: BLOCK FRAUD!</text>
+
+            <path d="M 265 112 L 295 112" stroke="var(--sim-ok)" stroke-width="2.5"/>
+            <circle r="4.5" fill="var(--sim-ok)"><animateMotion dur="0.9s" repeatCount="indefinite" path="M 265 112 L 295 112"/></circle>
+          `)}
+
+          <rect x="20" y="198" width="520" height="32" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="218" fill="var(--sim-ink)" font-size="10.2" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isSkew ? 'Không có Feature Store (Slides 56-57): Lệch logic 45.73 vs 46  |  Trùng lặp ống dẫn  |  Độ trễ cao' : (isPit ? 'Feast Offline Store: Point-in-Time ASOF Join bảo vệ 100% tập huấn luyện khỏi rò rỉ tương lai' : 'Feast Online Store (Slide 59-61): Định nghĩa 1 lần  |  Khớp 100% Train-Serve (45.73)  |  Độ trễ 1.8ms')}
+          </text>
+        </svg>
+      `;
+
+      status.innerHTML = isSkew
+        ? `<strong style="color:var(--sim-danger);">[Hai căn bệnh khi thiếu Feature Store (Slides 56–57)]:</strong> (1) <strong>Training-Serving Skew</strong>: SQL tính ra <code>45.73</code> nhưng Python lúc chạy thật tính ra <code>46</code>; (2) <strong>Duplicated Effort</strong>: Đội Fraud và đội Credit tự viết 2 ống dẫn riêng trả về <code>45.73</code> và <code>47.10</code>.`
+        : (isPit
+          ? `<strong style="color:var(--sim-ok);">[Point-in-Time Correctness — get_historical_features()]:</strong> Khi tái tạo đặc trưng cho giao dịch <code>txn_9f3a21c8</code> lúc <code>14:32:10Z</code>, Feast thực hiện phép kết lùi thời gian (<code>ASOF Join</code>) lấy đúng giá trị lúc <code>14:00 (45.73)</code>, chặn đứng việc nhìn trộm dữ liệu tương lai lúc <code>16:00</code>.`
+          : `<strong style="color:var(--sim-ok);">[Materialization &amp; Online Serving &lt; 10ms (Slides 59–61)]:</strong> Lệnh <code>feast materialize-incremental</code> đồng bộ giá trị mới nhất <code>45.73</code> từ Offline Store sang <code>Redis Online Store</code>. Khi <code>txn_9f3a21c8 ($1,250)</code> chạm cổng thanh toán, <code>get_online_features()</code> trả kết quả trong <code>1.8ms</code> để chặn giao dịch gian lận!`);
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isSkew ? 'infra2d-btn-rose' : ''}" onclick="cns2dState.feastMode='skew';renderConsumption2DInteractiveStage('feast')">1. Khi Thiếu Feature Store: Skew (45.73 vs 46)</button>
+        <button type="button" class="infra2d-btn ${isPit ? 'infra2d-btn-cyan' : ''}" onclick="cns2dState.feastMode='pit';renderConsumption2DInteractiveStage('feast')">2. Feast Offline: Point-in-Time ASOF Join</button>
+        <button type="button" class="infra2d-btn ${isOn ? 'infra2d-btn-emerald' : ''}" onclick="cns2dState.feastMode='online';renderConsumption2DInteractiveStage('feast')">3. Feast Online: Redis (&lt; 10ms) Chặn Gian Lận</button>
+      `;
+    }
+  }
+
+  /* ==========================================================================
+     INTERACTIVE 2D SIMULATOR FOR F02: CPYTHON RUNTIME, UV, CONTEXT & ASYNCIO
+     ========================================================================== */
+  let py2dCurrentSlide = 0;
+  let py2dState = {
+    memMode: "cpython",
+    envMode: "uv",
+    lookupMode: "set",
+    ioMode: "async"
+  };
+
+  const PY2D_SLIDES = [
+    {
+      id: 1,
+      chapter: "Chặng 1 · CPython Memory",
+      analogy: "Cấu trúc PyObject & Reference Counting",
+      title: "1. CPython PyObject (28 Bytes) & Tự Động Thu Gom Rác vs. C malloc/free",
+      leadTitle: "Tại sao biến trong Python không cần khai báo kiểu và không cần gọi free()?",
+      leadStory: "Trong C, lập trình viên cấp phát vùng nhớ thô bằng malloc() và nếu quên gọi free(ptr) sẽ gây rò rỉ bộ nhớ (Memory Leak). Trong CPython, mọi giá trị đều là cấu trúc PyObject trên Heap mang theo bộ đếm tham chiếu ob_refcnt và con trỏ kiểu ob_type.",
+      keypoints: [
+        { b: "28B", t: "PyObject Header (ob_refcnt + ob_type)", d: "Một số nguyên int trong Python tốn 28 bytes (8B ob_refcnt + 8B ob_type + 12B payload) thay vì 4-8 bytes thô như C." },
+        { b: "RC", t: "Reference Counting Tức Thì", d: "Khi gán b = a, Python không sao chép mảng mà chỉ tăng ob_refcnt từ 1 lên 2. Khi ob_refcnt về 0, bộ nhớ giải phóng ngay lập tức." },
+        { b: "GC", t: "Cyclic Garbage Collector", d: "Bộ dọn rác phân thế hệ (Generational GC: Gen 0, 1, 2) định kỳ quét và phá vỡ các vòng tham chiếu khép kín (a <-> b)." }
+      ],
+      verdict: "Quy tắc kiến trúc: Đánh đổi chi phí bộ nhớ PyObject để lấy tốc độ phát triển cực nhanh; với tính toán ma trận nặng, ủy quyền xuống thư viện C/Rust (NumPy, PyTorch, Polars).",
+      simMode: "memory"
+    },
+    {
+      id: 2,
+      chapter: "Chặng 1 · Virtual Env & uv",
+      analogy: "Cô lập site-packages & Hardlink Cache",
+      title: "2. Hóa Giải Dependency Hell: Global pip vs. venv (4.63s) vs. Poetry (0.99s) vs. uv (0.06s)",
+      leadTitle: "Làm sao chạy đồng thời Dự án A (serpapi 1.0.5) và Dự án B (serpapi 1.0.8) trên cùng máy chủ?",
+      leadStory: "Cài đặt gói trực tiếp vào Global site-packages khiến phiên bản mới ghi đè phiên bản cũ. Môi trường ảo (.venv) cô lập sys.path cho từng dự án, trong khi uv (viết bằng Rust) dùng Global Cache + Hardlink giúp tạo môi trường chỉ trong 0.06 giây.",
+      keypoints: [
+        { b: "ERR", t: "Global site-packages (Dependency Hell)", d: "pip chỉ giữ 1 phiên bản duy nhất cho mỗi tên gói trong thư mục toàn cục, gây sập dây chuyền khi nâng cấp thư viện." },
+        { b: "ISO", t: "Cơ chế Cô lập .venv (PATH & sys.path)", d: "Không cần ảo hóa phần cứng: kích hoạt .venv chỉ đơn giản là đổi biến PATH và sys.path[0] về thư mục .venv riêng của dự án." },
+        { b: "UV", t: "uv (Rust PubGrub + Hardlinks · 0.06s)", d: "Giải phụ thuộc bằng thuật toán PubGrub song song và liên kết cứng (Hardlink / CoW) từ Global Cache với 0 byte sao chép thừa." }
+      ],
+      verdict: "Quy tắc vận hành: Luôn khóa phiên bản tất định bằng pyproject.toml + uv.lock (hoặc poetry.lock) trước khi đóng gói Docker hoặc đẩy lên CI/CD.",
+      simMode: "env"
+    },
+    {
+      id: 3,
+      chapter: "Chặng 2 & 3 · Hash O(1) & with",
+      analogy: "Bảng Băm Thu Gọn & Context Manager",
+      title: "3. Tra Cứu Khử Trùng dict/set O(1) vs. list O(n) & Giao Thức Context Manager (with)",
+      leadTitle: "Tại sao thay list bằng set giúp crawler.py nhanh gấp hàng nghìn lần và with chặn đứng lỗi sập OS?",
+      leadStory: "Khi kiểm tra 100.000 URL đã thu thập, list phải quét tuần tự O(n) từng con trỏ, còn set/dict băm khóa hash(url) nhảy thẳng tới ô nhớ trong O(1). Khi ghi kết quả ra đĩa, khối with đảm bảo luôn gọi __exit__() đóng File Descriptor ngay cả khi văng ngoại lệ.",
+      keypoints: [
+        { b: "O(1)", t: "Compact Hash Table (dict & set)", d: "Dùng hàm băm 64-bit định vị trực tiếp chỉ mục bảng băm trong thời gian hằng số O(1), yêu cầu khóa phải bất biến (Immutable / Hashable)." },
+        { b: "FD", t: "Rò rỉ File Descriptor (Errno 24)", d: "Mở tệp thủ công f = open() mà văng lỗi trước f.close() sẽ làm treo con trỏ tệp trong Kernel cho tới khi chạm trần ulimit -n." },
+        { b: "CTX", t: "Giao thức __enter__() / __exit__()", d: "Cấu trúc with cam kết thực thi __exit__() trong mọi kịch bản lỗi, tự động thu hồi File Descriptor, Socket và DB Session." }
+      ],
+      verdict: "Quy tắc cốt lõi: Dùng set/dict cho mọi phép kiểm tra tồn tại (x in col), duyệt tệp lớn bằng Streaming Iterator (for line in f) và luôn bọc tài nguyên I/O trong khối with.",
+      simMode: "lookup"
+    },
+    {
+      id: 4,
+      chapter: "Chặng 4 · Sync vs. Asyncio",
+      analogy: "Bài toán Đại kiện tướng Judit Polgár",
+      title: "4. Lập Trình Đồng Bộ (Blocking 12h) vs. Bất Đồng Bộ asyncio Event Loop (Non-Blocking 1.5h)",
+      leadTitle: "Làm sao 1 luồng Python duy nhất xử lý đồng thời hàng trăm yêu cầu mạng mà không để CPU chết đói 92%?",
+      leadStory: "Trong mô hình Synchronous (Flask/Requests), luồng CPU đứng chờ 55s cho mỗi tác vụ mạng (tổng 12 giờ cho 24 bàn cờ). Với asyncio Event Loop (FastAPI/httpx), khi gặp lệnh await, Coroutine nhường ngay CPU cho tác vụ khác qua epoll/kqueue, rút ngắn thời gian xuống 1.5 giờ (nhanh gấp 8.2 lần).",
+      keypoints: [
+        { b: "92%", t: "Synchronous Blocking (WSGI / Requests)", d: "Mỗi lệnh I/O hoặc time.sleep() khóa cứng luồng thực thi tại chỗ, khiến CPU ngồi chờ lãng phí tới 92% thời gian." },
+        { b: "LOOP", t: "Asynchronous Non-Blocking (ASGI / asyncio)", d: "Từ khóa await tạm dừng Coroutine hiện tại và đăng ký sự kiện với OS Kernel (epoll/kqueue), giúp CPU chạy liên tục 100% công suất." },
+        { b: "TRAP", t: "Cạm bẫy Chặn Đứng Event Loop", d: "Tuyệt đối không gọi time.sleep() hay requests.get() bên trong hàm async def; với tác vụ nặng CPU-bound, phải tách sang ProcessPoolExecutor." }
+      ],
+      verdict: "Quy tắc chọn Framework: Dùng FastAPI + httpx/aiohttp + asyncio.gather() cho dịch vụ nặng I/O mạng (Web API, LLM Gateway, Crawler); dùng Multiprocessing cho tính toán nặng CPU.",
+      simMode: "io"
+    }
+  ];
+
+  function buildPython2DSimulatorHtml() {
+    return `
+      <div class="infra2d-wrap" id="py2dWidgetRoot">
+        <div class="infra2d-topbar">
+          <div class="infra2d-brand">
+            <div class="infra2d-brand-icon">2D</div>
+            <div>
+              <div class="infra2d-brand-badges">
+                <span class="infra2d-tag">Cắt Lớp Runtime &amp; Luồng Thực Thi 2D</span>
+                <span class="infra2d-chapter" id="py2dChapterBadge">Chặng 1 · CPython Memory</span>
+              </div>
+              <h4 class="infra2d-title-bar">Phòng Thí Nghiệm Tương Tác F02: Giải Phẫu Tiến Trình market-crawler (crawler.py) Dưới Nắp Máy CPython</h4>
+            </div>
+          </div>
+          <div class="infra2d-dots" id="py2dDots"></div>
+          <button type="button" class="infra2d-btn" onclick="togglePython2DSummaryModal()">Bảng Tóm Tắt Cơ Học</button>
+        </div>
+
+        <div id="py2dSummaryDrawer" style="display:none;padding:14px 16px;background:var(--sim-canvas);border-bottom:1px solid var(--sim-border);">
+          <div style="padding:10px 12px;border-radius:8px;background:var(--sim-flow-soft);border:1px solid color-mix(in oklab, var(--sim-flow) 35%, transparent);font-size:12.5px;color:var(--sim-flow);margin-bottom:10px;">
+            <strong>Chuẩn kiến trúc F02 (Python Engineering Foundations):</strong> Hiểu rõ chi phí bộ nhớ <strong>PyObject</strong>, khóa môi trường bằng <strong>uv / Poetry</strong>, chọn cấu trúc bảng băm <strong>O(1)</strong>, quản lý tài nguyên bằng <strong>Context Manager (with)</strong> và vận hành bất đồng bộ với <strong>asyncio Event Loop / FastAPI</strong>.
+          </div>
+          <div class="table-wrap" style="margin:0;">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chặng Kiến Trúc</th>
+                  <th>Cơ Chế Vận Hành Dưới Nắp Máy</th>
+                  <th>Công Cụ &amp; Mẫu Thiết Kế Chuẩn</th>
+                  <th>Rủi Ro Sinh Tử Cần Chặn</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Runtime &amp; Env</strong></td>
+                  <td><code>PyObject</code> (<code>ob_refcnt</code> + Cyclic GC) &amp; Cô lập <code>sys.path</code></td>
+                  <td><code>uv</code> (<code>0.06s</code> Hardlink Cache), <code>pyproject.toml</code>, <code>uv.lock</code></td>
+                  <td>Cài thẳng vào Global <code>site-packages</code> gây <code>Dependency Hell</code></td>
+                </tr>
+                <tr>
+                  <td><strong>2. Data &amp; Contracts</strong></td>
+                  <td><code>Name Binding</code>บน Heap &amp; Compact Hash Table <code>O(1)</code></td>
+                  <td><code>is None</code>, <code>set/dict</code> khử trùng, <code>*args/**kwargs</code>, <code>Type Hints</code></td>
+                  <td>Dùng <code>list O(n)</code> để tra cứu hoặc truyền <code>default=[]</code> khả biến</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Exceptions &amp; I/O</strong></td>
+                  <td>Giao thức <code>__enter__() / __exit__()</code> &amp; Buffered Iterator</td>
+                  <td><code>with open(..., "a")</code>, <code>for line in f</code>, <code>argparse</code>, <code>logging</code></td>
+                  <td>Bắt <code>except Exception:</code> mù lỗi, quên đóng tệp gây <code>Errno 24</code>, gọi <code>read()</code> nổ OOM</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Sync vs. Async</strong></td>
+                  <td>Single-Thread <code>Event Loop</code> + OS <code>epoll / kqueue</code></td>
+                  <td><code>async def / await</code>, <code>asyncio.gather()</code>, <code>FastAPI (ASGI)</code>, <code>httpx</code></td>
+                  <td>Gọi hàm chặn <code>time.sleep() / requests.get()</code> làm đông cứng Event Loop</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="infra2d-grid">
+          <div class="infra2d-col-left">
+            <div>
+              <div class="infra2d-pills">
+                <span class="infra2d-pill-num" id="py2dSlideNumPill">SLIDE 1 / 4</span>
+                <span class="infra2d-pill-analogy" id="py2dAnalogyPill">Cắt Lớp Cơ Học</span>
+              </div>
+              <h3 class="infra2d-slide-h3" id="py2dSlideTitle"></h3>
+              <div class="infra2d-story-box">
+                <div class="infra2d-avatar" title="Tiến trình market-crawler (crawler.py)">PY</div>
+                <div>
+                  <span class="infra2d-story-title" id="py2dLeadTitle"></span>
+                  <p class="infra2d-story-text" id="py2dLeadStory"></p>
+                </div>
+              </div>
+              <div class="infra2d-keypoints" id="py2dKeypoints"></div>
+            </div>
+            <div class="infra2d-verdict" id="py2dVerdictBox"></div>
+          </div>
+
+          <div class="infra2d-col-right">
+            <div>
+              <div class="infra2d-sim-top">
+                <div class="infra2d-sim-live">
+                  <span class="infra2d-sim-dot"></span>
+                  <span>Mô Phỏng Cắt Lớp Runtime &amp; Luồng Thực Thi (Animated SVG)</span>
+                </div>
+                <span class="infra2d-sim-hint">Bấm các nút bên dưới để chuyển đổi kịch bản!</span>
+              </div>
+              <div class="infra2d-stage" id="py2dSimStage" style="padding:10px;"></div>
+            </div>
+            <div>
+              <div class="infra2d-status" id="py2dSimStatusText">Sẵn sàng mô phỏng.</div>
+              <div class="infra2d-controls" id="py2dSimControls"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="infra2d-footer">
+          <button type="button" class="infra2d-btn" id="py2dBtnPrev" onclick="changePython2DSlide(-1)">← Mô Phỏng Trước</button>
+          <div class="infra2d-progress-wrap">
+            <div class="infra2d-progress-track">
+              <div class="infra2d-progress-fill" id="py2dProgressFill" style="width:25%;"></div>
+            </div>
+            <span style="font-size:11px;color:var(--sim-muted);">Chọn 1 trong 4 lát cắt cơ học Python (1–4) hoặc bấm nút điều khiển để đối chiếu trực tiếp</span>
+          </div>
+          <button type="button" class="infra2d-btn infra2d-btn-primary" id="py2dBtnNext" onclick="changePython2DSlide(1)">Mô Phỏng Tiếp Theo →</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function togglePython2DSummaryModal() {
+    const d = document.getElementById("py2dSummaryDrawer");
+    if (!d) return;
+    d.style.display = (d.style.display === "none" || !d.style.display) ? "block" : "none";
+  }
+
+  function changePython2DSlide(delta) {
+    const next = py2dCurrentSlide + delta;
+    if (next < 0 || next >= PY2D_SLIDES.length) return;
+    py2dCurrentSlide = next;
+    renderPython2DSlide();
+  }
+
+  function jumpPython2DSlide(idx) {
+    if (idx < 0 || idx >= PY2D_SLIDES.length) return;
+    py2dCurrentSlide = idx;
+    renderPython2DSlide();
+  }
+
+  function renderPython2DSlide() {
+    const root = document.getElementById("py2dWidgetRoot");
+    if (!root) return;
+    const slide = PY2D_SLIDES[py2dCurrentSlide] || PY2D_SLIDES[0];
+
+    document.getElementById("py2dChapterBadge").textContent = slide.chapter;
+    document.getElementById("py2dSlideNumPill").textContent = `SLIDE ${slide.id} / ${PY2D_SLIDES.length}`;
+    document.getElementById("py2dAnalogyPill").textContent = slide.analogy;
+    document.getElementById("py2dSlideTitle").textContent = slide.title;
+    document.getElementById("py2dLeadTitle").textContent = slide.leadTitle;
+    document.getElementById("py2dLeadStory").textContent = slide.leadStory;
+
+    const kpEl = document.getElementById("py2dKeypoints");
+    kpEl.innerHTML = slide.keypoints.map(kp => `
+      <div class="infra2d-kp-item">
+        <div class="infra2d-kp-badge">${escapeHtml(kp.b)}</div>
+        <div>
+          <span class="infra2d-kp-title">${escapeHtml(kp.t)}</span>
+          <p class="infra2d-kp-desc">${escapeHtml(kp.d)}</p>
+        </div>
+      </div>
+    `).join("");
+
+    document.getElementById("py2dVerdictBox").textContent = slide.verdict;
+
+    const dotsEl = document.getElementById("py2dDots");
+    dotsEl.innerHTML = PY2D_SLIDES.map((s, idx) => `
+      <button type="button" class="infra2d-dot-btn ${idx === py2dCurrentSlide ? 'active' : ''}" onclick="jumpPython2DSlide(${idx})">${s.id}</button>
+    `).join("");
+
+    const prevBtn = document.getElementById("py2dBtnPrev");
+    const nextBtn = document.getElementById("py2dBtnNext");
+    if (prevBtn) prevBtn.disabled = (py2dCurrentSlide === 0);
+    if (nextBtn) nextBtn.disabled = (py2dCurrentSlide === PY2D_SLIDES.length - 1);
+
+    const fillEl = document.getElementById("py2dProgressFill");
+    if (fillEl) fillEl.style.width = `${((py2dCurrentSlide + 1) / PY2D_SLIDES.length) * 100}%`;
+
+    renderPython2DInteractiveStage(slide.simMode);
+  }
+
+  function renderPython2DInteractiveStage(mode) {
+    const stage = document.getElementById("py2dSimStage");
+    const status = document.getElementById("py2dSimStatusText");
+    const ctrls = document.getElementById("py2dSimControls");
+    if (!stage || !status || !ctrls) return;
+
+    if (mode === "memory") {
+      const m = py2dState.memMode;
+      const isPy = m === "cpython";
+      const isGc = m === "gc";
+      const isC = m === "c_manual";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="27" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isC ? 'C / C++ MANUAL MEMORY (MALLOC / FREE — RỦI RO MEMORY LEAK)' : (isGc ? 'CPYTHON CYCLIC GARBAGE COLLECTOR (PHÁ VỠ VÒNG THAM CHIẾU A <-> B)' : 'CPYTHON AUTOMATIC MEMORY (PYOBJECT 28B + REFERENCE COUNTING)')}</text>
+
+          <rect x="20" y="42" width="175" height="142" rx="7" fill="var(--sim-card)" stroke="${isC ? 'var(--sim-danger)' : 'var(--sim-flow)'}" stroke-width="1.5"/>
+          <text x="30" y="60" fill="${isC ? 'var(--sim-danger)' : 'var(--sim-flow)'}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isC ? 'C STACK POINTERS' : 'STACK NAMESPACE (FRAMES)'}</text>
+          <rect x="32" y="72" width="150" height="42" rx="5" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="40" y="90" fill="var(--sim-ink)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isC ? 'int *ptr = malloc(400);' : 'a = [1, 2, 3]'}</text>
+          <text x="40" y="105" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">${isC ? 'Cấp phát 400 bytes thô' : 'Nhãn a trỏ tới 0x7f8a'}</text>
+
+          <rect x="32" y="124" width="150" height="46" rx="5" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="40" y="142" fill="var(--sim-ink)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isC ? 'Quên gọi free(ptr)!' : (isGc ? 'a.next = b; b.prev = a' : 'b = a  (Aliasing)')}</text>
+          <text x="40" y="158" fill="${isC ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">${isC ? 'Mất con trỏ -> Rò rỉ RAM!' : (isGc ? 'del a, b -> Còn vòng kín!' : 'ob_refcnt tăng từ 1 -> 2')}</text>
+
+          <rect x="225" y="42" width="315" height="142" rx="7" fill="var(--sim-card)" stroke="${isC ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.5"/>
+          <text x="235" y="60" fill="${isC ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isC ? 'HEAP MEMORY (UNMANAGED RAW BYTES)' : 'CPYTHON PRIVATE HEAP (PYOBJECT STRUCT)'}</text>
+
+          <rect x="238" y="72" width="288" height="98" rx="6" fill="${isC ? 'var(--sim-danger-soft)' : 'var(--sim-ok-soft)'}" stroke="${isC ? 'var(--sim-danger)' : 'var(--sim-ok)'}"/>
+          <text x="248" y="92" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isC ? '[Raw Block 400 Bytes tại 0x7f8a]' : 'PyObject @ 0x7f8a (>= 28 Bytes Header)'}</text>
+          <text x="248" y="112" fill="var(--sim-sub)" font-size="9.5" font-family="var(--cds-font-mono)">${isC ? '• Không có ob_refcnt, không có GC' : '• ob_refcnt (8B): ' + (isGc ? '1 (Tự trỏ vòng kín A <-> B)' : '2 (Đang có nhãn a và b trỏ tới)')}</text>
+          <text x="248" y="130" fill="var(--sim-sub)" font-size="9.5" font-family="var(--cds-font-mono)">${isC ? '• Quên free() -> Treo vĩnh viễn trên RAM' : '• ob_type (8B): &PyList_Type  |  ob_item: [1, 2, 3]'}</text>
+          <text x="248" y="150" fill="${isC ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isC ? '[!] RÒ RỈ BỘ NHỚ (MEMORY LEAK) TRÊN SERVER!' : (isGc ? '[+] Cyclic GC (Gen 0/1/2) phát hiện & thu hồi sạch!' : '[+] Khi del a, del b -> ob_refcnt == 0 -> Giải phóng tức thì!')}</text>
+
+          <path d="M 182 92 L 238 92" stroke="${isC ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="2.2"/>
+          <path d="M 182 145 L 238 125" stroke="${isC ? 'var(--sim-danger)' : 'var(--sim-flow)'}" stroke-width="2.2" stroke-dasharray="${isC ? '4 3' : 'none'}"/>
+          <circle r="4.5" fill="${isC ? 'var(--sim-danger)' : 'var(--sim-ok)'}"><animateMotion dur="1.2s" repeatCount="indefinite" path="M 182 92 L 238 92"/></circle>
+
+          <rect x="20" y="198" width="520" height="32" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="218" fill="var(--sim-ink)" font-size="10.2" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isC ? 'Chế độ: C Manual (malloc/free)  |  Overhead: 0 Byte  |  Rủi ro: Memory Leak & Dangling Pointer' : (isGc ? 'Chế độ: Cyclic GC (Gen 0, 1, 2)  |  Xử lý vòng tham chiếu a <-> b khi ob_refcnt > 0' : 'Chế độ: CPython Reference Counting  |  Header: 28 Bytes/int  |  Giải phóng tức thì khi ob_refcnt == 0')}
+          </text>
+        </svg>
+      `;
+
+      status.textContent = isC
+        ? "Trong C (Slide 08): Lập trình viên phải gọi malloc() và free() thủ công; quên free() trong vòng lặp dài hạn sẽ làm cạn sạch RAM máy chủ."
+        : (isGc
+          ? "Cyclic Garbage Collector: Khi hai đối tượng tự trỏ lẫn nhau (a <-> b) khiến ob_refcnt không bao giờ về 0, bộ GC phân thế hệ sẽ định kỳ dò tìm và thu hồi."
+          : "CPython Reference Counting (Slide 08): Mỗi PyObject lưu bộ đếm ob_refcnt; gán b = a tăng ob_refcnt lên 2, và ngay khi về 0 vùng nhớ được giải phóng tức khắc.");
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isPy ? 'infra2d-btn-emerald' : ''}" onclick="py2dState.memMode='cpython';renderPython2DInteractiveStage('memory')">1. CPython PyObject &amp; ob_refcnt</button>
+        <button type="button" class="infra2d-btn ${isGc ? 'infra2d-btn-cyan' : ''}" onclick="py2dState.memMode='gc';renderPython2DInteractiveStage('memory')">2. Cyclic GC (Phá Vòng Tham Chiếu Kín)</button>
+        <button type="button" class="infra2d-btn ${isC ? 'infra2d-btn-rose' : ''}" onclick="py2dState.memMode='c_manual';renderPython2DInteractiveStage('memory')">3. Đối chiếu: C malloc() Quên free() (Leak)</button>
+      `;
+    } else if (mode === "env") {
+      const m = py2dState.envMode;
+      const isHell = m === "hell";
+      const isVenv = m === "venv";
+      const isUv = m === "uv";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="27" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isHell ? 'DEPENDENCY HELL: XUNG ĐỘT PHIÊN BẢN TRÊN GLOBAL SITE-PACKAGES (SLIDE 09-12)' : (isVenv ? 'VIRTUALENV / VENV + PIP: CÔ LẬP SYS.PATH NHƯNG COPY FILE TUẦN TỰ (4.63 GIÂY)' : 'KIẾN TRÚC UV (RUST + PUBGRUB + HARDLINK CACHE): CÔ LẬP TRONG 0.06 GIÂY (SLIDE 20-23)')}</text>
+
+          <rect x="20" y="42" width="160" height="66" rx="6" fill="var(--sim-card)" stroke="${isHell ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.5"/>
+          <text x="30" y="60" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">Dự án 1 (crawler-v1)</text>
+          <text x="30" y="78" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">Cần: serpapi == 1.0.5</text>
+          <text x="30" y="96" fill="${isHell ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">${isHell ? '[x] Crash do nạp 1.1.15!' : '[+] .venv riêng: 1.0.5 OK'}</text>
+
+          <rect x="20" y="118" width="160" height="66" rx="6" fill="var(--sim-card)" stroke="${isHell ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.5"/>
+          <text x="30" y="136" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">Dự án 2 (crawler-v2)</text>
+          <text x="30" y="154" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">Cần: serpapi == 1.0.8</text>
+          <text x="30" y="172" fill="${isHell ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">${isHell ? '[x] Crash do nạp 1.1.15!' : '[+] .venv riêng: 1.0.8 OK'}</text>
+
+          <rect x="220" y="42" width="320" height="142" rx="7" fill="${isHell ? 'var(--sim-danger-soft)' : 'var(--sim-card)'}" stroke="${isHell ? 'var(--sim-danger)' : (isUv ? 'var(--sim-ok)' : 'var(--sim-flow)')}" stroke-width="1.5"/>
+          <text x="232" y="62" fill="${isHell ? 'var(--sim-danger)' : (isUv ? 'var(--sim-ok)' : 'var(--sim-flow)')}" font-size="10.2" font-weight="700" font-family="var(--cds-font-mono)">${isHell ? '/usr/lib/python3/site-packages (DÙNG CHUNG!)' : (isUv ? 'UV GLOBAL CACHE + HARDLINKS + UV.LOCK' : 'THƯ MỤC .VENV RIÊNG BIỆT (COPY ĐỘC LẬP)')}</text>
+          <text x="232" y="84" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isHell ? '• pip chỉ lưu được 1 bản: serpapi == 1.1.15' : (isUv ? '• Giải phụ thuộc bằng thuật toán PubGrub (Rust)' : '• Đổi biến PATH & sys.path về .venv/lib/site-packages')}</text>
+          <text x="232" y="104" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isHell ? '• Cài gói mới sẽ xóa đè gói cũ ngay lập tức' : (isUv ? '• Hardlink / Reflink từ ~/.cache/uv (0 MB copy thừa)' : '• Giải nén & sao chép lại hàng nghìn tệp .py mỗi dự án')}</text>
+          <text x="232" y="124" fill="var(--sim-sub)" font-size="9.5" font-family="var(--cds-font-mono)">${isHell ? '• Không có Lockfile -> Lệch môi trường Production' : (isUv ? '• Khóa chặt SHA-256 trong pyproject.toml + uv.lock' : '• Dùng requirements.txt phẳng (thiếu cây phụ thuộc)')}</text>
+          <text x="232" y="152" fill="${isHell ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isHell ? 'Hậu quả: Cả 2 dự án cùng sập khi import serpapi!' : (isUv ? 'Tốc độ đồng bộ: 0.06 giây (Nhanh gấp 77 lần pip-sync!)' : 'Tốc độ đồng bộ: 4.63 giây (pip-sync) / 0.99 giây (Poetry)')}</text>
+
+          <path d="M 180 75 L 220 75" stroke="${isHell ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="2.2"/>
+          <path d="M 180 150 L 220 150" stroke="${isHell ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="2.2"/>
+
+          <rect x="20" y="198" width="520" height="32" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="218" fill="var(--sim-ink)" font-size="10.2" font-weight="700" font-family="var(--cds-font-mono)">
+            Benchmark (Slide 21): uv = 0.06s  |  Poetry = 0.99s  |  PDM = 1.90s  |  pip-sync = 4.63s
+          </text>
+        </svg>
+      `;
+
+      status.textContent = isHell
+        ? "Dependency Hell (Slide 09-12): Khi cài thẳng vào hệ thống, serpapi 1.1.15 ghi đè hoàn toàn bản 1.0.5 và 1.0.8 khiến cả Dự án 1 lẫn Dự án 2 đều gãy."
+        : (isVenv
+          ? "venv / virtualenv + pip: Cô lập thành công sys.path cho từng dự án, nhưng phải tải và giải nén lặp lại các gói nặng, mất 4.63s."
+          : "uv (Astral Rust · Slide 20-23): Kết hợp trình giải PubGrub và Global Hardlink Cache giúp khởi tạo và khóa môi trường (uv.lock) chỉ trong 0.06s!");
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isUv ? 'infra2d-btn-emerald' : ''}" onclick="py2dState.envMode='uv';renderPython2DInteractiveStage('env')">1. Kiến trúc uv (Rust + Hardlink Cache · 0.06s)</button>
+        <button type="button" class="infra2d-btn ${isVenv ? 'infra2d-btn-cyan' : ''}" onclick="py2dState.envMode='venv';renderPython2DInteractiveStage('env')">2. venv / pip-sync Truyền thống (4.63s)</button>
+        <button type="button" class="infra2d-btn ${isHell ? 'infra2d-btn-rose' : ''}" onclick="py2dState.envMode='hell';renderPython2DInteractiveStage('env')">3. Global site-packages (Dependency Hell)</button>
+      `;
+    } else if (mode === "lookup") {
+      const m = py2dState.lookupMode;
+      const isSet = m === "set";
+      const isList = m === "list";
+      const isLeak = m === "fd_leak";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="27" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isLeak ? 'QUẢN LÝ FILE DESCRIPTOR: MANUAL OPEN() RÒ RỈ FD VS. CONTEXT MANAGER (WITH)' : (isList ? 'TRA CỨU TRÊN LIST: QUÉT TUẦN TỰ O(N) QUA 100.000 CON TRỎ (TREO CPU!)' : 'TRA CỨU TRÊN SET / DICT: BẢNG BĂM O(1) NHẢY THẲNG TỚI Ô NHỚ TRONG 1 BƯỚC')}</text>
+
+          <rect x="20" y="42" width="245" height="142" rx="7" fill="var(--sim-card)" stroke="${isList || isLeak ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.5"/>
+          <text x="30" y="62" fill="${isList || isLeak ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isLeak ? '1. MỞ TỆP THỦ CÔNG (THIẾU WITH)' : (isList ? '1. DYNAMIC ARRAY (list O(n))' : '1. COMPACT HASH TABLE (set/dict O(1))')}</text>
+          <text x="30" y="84" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isLeak ? 'f = open("events.jsonl", "a")' : (isList ? 'if url in visited_list:' : 'if url in visited_set:')}</text>
+          <text x="30" y="104" fill="var(--sim-sub)" font-size="9.2" font-family="var(--cds-font-mono)">${isLeak ? '• Dòng kế tiếp văng ValueError!' : (isList ? '• Phải so sánh idx 0 -> 99,999' : '• Tính hash(url) -> 0x9fa2 -> Slot #4')}</text>
+          <text x="30" y="124" fill="var(--sim-sub)" font-size="9.2" font-family="var(--cds-font-mono)">${isLeak ? '• Nhảy vọt qua lệnh f.close()' : (isList ? '• 100k URL x 100k = 10 tỷ phép đo' : '• Chỉ tốn đúng 1 phép băm hằng số')}</text>
+          <text x="30" y="148" fill="${isList || isLeak ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isLeak ? '[x] Rò rỉ 1.024 FDs -> Errno 24 Crash!' : (isList ? '[x] Thời gian chạy: ~48.5 giây' : '[+] Thời gian chạy: ~0.012 giây!')}</text>
+
+          <rect x="295" y="42" width="245" height="142" rx="7" fill="var(--sim-card)" stroke="var(--sim-ok)" stroke-width="1.5"/>
+          <text x="305" y="62" fill="var(--sim-ok)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">2. GIAO THỨC CONTEXT MANAGER (WITH)</text>
+          <text x="305" y="84" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">with open("events.jsonl", "a") as f:</text>
+          <text x="305" y="104" fill="var(--sim-sub)" font-size="9.2" font-family="var(--cds-font-mono)">• Bước 1: Gọi f.__enter__() cấp FD #3</text>
+          <text x="305" y="124" fill="var(--sim-sub)" font-size="9.2" font-family="var(--cds-font-mono)">• Bước 2: Ghi dòng / Duyệt Streaming O(1)</text>
+          <text x="305" y="148" fill="var(--sim-ok)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">[+] Luôn gọi __exit__() đóng FD #3 an toàn!</text>
+
+          <rect x="20" y="198" width="520" height="32" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="218" fill="var(--sim-ink)" font-size="10.2" font-weight="700" font-family="var(--cds-font-mono)">
+            Tra cứu 100k URL: set/dict O(1) = 12ms vs list O(n) = 48,500ms  |  Đọc tệp 10GB: Iterator = O(1) RAM
+          </text>
+        </svg>
+      `;
+
+      status.textContent = isLeak
+        ? "Rò rỉ File Descriptor (Slide 56): Mở tệp không dùng with khiến lỗi giữa chừng bỏ qua f.close(); chạm ngưỡng ulimit -n sẽ làm sập tiến trình với Errno 24."
+        : (isList
+          ? "Tra cứu trên list O(n) (Slide 40): Kiểm tra url in visited_list phải quét tuần tự qua mảng con trỏ, làm độ phức tạp toàn cục vọt lên O(n^2)."
+          : "Bảng băm set/dict O(1) + Context Manager with: Vừa khử trùng 100.000 URL trong 12ms, vừa đảm bảo giải phóng 100% File Descriptor qua __exit__().");
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isSet ? 'infra2d-btn-emerald' : ''}" onclick="py2dState.lookupMode='set';renderPython2DInteractiveStage('lookup')">1. set / dict Hash Table O(1) (12ms)</button>
+        <button type="button" class="infra2d-btn ${isList ? 'infra2d-btn-rose' : ''}" onclick="py2dState.lookupMode='list';renderPython2DInteractiveStage('lookup')">2. list Dynamic Array O(n) (48.5s)</button>
+        <button type="button" class="infra2d-btn ${isLeak ? 'infra2d-btn-amber' : ''}" onclick="py2dState.lookupMode='fd_leak';renderPython2DInteractiveStage('lookup')">3. Đối chiếu: Quên with → Rò rỉ FD (Errno 24)</button>
+      `;
+    } else if (mode === "io") {
+      const m = py2dState.ioMode;
+      const isAsync = m === "async";
+      const isSync = m === "sync";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="27" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isSync ? 'SYNCHRONOUS BLOCKING (JUDIT POLGAR CHỜ TỪNG BÀN: 43,200S = 12 GIỜ · 92% CPU IDLE)' : 'ASYNCHRONOUS EVENT LOOP (JUDIT POLGAR XOAY VÒNG 24 BÀN: 5,250S = 1.5 GIỜ · TĂNG TỐC 8.2X)'}</text>
+
+          <rect x="20" y="42" width="520" height="64" rx="7" fill="var(--sim-card)" stroke="${isSync ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.5"/>
+          <text x="32" y="60" fill="${isSync ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isSync ? 'LUỒNG ĐỒNG BỘ (SYNC / REQUESTS / TIME.SLEEP): BỊ CHẶN CỨNG KHI CHỜ MẠNG' : 'LUỒNG BẤT ĐỒNG BỘ (ASYNCIO EVENT LOOP / FASTAPI / HTTPX): NHƯỜNG QUYỀN QUA AWAIT'}</text>
+
+          ${isSync ? `
+            <rect x="32" y="70" width="45" height="24" rx="4" fill="var(--sim-ok)"/><text x="54" y="86" text-anchor="middle" fill="#fff" font-size="8.5" font-weight="700">CPU 5s</text>
+            <rect x="82" y="70" width="180" height="24" rx="4" fill="var(--sim-danger-soft)" stroke="var(--sim-danger)"/><text x="172" y="86" text-anchor="middle" fill="var(--sim-danger)" font-size="9" font-weight="700">Đứng chờ I/O Bàn 1 (55s - CPU Idle!)</text>
+            <rect x="268" y="70" width="45" height="24" rx="4" fill="var(--sim-ok)"/><text x="290" y="86" text-anchor="middle" fill="#fff" font-size="8.5" font-weight="700">CPU 5s</text>
+            <rect x="318" y="70" width="205" height="24" rx="4" fill="var(--sim-danger-soft)" stroke="var(--sim-danger)"/><text x="420" y="86" text-anchor="middle" fill="var(--sim-danger)" font-size="9" font-weight="700">Đứng chờ I/O Bàn 2 (55s - CPU Idle!)</text>
+          ` : `
+            <rect x="32" y="70" width="55" height="24" rx="4" fill="var(--sim-ok)"/><text x="59" y="86" text-anchor="middle" fill="#fff" font-size="8.5" font-weight="700">B1: 5s</text>
+            <rect x="92" y="70" width="55" height="24" rx="4" fill="var(--sim-ok)"/><text x="119" y="86" text-anchor="middle" fill="#fff" font-size="8.5" font-weight="700">B2: 5s</text>
+            <rect x="152" y="70" width="55" height="24" rx="4" fill="var(--sim-ok)"/><text x="179" y="86" text-anchor="middle" fill="#fff" font-size="8.5" font-weight="700">B3: 5s</text>
+            <rect x="212" y="70" width="55" height="24" rx="4" fill="var(--sim-ok)"/><text x="239" y="86" text-anchor="middle" fill="#fff" font-size="8.5" font-weight="700">B4: 5s</text>
+            <rect x="272" y="70" width="250" height="24" rx="4" fill="var(--sim-flow-soft)" stroke="var(--sim-flow)"/><text x="397" y="86" text-anchor="middle" fill="var(--sim-flow)" font-size="9" font-weight="700">Xoay vòng liên tục B5..B24 (0% CPU chết đói!)</text>
+          `}
+
+          <rect x="20" y="118" width="520" height="68" rx="7" fill="var(--sim-card)" stroke="var(--sim-border)"/>
+          <text x="32" y="138" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isSync ? 'Bài toán Slide 72 (cook_rice 3s + text_friends 1s): Chạy nối tiếp tốn 3s + 1s = 4.00 giây' : 'Bài toán Slide 72 (await asyncio.gather(cook_rice(), text_friends())): Chồng lấp I/O chỉ tốn 3.00 giây!'}</text>
+          <text x="32" y="158" fill="var(--sim-sub)" font-size="9.5" font-family="var(--cds-font-mono)">${isSync ? '• Hệ sinh thái WSGI: Flask, Django (Sync), thư viện requests.get(), time.sleep()' : '• Hệ sinh thái ASGI: FastAPI, Uvicorn, thư viện httpx.AsyncClient(), aiohttp, asyncio.sleep()'}</text>
+          <text x="32" y="175" fill="${isSync ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isSync ? '[!] Điểm nghẽn: 24 bàn x 30 nước x (5s + 55s) = 43.200 giây (12 Giờ)!' : '[+] Đột phá: (24 x 5s + 55s vòng cuối) x 30 = 5.250 giây (1.5 Giờ — Nhanh gấp 8.2 lần)!'}</text>
+
+          <rect x="20" y="198" width="520" height="32" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="218" fill="var(--sim-ink)" font-size="10.2" font-weight="700" font-family="var(--cds-font-mono)">
+            Judit Polgár (Slide 68-69): Sync = 43,200s (12h, 92% Idle)  |  Async = 5,250s (1.5h, 8.2x Speedup)
+          </text>
+        </svg>
+      `;
+
+      status.textContent = isSync
+        ? "Synchronous Blocking (Slide 68): CPU đi 1 nước (5s) rồi đứng chờ đối thủ nghĩ suốt 55s mới sang bàn tiếp theo — tổng 12 giờ, lãng phí 92% CPU!"
+        : "Asynchronous Non-Blocking (Slide 69-72): Gặp lệnh await, Event Loop lập tức chuyển CPU sang bàn kế tiếp trong lúc chờ mạng (epoll/kqueue), hoàn tất 24 bàn chỉ trong 1.5 giờ!";
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isAsync ? 'infra2d-btn-emerald' : ''}" onclick="py2dState.ioMode='async';renderPython2DInteractiveStage('io')">1. Asynchronous (asyncio.gather · 1.5 Giờ · 8.2x)</button>
+        <button type="button" class="infra2d-btn ${isSync ? 'infra2d-btn-rose' : ''}" onclick="py2dState.ioMode='sync';renderPython2DInteractiveStage('io')">2. Synchronous Blocking (Chờ tuần tự · 12 Giờ)</button>
+      `;
+    }
+  }
+
+
+  /* ==========================================================================
+     CLAUDE / ANTHROPIC-STYLE 2D INTERACTIVE ORCHESTRATION & GOVERNANCE LAB (D06)
+     ========================================================================== */
+  const ORC2D_SLIDES = [
+    {
+      id: 1,
+      chapter: "Chặng 1 · Điều Phối Phụ Thuộc vs. Lập Lịch Theo Giờ",
+      analogy: "Sự Cố Trễ Thượng Nguồn 03:20 AM & Đồ Thị Phụ Thuộc DAG",
+      title: "1. Naive Cron Scheduling (03:20 AM Race Condition) vs. Dependency-Aware DAG",
+      leadTitle: "Điều gì xảy ra với Order #8888 khi bước Extract bị trễ đến 03:20 AM nhưng Cron vẫn kích hoạt Transform đúng 03:00 AM?",
+      leadStory: "Trong đường ống daily_sales_pipeline (kỳ 2026-05-15), tác vụ Extract bắt đầu lúc 02:00 AM nhưng bị nghẽn mạng nên đến 03:20 AM mới xong. Hãy chuyển đổi giữa chế độ Cron Ngây Thơ, Chặn Tuần Tự (Sequential Gate) và Rẽ Nhánh Song Song (Parallel Fan-Out) để quan sát số phận của Order #8888!",
+      keypoints: [
+        { b: "1", t: "Naive Cron (02:00 Extract | 03:00 Transform | 04:00 Load)", d: "Cron chỉ nhìn đồng hồ hệ thống. Lúc 03:00 AM, Transform chạy trên bảng tạm mới nạp được 40% (thiếu Order #8888), làm báo cáo doanh thu CEO lệch -450.000đ mà không hề báo lỗi!" },
+        { b: "2", t: "Dependency Blocking (extract >> clean >> load >> dashboard)", d: "Orchestrator khóa chặt thứ tự nhân quả: Clean chỉ được phép chuyển sang RUNNING sau khi Extract ghi nhận trạng thái SUCCESS tại Metadata Database." },
+        { b: "3", t: "Parallel Fan-Out (extract_customers || extract_orders >> transform)", d: "Hai nhánh độc lập cùng chạy song song lúc 02:00 AM giúp rút ngắn 45% tổng thời gian chạy mà vẫn hội tụ an toàn (Fan-in) trước khi Transform." }
+      ],
+      verdict: "Nguyên lý cốt lõi (Slide 06): Một tác vụ không được phép chạy chỉ vì đồng hồ điểm giờ — nó chỉ được phép chạy khi toàn bộ các phụ thuộc thượng nguồn đã hoàn tất an toàn.",
+      simMode: "cron_race"
+    },
+    {
+      id: 2,
+      chapter: "Chặng 2 · Lũy Đẳng (Idempotency) & Backfill",
+      analogy: "Chốt Chặn f(x) = f(f(x)) Chống Nhân Bản Dữ Liệu Khi Retry",
+      title: "2. Atomicity, Idempotency & Cỗ Máy Thời Gian Data Interval Backfill",
+      leadTitle: "Tại sao lệnh INSERT ngây thơ làm doanh thu Order #8888 bị nhân đôi lên 900.000đ khi Airflow tự động Retry?",
+      leadStory: "Lúc 02:05 AM, tác vụ load_warehouse vừa chèn xong Order #8888 (450.000đ) thì đứt kết nối mạng trước khi báo trạng thái về Airflow. Sau 5 phút, Airflow retry tác vụ này, hoặc kỹ sư chạy lệnh Backfill 3 ngày lịch sử (2026-05-13 → 2026-05-15). Hãy thử đối chiếu Non-Idempotent INSERT với 3 mẫu ghi Lũy Đẳng!",
+      keypoints: [
+        { b: "A", t: "Non-Idempotent (INSERT INTO ... WHERE dt = CURRENT_DATE)", d: "Mỗi lần Retry hoặc Rerun đều chèn chồng thêm bản ghi mới (Order #8888 xuất hiện 2 lần = 900.000đ), và hàm CURRENT_DATE khiến việc chạy lại quá khứ (Backfill) hoàn toàn bất khả thi." },
+        { b: "B", t: "Transactional DELETE-then-INSERT & MERGE Upsert", d: "Gói gọn DELETE WHERE order_date = '{{ ds }}' và INSERT trong 1 giao dịch ACID (BEGIN...COMMIT), hoặc dùng MERGE ON order_id = 'ORD-8888': chạy 1 lần hay 10 lần vẫn ra đúng 1 dòng 450.000đ." },
+        { b: "C", t: "Data Interval Backfill ([data_interval_start, data_interval_end))", d: "Mọi DAG Run đều gắn chặt với cửa sổ thời gian logic cố định (ds = '2026-05-15'), cho phép chạy lại 15 ngày lịch sử song song mà không lệch múi giờ hay trùng lặp." }
+      ],
+      verdict: "Chốt thiết kế (Airflow 2nd Ed, Ch. 3.7): Mọi tác vụ ghi dữ liệu trong Orchestrator bắt buộc phải thỏa mãn cả Tính Nguyên Tử (Atomicity) lẫn Tính Lũy Đẳng (Idempotency) theo tham số {{ ds }}.",
+      simMode: "idempotency"
+    },
+    {
+      id: 3,
+      chapter: "Chặng 3 · Kiến Trúc Airflow, Deferrable Sensors & XCom",
+      analogy: "Giải Phẫu 6 Thành Phần Quanh Metadata DB & Giải Cứu Sensor Deadlock",
+      title: "3. Vòng Lặp Điều Phối Airflow, Deferrable Triggerer & Truyền Tham Chiếu XCom",
+      leadTitle: "Làm sao ngăn 32 S3KeySensor làm liệt cứng toàn bộ cụm Worker và tránh nổ bộ nhớ Metadata DB vì XCom?",
+      leadStory: "Cụm Airflow gồm 6 thành phần xoay quanh Metadata Database (PostgreSQL). Khi chờ tệp orders_2026-05-15.parquet từ đối tác bị trễ 3 tiếng và truyền dữ liệu giữa các Task chạy trên các K8s Pod khác nhau, hãy thử chuyển đổi giữa 3 chế độ vận hành bên phải!",
+      keypoints: [
+        { b: "1", t: "Sensor Mode = 'poke' + Đẩy DataFrame 2GB qua XCom (Anti-Pattern)", d: "32 Sensor ngủ chờ chiếm trọn 32/32 Worker Slots gây chết lâm sàng toàn cụm (Sensor Deadlock), còn lệnh xcom_push(df) làm tràn bảng xcom và đánh sập Web UI / Worker bằng OOM Killer." },
+        { b: "2", t: "Sensor Mode = 'reschedule' (Giải phóng Slot giữa các lần kiểm tra)", d: "Giữa các chu kỳ poke_interval=60s, Sensor tự thoát và trả lại Worker Slot (trạng thái up_for_reschedule) để các tác vụ tính toán khác tiếp tục chạy." },
+        { b: "3", t: "Deferrable Sensor (Async Triggerer) + Pass-by-Reference URI XCom", d: "Nhường việc chờ I/O cho tiến trình asyncio Triggerer (0 Worker Slot bị chiếm!), lưu bảng dữ liệu ra S3 Parquet và chỉ đẩy đường dẫn URI nhẹ 120 bytes qua XCom." }
+      ],
+      verdict: "Quy tắc vàng (Slide 27–29): Luôn bật deferrable=True (hoặc mode='reschedule') cho các Sensor chờ lâu, và tuyệt đối chỉ truyền siêu dữ liệu nhỏ / đường dẫn URI (< 1KB) qua XCom.",
+      simMode: "airflow_arch"
+    },
+    {
+      id: 4,
+      chapter: "Chặng 4 · Phễu Kiểm Soát Đồng Thời 3 Tầng",
+      analogy: "Bảo Vệ Cơ Sở Dữ Liệu Dùng Chung Khỏi Bão 200 Kết Nối",
+      title: "4. Three Levels of Concurrency: Global parallelism, max_active_runs & Pools",
+      leadTitle: "Khi 200 Task từ 20 DAG cùng lao vào truy vấn PostgreSQL một lúc, làm sao phanh cụm Airflow lại trước khi DB sập?",
+      leadStory: "Mặc định chúng ta muốn đường ống chạy càng nhanh càng tốt. Nhưng nếu 200 Task đồng loạt mở kết nối tới cùng một máy chủ PostgreSQL nguồn (giới hạn max_connections = 100), DB sẽ vọt 100% CPU và từ chối phục vụ. Hãy thử bật Phễu Kiểm Soát Đồng Thời 3 Tầng của Airflow!",
+      keypoints: [
+        { b: "L1", t: "Tầng 1 — Global Level (core.parallelism = 64 trong airflow.cfg)", d: "Chốt chặn tổng của toàn bộ môi trường Airflow: tối đa 64 Task Instance được phép ở trạng thái RUNNING cùng lúc trên toàn cụm." },
+        { b: "L2", t: "Tầng 2 — DAG Level (max_active_runs = 1 trên mỗi DAG)", d: "Ngăn chặn DAG Run của ngày hôm qua (đang chạy bù) đè lên DAG Run của ngày hôm nay trên cùng một bảng tạm staging_orders." },
+        { b: "L3", t: "Tầng 3 — Resource Level (Pool: postgres_pool = 5 Slots)", d: "Gắn nhãn pool='postgres_pool' cho mọi Task chạm vào PostgreSQL. Dù có 200 Task đang xếp hàng, đúng 5 Task được cấp thẻ bài chạy cùng lúc; 195 Task còn lại đợi an toàn ở trạng thái QUEUED." }
+      ],
+      verdict: "Chốt vận hành (Slide 33–37): Khả năng mở rộng không chỉ là chạy được nhiều Task hơn, mà là kiểm soát chính xác áp lực tải lên các hệ thống dùng chung bằng Resource Pools.",
+      simMode: "concurrency"
+    },
+    {
+      id: 5,
+      chapter: "Chặng 5 · 6 Chiều Chất Lượng & Cầu Dao Circuit Breaker",
+      analogy: "Chặn Đứng Thiệt Hại $11.8M/Năm Trước Khi Dữ Liệu Bẩn Chạm Tới CEO Dashboard",
+      title: "5. Six Data Quality Dimensions & Mẫu Cầu Dao Tự Ngắt (Circuit Breaker Pattern)",
+      leadTitle: "Pipeline báo XANH (Exit Code 0) nhưng Order #8888 lại có amount = -450.000đ và user_id = NULL!",
+      leadStory: "Airflow giám sát tiến trình (Process Health), nhưng không tự biết dữ liệu bên trong đúng hay sai. Nếu một lỗi logic thượng nguồn tạo ra đơn hàng âm tiền hoặc khuyết mã khách hàng, hãy xem điều gì xảy ra khi không có cổng kiểm định so với khi kích hoạt Cầu Dao Circuit Breaker (Great Expectations / Spark Deequ)!",
+      keypoints: [
+        { b: "1", t: "Không có Circuit Breaker (Dữ liệu bẩn chảy thẳng vào Gold DWH)", d: "Task kiểm tra chỉ ghi cảnh báo vào log rồi cho qua. Tác vụ Transform và Load nạp thẳng số âm vào bảng doanh thu Gold, làm sai lệch báo cáo tài chính và làm hỏng mô hình ML (như sự cố Unity mất $5 tỷ vốn hóa)." },
+        { b: "2", t: "Circuit Breaker Gating (GX / Deequ + BranchPythonOperator = PASS)", d: "Cổng kiểm định quét 6 chiều chất lượng (Accuracy, Completeness, Consistency, Timeliness, Validity, Uniqueness). Khi đạt 100% kỳ vọng, cầu dao đóng mạch cho phép nạp vào kho dữ liệu." },
+        { b: "3", t: "Circuit Breaker Tripped (Phát hiện vi phạm → Ngắt mạch + Quarantine)", d: "Ngay khi phát hiện Completeness(user_id) < 1.0 hoặc Accuracy(amount > 0) = FAIL, cầu dao lập tức ngắt nhánh Load (SKIPPED), cô lập lô lỗi vào bảng Quarantine và bắn cảnh báo Slack kèm ngữ cảnh chi tiết." }
+      ],
+      verdict: "Nguyên lý sống còn (Slide 49–52): Kiểm định dữ liệu (Data Validation) không phải là bước ghi log thụ động — nó bắt buộc phải là một Cổng Quyết Định (Execution Gate) có quyền ngắt mạch đường ống.",
+      simMode: "circuit_breaker"
+    },
+    {
+      id: 6,
+      chapter: "Chặng 5 · Hợp Đồng Dữ Liệu (Data Contracts) & DataHub Lineage",
+      analogy: "Shift-Left Với Hợp Đồng 5 Thuộc Tính & Truy Vết Bán Kính Ảnh Hưởng (Blast Radius)",
+      title: "6. Phòng Bệnh Từ Thượng Nguồn Với Data Contracts & Đồ Thị Phả Hệ DataHub",
+      leadTitle: "Làm sao ngăn đội Backend tự ý đổi tên cột user_id → userId lúc nửa đêm và biết ngay những ai bị ảnh hưởng?",
+      leadStory: "Cầu dao Circuit Breaker giúp chặn dữ liệu bẩn không tràn vào Dashboard, nhưng đường ống vẫn bị gãy lúc 02:00 AM! Để trị tận gốc, chúng ta kết hợp Hợp Đồng Dữ Liệu (Data Contract) ở biên giới Producer–Consumer với nền tảng quản trị siêu dữ liệu và phả hệ DataHub (OpenLineage / MCP / MCL).",
+      keypoints: [
+        { b: "A", t: "Breaking Schema Drift (Producer tự đổi user_id → userId, INT → VARCHAR)", d: "Không có hợp đồng giao diện: đội Backend merge code đổi tên cột làm gãy hàng loạt câu lệnh SQL, bảng Gold và mô hình dự đoán rời bỏ ở hạ nguồn." },
+        { b: "B", t: "Shift-Left Data Contract (Khóa 5 thuộc tính ngay từ CI/CD & Ingest)", d: "Tệp hợp đồng máy đọc được (YAML) khóa chặt 5 thuộc tính: Schema, Nullability, Value Range, Freshness (< 24h) và Uniqueness. Mọi thay đổi phá vỡ hợp đồng bị chặn ngay từ Pull Request!" },
+        { b: "C", t: "DataHub End-to-End Lineage & Impact Analysis (OpenLineage / MCP / MCL)", d: "Khi một kiểm định trên prod.orders thất bại, đồ thị phả hệ DataHub lập tức chỉ rõ nguồn gốc, đường ống tạo ra nó, chủ sở hữu (Owner) và khoanh vùng 3 bảng Gold + 2 Dashboard + 1 ML Model bị ảnh hưởng." }
+      ],
+      verdict: "Tổng kết học phần (Slide 61): Kiểm định (Validation) cho biết CÁI GÌ vừa hỏng; Hợp đồng dữ liệu (Data Contract) ngăn lỗi từ gốc; còn Phả hệ (DataHub Lineage) cho biết AI và HỆ THỐNG NÀO bị ảnh hưởng.",
+      simMode: "datahub_lineage"
+    }
+  ];
+
+  let orc2dCurrentSlide = 0;
+  const orc2dState = {
+    cronMode: "naive_fail",
+    idemMode: "non_idempotent",
+    archMode: "poke_bloat",
+    concMode: "unthrottled",
+    cbMode: "no_gate",
+    govMode: "contract_lineage"
+  };
+
+  function buildOrchestration2DSimulatorHtml() {
+    const s = ORC2D_SLIDES[0];
+    const dotsHtml = ORC2D_SLIDES.map((sl, idx) => `
+      <button type="button" class="infra2d-dot-btn ${idx === 0 ? 'active' : ''}" id="orc2dDot-${idx}" onclick="goToOrchestration2DSlide(${idx})">
+        S${sl.id} · ${sl.title.split(':')[0].replace(/^\d+\.\s*/, '')}
+      </button>
+    `).join("");
+
+    return `
+      <div class="infra2d-wrap" id="orc2dWidgetRoot">
+        <div class="infra2d-header">
+          <div class="infra2d-brand">
+            <div class="infra2d-brand-icon">D06</div>
+            <div>
+              <div class="infra2d-brand-badges">
+                <span class="infra2d-tag">INTERACTIVE ARCHITECTURE LAB · 6 SLIDES</span>
+                <span class="infra2d-chapter" id="orc2dChapterBadge">${s.chapter}</span>
+              </div>
+              <h3 class="infra2d-title-bar">Phòng Thí Nghiệm Điều Phối Đường Ống (Airflow), Cầu Dao Chất Lượng (GX/Deequ) &amp; Quản Trị DataHub</h3>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <div class="infra2d-dots" role="tablist" aria-label="Các kịch bản mô phỏng D06">${dotsHtml}</div>
+            <button type="button" class="infra2d-btn" onclick="toggleOrchestration2DSummary()" title="Xem bảng tổng hợp thông số Orchestration & Governance">Bảng So Sánh Nhanh</button>
+          </div>
+        </div>
+
+        <div id="orc2dSummaryDrawer" style="display:none;padding:14px 16px;background:var(--sim-canvas);border-bottom:1px solid var(--sim-border);font-size:12.5px;line-height:1.55;color:var(--sim-sub);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <strong style="color:var(--sim-clay);font-family:var(--cds-font-mono);text-transform:uppercase;">Bảng Tham Chiếu Nhanh: 6 Quyết Định Kiến Trúc Tầng Orchestration &amp; Governance</strong>
+            <button type="button" class="infra2d-btn" style="padding:3px 8px;font-size:11px;" onclick="toggleOrchestration2DSummary()">Đóng ✕</button>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;">
+            <div style="padding:8px 10px;border-radius:8px;background:var(--sim-card);border:1px solid var(--sim-border);">
+              <strong style="color:var(--sim-flow);">1. Cron vs. DAG Orchestrator:</strong> Cron kích hoạt mù theo đồng hồ; Airflow khóa phụ thuộc <code>extract &gt;&gt; clean &gt;&gt; load</code> và cho chạy song song các nhánh độc lập.
+            </div>
+            <div style="padding:8px 10px;border-radius:8px;background:var(--sim-card);border:1px solid var(--sim-border);">
+              <strong style="color:var(--sim-ok);">2. Idempotency &amp; Backfill:</strong> Cấm dùng <code>INSERT + NOW()</code>; bắt buộc dùng <code>DELETE + INSERT</code>, <code>MERGE</code> hoặc <code>INSERT OVERWRITE</code> theo <code>{{ ds }}</code>.
+            </div>
+            <div style="padding:8px 10px;border-radius:8px;background:var(--sim-card);border:1px solid var(--sim-border);">
+              <strong style="color:var(--sim-warn);">3. Sensors &amp; XCom:</strong> Bật <code>deferrable=True</code> (Async Triggerer) để không tốn Worker Slot; chỉ truyền đường dẫn URI (<code>&lt; 200B</code>) qua XCom.
+            </div>
+            <div style="padding:8px 10px;border-radius:8px;background:var(--sim-card);border:1px solid var(--sim-border);">
+              <strong style="color:var(--sim-danger);">4. Concurrency, Circuit Breaker &amp; DataHub:</strong> Dùng <code>Pools</code> bảo vệ DB nguồn, ngắt mạch dữ liệu bẩn bằng <code>GX/Deequ</code> và truy vết tác động trên <code>DataHub</code>.
+            </div>
+          </div>
+        </div>
+
+        <div class="infra2d-grid">
+          <div class="infra2d-col-left">
+            <div>
+              <div class="infra2d-pills">
+                <span class="infra2d-pill-num" id="orc2dSlideNum">SLIDE 01 / 06</span>
+                <span class="infra2d-pill-analogy" id="orc2dSlideAnalogy">${s.analogy}</span>
+              </div>
+              <h3 class="infra2d-slide-h3" id="orc2dSlideTitle">${s.title}</h3>
+              <div class="infra2d-story-box">
+                <div class="infra2d-avatar">#8888</div>
+                <div>
+                  <span class="infra2d-story-title" id="orc2dLeadTitle">${s.leadTitle}</span>
+                  <p class="infra2d-story-text" id="orc2dLeadStory">${s.leadStory}</p>
+                </div>
+              </div>
+              <div class="infra2d-keypoints" id="orc2dKeypoints"></div>
+            </div>
+            <div class="infra2d-verdict" id="orc2dVerdict"></div>
+          </div>
+
+          <div class="infra2d-col-right">
+            <div>
+              <div class="infra2d-sim-top">
+                <div class="infra2d-sim-live">
+                  <span class="infra2d-sim-dot"></span>
+                  <span>MÔ PHỎNG ĐIỀU PHỐI DAG, CIRCUIT BREAKER &amp; DATAHUB</span>
+                </div>
+                <span class="infra2d-sim-hint">Bấm các chế độ bên dưới để so sánh luồng thực thi</span>
+              </div>
+              <div class="infra2d-stage" id="orc2dSimStage"></div>
+              <div class="infra2d-status" id="orc2dSimStatus"></div>
+              <div class="infra2d-controls" id="orc2dSimControls"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="infra2d-footer">
+          <button type="button" class="infra2d-btn" id="orc2dPrevBtn" onclick="stepOrchestration2DSlide(-1)">← Slide Trước</button>
+          <div class="infra2d-progress-wrap">
+            <div class="infra2d-progress-track">
+              <div class="infra2d-progress-fill" id="orc2dProgressFill" style="width:16.66%;"></div>
+            </div>
+            <span style="font-size:11px;color:var(--sim-muted);font-family:var(--cds-font-mono);" id="orc2dProgressLabel">Lát cắt Kiến trúc 1 / 6</span>
+          </div>
+          <button type="button" class="infra2d-btn infra2d-btn-primary" id="orc2dNextBtn" onclick="stepOrchestration2DSlide(1)">Slide Tiếp Theo →</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function toggleOrchestration2DSummary() {
+    const dr = document.getElementById("orc2dSummaryDrawer");
+    if (!dr) return;
+    dr.style.display = dr.style.display === "none" ? "block" : "none";
+  }
+
+  function goToOrchestration2DSlide(idx) {
+    if (idx < 0 || idx >= ORC2D_SLIDES.length) return;
+    orc2dCurrentSlide = idx;
+    renderOrchestration2DSlide();
+  }
+
+  function stepOrchestration2DSlide(delta) {
+    const next = (orc2dCurrentSlide + delta + ORC2D_SLIDES.length) % ORC2D_SLIDES.length;
+    goToOrchestration2DSlide(next);
+  }
+
+  function renderOrchestration2DSlide() {
+    const root = document.getElementById("orc2dWidgetRoot");
+    if (!root) return;
+    const s = ORC2D_SLIDES[orc2dCurrentSlide];
+    document.getElementById("orc2dChapterBadge").textContent = s.chapter;
+    document.getElementById("orc2dSlideNum").textContent = `SLIDE 0${s.id} / 0${ORC2D_SLIDES.length}`;
+    document.getElementById("orc2dSlideAnalogy").textContent = s.analogy;
+    document.getElementById("orc2dSlideTitle").textContent = s.title;
+    document.getElementById("orc2dLeadTitle").textContent = s.leadTitle;
+    document.getElementById("orc2dLeadStory").textContent = s.leadStory;
+    document.getElementById("orc2dVerdict").innerHTML = `<strong>Đúc kết Kỹ thuật:</strong> ${s.verdict}`;
+
+    const kpEl = document.getElementById("orc2dKeypoints");
+    kpEl.innerHTML = s.keypoints.map(k => `
+      <div class="infra2d-kp-item">
+        <div class="infra2d-kp-badge">${k.b}</div>
+        <div>
+          <span class="infra2d-kp-title">${k.t}</span>
+          <p class="infra2d-kp-desc">${k.d}</p>
+        </div>
+      </div>
+    `).join("");
+
+    ORC2D_SLIDES.forEach((_, idx) => {
+      const btn = document.getElementById(`orc2dDot-${idx}`);
+      if (btn) btn.classList.toggle("active", idx === orc2dCurrentSlide);
+    });
+
+    const pct = ((orc2dCurrentSlide + 1) / ORC2D_SLIDES.length) * 100;
+    const fill = document.getElementById("orc2dProgressFill");
+    if (fill) fill.style.width = `${pct.toFixed(1)}%`;
+    const lbl = document.getElementById("orc2dProgressLabel");
+    if (lbl) lbl.textContent = `Lát cắt Kiến trúc ${orc2dCurrentSlide + 1} / ${ORC2D_SLIDES.length}`;
+
+    renderOrchestration2DInteractiveStage(s.simMode);
+  }
+
+  function renderOrchestration2DInteractiveStage(mode) {
+    const stage = document.getElementById("orc2dSimStage");
+    const status = document.getElementById("orc2dSimStatus");
+    const ctrls = document.getElementById("orc2dSimControls");
+    if (!stage || !status || !ctrls) return;
+
+    if (mode === "cron_race") {
+      const m = orc2dState.cronMode;
+      const isNaive = m === "naive_fail";
+      const isSeq = m === "dag_seq";
+      const isPar = m === "dag_parallel";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="28" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isNaive ? 'NAIVE CRON SCHEDULING (SLIDE 06): EXTRACT TRỄ 03:20 AM NHƯNG TRANSFORM CHẠY ĐÚNG 03:00 AM!' : (isSeq ? 'DEPENDENCY-AWARE DAG (SLIDE 09): KHÓA PHỤ THUỘC TUẦN TỰ EXTRACT >> CLEAN >> LOAD' : 'PARALLEL FAN-OUT / FAN-IN DAG (SLIDE 10): CHẠY SONG SONG EXTRACT CUSTOMERS || ORDERS')}</text>
+
+          ${isNaive ? `
+            <!-- Naive Cron Timeline -->
+            <rect x="22" y="45" width="516" height="58" rx="6" fill="var(--sim-card)" stroke="var(--sim-danger)" stroke-width="1.5"/>
+            <text x="34" y="63" fill="var(--sim-danger)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">CRON JOB #1 (02:00 AM): extract_orders.sh — BỊ TRỄ ĐẾN 03:20 AM MỚI XONG!</text>
+            <rect x="34" y="72" width="340" height="18" rx="4" fill="var(--sim-warn-soft)" stroke="var(--sim-warn)"/>
+            <text x="44" y="85" fill="var(--sim-warn)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">02:00 AM ──────────────── Đang tải (40%) ────────────────► 03:20 AM (Xong)</text>
+
+            <rect x="22" y="114" width="516" height="66" rx="6" fill="var(--sim-danger-soft)" stroke="var(--sim-danger)" stroke-width="1.8"/>
+            <text x="34" y="132" fill="var(--sim-danger)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">CRON JOB #2 (03:00 AM): transform_orders.sh — CHẠY SỚM KHI EXTRACT CHƯA XONG!</text>
+            <rect x="210" y="142" width="180" height="22" rx="4" fill="var(--sim-card)" stroke="var(--sim-danger)"/>
+            <text x="220" y="156" fill="var(--sim-danger)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">03:00 AM: Đọc thiếu Order #8888!</text>
+            <rect x="405" y="142" width="120" height="22" rx="4" fill="var(--sim-card)" stroke="var(--sim-danger)"/>
+            <text x="413" y="156" fill="var(--sim-danger)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">04:00: Báo cáo SAI!</text>
+          ` : (isSeq ? `
+            <!-- Sequential Dependency Graph -->
+            <rect x="20" y="65" width="115" height="72" rx="7" fill="var(--sim-card)" stroke="var(--sim-ok)" stroke-width="1.6"/>
+            <text x="30" y="86" fill="var(--sim-ok)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">1. extract_orders</text>
+            <text x="30" y="103" fill="var(--sim-ink)" font-size="9" font-family="var(--cds-font-mono)">02:00 → 03:20 AM</text>
+            <text x="30" y="120" fill="var(--sim-ok)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">[STATE: SUCCESS]</text>
+
+            <path d="M 135 101 L 155 101" stroke="var(--sim-ok)" stroke-width="2" class="ing2d-flow-active"/>
+            <rect x="155" y="65" width="115" height="72" rx="7" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.6"/>
+            <text x="165" y="86" fill="var(--sim-flow)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">2. clean_orders</text>
+            <text x="165" y="103" fill="var(--sim-ink)" font-size="9" font-family="var(--cds-font-mono)">Đợi đến 03:20 AM</text>
+            <text x="165" y="120" fill="var(--sim-ok)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">[Đủ Order #8888]</text>
+
+            <path d="M 270 101 L 290 101" stroke="var(--sim-flow)" stroke-width="2" class="ing2d-flow-active"/>
+            <rect x="290" y="65" width="115" height="72" rx="7" fill="var(--sim-card)" stroke="var(--sim-ok)" stroke-width="1.6"/>
+            <text x="300" y="86" fill="var(--sim-ok)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">3. load_warehouse</text>
+            <text x="300" y="103" fill="var(--sim-ink)" font-size="9" font-family="var(--cds-font-mono)">03:35 → 03:45 AM</text>
+            <text x="300" y="120" fill="var(--sim-ok)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">[450.000đ Chuẩn]</text>
+
+            <path d="M 405 101 L 425 101" stroke="var(--sim-ok)" stroke-width="2" class="ing2d-flow-active"/>
+            <rect x="425" y="65" width="115" height="72" rx="7" fill="var(--sim-ok-soft)" stroke="var(--sim-ok)" stroke-width="1.6"/>
+            <text x="433" y="86" fill="var(--sim-ok)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">4. refresh_bi</text>
+            <text x="433" y="103" fill="var(--sim-ink)" font-size="9" font-family="var(--cds-font-mono)">03:45 AM Mở khóa</text>
+            <text x="433" y="120" fill="var(--sim-ok)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">[100% An Toàn]</text>
+            <circle r="4.5" fill="var(--sim-ok)"><animateMotion dur="1.8s" repeatCount="indefinite" path="M 75 101 L 480 101"/></circle>
+          ` : `
+            <!-- Parallel Fan-out / Fan-in DAG -->
+            <rect x="22" y="42" width="150" height="54" rx="7" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.6"/>
+            <text x="32" y="62" fill="var(--sim-flow)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">extract_customers</text>
+            <text x="32" y="80" fill="var(--sim-ok)" font-size="9" font-family="var(--cds-font-mono)">[PARALLEL NHÁNH A · 15p]</text>
+
+            <rect x="22" y="114" width="150" height="54" rx="7" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.6"/>
+            <text x="32" y="134" fill="var(--sim-flow)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">extract_orders (#8888)</text>
+            <text x="32" y="152" fill="var(--sim-ok)" font-size="9" font-family="var(--cds-font-mono)">[PARALLEL NHÁNH B · 18p]</text>
+
+            <path d="M 172 69 L 228 105" stroke="var(--sim-flow)" stroke-width="2" class="ing2d-flow-active"/>
+            <path d="M 172 141 L 228 105" stroke="var(--sim-flow)" stroke-width="2" class="ing2d-flow-active"/>
+
+            <rect x="228" y="75" width="145" height="60" rx="7" fill="var(--sim-card)" stroke="var(--sim-clay)" stroke-width="1.6"/>
+            <text x="238" y="98" fill="var(--sim-clay)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">transform_join_sales</text>
+            <text x="238" y="116" fill="var(--sim-ink)" font-size="9" font-family="var(--cds-font-mono)">Chờ cả 2 nhánh (all_success)</text>
+
+            <path d="M 373 105 L 408 105" stroke="var(--sim-ok)" stroke-width="2" class="ing2d-flow-active"/>
+            <rect x="408" y="75" width="130" height="60" rx="7" fill="var(--sim-ok-soft)" stroke="var(--sim-ok)" stroke-width="1.6"/>
+            <text x="418" y="98" fill="var(--sim-ok)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">load_warehouse</text>
+            <text x="418" y="116" fill="var(--sim-ok)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">Nhanh gấp 2x · Chuẩn!</text>
+          `)}
+
+          <rect x="20" y="194" width="520" height="34" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="215" fill="var(--sim-ink)" font-size="10.5" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isNaive ? 'Kết quả: Transform chạy trên dữ liệu dở dang lúc 03:00 AM → Mất Order #8888 → Dashboard SAI!' : (isSeq ? 'Kết quả: Clean tự động chờ đến 03:20 AM khi Extract hoàn tất → Bảo toàn 100% Order #8888' : 'Kết quả: Chạy song song 2 nhánh độc lập + Hội tụ Fan-in → Giảm 45% thời gian, an toàn tuyệt đối')}
+          </text>
+        </svg>
+      `;
+
+      status.textContent = isNaive
+        ? "Lập lịch theo giờ ngây thơ (Slide 05–06): Cron kích hoạt Transform đúng 03:00 AM bất chấp Extract bị trễ đến 03:20 AM, gây lỗi Silent Data Corruption trên báo cáo CEO."
+        : (isSeq
+          ? "Điều phối phụ thuộc tuần tự (Slide 09): Orchestrator khóa chặt trạng thái — tác vụ hạ nguồn chỉ chạy khi thượng nguồn đã chuyển sang SUCCESS."
+          : "Thực thi song song có kiểm soát (Slide 10): Tách các tác vụ độc lập (Extract Customers || Extract Orders) chạy đồng thời rồi gom lại ở bước Transform.");
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isNaive ? 'infra2d-btn-danger' : ''}" onclick="orc2dState.cronMode='naive_fail';renderOrchestration2DInteractiveStage('cron_race')">1. Naive Cron (Sự cố trễ 03:20 AM · Sai số liệu)</button>
+        <button type="button" class="infra2d-btn ${isSeq ? 'infra2d-btn-emerald' : ''}" onclick="orc2dState.cronMode='dag_seq';renderOrchestration2DInteractiveStage('cron_race')">2. DAG Tuần Tự (Khóa Phụ Thuộc An Toàn)</button>
+        <button type="button" class="infra2d-btn ${isPar ? 'infra2d-btn-cyan' : ''}" onclick="orc2dState.cronMode='dag_parallel';renderOrchestration2DInteractiveStage('cron_race')">3. DAG Song Song (Fan-Out / Fan-In Nhanh 2x)</button>
+      `;
+    } else if (mode === "idempotency") {
+      const m = orc2dState.idemMode;
+      const isBad = m === "non_idempotent";
+      const isDelIns = m === "delete_insert";
+      const isBackfill = m === "backfill_3days";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="28" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isBad ? 'NON-IDEMPOTENT RETRY: INSERT CHỒNG DỮ LIỆU KHI AIRFLOW RETRY (NHÂN ĐÔI ORDER #8888!)' : (isDelIns ? 'IDEMPOTENT PATTERN: TRANSACTIONAL DELETE + INSERT / MERGE THEO {{ ds }}' : 'TIME-MACHINE BACKFILL: CHẠY LẠI 3 NGÀY LỊCH SỬ (2026-05-13 → 2026-05-15) BẤT BIẾN')}</text>
+
+          ${!isBackfill ? `
+            <!-- Left: Task Execution & Retry -->
+            <rect x="22" y="44" width="235" height="138" rx="7" fill="var(--sim-card)" stroke="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.6"/>
+            <text x="32" y="63" fill="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isBad ? '1. TÁC VỤ GHI NGÂY THƠ (TRY #1 & #2)' : '1. TÁC VỤ LŨY ĐẲNG f(x) = f(f(x))'}</text>
+            <text x="32" y="83" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isBad ? 'INSERT INTO fact_orders' : 'BEGIN TRANSACTION;'}</text>
+            <text x="32" y="100" fill="${isBad ? 'var(--sim-danger)' : 'var(--sim-flow)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isBad ? 'WHERE dt = CURRENT_DATE;' : "DELETE WHERE dt = '{{ ds }}';"}</text>
+            <text x="32" y="117" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isBad ? '• Try #1: Ghi #8888 rồi Timeout' : "INSERT WHERE dt = '{{ ds }}';"}</text>
+            <text x="32" y="134" fill="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isBad ? '• Try #2 (Retry): Ghi tiếp lần 2!' : 'COMMIT; (Retry 10 lần vẫn 1 bản)'}</text>
+            <text x="32" y="156" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">ds = "2026-05-15"</text>
+
+            <path d="M 257 112 L 292 112" stroke="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="2.5" class="ing2d-flow-active"/>
+
+            <!-- Right: Warehouse Table State -->
+            <rect x="292" y="44" width="246" height="138" rx="7" fill="var(--sim-card)" stroke="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.6"/>
+            <text x="304" y="63" fill="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">2. BẢNG ĐÍCH: fact_orders (DWH)</text>
+            <rect x="304" y="74" width="222" height="26" rx="4" fill="var(--sim-ok-soft)" stroke="var(--sim-ok)"/>
+            <text x="312" y="91" fill="var(--sim-ok)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">Row 1: ORD-8888 | 2026-05-15 | 450.000đ</text>
+            ${isBad ? `
+              <rect x="304" y="106" width="222" height="26" rx="4" fill="var(--sim-danger-soft)" stroke="var(--sim-danger)"/>
+              <text x="312" y="123" fill="var(--sim-danger)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">Row 2: ORD-8888 | 2026-05-15 | 450.000đ [DUP!]</text>
+              <text x="304" y="156" fill="var(--sim-danger)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">TỔNG DOANH THU: 900.000đ (GẤP ĐÔI!)</text>
+            ` : `
+              <rect x="304" y="106" width="222" height="26" rx="4" fill="var(--sim-canvas)" stroke="var(--sim-border)"/>
+              <text x="312" y="123" fill="var(--sim-muted)" font-size="9.5" font-family="var(--cds-font-mono)">(Không phát sinh bản ghi trùng lặp)</text>
+              <text x="304" y="156" fill="var(--sim-ok)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">TỔNG DOANH THU: 450.000đ (CHÍNH XÁC)</text>
+            `}
+          ` : `
+            <!-- Backfill 3 Historical Intervals -->
+            <rect x="22" y="48" width="160" height="130" rx="7" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.6"/>
+            <text x="32" y="68" fill="var(--sim-flow)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">DAG Run #1 (Backfill)</text>
+            <text x="32" y="88" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">ds = 2026-05-13</text>
+            <text x="32" y="108" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">Overwrite Partition:</text>
+            <text x="32" y="124" fill="var(--sim-ok)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">dt=2026-05-13 [OK]</text>
+
+            <rect x="200" y="48" width="160" height="130" rx="7" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.6"/>
+            <text x="210" y="68" fill="var(--sim-flow)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">DAG Run #2 (Backfill)</text>
+            <text x="210" y="88" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">ds = 2026-05-14</text>
+            <text x="210" y="108" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">Overwrite Partition:</text>
+            <text x="210" y="124" fill="var(--sim-ok)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">dt=2026-05-14 [OK]</text>
+
+            <rect x="378" y="48" width="160" height="130" rx="7" fill="var(--sim-ok-soft)" stroke="var(--sim-ok)" stroke-width="1.6"/>
+            <text x="388" y="68" fill="var(--sim-ok)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">DAG Run #3 (Order #8888)</text>
+            <text x="388" y="88" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">ds = 2026-05-15</text>
+            <text x="388" y="108" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">Overwrite Partition:</text>
+            <text x="388" y="124" fill="var(--sim-ok)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">dt=2026-05-15 [450k]</text>
+          `}
+
+          <rect x="20" y="194" width="520" height="34" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="215" fill="var(--sim-ink)" font-size="10.5" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isBad ? 'Cảnh báo: Non-Idempotent INSERT làm nhân đôi dòng mỗi khi Retry / Backfill!' : (isDelIns ? 'Chuẩn Production: DELETE + INSERT / MERGE bảo đảm chạy N lần vẫn ra đúng 1 trạng thái đích' : 'Backfill hoàn hảo: Mỗi DAG Run ghi đè đúng phân vùng {{ ds }} của nó mà không chạm ngày khác')}
+          </text>
+        </svg>
+      `;
+
+      status.textContent = isBad
+        ? "Vi phạm tính lũy đẳng: Lệnh INSERT trần không xóa/ghi đè phân vùng cũ khiến mỗi lần Airflow retry là một lần nhân bản Order #8888."
+        : (isDelIns
+          ? "Thiết kế lũy đẳng (Idempotent): Gói DELETE + INSERT theo {{ ds }} trong 1 Transaction hoặc dùng MERGE / INSERT OVERWRITE giúp retry vô hại 100%."
+          : "Lấp đầy lịch sử (Backfill): Nhờ tham số hóa cửa sổ [data_interval_start, data_interval_end), Airflow có thể chạy lại 3 ngày quá khứ song song mà không lệch dữ liệu.");
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isBad ? 'infra2d-btn-danger' : ''}" onclick="orc2dState.idemMode='non_idempotent';renderOrchestration2DInteractiveStage('idempotency')">1. Non-Idempotent INSERT (Retry = Nhân Đôi #8888)</button>
+        <button type="button" class="infra2d-btn ${isDelIns ? 'infra2d-btn-emerald' : ''}" onclick="orc2dState.idemMode='delete_insert';renderOrchestration2DInteractiveStage('idempotency')">2. Bật Lũy Đẳng (DELETE + INSERT / MERGE theo {{ ds }})</button>
+        <button type="button" class="infra2d-btn ${isBackfill ? 'infra2d-btn-cyan' : ''}" onclick="orc2dState.idemMode='backfill_3days';renderOrchestration2DInteractiveStage('idempotency')">3. Chạy Backfill 3 Ngày (2026-05-13 → 2026-05-15)</button>
+      `;
+    } else if (mode === "airflow_arch") {
+      const m = orc2dState.archMode;
+      const isBad = m === "poke_bloat";
+      const isResched = m === "reschedule";
+      const isDefer = m === "deferrable_uri";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="28" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isBad ? 'ANTI-PATTERN: 32 SENSOR POKE CHIẾM SẠCH WORKER SLOTS + ĐẨY DATAFRAME 2GB QUA XCOM' : (isResched ? 'SENSOR MODE = RESCHEDULE: TRẢ LẠI WORKER SLOT GIỮA CÁC CHU KỲ KIỂM TRA S3' : 'CHUẨN AIRFLOW 2.x/3.0: DEFERRABLE TRIGGERER (0 WORKER SLOT) + XCOM URI REFERENCE (<200B)')}</text>
+
+          <!-- Left: Sensor & Worker Pool -->
+          <rect x="20" y="44" width="250" height="138" rx="7" fill="var(--sim-card)" stroke="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.6"/>
+          <text x="30" y="63" fill="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">1. CƠ CHẾ CHỜ S3KeySensor (32 FILES)</text>
+          <text x="30" y="83" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isBad ? '• Chế độ: mode="poke" (Ngủ trong Worker)' : (isResched ? '• Chế độ: mode="reschedule"' : '• Chế độ: deferrable=True (Asyncio)')}</text>
+          <text x="30" y="102" fill="${isBad ? 'var(--sim-danger)' : 'var(--sim-flow)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isBad ? '• Worker Slots bị chiếm: 32 / 32 (100%!)' : (isResched ? '• Worker Slots bị chiếm khi ngủ: 0 / 32' : '• Worker Slots bị chiếm: 0 / 32 (Triggerer)')}</text>
+          <text x="30" y="121" fill="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isBad ? '• Hậu quả: SENSOR DEADLOCK toàn cụm!' : '• Cụm Worker rảnh 100% để chạy ETL'}</text>
+          <text x="30" y="144" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">Tệp đích: s3://lake/orders_2026-05-15.parquet</text>
+
+          <!-- Right: XCom & Metadata DB -->
+          <rect x="290" y="44" width="250" height="138" rx="7" fill="var(--sim-card)" stroke="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.6"/>
+          <text x="300" y="63" fill="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">2. TRUYỀN TIN XCOM &amp; METADATA DB</text>
+          <text x="300" y="83" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isBad ? '• xcom_push(value=pandas_df_2gb)' : '• Lưu dữ liệu nặng tại: S3 Object Storage'}</text>
+          <text x="300" y="102" fill="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isBad ? '• Kích thước XCom: 2.0 GB (Nổ bảng xcom!)' : '• XCom chỉ giữ URI: 118 Bytes JSON'}</text>
+          <text x="300" y="121" fill="${isBad ? 'var(--sim-danger)' : 'var(--sim-flow)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isBad ? '• Worker & Postgres: OOM CRASH!' : '• xcom_pull(key="s3_uri") → Đọc trực tiếp'}</text>
+          <text x="300" y="144" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">Metadata DB: Chỉ lưu trạng thái &amp; siêu dữ liệu</text>
+
+          <rect x="20" y="194" width="520" height="34" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="215" fill="var(--sim-ink)" font-size="10.5" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isBad ? 'Thảm họa kép: Kẹt cứng 32/32 Worker Slots (Deadlock) + Tràn bộ nhớ Metadata DB vì đẩy DataFrame!' : (isResched ? 'Cải thiện: Giải phóng Worker Slot giữa các lần poke; giữ nguyên quy tắc truyền URI qua XCom' : 'Tối ưu cực đại: 1 tiến trình Async Triggerer gánh 1.000+ Sensors (0 Worker Slot) + XCom URI 118B')}
+          </text>
+        </svg>
+      `;
+
+      status.textContent = isBad
+        ? "Anti-pattern chí mạng (Slide 20, 27, 29): Dùng Sensor ở chế độ poke mặc định làm cạn sạch Worker Slots, đồng thời nhét cả bảng dữ liệu vào XCom làm sập Metadata DB."
+        : (isResched
+          ? "Chế độ Reschedule: Sensor kiểm tra S3 rồi tự giải phóng Worker Slot, đưa Task về trạng thái up_for_reschedule để nhường chỗ cho các Task khác."
+          : "Chuẩn hiện đại (Deferrable + Pass-by-Reference URI): Chuyển việc đợi I/O sang tiến trình asyncio Triggerer và chỉ truyền con trỏ đường dẫn S3 URI (< 200B) qua XCom.");
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isBad ? 'infra2d-btn-danger' : ''}" onclick="orc2dState.archMode='poke_bloat';renderOrchestration2DInteractiveStage('airflow_arch')">1. Anti-Pattern: Sensor Poke + XCom 2GB DataFrame</button>
+        <button type="button" class="infra2d-btn ${isResched ? 'infra2d-btn-amber' : ''}" onclick="orc2dState.archMode='reschedule';renderOrchestration2DInteractiveStage('airflow_arch')">2. Bật mode="reschedule" (Giải Phóng Worker Slot)</button>
+        <button type="button" class="infra2d-btn ${isDefer ? 'infra2d-btn-emerald' : ''}" onclick="orc2dState.archMode='deferrable_uri';renderOrchestration2DInteractiveStage('airflow_arch')">3. Bật Deferrable Triggerer + XCom URI (&lt;200B)</button>
+      `;
+    } else if (mode === "concurrency") {
+      const m = orc2dState.concMode;
+      const isBad = m === "unthrottled";
+      const isFunnel = m === "three_tier_pool";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="28" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isBad ? 'KHÔNG KIỂM SOÁT ĐỒNG THỜI (SLIDE 33): 200 TASKS ĐỒNG LOẠT TẤN CÔNG SẬP POSTGRESQL NGUỒN!' : 'PHỄU ĐỒNG THỜI 3 TẦNG (SLIDE 34–37): PARALLELISM=64 → MAX_ACTIVE_RUNS=1 → POOL=5 SLOTS'}</text>
+
+          <!-- Tier 1: Incoming Burst -->
+          <rect x="20" y="48" width="142" height="130" rx="7" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.6"/>
+          <text x="30" y="68" fill="var(--sim-flow)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">1. ĐÁM MÂY DAGs</text>
+          <text x="30" y="88" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">• 20 Pipelines</text>
+          <text x="30" y="106" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">• Tổng: 200 Tasks</text>
+          <text x="30" y="126" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">Global parallelism:</text>
+          <text x="30" y="142" fill="var(--sim-flow)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isBad ? 'Không giới hạn' : 'parallelism = 64'}</text>
+
+          <path d="M 162 112 L 195 112" stroke="${isBad ? 'var(--sim-danger)' : 'var(--sim-flow)'}" stroke-width="2.5" class="ing2d-flow-active"/>
+
+          <!-- Tier 2 & 3: DAG & Resource Pool Gate -->
+          <rect x="195" y="48" width="175" height="130" rx="7" fill="var(--sim-card)" stroke="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.6"/>
+          <text x="205" y="68" fill="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">2. VAN RESOURCE POOL</text>
+          <text x="205" y="88" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isBad ? '• Pool: default_pool (Mở toang)' : '• max_active_runs = 1 / DAG'}</text>
+          <text x="205" y="106" fill="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isBad ? '• Đang chạy: 200 / 200 Tasks!' : '• postgres_pool: 5 / 5 Slots'}</text>
+          <text x="205" y="124" fill="${isBad ? 'var(--sim-danger)' : 'var(--sim-warn)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isBad ? '• Hàng đợi (Queued): 0' : '• Xếp hàng an toàn: 195 Tasks'}</text>
+          <text x="205" y="146" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">Xong 1 Task → Cấp tiếp 1 Slot</text>
+
+          <path d="M 370 112 L 403 112" stroke="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="2.5" class="ing2d-flow-active"/>
+
+          <!-- Target Shared DB -->
+          <rect x="403" y="48" width="137" height="130" rx="7" fill="${isBad ? 'var(--sim-danger-soft)' : 'var(--sim-ok-soft)'}" stroke="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.6"/>
+          <text x="413" y="68" fill="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">3. POSTGRES DB</text>
+          <text x="413" y="90" fill="var(--sim-ink)" font-size="9.5" font-family="var(--cds-font-mono)">${isBad ? 'Conn: 200 / 100!' : 'Conn: 5 / 100'}</text>
+          <text x="413" y="110" fill="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isBad ? 'CPU: 100% (CRASH)' : 'CPU: 22% (ÊM ÁI)'}</text>
+          <text x="413" y="132" fill="${isBad ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">${isBad ? 'FATAL: too many clients' : 'SLA: 100% Đúng hạn'}</text>
+
+          <rect x="20" y="194" width="520" height="34" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="215" fill="var(--sim-ink)" font-size="10.5" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isBad ? 'Thảm họa: 200 kết nối đồng thời đánh sập PostgreSQL nguồn → Toàn bộ 20 Pipelines thất bại dây chuyền!' : 'Kiểm soát hoàn hảo: Pool postgres_pool=5 giữ đúng 5 truy vấn đồng thời → DB nguồn an toàn tuyệt đối'}
+          </text>
+        </svg>
+      `;
+
+      status.textContent = isBad
+        ? "Không giới hạn đồng thời (Slide 14 & 33): 200 Task từ nhiều DAG cùng mở kết nối tới PostgreSQL nguồn khiến DB cạn kiệt connection pool và sập toàn diện."
+        : "Phễu đồng thời 3 tầng (Slide 34–37): Kết hợp Global parallelism=64, DAG max_active_runs=1 và Resource Pool postgres_pool=5 slots để điều tiết lưu lượng mượt mà.";
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isBad ? 'infra2d-btn-danger' : ''}" onclick="orc2dState.concMode='unthrottled';renderOrchestration2DInteractiveStage('concurrency')">1. Thả Nổi Đồng Thời (200 Tasks Đánh Sập DB Nguồn)</button>
+        <button type="button" class="infra2d-btn ${isFunnel ? 'infra2d-btn-emerald' : ''}" onclick="orc2dState.concMode='three_tier_pool';renderOrchestration2DInteractiveStage('concurrency')">2. Bật Phễu 3 Tầng (parallelism=64 + max_active_runs=1 + Pool=5 Slots)</button>
+      `;
+    } else if (mode === "circuit_breaker") {
+      const m = orc2dState.cbMode;
+      const isNoGate = m === "no_gate";
+      const isTrip = m === "cb_tripped";
+      const isPass = m === "cb_passed";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="28" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isNoGate ? 'KHÔNG CÓ CIRCUIT BREAKER (SLIDE 50): ORDER #8888 ÂM TIỀN (-450K) CHẢY THẲNG VÀO GOLD DWH!' : (isTrip ? 'CIRCUIT BREAKER TRIPPED (SLIDE 51–52): GX/DEEQU PHÁT HIỆN LỖI → NGẮT MẠCH LOAD & BẮN SLACK!' : 'CIRCUIT BREAKER CLOSED (PASS): ĐẠT 6 CHIỀU CHẤT LƯỢNG → MỞ CỔNG NẠP GOLD DWH & BI')}</text>
+
+          <!-- Node 1: Ingest Raw -->
+          <rect x="18" y="66" width="118" height="72" rx="7" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.5"/>
+          <text x="26" y="86" fill="var(--sim-flow)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">1. ingest_raw</text>
+          <text x="26" y="104" fill="var(--sim-ink)" font-size="9" font-family="var(--cds-font-mono)">Order #8888:</text>
+          <text x="26" y="121" fill="${isPass ? 'var(--sim-ok)' : 'var(--sim-danger)'}" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">${isPass ? 'amount = +450.000' : 'amount = -450.000!'}</text>
+
+          <path d="M 136 102 L 164 102" stroke="var(--sim-flow)" stroke-width="2" class="ing2d-flow-active"/>
+
+          <!-- Node 2: GX / Deequ Validation Gate -->
+          <rect x="164" y="54" width="152" height="96" rx="7" fill="var(--sim-card)" stroke="${isNoGate ? 'var(--sim-warn)' : (isTrip ? 'var(--sim-danger)' : 'var(--sim-ok)')}" stroke-width="1.8"/>
+          <text x="174" y="74" fill="${isNoGate ? 'var(--sim-warn)' : (isTrip ? 'var(--sim-danger)' : 'var(--sim-ok)')}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">2. GX / DEEQU GATE</text>
+          <text x="174" y="92" fill="var(--sim-ink)" font-size="9" font-family="var(--cds-font-mono)">• Completeness(user_id)</text>
+          <text x="174" y="108" fill="var(--sim-ink)" font-size="9" font-family="var(--cds-font-mono)">• Accuracy(amount &gt; 0)</text>
+          <text x="174" y="126" fill="var(--sim-ink)" font-size="9" font-family="var(--cds-font-mono)">• Uniqueness(order_id)</text>
+          <text x="174" y="142" fill="${isNoGate ? 'var(--sim-warn)' : (isTrip ? 'var(--sim-danger)' : 'var(--sim-ok)')}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isNoGate ? '[WARN ONLY · Cho qua!]' : (isTrip ? '[FAIL → NGẮT MẠCH!]' : '[PASS 100% → MỞ CỔNG]')}</text>
+
+          <!-- Upper Branch: Transform -> Gold DWH -> CEO Dashboard -->
+          <path d="M 316 82 L 356 66" stroke="${isTrip ? 'var(--sim-border)' : (isNoGate ? 'var(--sim-danger)' : 'var(--sim-ok)')}" stroke-width="2" stroke-dasharray="${isTrip ? '4 4' : 'none'}"/>
+          <rect x="356" y="38" width="184" height="58" rx="7" fill="${isNoGate ? 'var(--sim-danger-soft)' : (isPass ? 'var(--sim-ok-soft)' : 'var(--sim-card)')}" stroke="${isNoGate ? 'var(--sim-danger)' : (isPass ? 'var(--sim-ok)' : 'var(--sim-border)')}" stroke-width="1.5"/>
+          <text x="366" y="57" fill="${isNoGate ? 'var(--sim-danger)' : (isPass ? 'var(--sim-ok)' : 'var(--sim-muted)')}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">3A. Transform → Gold → BI</text>
+          <text x="366" y="76" fill="${isNoGate ? 'var(--sim-danger)' : (isPass ? 'var(--sim-ok)' : 'var(--sim-muted)')}" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">${isNoGate ? 'NHIỄM BẨN BẢNG GOLD & ML!' : (isPass ? 'Nạp Gold DWH thành công!' : '[SKIPPED — Đã bảo vệ Gold DWH]')}</text>
+
+          <!-- Lower Branch: Quarantine & Slack Alert -->
+          <path d="M 316 122 L 356 138" stroke="${isTrip ? 'var(--sim-danger)' : 'var(--sim-border)'}" stroke-width="2"/>
+          <rect x="356" y="114" width="184" height="62" rx="7" fill="${isTrip ? 'var(--sim-warn-soft)' : 'var(--sim-card)'}" stroke="${isTrip ? 'var(--sim-warn)' : 'var(--sim-border)'}" stroke-width="1.5"/>
+          <text x="366" y="133" fill="${isTrip ? 'var(--sim-warn)' : 'var(--sim-muted)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">3B. Quarantine &amp; Slack Alert</text>
+          <text x="366" y="151" fill="${isTrip ? 'var(--sim-ink)' : 'var(--sim-muted)'}" font-size="9" font-family="var(--cds-font-mono)">${isTrip ? 'Cô lập lô lỗi + Bắn PagerDuty!' : '[IDLE — Không có sự cố]'}</text>
+
+          <rect x="20" y="194" width="520" height="34" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="215" fill="var(--sim-ink)" font-size="10.5" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isNoGate ? 'Hậu quả (Slide 50): Pipeline báo SUCCESS nhưng dữ liệu âm (-450k) làm hỏng báo cáo CEO & mô hình ML!' : (isTrip ? 'Circuit Breaker kích hoạt: Chặn đứng dữ liệu bẩn tại Staging, bảo vệ 100% kho Gold DWH!' : 'Luồng chuẩn: Dữ liệu đạt trọn vẹn 6 chiều chất lượng mới được phép xuất bản (Write-Audit-Publish)')}
+          </text>
+        </svg>
+      `;
+
+      status.textContent = isNoGate
+        ? "Không có cổng ngắt mạch (Slide 50): Kiểm định chạy nhưng không chặn luồng thực thi — dữ liệu lỗi chảy thẳng xuống làm ô nhiễm kho dữ liệu và mô hình ML."
+        : (isTrip
+          ? "Cầu dao tự ngắt kích hoạt (Slide 51–52): BranchPythonOperator / ShortCircuitOperator lập tức ngắt nhánh Transform/Load ngay khi GX/Deequ báo FAIL."
+          : "Cầu dao đóng mạch an toàn: Sau khi vượt qua toàn bộ Expectation Suite (Accuracy, Completeness, Uniqueness), dữ liệu sạch được nạp vào Gold DWH.");
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isNoGate ? 'infra2d-btn-danger' : ''}" onclick="orc2dState.cbMode='no_gate';renderOrchestration2DInteractiveStage('circuit_breaker')">1. Không Có Cầu Dao (Dữ Liệu Âm -450k Làm Bẩn Gold DWH)</button>
+        <button type="button" class="infra2d-btn ${isTrip ? 'infra2d-btn-amber' : ''}" onclick="orc2dState.cbMode='cb_tripped';renderOrchestration2DInteractiveStage('circuit_breaker')">2. Kích Hoạt Circuit Breaker (Ngắt Nhánh Load + Quarantine)</button>
+        <button type="button" class="infra2d-btn ${isPass ? 'infra2d-btn-emerald' : ''}" onclick="orc2dState.cbMode='cb_passed';renderOrchestration2DInteractiveStage('circuit_breaker')">3. Dữ Liệu Sạch Đạt 6 Chiều (PASS → Nạp Gold DWH)</button>
+      `;
+    } else if (mode === "datahub_lineage") {
+      const m = orc2dState.govMode;
+      const isDrift = m === "schema_drift";
+      const isGov = m === "contract_lineage";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="28" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isDrift ? 'KHÔNG CÓ DATA CONTRACT (SLIDE 53): PRODUCER ĐỔI user_id → userId LÀM GÃY DÂY CHUYỀN HẠ NGUỒN!' : 'DATA CONTRACT (5 THUỘC TÍNH) + ĐỒ THỊ PHẢ HỆ DATAHUB (OPENLINEAGE / MCP / MCL — SLIDE 55 & 61)'}</text>
+
+          <!-- Producer & Contract Boundary -->
+          <rect x="18" y="46" width="160" height="132" rx="7" fill="var(--sim-card)" stroke="${isDrift ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.6"/>
+          <text x="28" y="65" fill="${isDrift ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">1. PRODUCER &amp; CONTRACT</text>
+          <text x="28" y="84" fill="var(--sim-ink)" font-size="9" font-family="var(--cds-font-mono)">${isDrift ? '• PR đổi: user_id → userId' : '• Schema: user_id INTEGER'}</text>
+          <text x="28" y="100" fill="var(--sim-ink)" font-size="9" font-family="var(--cds-font-mono)">${isDrift ? '• Xóa cột: purchase_date' : '• Nullability: NOT NULL'}</text>
+          <text x="28" y="116" fill="var(--sim-ink)" font-size="9" font-family="var(--cds-font-mono)">${isDrift ? '• Đổi kiểu: INT → VARCHAR' : '• Range &amp; Freshness &lt; 24h'}</text>
+          <text x="28" y="134" fill="${isDrift ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">${isDrift ? '[Không có Contract chặn!]' : '[CI/CD Contract Validator: OK]'}</text>
+          <text x="28" y="156" fill="var(--sim-sub)" font-size="8.5" font-family="var(--cds-font-mono)">URN: prod.orders (#8888)</text>
+
+          <path d="M 178 112 L 208 112" stroke="${isDrift ? 'var(--sim-danger)' : 'var(--sim-flow)'}" stroke-width="2.5" class="ing2d-flow-active"/>
+
+          <!-- DataHub Metadata & Lineage Graph -->
+          <rect x="208" y="46" width="332" height="132" rx="7" fill="var(--sim-card)" stroke="${isDrift ? 'var(--sim-danger)' : 'var(--sim-flow)'}" stroke-width="1.6"/>
+          <text x="220" y="65" fill="${isDrift ? 'var(--sim-danger)' : 'var(--sim-flow)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">2. DATAHUB LINEAGE &amp; IMPACT ANALYSIS (SLIDE 61)</text>
+
+          <rect x="220" y="78" width="94" height="44" rx="5" fill="var(--sim-canvas)" stroke="var(--sim-border)"/>
+          <text x="227" y="96" fill="var(--sim-ink)" font-size="8.8" font-weight="700" font-family="var(--cds-font-mono)">Airflow DAG</text>
+          <text x="227" y="111" fill="var(--sim-sub)" font-size="8.2" font-family="var(--cds-font-mono)">OpenLineage</text>
+
+          <path d="M 314 100 L 336 100" stroke="var(--sim-flow)" stroke-width="1.8"/>
+
+          <rect x="336" y="78" width="92" height="44" rx="5" fill="var(--sim-canvas)" stroke="var(--sim-border)"/>
+          <text x="343" y="96" fill="var(--sim-ink)" font-size="8.8" font-weight="700" font-family="var(--cds-font-mono)">Gold Tables</text>
+          <text x="343" y="111" fill="${isDrift ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="8.2" font-weight="700" font-family="var(--cds-font-mono)">${isDrift ? '[GÃY SQL!]' : '[Verified]'}</text>
+
+          <path d="M 428 100 L 448 100" stroke="var(--sim-flow)" stroke-width="1.8"/>
+
+          <rect x="448" y="78" width="80" height="44" rx="5" fill="var(--sim-canvas)" stroke="var(--sim-border)"/>
+          <text x="454" y="96" fill="var(--sim-ink)" font-size="8.8" font-weight="700" font-family="var(--cds-font-mono)">BI &amp; ML</text>
+          <text x="454" y="111" fill="${isDrift ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="8.2" font-weight="700" font-family="var(--cds-font-mono)">${isDrift ? '[SẬP!]' : '[An Toàn]'}</text>
+
+          <text x="220" y="144" fill="var(--sim-ink)" font-size="9" font-family="var(--cds-font-mono)">• Owner: Checkout Team (@minh-de)  |  Giao thức: Kafka MCP / MCL</text>
+          <text x="220" y="162" fill="${isDrift ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">${isDrift ? '• Không có Lineage: Mất 6 giờ mò tìm xem Dashboard nào bị gãy!' : '• Truy vết tức thì (0.2s): Biết ngay nguồn gốc, Pipeline &amp; Blast Radius!'}</text>
+
+          <rect x="20" y="194" width="520" height="34" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="215" fill="var(--sim-ink)" font-size="10.5" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isDrift ? 'Thảm họa: Thay đổi lược đồ tự phát từ thượng nguồn đánh sập toàn bộ SQL, BI Dashboard và ML Model!' : 'Khép kín: Data Contract khóa chặt 5 thuộc tính ở thượng nguồn + DataHub khoanh vùng tác động tức thì'}
+          </text>
+        </svg>
+      `;
+
+      status.textContent = isDrift
+        ? "Đứt gãy giao diện thượng nguồn (Slide 53): Đội ứng dụng đổi tên cột user_id -> userId hoặc xóa purchase_date mà không báo trước, làm sập toàn bộ đường ống hạ nguồn."
+        : "Quản trị khép kín (Slide 54–61): Data Contract kiểm định 5 thuộc tính (Schema, Nullability, Range, Freshness, Uniqueness) ngay từ gốc, kết hợp đồ thị phả hệ DataHub.";
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isDrift ? 'infra2d-btn-danger' : ''}" onclick="orc2dState.govMode='schema_drift';renderOrchestration2DInteractiveStage('datahub_lineage')">1. Không Có Data Contract (Đổi user_id → userId Gãy Hạ Nguồn)</button>
+        <button type="button" class="infra2d-btn ${isGov ? 'infra2d-btn-emerald' : ''}" onclick="orc2dState.govMode='contract_lineage';renderOrchestration2DInteractiveStage('datahub_lineage')">2. Bật Data Contract (5 Thuộc Tính) + Đồ Thị Phả Hệ DataHub</button>
+      `;
+    }
+  }
+
+  /* ==========================================================================
+     D04 · APACHE FLINK 2D INTERACTIVE SIMULATOR (6 SCENARIOS)
+     ========================================================================== */
+  const FLK2D_SLIDES = [
+    {
+      badge: "KỊCH BẢN 01 / 06 · FLINK ARCHITECTURE & TASK SLOTS",
+      title: "Kiến Trúc Master–Worker: JobManager, TaskManagers & Phân Bổ Task Slots",
+      desc: "JobManager đóng vai trò bộ não (Dispatcher, Scheduler, Checkpoint Coordinator) biên dịch ExecutionGraph và phân bổ Sub-tasks xuống các Task Slots trên TaskManagers. Mỗi Task Slot cô lập 1/N Managed Memory nhưng chia sẻ chung CPU; cơ chế Slot Sharing cho phép 1 Slot chứa trọn một đường ống dọc (Source[i] → Map[i] → Window[i]).",
+      mode: "cluster_slots",
+      metrics: [
+        { k: "Cơ chế cô lập của Task Slot", v: "Cô lập Managed Memory (1/N RAM) · Dùng chung CPU" },
+        { k: "Chu trình JobManager (4 bước)", v: "Receive → Parse/Optimize → ExecutionGraph → Assign Slots" },
+        { k: "Lợi ích Slot Sharing Group", v: "1 Task Slot gánh trọn 1 nhánh dọc Pipeline (Tối ưu tài nguyên)" }
+      ],
+      pros: [
+        "Tận dụng tối đa CPU và RAM trên mỗi TaskManager mà không cần khởi tạo JVM mới cho từng Sub-task",
+        "Tăng giảm Parallelism linh hoạt (Parallelism = 2 → 4) để nhân bản Sub-tasks xử lý Order #8888 song song"
+      ],
+      cons: [
+        "Vì các Task Slots trong cùng TaskManager dùng chung CPU và Heap, một Sub-task bị lỗi OOM hoặc vòng lặp vô tận có thể kéo sập cả TaskManager"
+      ],
+      when: "Dùng Slot Sharing mặc định cho hầu hết luồng xử lý; chỉ tách Slot Sharing Group riêng khi có toán tử ngốn CPU/RAM đặc biệt."
+    },
+    {
+      badge: "KỊCH BẢN 02 / 06 · TIME SEMANTICS & WATERMARK CLOCK",
+      title: "Ngữ Nghĩa Thời Gian (Event vs. Processing) & Đồng Hồ Logic Watermark W(t)",
+      desc: "Sự kiện Order #8888 phát sinh lúc 10:00:50 (Event Time) nhưng do nghẽn mạng di động nên tới Flink lúc 10:01:05 (Processing Time). Đồng hồ logic Watermark tiến triển theo công thức W(t) = max(event_time) - allowed_delay: ngay khi W(t) >= window_end (10:01:00), cửa sổ [10:00–10:01] lập tức đóng lại và phát kết quả tổng hợp.",
+      mode: "watermark_clock",
+      metrics: [
+        { k: "Công thức đồng hồ Watermark", v: "W(t) = max_event_time_seen - allowed_delay (t_d)" },
+        { k: "Điều kiện điểm hỏa cửa sổ", v: "Trigger FIRES ngay khi Watermark W(t) >= window_end" },
+        { k: "Quy tắc chọn allowed_delay", v: "Đo phân vị p95 / p99 out-of-order lag thực tế trên Production" }
+      ],
+      pros: [
+        "Đảm bảo kết quả tính toán tất định 100% (Deterministic) bất kể độ trễ mạng hay tốc độ đọc lại lịch sử (Replay)",
+        "Cho phép kiểm soát chủ động sự đánh đổi giữa Độ trễ phát kết quả (Latency) và Độ đầy đủ dữ liệu (Completeness)"
+      ],
+      cons: [
+        "Nếu 1 Kafka Partition bị rỗng (Idle Source), Watermark hợp nhất min(W_i) sẽ bị đóng băng nếu không bật .withIdleness()"
+      ],
+      when: "Bắt buộc dùng Event Time + BoundedOutOfOrderness (theo p95/p99 latency) cho mọi bài toán tài chính, đơn hàng và đối soát."
+    },
+    {
+      badge: "KỊCH BẢN 03 / 06 · WINDOW ASSIGNERS & TRIGGERS",
+      title: "Bốn Kiểu Cửa Sổ (Tumbling, Sliding, Session, Global) & Bộ Kích Hoạt Trigger",
+      desc: "Window Assigner quyết định cách gom sự kiện vào các lát cắt hữu hạn, còn Window Trigger quyết định thời điểm tính toán và phát kết quả. Tumbling cắt lát rời rạc không chồng lấp; Sliding trượt chồng lấp (mỗi sự kiện thuộc size/slide cửa sổ); Session gom theo khoảng lặng người dùng (Session Gap); Global gom toàn bộ vào 1 cửa sổ duy nhất.",
+      mode: "window_types",
+      metrics: [
+        { k: "Tumbling vs. Sliding Window", v: "Tumbling: 1 event → 1 window | Sliding: 1 event → size/slide windows" },
+        { k: "Session Window", v: "Độ dài động · Tự động gộp (Merge) khi khoảng lặng < Session Gap" },
+        { k: "Cạm bẫy Global Window", v: "Default Trigger = None → Tích tụ State vô hạn gây OOM nếu quên gắn Trigger!" }
+      ],
+      pros: [
+        "Biến luồng vô hạn (Unbounded Stream) thành các lát cắt hữu hạn để tính SUM, COUNT, AVG, Top-N theo thời gian thực",
+        "Tách biệt hoàn toàn logic phân nhóm (Window Assigner) với logic điểm hỏa phát kết quả (Trigger)"
+      ],
+      cons: [
+        "Sliding Window có bước trượt (slide) quá nhỏ so với kích thước (size) sẽ nhân bản trạng thái lên nhiều lần"
+      ],
+      when: "Chọn Tumbling cho báo cáo chu kỳ cố định, Sliding cho trung bình trượt, Session cho hành vi phiên người dùng."
+    },
+    {
+      badge: "KỊCH BẢN 04 / 06 · LATE DATA, ALLOWED LATENESS & SIDE OUTPUT",
+      title: "Vòng Đời 3 Pha Cửa Sổ (Allowed Lateness) & Luồng Rẽ Nhánh Side Output",
+      desc: "Khi sự kiện đến sau lúc Watermark đã vượt qua window_end, mặc định Flink sẽ hủy bỏ (Drop). Bật Allowed Lateness giữ cửa sổ ở trạng thái Waiting để mở lại và phát kết quả đính chính (Refire/Retract) cho các sự kiện trễ nhẹ; kết hợp Side Output để hứng 100% sự kiện trễ sâu sau khi cửa sổ đã Deleted.",
+      mode: "late_data",
+      metrics: [
+        { k: "3 Pha vòng đời cửa sổ", v: "1. Collecting (W < end) → 2. Waiting (end <= W < end+L) → 3. Deleted" },
+        { k: "Hành vi trong pha Waiting", v: "Sự kiện trễ e3 kích hoạt Window Refire → Phát bản ghi cập nhật" },
+        { k: "Phác đồ Không Mất Dữ Liệu", v: "Allowed Lateness (30s) + Side Output (Audit Log / DLQ / Batch Fix)" }
+      ],
+      pros: [
+        "Tự động hiệu chỉnh ngay kết quả thời gian thực cho các sự kiện trễ nhẹ trong ngưỡng Allowed Lateness",
+        "Bảo toàn 100% dữ liệu đến muộn qua luồng phụ Side Output mà không làm phình bộ nhớ RAM vô hạn"
+      ],
+      cons: [
+        "Hệ thống hạ nguồn nhận kết quả từ Allowed Lateness phải hỗ trợ cập nhật lũy đẳng (Upsert / Retract)"
+      ],
+      when: "Chuẩn Production: Kết hợp Allowed Lateness ngắn (15s–60s) trên luồng chính kèm Side Output ghi xuống S3/Iceberg."
+    },
+    {
+      badge: "KỊCH BẢN 05 / 06 · ROCKSDB STATE & CHECKPOINT BARRIERS",
+      title: "Quản Trị State Cục Bộ (RocksDB) & Rào Chắn Checkpoint Barriers (Chandy-Lamport)",
+      desc: "Mỗi sự kiện đi qua toán tử Stateful đều kích hoạt đọc/ghi State cục bộ (Bước 2 & Bước 4). Để chịu lỗi mà không dừng luồng, JobManager phát Checkpoint Barrier #N chảy dọc đường ống: khi Barrier đi qua, toán tử chụp ảnh State bất đồng bộ xuống S3/HDFS. Nếu Worker sập, Flink tua ngược Kafka Offset về mốc #N và khôi phục chính xác Exactly-Once.",
+      mode: "checkpoint_recovery",
+      metrics: [
+        { k: "Chu trình 5 bước mỗi sự kiện", v: "Arrive → Read State → Apply Logic → Write State → Emit Output" },
+        { k: "Heap vs. RocksDB StateBackend", v: "Heap: RAM cực nhanh (< GB) | RocksDB: Off-heap + NVMe (Hàng TB, Incremental)" },
+        { k: "Phục hồi sự cố (Fault Recovery)", v: "Khôi phục State từ Checkpoint #N + Tua ngược (Rewind) Kafka Offset #N" }
+      ],
+      pros: [
+        "Chụp ảnh phân tán nhất quán (Consistent Snapshot) ngay trong lúc luồng sự kiện vẫn chảy liên tục",
+        "Cam kết Exactly-Once toàn trình khi kết hợp Source có thể tua lại (Kafka) và Sink giao dịch 2 pha (2PC)"
+      ],
+      cons: [
+        "Khi bị nghẽn mạng hoặc lệch tải, quá trình căn chỉnh rào chắn (Barrier Alignment) có thể làm tăng thời gian Checkpoint"
+      ],
+      when: "Dùng EmbeddedRocksDBStateBackend + Incremental Checkpoints cho mọi tác vụ Streaming quy mô lớn trên Production."
+    },
+    {
+      badge: "KỊCH BẢN 06 / 06 · OPERATOR CHAINING & BACKPRESSURE",
+      title: "Hàn Gắn Toán Tử (Operator Chaining), Chẩn Đoán Backpressure & Application Mode",
+      desc: "Operator Chaining gộp các toán tử nối tiếp (Source + Map + Filter) vào chung 1 luồng CPU để truyền bản ghi trực tiếp trong RAM, triệt tiêu chi phí tuần tự hóa và đổi ngữ cảnh. Khi toán tử hạ nguồn chậm, bộ đệm đầy tràn tạo áp lực ngược (Backpressure HIGH) lan về tận Source — cần giải cứu bằng tăng Parallelism, Async I/O và RocksDB Tuning.",
+      mode: "chaining_backpressure",
+      metrics: [
+        { k: "Hiệu quả Operator Chaining", v: "Loại bỏ Serialization + Network Buffer + Thread Context Switch" },
+        { k: "Cơ chế truyền Backpressure", v: "Credit-Based Flow Control: Hết Input Credit → Khóa ngược về Source" },
+        { k: "Phác đồ 3 bước trị Backpressure", v: "1. Scale out (.set_parallelism) → 2. Async I/O → 3. Tune RocksDB" }
+      ],
+      pros: [
+        "Operator Chaining tăng thông lượng gấp nhiều lần và giảm độ trễ xử lý xuống mức sub-millisecond",
+        "Backpressure tự động phanh tốc độ đọc Kafka Source, bảo vệ cụm Flink khỏi sập OutOfMemoryError"
+      ],
+      cons: [
+        "Backpressure kéo dài sẽ chặn cả rào chắn Checkpoint Barrier, khiến Checkpoint bị hết hạn (Timeout)"
+      ],
+      when: "Luôn bật Operator Chaining mặc định, giám sát chỉ số Backpressured/Busy trên Web UI và triển khai bằng Application Mode."
+    }
+  ];
+
+  let activeFlk2DSlideIdx = 0;
+  let flk2dState = {
+    parallelism: 2,
+    slotSharing: true,
+    wmStep: 1,
+    winType: "tumbling",
+    latePhase: "waiting_e3",
+    ckptPhase: "barrier_flow",
+    optMode: "backpressure_high"
+  };
+
+  function buildFlink2DSimulatorHtml() {
+    return `
+      <div class="infra2d-wrap" id="flk2dRoot">
+        <div class="infra2d-header">
+          <div class="infra2d-header-title">
+            <span class="cds-icon" aria-hidden="true">&#xE024;</span>
+            <span>MÔ PHỎNG 2D · ĐỘNG CƠ XỬ LÝ LUỒNG APACHE FLINK: SLOTS, WATERMARKS, WINDOWS, CHECKPOINT &amp; BACKPRESSURE</span>
+          </div>
+          <div class="infra2d-Step-pills" role="tablist" aria-label="Các kịch bản mô phỏng Apache Flink 2D">
+            ${FLK2D_SLIDES.map((s, idx) => `
+              <button type="button" class="infra2d-pill ${idx === 0 ? 'active' : ''}" data-flk2d-idx="${idx}" onclick="selectFlink2DSlide(${idx})">
+                0${idx + 1} · ${s.mode === 'cluster_slots' ? 'Slots &amp; Parallelism' : s.mode === 'watermark_clock' ? 'Watermark W(t)' : s.mode === 'window_types' ? '4 Kiểu Window' : s.mode === 'late_data' ? 'Late Data &amp; SideOut' : s.mode === 'checkpoint_recovery' ? 'Checkpoint &amp; Rewind' : 'Chaining &amp; Backpressure'}
+              </button>
+            `).join("")}
+          </div>
+        </div>
+        <div class="infra2d-body">
+          <div class="infra2d-canvas-pane">
+            <div class="infra2d-svg-stage" id="flk2dSvgStage"></div>
+            <div class="infra2d-controls" id="flk2dControls"></div>
+            <div class="infra2d-status-bar" id="flk2dStatusBar"></div>
+          </div>
+          <div class="infra2d-info-pane" id="flk2dInfoPane"></div>
+        </div>
+      </div>
+    `;
+  }
+
+  function selectFlink2DSlide(idx) {
+    activeFlk2DSlideIdx = (idx + FLK2D_SLIDES.length) % FLK2D_SLIDES.length;
+    renderFlink2DSlide();
+  }
+
+  function stepFlink2DSlide(delta) {
+    selectFlink2DSlide(activeFlk2DSlideIdx + delta);
+  }
+
+  function renderFlink2DSlide() {
+    const root = document.getElementById("flk2dRoot");
+    if (!root) return;
+    const slide = FLK2D_SLIDES[activeFlk2DSlideIdx];
+
+    root.querySelectorAll(".infra2d-pill").forEach((btn, i) => {
+      btn.classList.toggle("active", i === activeFlk2DSlideIdx);
+    });
+
+    const infoPane = document.getElementById("flk2dInfoPane");
+    if (infoPane) {
+      infoPane.innerHTML = `
+        <div>
+          <span class="infra2d-badge">${slide.badge}</span>
+          <h3 class="infra2d-title">${slide.title}</h3>
+          <p class="infra2d-desc" style="margin-top:6px;">${slide.desc}</p>
+        </div>
+        <div class="infra2d-metrics">
+          ${slide.metrics.map(m => `
+            <div class="infra2d-metric-row">
+              <span class="infra2d-metric-k">${m.k}</span>
+              <span class="infra2d-metric-v">${m.v}</span>
+            </div>
+          `).join("")}
+        </div>
+        <div class="infra2d-pros-cons">
+          <div class="infra2d-box pro">
+            <strong>Cơ chế cốt lõi &amp; Lợi thế kiến trúc</strong>
+            <ul>${slide.pros.map(p => `<li>${p}</li>`).join("")}</ul>
+          </div>
+          <div class="infra2d-box con">
+            <strong>Rủi ro &amp; Đánh đổi vận hành</strong>
+            <ul>${slide.cons.map(c => `<li>${c}</li>`).join("")}</ul>
+          </div>
+        </div>
+        <div class="infra2d-when">
+          <strong>Kim chỉ nam thiết kế Production:</strong> ${slide.when}
+        </div>
+        <div class="infra2d-nav-footer">
+          <button type="button" class="ui-btn" onclick="stepFlink2DSlide(-1)">← Kịch bản trước</button>
+          <span style="font-size:12px;color:var(--muted);font-family:var(--font-mono);">${activeFlk2DSlideIdx + 1} / ${FLK2D_SLIDES.length}</span>
+          <button type="button" class="ui-btn" onclick="stepFlink2DSlide(1)">Kịch bản tiếp →</button>
+        </div>
+      `;
+    }
+
+    renderFlink2DInteractiveStage(slide.mode);
+  }
+
+  function renderFlink2DInteractiveStage(mode) {
+    const stage = document.getElementById("flk2dSvgStage");
+    const ctrls = document.getElementById("flk2dControls");
+    const status = document.getElementById("flk2dStatusBar");
+    if (!stage || !ctrls || !status) return;
+
+    if (mode === "cluster_slots") {
+      const p = flk2dState.parallelism;
+      const shared = flk2dState.slotSharing;
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="28" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">KIẾN TRÚC MASTER–WORKER · PARALLELISM = ${p} · SLOT SHARING = ${shared ? 'ON (CHUẨN)' : 'OFF (TÁCH RỜI)'}</text>
+
+          <!-- JobManager -->
+          <rect x="20" y="42" width="136" height="142" rx="7" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.6"/>
+          <text x="28" y="61" fill="var(--sim-flow)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">JobManager (Brain)</text>
+          <rect x="28" y="70" width="120" height="24" rx="4" fill="var(--sim-canvas)" stroke="var(--sim-border)"/>
+          <text x="34" y="86" fill="var(--sim-ink)" font-size="8.8" font-family="var(--cds-font-mono)">1. Dispatcher / Graph</text>
+          <rect x="28" y="100" width="120" height="24" rx="4" fill="var(--sim-canvas)" stroke="var(--sim-border)"/>
+          <text x="34" y="116" fill="var(--sim-ink)" font-size="8.8" font-family="var(--cds-font-mono)">2. Resource Scheduler</text>
+          <rect x="28" y="130" width="120" height="24" rx="4" fill="var(--sim-canvas)" stroke="var(--sim-border)"/>
+          <text x="34" y="146" fill="var(--sim-ok)" font-size="8.8" font-weight="700" font-family="var(--cds-font-mono)">3. Checkpoint Coord</text>
+          <text x="28" y="172" fill="var(--sim-sub)" font-size="8.5" font-family="var(--cds-font-mono)">Heartbeats &amp; Triggers</text>
+
+          <path d="M 156 112 L 184 112" stroke="var(--sim-flow)" stroke-width="2" class="ing2d-flow-active"/>
+
+          <!-- TaskManager 1 -->
+          <rect x="184" y="42" width="172" height="142" rx="7" fill="var(--sim-card)" stroke="var(--sim-ok)" stroke-width="1.6"/>
+          <text x="194" y="60" fill="var(--sim-ok)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">TaskManager 1 (2 Slots)</text>
+          <rect x="194" y="68" width="152" height="48" rx="5" fill="var(--sim-ok-soft)" stroke="var(--sim-ok)"/>
+          <text x="200" y="84" fill="var(--sim-ok)" font-size="8.8" font-weight="700" font-family="var(--cds-font-mono)">Slot 1 (50% Managed RAM)</text>
+          <text x="200" y="102" fill="var(--sim-ink)" font-size="8.5" font-family="var(--cds-font-mono)">${shared ? 'Src[1] → Map[1] → Win[1]' : 'Chỉ chứa: Source[1]'}</text>
+
+          <rect x="194" y="122" width="152" height="48" rx="5" fill="var(--sim-ok-soft)" stroke="var(--sim-ok)"/>
+          <text x="200" y="138" fill="var(--sim-ok)" font-size="8.8" font-weight="700" font-family="var(--cds-font-mono)">Slot 2 (50% Managed RAM)</text>
+          <text x="200" y="156" fill="var(--sim-ink)" font-size="8.5" font-family="var(--cds-font-mono)">${shared ? 'Src[2] → Map[2] → Win[2]' : 'Chỉ chứa: Map[1]'}</text>
+
+          <!-- TaskManager 2 -->
+          <rect x="368" y="42" width="172" height="142" rx="7" fill="var(--sim-card)" stroke="${p === 4 ? 'var(--sim-ok)' : 'var(--sim-border)'}" stroke-width="1.6"/>
+          <text x="378" y="60" fill="${p === 4 ? 'var(--sim-ok)' : 'var(--sim-muted)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">TaskManager 2 (2 Slots)</text>
+          <rect x="378" y="68" width="152" height="48" rx="5" fill="${p === 4 ? 'var(--sim-ok-soft)' : 'var(--sim-canvas)'}" stroke="${p === 4 ? 'var(--sim-ok)' : 'var(--sim-border)'}"/>
+          <text x="384" y="84" fill="${p === 4 ? 'var(--sim-ok)' : 'var(--sim-muted)'}" font-size="8.8" font-weight="700" font-family="var(--cds-font-mono)">Slot 3 (50% Managed RAM)</text>
+          <text x="384" y="102" fill="var(--sim-ink)" font-size="8.5" font-family="var(--cds-font-mono)">${p === 4 ? (shared ? 'Src[3] → Map[3] → Win[3]' : 'Chứa: Window[1]') : '[IDLE — Chưa cấp phát]'}</text>
+
+          <rect x="378" y="122" width="152" height="48" rx="5" fill="${p === 4 ? 'var(--sim-ok-soft)' : 'var(--sim-canvas)'}" stroke="${p === 4 ? 'var(--sim-ok)' : 'var(--sim-border)'}"/>
+          <text x="384" y="138" fill="${p === 4 ? 'var(--sim-ok)' : 'var(--sim-muted)'}" font-size="8.8" font-weight="700" font-family="var(--cds-font-mono)">Slot 4 (50% Managed RAM)</text>
+          <text x="384" y="156" fill="var(--sim-ink)" font-size="8.5" font-family="var(--cds-font-mono)">${p === 4 ? (shared ? 'Src[4] → Map[4] → Win[4]' : 'Chứa: Source[2]/Map[2]') : '[IDLE — Chưa cấp phát]'}</text>
+
+          <rect x="20" y="194" width="520" height="34" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="215" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">
+            ${shared ? `Parallelism=${p}: ${p} đường ống Sub-tasks chạy song song trên ${p} Task Slots (Cô lập RAM, Chia sẻ CPU)` : 'Tắt Slot Sharing: Mỗi Sub-task đòi 1 Slot riêng → Tốn gấp 3 lần số Slots và tăng truyền mạng nội bộ!'}
+          </text>
+        </svg>
+      `;
+      status.textContent = shared
+        ? `Đang chạy Parallelism = ${p} với Slot Sharing = ON: Mỗi Task Slot gánh trọn 1 nhánh dọc (Source → Map → Window) cho sự kiện Order #8888.`
+        : "Khi tắt Slot Sharing: Source[1], Map[1], Window[1] không được nằm chung 1 Slot, gây lãng phí tài nguyên cụm.";
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${p === 2 && shared ? 'infra2d-btn-emerald' : ''}" onclick="flk2dState.parallelism=2;flk2dState.slotSharing=true;renderFlink2DInteractiveStage('cluster_slots')">1. Parallelism = 2 (2 Slots · Slot Sharing ON)</button>
+        <button type="button" class="infra2d-btn ${p === 4 && shared ? 'infra2d-btn-cyan' : ''}" onclick="flk2dState.parallelism=4;flk2dState.slotSharing=true;renderFlink2DInteractiveStage('cluster_slots')">2. Tăng Parallelism = 4 (4 Slots trên 2 TaskManagers)</button>
+        <button type="button" class="infra2d-btn ${!shared ? 'infra2d-btn-amber' : ''}" onclick="flk2dState.parallelism=4;flk2dState.slotSharing=false;renderFlink2DInteractiveStage('cluster_slots')">3. Tắt Slot Sharing (Mỗi Operator 1 Slot Riêng)</button>
+      `;
+    } else if (mode === "watermark_clock") {
+      const step = flk2dState.wmStep;
+      const isS1 = step === 1;
+      const isS2 = step === 2;
+      const isIdle = step === 3;
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="28" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isIdle ? 'CẠM BẪY IDLE PARTITION: 1 PHÂN VÙNG RỖNG LÀM ĐÓNG BĂNG WATERMARK TOÀN CỤM!' : 'ĐỒNG HỒ WATERMARK (ALLOWED DELAY = 5s): W(t) = max(event_time) - 5s (SLIDE 16–18)'}</text>
+
+          <!-- Stream Input & Watermark Generator -->
+          <rect x="20" y="44" width="246" height="136" rx="7" fill="var(--sim-card)" stroke="${isIdle ? 'var(--sim-danger)' : 'var(--sim-flow)'}" stroke-width="1.6"/>
+          <text x="30" y="64" fill="${isIdle ? 'var(--sim-danger)' : 'var(--sim-flow)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">1. LUỒNG SỰ KIỆN &amp; WATERMARK GEN</text>
+          <text x="30" y="84" fill="var(--sim-ink)" font-size="9" font-family="var(--cds-font-mono)">${isS1 ? '• Sự kiện tới: e1(00:42), #8888(00:50), e3(00:58)' : (isS2 ? '• Sự kiện mới tới: e4(01:02), e5(01:05)' : '• Partition 0: max_ts = 01:05 (W0 = 01:00)')}</text>
+          <text x="30" y="102" fill="var(--sim-ink)" font-size="9" font-family="var(--cds-font-mono)">${isIdle ? '• Partition 1: 0 events (W1 = -∞ ĐÓNG BĂNG!)' : `• max(event_time) = ${isS1 ? '10:00:58' : '10:01:05'}`}</text>
+          <text x="30" y="120" fill="var(--sim-sub)" font-size="9" font-family="var(--cds-font-mono)">• Dung sai trễ (allowed_delay) = 5 giây</text>
+          <rect x="30" y="134" width="226" height="32" rx="5" fill="${isIdle ? 'var(--sim-danger-soft)' : 'var(--sim-ok-soft)'}" stroke="${isIdle ? 'var(--sim-danger)' : 'var(--sim-ok)'}"/>
+          <text x="38" y="154" fill="${isIdle ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isIdle ? 'W = min(01:00, -∞) → KẸT CỨNG!' : `Watermark phát ra: W = ${isS1 ? '10:00:53' : '10:01:00'}`}</text>
+
+          <path d="M 266 112 L 296 112" stroke="${isIdle ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="2.5" class="ing2d-flow-active"/>
+
+          <!-- Window Operator [10:00:00 - 10:01:00) -->
+          <rect x="296" y="44" width="244" height="136" rx="7" fill="var(--sim-card)" stroke="${isS2 ? 'var(--sim-ok)' : (isIdle ? 'var(--sim-danger)' : 'var(--sim-warn)')}" stroke-width="1.6"/>
+          <text x="306" y="64" fill="${isS2 ? 'var(--sim-ok)' : (isIdle ? 'var(--sim-danger)' : 'var(--sim-warn)')}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">2. WINDOW [10:00:00 – 10:01:00)</text>
+          <text x="306" y="84" fill="var(--sim-ink)" font-size="9" font-family="var(--cds-font-mono)">• Đang giữ: e1, Order #8888 (450k), e3</text>
+          <text x="306" y="102" fill="var(--sim-ink)" font-size="9" font-family="var(--cds-font-mono)">• Điều kiện nổ: W &gt;= 10:01:00</text>
+          <text x="306" y="122" fill="${isS2 ? 'var(--sim-ok)' : (isIdle ? 'var(--sim-danger)' : 'var(--sim-warn)')}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isS1 ? '• Trạng thái: WAITING (W=00:53 &lt; 01:00)' : (isS2 ? '• TRIGGER FIRES! (W=01:00 &gt;= 01:00)' : '• KẸT VĨNH VIỄN (Cần bật .withIdleness!)')}</text>
+          <text x="306" y="148" fill="var(--sim-sub)" font-size="8.8" font-family="var(--cds-font-mono)">${isS2 ? 'Emit: count=3, sum=1.250.000 VNĐ → Sink' : 'Chưa phát kết quả ra hạ nguồn'}</text>
+
+          <rect x="20" y="194" width="520" height="34" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="215" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isS1 ? 'Bước 1 (Slide 17): max_ts = 00:58 → W = 00:53 < 01:00 → Cửa sổ vẫn mở chờ các sự kiện đến trễ' : (isS2 ? 'Bước 2 (Slide 17): e5(01:05) tới → W = 01:05 - 5s = 01:00 → Cửa sổ đóng và phát kết quả ngay!' : 'Cảnh báo Production: Dùng .withIdleness(Duration.ofSeconds(30)) để bỏ qua Partition rỗng khi tính min(W)')}
+          </text>
+        </svg>
+      `;
+      status.textContent = isS1
+        ? "Tại mốc max_event_time = 10:00:58: Watermark = 10:00:53 (nhỏ hơn mốc kết thúc cửa sổ 10:01:00), cửa sổ tiếp tục gom dữ liệu."
+        : (isS2
+          ? "Khi e5 (10:01:05) tới: Watermark = 10:01:05 - 5s = 10:01:00 chạm biên cửa sổ [10:00–10:01] → Trigger nổ và xuất kết quả!"
+          : "Khi hợp nhất nhiều phân vùng Kafka, Flink lấy min(Watermark). Một phân vùng rỗng sẽ giữ Watermark ở -∞ nếu thiếu .withIdleness().");
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isS1 ? 'infra2d-btn-amber' : ''}" onclick="flk2dState.wmStep=1;renderFlink2DInteractiveStage('watermark_clock')">1. Sự Kiện e3 (00:58) Tới → W = 00:53 (Cửa Sổ Chờ)</button>
+        <button type="button" class="infra2d-btn ${isS2 ? 'infra2d-btn-emerald' : ''}" onclick="flk2dState.wmStep=2;renderFlink2DInteractiveStage('watermark_clock')">2. Sự Kiện e5 (01:05) Tới → W = 01:00 (Đóng &amp; Emit!)</button>
+        <button type="button" class="infra2d-btn ${isIdle ? 'infra2d-btn-danger' : ''}" onclick="flk2dState.wmStep=3;renderFlink2DInteractiveStage('watermark_clock')">3. Mô Phỏng Kẹt Idle Partition &amp; .withIdleness()</button>
+      `;
+    } else if (mode === "window_types") {
+      const wt = flk2dState.winType;
+      const isTumble = wt === "tumbling";
+      const isSlide = wt === "sliding";
+      const isSess = wt === "session";
+      const isGlob = wt === "global_oom";
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="28" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isTumble ? 'TUMBLING WINDOW (SIZE=10s): CỐ ĐỊNH, KHÔNG CHỒNG LẤP — MỖI SỰ KIỆN THUỘC ĐÚNG 1 CỬA SỔ' : (isSlide ? 'SLIDING WINDOW (SIZE=10s, SLIDE=5s): CHỒNG LẤP — ORDER #8888 THUỘC 2 CỬA SỔ ĐỒNG THỜI' : (isSess ? 'SESSION WINDOW (GAP=5s): CO GIÃN ĐỘNG THEO HÀNH VI — TỰ ĐỘNG GỘP KHI KHOẢNG LẶNG < 5s' : 'GLOBAL WINDOW THIẾU TRIGGER (SLIDE 32): SILENT FAILURE — TÍCH TỤ VÔ HẠN GÂY SẬP OOM!'))}</text>
+
+          <!-- Timeline Events -->
+          <line x1="30" y1="68" x2="530" y2="68" stroke="var(--sim-border)" stroke-width="2"/>
+          <circle cx="80" cy="68" r="6" fill="var(--sim-flow)"/><text x="64" y="54" fill="var(--sim-ink)" font-size="8.5" font-family="var(--cds-font-mono)">e1(02s)</text>
+          <circle cx="170" cy="68" r="7" fill="var(--sim-ok)"/><text x="142" y="54" fill="var(--sim-ok)" font-size="8.8" font-weight="700" font-family="var(--cds-font-mono)">#8888(07s)</text>
+          <circle cx="290" cy="68" r="6" fill="var(--sim-flow)"/><text x="272" y="54" fill="var(--sim-ink)" font-size="8.5" font-family="var(--cds-font-mono)">e3(12s)</text>
+          <circle cx="430" cy="68" r="6" fill="var(--sim-flow)"/><text x="412" y="54" fill="var(--sim-ink)" font-size="8.5" font-family="var(--cds-font-mono)">e4(19s)</text>
+
+          ${isTumble ? `
+            <rect x="40" y="92" width="200" height="42" rx="6" fill="var(--sim-ok-soft)" stroke="var(--sim-ok)" stroke-width="1.6"/>
+            <text x="52" y="117" fill="var(--sim-ok)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">Window 1 [00s – 10s): e1, #8888</text>
+            <rect x="250" y="92" width="240" height="42" rx="6" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.6"/>
+            <text x="262" y="117" fill="var(--sim-flow)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">Window 2 [10s – 20s): e3, e4</text>
+          ` : (isSlide ? `
+            <rect x="40" y="88" width="200" height="36" rx="6" fill="var(--sim-ok-soft)" stroke="var(--sim-ok)" stroke-width="1.6"/>
+            <text x="52" y="110" fill="var(--sim-ok)" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">Win 1 [00s – 10s): e1, #8888</text>
+            <rect x="130" y="132" width="220" height="36" rx="6" fill="var(--sim-ok-soft)" stroke="var(--sim-flow)" stroke-width="1.6"/>
+            <text x="142" y="154" fill="var(--sim-flow)" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">Win 2 [05s – 15s): #8888, e3 (Chồng lấp!)</text>
+          ` : (isSess ? `
+            <rect x="50" y="92" width="160" height="44" rx="6" fill="var(--sim-ok-soft)" stroke="var(--sim-ok)" stroke-width="1.6"/>
+            <text x="60" y="118" fill="var(--sim-ok)" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">Session 1: e1 + #8888</text>
+            <text x="218" y="118" fill="var(--sim-warn)" font-size="8.8" font-weight="700" font-family="var(--cds-font-mono)">← Gap &gt; 5s →</text>
+            <rect x="305" y="92" width="185" height="44" rx="6" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.6"/>
+            <text x="315" y="118" fill="var(--sim-flow)" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">Session 2: e3 + e4</text>
+          ` : `
+            <rect x="40" y="90" width="480" height="72" rx="6" fill="var(--sim-danger-soft)" stroke="var(--sim-danger)" stroke-width="1.8"/>
+            <text x="54" y="116" fill="var(--sim-danger)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">Global Window [All Events]: e1, #8888, e3, e4 ... e_10,000,000</text>
+            <text x="54" y="140" fill="var(--sim-danger)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">Default Trigger = NONE → 0 bản ghi phát ra · Bộ nhớ State tăng tới OOM CRASH!</text>
+          `))}
+
+          <rect x="20" y="194" width="520" height="34" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="215" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isTumble ? 'Tumbling: Cắt lát độc lập (1 event = 1 window) · Default Trigger: EventTimeTrigger' : (isSlide ? 'Sliding: Order #8888 (07s) nằm trong cả 2 cửa sổ [00-10) và [05-15) (size/slide = 2x)' : (isSess ? 'Session: Cửa sổ tự đóng khi người dùng ngưng tương tác quá ngưỡng Session Gap (inactivity > gap)' : 'Quy tắc sống còn (Slide 32): Dùng Global Window bắt buộc phải gắn Custom Trigger + Evictor/Purge!'))}
+          </text>
+        </svg>
+      `;
+      status.textContent = isTumble
+        ? "Tumbling Window (Slide 26): Không chồng lấp, mỗi bản ghi chỉ thuộc duy nhất 1 cửa sổ — lý tưởng cho báo cáo doanh thu mỗi phút/giờ."
+        : (isSlide
+          ? "Sliding Window (Slide 27): Các cửa sổ trượt chồng lấp nhau; bản ghi Order #8888 được tính trong cả Window 1 lẫn Window 2."
+          : (isSess
+            ? "Session Window (Slide 28): Gom cụm sự kiện theo hoạt động thực tế của người dùng, tách phiên mới khi khoảng lặng vượt ngưỡng Gap."
+            : "Cạm bẫy Global Window (Slide 29 & 32): Không có biên thời gian tự nhiên và Default Trigger là None — quên gắn Trigger sẽ gây rò rỉ bộ nhớ câm lặng."));
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isTumble ? 'infra2d-btn-emerald' : ''}" onclick="flk2dState.winType='tumbling';renderFlink2DInteractiveStage('window_types')">1. Tumbling Window (Cố Định)</button>
+        <button type="button" class="infra2d-btn ${isSlide ? 'infra2d-btn-cyan' : ''}" onclick="flk2dState.winType='sliding';renderFlink2DInteractiveStage('window_types')">2. Sliding Window (Trượt Chồng Lấp)</button>
+        <button type="button" class="infra2d-btn ${isSess ? 'infra2d-btn-amber' : ''}" onclick="flk2dState.winType='session';renderFlink2DInteractiveStage('window_types')">3. Session Window (Theo Session Gap)</button>
+        <button type="button" class="infra2d-btn ${isGlob ? 'infra2d-btn-danger' : ''}" onclick="flk2dState.winType='global_oom';renderFlink2DInteractiveStage('window_types')">4. Global Window Thiếu Trigger (OOM!)</button>
+      `;
+    } else if (mode === "late_data") {
+      const lp = flk2dState.latePhase;
+      const isFire1 = lp === "collecting_fire";
+      const isWait = lp === "waiting_e3";
+      const isDel = lp === "deleted_e4";
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="28" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">THỰC NGHIỆM SLIDE 36–39 · WINDOW [00:30–01:30] · OUT-OF-ORDER = 10s · ALLOWED LATENESS = 15s</text>
+
+          <!-- 3-Phase Lifecycle Bar -->
+          <rect x="20" y="44" width="164" height="52" rx="6" fill="${isFire1 ? 'var(--sim-ok-soft)' : 'var(--sim-card)'}" stroke="${isFire1 ? 'var(--sim-ok)' : 'var(--sim-border)'}" stroke-width="1.6"/>
+          <text x="30" y="64" fill="${isFire1 ? 'var(--sim-ok)' : 'var(--sim-muted)'}" font-size="9.2" font-weight="700" font-family="var(--cds-font-mono)">PHA 1: COLLECTING</text>
+          <text x="30" y="82" fill="var(--sim-ink)" font-size="8.5" font-family="var(--cds-font-mono)">W &lt;= 01:30 (Nổ lần 1)</text>
+
+          <rect x="198" y="44" width="164" height="52" rx="6" fill="${isWait ? 'var(--sim-warn-soft)' : 'var(--sim-card)'}" stroke="${isWait ? 'var(--sim-warn)' : 'var(--sim-border)'}" stroke-width="1.6"/>
+          <text x="208" y="64" fill="${isWait ? 'var(--sim-warn)' : 'var(--sim-muted)'}" font-size="9.2" font-weight="700" font-family="var(--cds-font-mono)">PHA 2: WAITING (+15s)</text>
+          <text x="208" y="82" fill="var(--sim-ink)" font-size="8.5" font-family="var(--cds-font-mono)">01:30 &lt; W &lt;= 01:45 (Refire)</text>
+
+          <rect x="376" y="44" width="164" height="52" rx="6" fill="${isDel ? 'var(--sim-danger-soft)' : 'var(--sim-card)'}" stroke="${isDel ? 'var(--sim-danger)' : 'var(--sim-border)'}" stroke-width="1.6"/>
+          <text x="386" y="64" fill="${isDel ? 'var(--sim-danger)' : 'var(--sim-muted)'}" font-size="9.2" font-weight="700" font-family="var(--cds-font-mono)">PHA 3: DELETED</text>
+          <text x="386" y="82" fill="var(--sim-ink)" font-size="8.5" font-family="var(--cds-font-mono)">W &gt; 01:45 (Xóa khỏi RAM)</text>
+
+          <!-- Event Action Box -->
+          <rect x="20" y="108" width="520" height="74" rx="7" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.5"/>
+          <text x="32" y="128" fill="var(--sim-flow)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isFire1 ? 'SỰ KIỆN e5 (event_time=01:40) ĐẾN → WATERMARK = 01:40 - 10s = 01:30 == WINDOW_END' : (isWait ? 'SỰ KIỆN TRỄ e3 (event_time=01:15) ĐẾN LÚC W = 01:38 (TRONG NGƯỠNG GIA HẠN 01:45)' : 'SỰ KIỆN QUÁ TRỄ e4 (event_time=01:28) ĐẾN LÚC W = 01:50 (VƯỢT NGƯỠNG 01:45)')}</text>
+          <text x="32" y="148" fill="var(--sim-ink)" font-size="9" font-family="var(--cds-font-mono)">${isFire1 ? '• Cửa sổ [00:30–01:30] điểm hỏa lần 1 (First Fire) với [e1, e2, #8888] → Phát Main Output (count=3)' : (isWait ? '• Cửa sổ vẫn còn sống trong RAM (Waiting) → Điểm hỏa lại (REFIRE) phát kết quả đính chính (count=4)!' : '• Cửa sổ đã bị xóa khỏi RAM (Deleted) → Thay vì Drop mất dữ liệu, bẻ lái e4 sang luồng SIDE OUTPUT!')}</text>
+          <text x="32" y="168" fill="${isDel ? 'var(--sim-ok)' : 'var(--sim-sub)'}" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">${isFire1 ? '• Cửa sổ chuyển sang trạng thái WAITING thêm 15s (đến W = 01:45)' : (isWait ? '• Downstream nhận bản ghi cập nhật (Upsert/Retract) ngay lập tức' : '• Side Output (late_events_tag) → Ghi vào Audit Log / S3 Dead-Letter Queue (0% mất dữ liệu)')}</text>
+
+          <rect x="20" y="194" width="520" height="34" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="215" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isFire1 ? 'Mốc 1 (Slide 37): W chạm 01:30 → Phát kết quả lần đầu nhưng giữ State cửa sổ sống thêm 15s' : (isWait ? 'Mốc 2 (Slide 37): e3 đến trong pha Waiting (W <= 01:45) → Window Refires cập nhật ngay kết quả!' : 'Mốc 3 (Slide 37–40): e4 đến sau 01:45 → Cửa sổ đã xóa khỏi RAM, Side Output cứu e4 vào kho kiểm toán!')}
+          </text>
+        </svg>
+      `;
+      status.textContent = isFire1
+        ? "Pha 1 (Collecting → Fire): Khi e5(01:40) tới đẩy Watermark lên 01:30, cửa sổ [00:30–01:30] nổ lần đầu nhưng chưa xóa State."
+        : (isWait
+          ? "Pha 2 (Waiting + Allowed Lateness 15s): Sự kiện trễ e3(01:15) đến trước khi Watermark vượt 01:45 được cộng gộp và phát bản ghi đính chính."
+          : "Pha 3 (Deleted + Side Output): Sau khi W > 01:45, State cửa sổ được giải phóng khỏi RAM; sự kiện quá trễ e4 được rẽ nhánh an toàn sang Side Output.");
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isFire1 ? 'infra2d-btn-emerald' : ''}" onclick="flk2dState.latePhase='collecting_fire';renderFlink2DInteractiveStage('late_data')">1. Pha Collecting → Nổ Lần Đầu (W = 01:30)</button>
+        <button type="button" class="infra2d-btn ${isWait ? 'infra2d-btn-amber' : ''}" onclick="flk2dState.latePhase='waiting_e3';renderFlink2DInteractiveStage('late_data')">2. Pha Waiting: Sự Kiện Trễ e3 Tới → Refire!</button>
+        <button type="button" class="infra2d-btn ${isDel ? 'infra2d-btn-cyan' : ''}" onclick="flk2dState.latePhase='deleted_e4';renderFlink2DInteractiveStage('late_data')">3. Pha Deleted: e4 Quá Trễ → Rẽ Nhánh Side Output</button>
+      `;
+    } else if (mode === "checkpoint_recovery") {
+      const cp = flk2dState.ckptPhase;
+      const isFlow = cp === "barrier_flow";
+      const isCrash = cp === "worker_crash";
+      const isRewind = cp === "source_rewind";
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="28" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isFlow ? 'CHANDY-LAMPORT CHECKPOINT BARRIER #42: CHỤP ẢNH STATE BẤT ĐỒNG BỘ KHÔNG DỪNG LUỒNG' : (isCrash ? 'SỰ CỐ SẬP TASKMANAGER LÚC ĐANG XỬ LÝ OFFSET 45: PHÁT HIỆN MẤT HEARTBEAT!' : 'PHỤC HỒI EXACTLY-ONCE (SLIDE 12 & 61): NẠP STATE #42 + TUA NGƯỢC KAFKA OFFSET VỀ 42!')}</text>
+
+          <!-- Kafka Source -->
+          <rect x="18" y="48" width="146" height="128" rx="7" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.6"/>
+          <text x="28" y="68" fill="var(--sim-flow)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">1. KAFKA SOURCE</text>
+          <text x="28" y="88" fill="var(--sim-ink)" font-size="8.8" font-family="var(--cds-font-mono)">• Offset 42: Order #8888</text>
+          <text x="28" y="106" fill="var(--sim-ok)" font-size="8.8" font-weight="700" font-family="var(--cds-font-mono)">• [Barrier #42] bơm vào</text>
+          <text x="28" y="124" fill="var(--sim-ink)" font-size="8.8" font-family="var(--cds-font-mono)">${isRewind ? '• Rewind con trỏ → 42!' : '• Đọc tiếp: Offset 43..45'}</text>
+          <text x="28" y="148" fill="var(--sim-sub)" font-size="8.3" font-family="var(--cds-font-mono)">Operator State: Offsets</text>
+
+          <path d="M 164 112 L 194 112" stroke="${isCrash ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="2.5" class="ing2d-flow-active"/>
+
+          <!-- Stateful Operator + RocksDB -->
+          <rect x="194" y="48" width="176" height="128" rx="7" fill="${isCrash ? 'var(--sim-danger-soft)' : 'var(--sim-card)'}" stroke="${isCrash ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.6"/>
+          <text x="204" y="68" fill="${isCrash ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">2. ROCKSDB STATEFUL OP</text>
+          <text x="204" y="88" fill="var(--sim-ink)" font-size="8.8" font-family="var(--cds-font-mono)">${isFlow ? '• Barrier #42 đi qua Op' : (isCrash ? '• XỬ LÝ TỚI OFFSET 45 → SẬP!' : '• Khôi phục State từ #42')}</text>
+          <text x="204" y="106" fill="var(--sim-ink)" font-size="8.8" font-family="var(--cds-font-mono)">${isFlow ? '• Chụp ảnh RocksDB cục bộ' : (isCrash ? '• Mất RAM/Disk cục bộ!' : '• sum(USR-104) = 450.000')}</text>
+          <text x="204" y="124" fill="${isCrash ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="8.8" font-weight="700" font-family="var(--cds-font-mono)">${isFlow ? '• Async Upload → S3/HDFS' : (isCrash ? '• Heartbeat Timeout!' : '• Replay lại Offset 43..45')}</text>
+          <text x="204" y="148" fill="var(--sim-sub)" font-size="8.3" font-family="var(--cds-font-mono)">Keyed State: Key Groups</text>
+
+          <path d="M 370 112 L 400 112" stroke="var(--sim-flow)" stroke-width="2.5" class="ing2d-flow-active"/>
+
+          <!-- Durable Checkpoint Storage (S3 / HDFS) -->
+          <rect x="400" y="48" width="142" height="128" rx="7" fill="var(--sim-ok-soft)" stroke="var(--sim-ok)" stroke-width="1.6"/>
+          <text x="410" y="68" fill="var(--sim-ok)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">3. S3 / HDFS STORE</text>
+          <text x="410" y="88" fill="var(--sim-ink)" font-size="8.8" font-weight="700" font-family="var(--cds-font-mono)">Checkpoint #42 [OK]</text>
+          <text x="410" y="106" fill="var(--sim-ink)" font-size="8.5" font-family="var(--cds-font-mono)">• Kafka Offset = 42</text>
+          <text x="410" y="124" fill="var(--sim-ink)" font-size="8.5" font-family="var(--cds-font-mono)">• USR-104 = 450.000đ</text>
+          <text x="410" y="148" fill="var(--sim-ok)" font-size="8.5" font-weight="700" font-family="var(--cds-font-mono)">Exactly-Once Snapshot</text>
+
+          <rect x="20" y="194" width="520" height="34" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="215" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isFlow ? 'Chandy-Lamport (Slide 60): Barrier #42 chia luồng thành Trước/Sau mốc #42 và ghi State bất đồng bộ xuống S3' : (isCrash ? 'Khi Worker sập ở Offset 45: Trạng thái dở dang sau #42 bị hủy, JobManager kích hoạt kịch bản phục hồi!' : 'Phục hồi hoàn hảo (Slide 12 & 61): Nạp lại State #42 từ S3 + Tua Kafka về Offset 42 → Không mất, không nhân đôi!')}
+          </text>
+        </svg>
+      `;
+      status.textContent = isFlow
+        ? "Bình thường: Rào chắn Checkpoint Barrier #42 chảy cùng dữ liệu; mỗi toán tử chụp ảnh State cục bộ và tải bất đồng bộ lên S3."
+        : (isCrash
+          ? "Sự cố: TaskManager bị sập đột ngột khi đang xử lý tới Offset 45; JobManager phát hiện đứt Heartbeat và dừng luồng tạm thời."
+          : "Khôi phục (6 bước Slide 61): Các Task nạp lại State từ Checkpoint #42, Kafka Source tua ngược về Offset 42 và phát lại từ 43 trở đi — đạt chuẩn Exactly-Once.");
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isFlow ? 'infra2d-btn-emerald' : ''}" onclick="flk2dState.ckptPhase='barrier_flow';renderFlink2DInteractiveStage('checkpoint_recovery')">1. Chảy Rào Chắn Barrier #42 &amp; Lưu S3</button>
+        <button type="button" class="infra2d-btn ${isCrash ? 'infra2d-btn-danger' : ''}" onclick="flk2dState.ckptPhase='worker_crash';renderFlink2DInteractiveStage('checkpoint_recovery')">2. Giả Lập Sập TaskManager (Tại Offset 45)</button>
+        <button type="button" class="infra2d-btn ${isRewind ? 'infra2d-btn-cyan' : ''}" onclick="flk2dState.ckptPhase='source_rewind';renderFlink2DInteractiveStage('checkpoint_recovery')">3. Phục Hồi State #42 + Tua Ngược Kafka Offset</button>
+      `;
+    } else if (mode === "chaining_backpressure") {
+      const om = flk2dState.optMode;
+      const isUnchain = om === "unchained";
+      const isChain = om === "chained_ok";
+      const isBp = om === "backpressure_high";
+      const isFixed = om === "resolved_async";
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="10" width="540" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="20" y="28" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">${isUnchain ? 'TẮT OPERATOR CHAINING (SLIDE 65): TỐN SERIALIZATION + NETWORK BUFFER + ĐỔI THREAD' : (isChain ? 'BẬT OPERATOR CHAINING (SLIDE 66): GỘP SOURCE + MAP + FILTER TRONG 1 THREAD CỰC NHANH!' : (isBp ? 'BACKPRESSURE HIGH (SLIDE 68–70): TOÁN TỬ HẠ NGUỒN CHẬM LÀM ĐẦY BUFFER LAN NGƯỢC VỀ SOURCE!' : 'GIẢI CỨU BACKPRESSURE (SLIDE 71): SET_PARALLELISM(8) + ASYNC I/O + ROCKSDB BLOCK CACHE'))}</text>
+
+          ${isUnchain || isChain ? `
+            <rect x="20" y="50" width="520" height="126" rx="7" fill="var(--sim-card)" stroke="${isChain ? 'var(--sim-ok)' : 'var(--sim-warn)'}" stroke-width="1.6"/>
+            <text x="32" y="72" fill="${isChain ? 'var(--sim-ok)' : 'var(--sim-warn)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${isChain ? 'SINGLE THREAD IN 1 TASK SLOT: [Source → Map → Filter] (Dữ liệu truyền trực tiếp trong RAM)' : 'UNCHAINED THREADS: [Source] --(Serialize/NetBuffer)--> [Map] --(Serialize/NetBuffer)--> [Filter]'}</text>
+
+            <rect x="34" y="86" width="136" height="68" rx="6" fill="${isChain ? 'var(--sim-ok-soft)' : 'var(--sim-canvas)'}" stroke="${isChain ? 'var(--sim-ok)' : 'var(--sim-border)'}"/>
+            <text x="44" y="108" fill="var(--sim-ink)" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">Source Operator</text>
+            <text x="44" y="128" fill="var(--sim-sub)" font-size="8.5" font-family="var(--cds-font-mono)">${isChain ? 'Method Call (0 copy)' : 'Serialize → Buffer'}</text>
+
+            <rect x="202" y="86" width="136" height="68" rx="6" fill="${isChain ? 'var(--sim-ok-soft)' : 'var(--sim-canvas)'}" stroke="${isChain ? 'var(--sim-ok)' : 'var(--sim-border)'}"/>
+            <text x="212" y="108" fill="var(--sim-ink)" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">Map Operator</text>
+            <text x="212" y="128" fill="var(--sim-sub)" font-size="8.5" font-family="var(--cds-font-mono)">${isChain ? 'Cùng Thread #1' : 'Thread #2 (Switch)'}</text>
+
+            <rect x="370" y="86" width="150" height="68" rx="6" fill="${isChain ? 'var(--sim-ok-soft)' : 'var(--sim-canvas)'}" stroke="${isChain ? 'var(--sim-ok)' : 'var(--sim-border)'}"/>
+            <text x="380" y="108" fill="var(--sim-ink)" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">Filter Operator</text>
+            <text x="380" y="128" fill="var(--sim-sub)" font-size="8.5" font-family="var(--cds-font-mono)">${isChain ? 'Độ trễ: 0.2ms [TỐI ƯU]' : 'Độ trễ: 4.8ms [CHẬM]'}</text>
+          ` : `
+            <!-- Backpressure Propagation View -->
+            <rect x="20" y="50" width="152" height="126" rx="7" fill="${isBp ? 'var(--sim-danger-soft)' : 'var(--sim-ok-soft)'}" stroke="${isBp ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.6"/>
+            <text x="30" y="70" fill="${isBp ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">1. FAST SOURCE</text>
+            <text x="30" y="90" fill="var(--sim-ink)" font-size="8.8" font-family="var(--cds-font-mono)">Web UI: ${isBp ? 'HIGH (Red 92%)' : 'OK (Green 2%)'}</text>
+            <text x="30" y="108" fill="var(--sim-ink)" font-size="8.8" font-family="var(--cds-font-mono)">Out Buffer: ${isBp ? '100% FULL!' : '12% Thông thoáng'}</text>
+            <text x="30" y="128" fill="${isBp ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="8.8" font-weight="700" font-family="var(--cds-font-mono)">${isBp ? '← Bị phanh tốc độ đọc' : 'Đọc 100k events/s'}</text>
+
+            <rect x="196" y="50" width="168" height="126" rx="7" fill="${isBp ? 'var(--sim-warn-soft)' : 'var(--sim-card)'}" stroke="${isBp ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.6"/>
+            <text x="206" y="70" fill="${isBp ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">2. ENRICH OPERATOR</text>
+            <text x="206" y="90" fill="var(--sim-ink)" font-size="8.8" font-family="var(--cds-font-mono)">${isBp ? 'Thủ phạm: Sync DB Call!' : 'AsyncDataStream.Wait'}</text>
+            <text x="206" y="108" fill="var(--sim-ink)" font-size="8.8" font-family="var(--cds-font-mono)">${isBp ? 'Busy: 100% | Credit = 0' : 'Parallelism = 8 + Cache'}</text>
+            <text x="206" y="128" fill="${isBp ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="8.8" font-weight="700" font-family="var(--cds-font-mono)">${isBp ? 'Nút cổ chai gốc ở đây!' : 'Thông lượng: 100k/s [OK]'}</text>
+
+            <rect x="388" y="50" width="152" height="126" rx="7" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.6"/>
+            <text x="398" y="70" fill="var(--sim-flow)" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">3. LAKEHOUSE SINK</text>
+            <text x="398" y="90" fill="var(--sim-ink)" font-size="8.8" font-family="var(--cds-font-mono)">Web UI: OK (Green)</text>
+            <text x="398" y="108" fill="var(--sim-ink)" font-size="8.8" font-family="var(--cds-font-mono)">${isBp ? 'Đói dữ liệu (Idle 85%)' : 'Ghi mượt 100k events/s'}</text>
+            <text x="398" y="128" fill="var(--sim-ok)" font-size="8.8" font-weight="700" font-family="var(--cds-font-mono)">Application Mode K8s</text>
+          `}
+
+          <rect x="20" y="194" width="520" height="34" rx="6" fill="var(--sim-card-alt)" stroke="var(--sim-border)"/>
+          <text x="32" y="215" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">
+            ${isUnchain ? 'Tắt Chaining (Slide 65): Tốn CPU tuần tự hóa và chuyển ngữ cảnh luồng giữa Source, Map, Filter' : (isChain ? 'Bật Chaining (Slide 66): Gộp chuỗi toán tử vào 1 Thread giúp dữ liệu nằm nguyên trên L1/L2 Cache & RAM!' : (isBp ? 'Backpressure HIGH (Slide 69–70): Enrich Operator gọi DB đồng bộ bị nghẽn → Hết Credit lan ngược về Source!' : 'Phác đồ 3 bước (Slide 71): Scale out .set_parallelism(8) + Async I/O + Tăng RocksDB Block Cache/Write Buffer'))}
+          </text>
+        </svg>
+      `;
+      status.textContent = isUnchain
+        ? "Khi tắt Operator Chaining: Mỗi toán tử chạy ở một luồng riêng, bắt buộc tuần tự hóa bản ghi qua Network Buffer."
+        : (isChain
+          ? "Khi bật Operator Chaining (Mặc định): Các toán tử 1-1 cùng Parallelism được hàn gắn vào 1 luồng thực thi duy nhất."
+          : (isBp
+            ? "Backpressure HIGH (Red): Toán tử Enrich bị nghẽn làm cạn tín dụng Input Buffer, truyền áp lực phanh ngược về tận Fast Source."
+            : "Đã hóa giải Backpressure: Kết hợp tăng Parallelism riêng cho toán tử chậm, chuyển sang Async I/O và tinh chỉnh bộ nhớ RocksDB."));
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isChain ? 'infra2d-btn-emerald' : ''}" onclick="flk2dState.optMode='chained_ok';renderFlink2DInteractiveStage('chaining_backpressure')">1. Bật Operator Chaining (1 Thread)</button>
+        <button type="button" class="infra2d-btn ${isUnchain ? 'infra2d-btn-amber' : ''}" onclick="flk2dState.optMode='unchained';renderFlink2DInteractiveStage('chaining_backpressure')">2. Tắt Chaining (Unchained)</button>
+        <button type="button" class="infra2d-btn ${isBp ? 'infra2d-btn-danger' : ''}" onclick="flk2dState.optMode='backpressure_high';renderFlink2DInteractiveStage('chaining_backpressure')">3. Giả Lập Nghẽn Backpressure HIGH</button>
+        <button type="button" class="infra2d-btn ${isFixed ? 'infra2d-btn-cyan' : ''}" onclick="flk2dState.optMode='resolved_async';renderFlink2DInteractiveStage('chaining_backpressure')">4. Giải Cứu: Parallelism + Async I/O + RocksDB</button>
+      `;
+    }
+  }
+
   /* ==========================================================================
      UNIFIED TOPIC RENDERER (DECLARATIVE TOPIC_CONFIG FOR F01, F03, F06, D02)
      ========================================================================== */
@@ -7510,7 +14816,9 @@ __LESSON_TEMPLATES_JS__
     "track-1": { swatchClass: "swatch-cactus", maskFile: "loops.svg", pictogram: "ObjectCodeTerminal" },
     "track-2": { swatchClass: "swatch-oat", maskFile: "strata.svg", pictogram: "ObjectClouds" },
     "track-3": { swatchClass: "swatch-sky", maskFile: "vines.svg", pictogram: "ObjectCompass" },
-    "track-4": { swatchClass: "swatch-fig", maskFile: "snowflake.svg", pictogram: "ObjectBookApple" }
+    "track-4": { swatchClass: "swatch-fig", maskFile: "snowflake.svg", pictogram: "ObjectBookApple" },
+    "track-5": { swatchClass: "swatch-clay", maskFile: "swoops.svg", pictogram: "Objects" },
+    "track-6": { swatchClass: "swatch-heather", maskFile: "threads.svg", pictogram: "NodeTree" }
   };
 
   const TOPIC_CONFIG = {
@@ -7522,11 +14830,25 @@ __LESSON_TEMPLATES_JS__
       sealTitle: "F01 · Linux & Bash",
       heroSvg: `<svg viewBox="0 0 120 120" fill="none" aria-hidden="true"><rect x="14" y="22" width="92" height="76" rx="14" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.16" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5"/><path d="M28 46L44 60L28 74M52 74H78" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="28" cy="33" r="3" fill="var(--cds-color-swatch-contrast-primary)"/><circle cx="38" cy="33" r="3" fill="var(--cds-color-swatch-contrast-primary)"/></svg>`,
       metaTrack: "I. Engineering Foundation · F01 · Linux Fundamentals",
-      slideHref: "course-slides/01-linux-fundamentals.pdf",
+      slideHref: "course-slides/01-edai/edai-1/01-linux-fundamentals.pdf",
       slideLabel: "Slide gốc: 01-linux-fundamentals.pdf (78 trang)",
       titleHtml: "Fundamentals of Engineering — Linux &amp; Bash Scripting",
       leadHtml: "Làm chủ kiến trúc GNU/Linux Kernel, quản lý tiến trình (Process &amp; Inode), điều hướng luồng I/O (<code>stdin/stdout/stderr</code>, Pipe) và tự động hóa vận hành với Bash Script, GNU Make và Cron.",
       stageStatus: (st) => st.id <= 4 ? "Đã xuất bản" : "Khung trạm"
+    },
+    F02: {
+      stages: PYTHON_STAGES,
+      swatchClass: "swatch-clay",
+      maskFile: "loops.svg",
+      pictogram: "ObjectCodeTerminal",
+      sealTitle: "F02 · Python Internals",
+      heroSvg: `<svg viewBox="0 0 120 120" fill="none" aria-hidden="true"><rect x="18" y="22" width="84" height="76" rx="14" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.18" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5"/><path d="M36 48H68M36 62H84M36 76H58" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="3.2" stroke-linecap="round"/><circle cx="80" cy="48" r="4" fill="var(--cds-color-swatch-contrast-primary)"/></svg>`,
+      metaTrack: "I. Engineering Foundation · F02 · Python Fundamentals",
+      slideHref: "course-slides/01-edai/edai-1/02-python-fundamentals.pdf",
+      slideLabel: "Slide gốc: 02-python-fundamentals.pdf (73 trang)",
+      titleHtml: "Fundamentals of Engineering — Python Runtime, Data Structures &amp; Async Frameworks",
+      leadHtml: "Giải phẫu cơ chế vận hành cốt lõi của Python dưới nắp máy: từ cấu trúc bộ nhớ <code>PyObject</code> (<code>ob_refcnt</code> &amp; Cyclic GC) và cô lập môi trường ảo (<code>venv</code>, <code>Poetry</code>, <code>uv</code> Hardlink Cache <code>0.06s</code>), bảng băm thu gọn <code>dict/set O(1)</code> vs. mảng động <code>list O(n)</code>, giao thức Context Manager (<code>with → __enter__/__exit__</code>) chống rò rỉ <code>File Descriptor</code>, đến vòng lặp sự kiện bất đồng bộ <code>asyncio Event Loop</code> (<code>epoll/kqueue</code>) và hệ sinh thái framework <code>WSGI</code> (<code>Flask/Django</code>) vs. <code>ASGI</code> (<code>FastAPI/httpx</code>).",
+      stageStatus: () => "Đã xuất bản"
     },
     F03: {
       stages: DB_STAGES,
@@ -7536,10 +14858,38 @@ __LESSON_TEMPLATES_JS__
       sealTitle: "F03 · Database Internals",
       heroSvg: `<svg viewBox="0 0 120 120" fill="none" aria-hidden="true"><ellipse cx="60" cy="32" rx="38" ry="14" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.22" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5"/><path d="M22 32V60C22 67.7 39 74 60 74C81 74 98 67.7 98 60V32" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5"/><path d="M22 60V88C22 95.7 39 102 60 102C81 102 98 95.7 98 88V60" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5"/><circle cx="60" cy="54" r="4" fill="var(--cds-color-swatch-contrast-primary)"/><circle cx="60" cy="82" r="4" fill="var(--cds-color-swatch-contrast-primary)"/></svg>`,
       metaTrack: "I. Engineering Foundation · F03 · Database Fundamentals",
-      slideHref: "course-slides/03-database-fundamentals.pdf",
+      slideHref: "course-slides/01-edai/edai-1/03-database-fundamentals.pdf",
       slideLabel: "Slide gốc: 03-database-fundamentals.pdf (70 trang)",
       titleHtml: "Fundamentals of Engineering — Database Architecture &amp; PostgreSQL Internals",
       leadHtml: "Nắm vững thiết kế cơ sở dữ liệu chuẩn hóa (3NF/BCNF), kiến trúc lưu trữ nội tại của PostgreSQL (<code>8KB Slotted Page</code>, WAL, MVCC, B-Tree/LSM-Tree), tối ưu truy vấn <code>EXPLAIN ANALYZE</code> và phân tán dữ liệu (Replication, Sharding, CAP/BASE).",
+      stageStatus: () => "Đã xuất bản"
+    },
+    F04: {
+      stages: API_STAGES,
+      swatchClass: "swatch-fig",
+      maskFile: "vines.svg",
+      pictogram: "ObjectCompass",
+      sealTitle: "F04 · Web API & FastAPI",
+      heroSvg: `<svg viewBox="0 0 120 120" fill="none" aria-hidden="true"><circle cx="60" cy="60" r="38" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.18" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5"/><ellipse cx="60" cy="60" rx="18" ry="38" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.2"/><path d="M24 48H96M24 72H96" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.2" stroke-linecap="round"/><circle cx="60" cy="60" r="5" fill="var(--cds-color-swatch-contrast-primary)"/></svg>`,
+      metaTrack: "I. Engineering Foundation · F04 · Web API",
+      slideHref: "course-slides/01-edai/edai-1/04-web-api.pdf",
+      slideLabel: "Slide gốc: 04-web-api.pdf (87 trang)",
+      titleHtml: "Fundamentals of Engineering — Web API Architectures, TCP/IP Network Stack, Security (AAA / JWT / OAuth 2.0) &amp; FastAPI ASGI",
+      leadHtml: "Giải phẫu toàn diện tầng giao tiếp mạng và kiến trúc Web API: từ cơ học gói tin qua 4 tầng <strong>TCP/IP</strong> (khung bản tin <code>HTTP</code>, phân giải đệ quy <code>DNS</code>, kênh mã hóa <code>TLS + SHA-256</code>, bắt tay <code>TCP 3-Way Handshake</code> vs. <code>UDP</code> và dịch địa chỉ <code>NAT</code>), đại ma trận đối chiếu <strong>6 Phong cách Kiến trúc API</strong> (<code>REST</code> 6 nguyên lý, <code>GraphQL</code> Query AST, <code>gRPC</code> Protobuf trên <code>HTTP/2</code>, <code>WebSocket</code> 2 chiều, <code>SSE</code> 1 chiều &amp; <code>Webhook</code> đảo chiều), khung bảo mật <strong>AAA</strong> (<code>Basic Auth</code>, chữ ký số <code>JWT</code>, ủy quyền 8 bước <code>OAuth 2.0</code>), giám sát sức khỏe Kubernetes (<code>/liveness</code> vs. <code>/readiness</code>), phân vị độ trễ đuôi (<code>p50/p95/p99</code>) &amp; kiểm thử chịu tải (<code>Load</code> vs. <code>Stress Testing</code>), đến thực thi dịch vụ đa kiến trúc với <strong>FastAPI ASGI (<code>uvloop</code>)</strong>, <strong>Pydantic v2 (Rust)</strong> và bắn tải bằng <strong>Locust</strong>.",
+      stageStatus: () => "Đã xuất bản"
+    },
+    F05: {
+      stages: VALIDATION_STAGES,
+      swatchClass: "swatch-sky",
+      maskFile: "snowflake.svg",
+      pictogram: "ObjectShield",
+      sealTitle: "F05 · Pytest & TDD",
+      heroSvg: `<svg viewBox="0 0 120 120" fill="none" aria-hidden="true"><path d="M60 16L98 32V58C98 82 81 99 60 106C39 99 22 82 22 58V32L60 16Z" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.22" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5" stroke-linejoin="round"/><path d="M44 60L55 71L78 48" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+      metaTrack: "I. Engineering Foundation · F05 · Validation &amp; Verification",
+      slideHref: "course-slides/01-edai/edai-1/05-validation-and-verification.pdf",
+      slideLabel: "Slide gốc: 05-validation-and-verification.pdf (70 trang)",
+      titleHtml: "Fundamentals of Engineering — Validation, Verification, pytest &amp; Test-Driven Development (TDD)",
+      leadHtml: "Nắm trọn bộ cốt lõi kiểm định phần mềm &amp; hệ thống dữ liệu: từ đối xứng <strong>V-Model</strong>, quy luật nhân <code>30x</code> chi phí sửa lỗi (<strong>Shift-Left</strong>), phân loại <strong>Black/Grey/White-box</strong> (kèm <code>Hoare Logic</code>, <code>Symbolic Execution</code>, <code>Mutation Testing</code>), phạm vi <strong>Functional / Non-Functional</strong> (<code>Load 500 CCU</code> vs. <code>Stress 5000 CCU</code>), đến tự động hóa với <strong>pytest</strong> (<code>@pytest.fixture yield</code>, <code>conftest.py</code>, <code>Markers -m</code>, <code>Parametrize</code>), cô lập phụ thuộc bằng <strong>mocker.patch</strong> (<em>Patch Where Used</em>), <strong>Testcontainers</strong>, <code>tox</code>, <code>pytest-cov</code> và vòng lặp <strong>TDD (Red → Green → Refactor)</strong>.",
       stageStatus: () => "Đã xuất bản"
     },
     F06: {
@@ -7550,7 +14900,7 @@ __LESSON_TEMPLATES_JS__
       sealTitle: "F06 · Containers & K8s",
       heroSvg: `<svg viewBox="0 0 120 120" fill="none" aria-hidden="true"><rect x="18" y="26" width="36" height="30" rx="6" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.2" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5"/><rect x="66" y="26" width="36" height="30" rx="6" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.2" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5"/><rect x="18" y="66" width="84" height="28" rx="8" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.14" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5"/><path d="M36 56V66M84 56V66" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5" stroke-linecap="round"/></svg>`,
       metaTrack: "I. Engineering Foundation · F06 · Containerization &amp; Orchestration",
-      slideHref: "course-slides/06-containerization-and-orchestration.pdf",
+      slideHref: "course-slides/01-edai/edai-1/06-containerization-and-orchestration.pdf",
       slideLabel: "Slide gốc: 06-containerization-and-orchestration.pdf (72 trang)",
       titleHtml: "Fundamentals of Engineering — Containerization (Docker / OCI) &amp; Kubernetes Orchestration",
       leadHtml: "Hiểu bản chất ảo hóa cấp hệ điều hành (Linux Namespaces, <code>cgroups v2</code>, OverlayFS), kiến trúc động cơ OCI Runtime (<code>containerd</code>/<code>runc</code>), đóng gói ứng dụng với Docker Compose và điều phối cụm container trên Kubernetes.",
@@ -7564,7 +14914,7 @@ __LESSON_TEMPLATES_JS__
       sealTitle: "D01 · Kafka & Debezium CDC",
       heroSvg: `<svg viewBox="0 0 120 120" fill="none" aria-hidden="true"><circle cx="30" cy="60" r="14" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.22" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5"/><circle cx="90" cy="34" r="14" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.22" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5"/><circle cx="90" cy="86" r="14" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.22" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5"/><path d="M43 54L77 39M43 66L77 81M90 48V72" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5" stroke-linecap="round"/></svg>`,
       metaTrack: "II. Data Engineering · D01 · Ingestion Layer",
-      slideHref: "course-slides/07-ingestion-layer.pdf",
+      slideHref: "course-slides/01-edai/edai-1/07-ingestion-layer.pdf",
       slideLabel: "Slide gốc: 07-ingestion-layer.pdf (45 trang)",
       titleHtml: "Data Engineering — Ingestion Layer, Apache Kafka &amp; Real-Time Debezium CDC",
       leadHtml: "Làm chủ kiến trúc thu thập dữ liệu hiện đại: từ giải phẫu hệ thống nguồn (OLTP/OLAP, GIGO, Push/Pull/Poll, Row/Column/Hybrid Parquet), ba thế hệ Change Data Capture (Timestamp Polling, Trigger, Log-Based WAL/binlog), đến cơ học vận hành cụm <strong>Apache Kafka</strong> (KRaft, Partition Sizing, Zero-Copy, Producer <code>murmur2</code>, Consumer Group, <code>ISR</code>, <code>Exactly-once</code>, Log Compaction) và đường ống <strong>Debezium CDC</strong> thực chiến.",
@@ -7578,11 +14928,67 @@ __LESSON_TEMPLATES_JS__
       sealTitle: "D02 · Storage & Lakehouse",
       heroSvg: `<svg viewBox="0 0 120 120" fill="none" aria-hidden="true"><path d="M60 18L102 38L60 58L18 38L60 18Z" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.22" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5" stroke-linejoin="round"/><path d="M18 60L60 80L102 60" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 82L60 102L102 82" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
       metaTrack: "II. Data Engineering · D02 · Storage Layer",
-      slideHref: "course-slides/08-storage-layer.pdf",
+      slideHref: "course-slides/01-edai/edai-1/08-storage-layer.pdf",
       slideLabel: "Slide gốc: 08-storage-layer.pdf (59 trang)",
       titleHtml: "Data Engineering — Storage Layer &amp; Open Lakehouse Architecture",
       leadHtml: "Thiết kế tầng lưu trữ dữ liệu quy mô lớn: từ cơ học vật lý (RAM/SSD/Object Storage) và định dạng cột (Parquet, Arrow), mô hình hóa kho dữ liệu (Inmon, Kimball Star Schema, SCD), đến Open Data Lakehouse (Delta Lake, Iceberg, Hudi) và kiến trúc Medallion.",
       stageStatus: (st) => (st.id >= 1 && st.id <= 7) ? "Đã xuất bản" : "Chờ cập nhật"
+    },
+    D06: {
+      stages: ORCHESTRATION_STAGES,
+      swatchClass: "swatch-heather",
+      maskFile: "loops.svg",
+      pictogram: "ObjectCompass",
+      sealTitle: "D06 · Airflow & DataHub",
+      heroSvg: `<svg viewBox="0 0 120 120" fill="none" aria-hidden="true"><circle cx="28" cy="60" r="12" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.22" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5"/><circle cx="60" cy="32" r="12" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.22" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5"/><circle cx="60" cy="88" r="12" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.22" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5"/><circle cx="92" cy="60" r="12" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.22" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5"/><path d="M38 53L50 39M38 67L50 81M70 39L82 53M70 81L82 67" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5" stroke-linecap="round"/></svg>`,
+      metaTrack: "II. Data Engineering · D06 · Orchestration &amp; Governance",
+      slideHref: "course-slides/01-edai/edai-1/12-orchestration-layer.pdf",
+      slideLabel: "Slide gốc: 12-orchestration-layer.pdf (63 trang)",
+      titleHtml: "Data Engineering — Pipeline Orchestration (Apache Airflow), Data Validation (GX, Deequ) &amp; DataHub Governance",
+      leadHtml: "Làm chủ bộ não điều phối và quản trị dữ liệu: từ thiết kế đường ống lũy đẳng (Idempotency), lấp đầy lịch sử (Backfill), kiến trúc 6 thành phần của <strong>Apache Airflow</strong> (DAG, Operators, Deferrable Sensors, XCom, Executors, Phễu đồng thời 3 tầng), đến kiểm định 6 chiều chất lượng bằng <strong>Great Expectations (GX)</strong> &amp; <strong>Apache Spark Deequ</strong>, mẫu cầu dao tự ngắt (Circuit Breaker), hợp đồng dữ liệu (Data Contracts) và quản trị phả hệ trên <strong>DataHub</strong>.",
+      stageStatus: () => "Đã xuất bản"
+    },
+    D03: {
+      stages: SPARK_STAGES,
+      swatchClass: "swatch-clay",
+      maskFile: "objects.svg",
+      pictogram: "Objects",
+      sealTitle: "D03 · Apache Spark Batch",
+      heroSvg: `<svg viewBox="0 0 120 120" fill="none" aria-hidden="true"><polygon points="60,16 73,46 106,46 79,66 89,98 60,78 31,98 41,66 14,46 47,46" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.22" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5" stroke-linejoin="round"/></svg>`,
+      metaTrack: "II. Data Engineering · D03 · Transformation Layer I (Batch)",
+      slideHref: "course-slides/01-edai/edai-1/09-transformation-layer-batch.pdf",
+      slideLabel: "Slide gốc: 09-transformation-layer-batch.pdf (90 trang)",
+      titleHtml: "Data Engineering — Transformation Layer I: Batch Processing with Apache Spark",
+      leadHtml: "Làm chủ bộ máy biến đổi dữ liệu lô phân tán <strong>Apache Spark</strong>: từ kiến trúc cụm (<code>Driver</code>, <code>Cluster Manager</code>, <code>Executors</code>), phân cấp thực thi (<code>Job → Stage → Task</code> &amp; <code>Shuffle</code>), <code>RDD Lineage</code> vs. <code>DataFrame</code>, tuần tự hóa <code>Kryo</code>, quản trị bộ nhớ hợp nhất (<code>Unified Memory Manager</code>), bộ ba tối ưu nội sinh (<strong>Catalyst Optimizer</strong>, <strong>Project Tungsten</strong>, <strong>AQE</strong>) đến 6 kỹ thuật tinh chỉnh thủ công (<code>Key Salting</code>, <code>Broadcast Join</code>) và vận hành thực chiến (<code>Spark UI</code>, <code>Dynamic Allocation</code>, <code>Data Compaction</code>).",
+      stageStatus: () => "Đã xuất bản"
+    },
+    D04: {
+      stages: FLINK_STAGES,
+      swatchClass: "swatch-fig",
+      maskFile: "threads.svg",
+      pictogram: "NodeTree",
+      sealTitle: "D04 · Apache Flink Stream",
+      heroSvg: `<svg viewBox="0 0 120 120" fill="none" aria-hidden="true"><path d="M18 40C38 22 62 58 102 36" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="3.2" stroke-linecap="round"/><path d="M18 62C42 44 68 80 102 58" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="3.2" stroke-linecap="round"/><path d="M18 84C44 66 70 100 102 80" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="3.2" stroke-linecap="round"/><circle cx="60" cy="60" r="14" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.26" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5"/></svg>`,
+      metaTrack: "II. Data Engineering · D04 · Transformation Layer II (Stream)",
+      slideHref: "course-slides/01-edai/edai-1/10-transformation-layer-ii-stream.pdf",
+      slideLabel: "Slide gốc: 10-transformation-layer-ii-stream.pdf (75 trang)",
+      titleHtml: "Data Engineering — Transformation Layer II: Stream Processing with Apache Flink",
+      leadHtml: "Làm chủ động cơ xử lý luồng thời gian thực: từ kiến trúc điều phối tập trung (JobManager, TaskManagers, Task Slots, Sub-tasks), ngữ nghĩa thời gian và đồng hồ logic Watermark, bộ cắt lát cửa sổ (Tumbling, Sliding, Session, Global) kèm xử lý sự kiện đến muộn (Allowed Lateness, Side Output), hệ sinh thái đa tầng API (DataStream, Dynamic Tables, Flink SQL), đến quản trị trạng thái cục bộ RocksDB, rào chắn Checkpoint Barriers (Chandy-Lamport), cam kết Exactly-Once và tối ưu hóa Operator Chaining, Backpressure trên Kubernetes.",
+      stageStatus: () => "Đã xuất bản"
+    },
+    D05: {
+      stages: CONSUMPTION_STAGES,
+      swatchClass: "swatch-sky",
+      maskFile: "swoops.svg",
+      pictogram: "ObjectCompass",
+      sealTitle: "D05 · DW, OLAP & Feast",
+      heroSvg: `<svg viewBox="0 0 120 120" fill="none" aria-hidden="true"><circle cx="60" cy="60" r="38" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.2" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5"/><polygon points="60,26 70,50 94,60 70,70 60,94 50,70 26,60 50,50" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.3" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.2" stroke-linejoin="round"/></svg>`,
+      metaTrack: "II. Data Engineering · D05 · Consumption Layer",
+      slideHref: "course-slides/01-edai/edai-1/11-consumption-layer.pdf",
+      slideLabel: "Slide gốc: 11-consumption-layer.pdf (63 trang)",
+      titleHtml: "Data Engineering — Consumption Layer: Data Warehouse, OLAP (ClickHouse &amp; Pinot) &amp; Feast Feature Store",
+      leadHtml: "Làm chủ tầng tiêu thụ và phục vụ dữ liệu toàn diện: từ kiến trúc Kho dữ liệu và chuẩn hóa thực thể kết hợp (1NF → 2NF → 3NF), mô hình hóa đa chiều của Ralph Kimball (Star vs. Snowflake Schema, chỉ số Additive vs. Semi-Additive), Slowly Changing Dimensions (SCD Type 0–6), Data Vault và quy ước Medallion (Bronze/Silver/Gold), đến động cơ OLAP thực thi vector hóa SIMD (ClickHouse MergeTree, Apache Pinot Hybrid Table) và hệ thống Feast Feature Store xóa sổ độ lệch huấn luyện – phục vụ cho mô hình Machine Learning.",
+      stageStatus: () => "Đã xuất bản"
     }
   };
 
@@ -7667,7 +15073,7 @@ __LESSON_TEMPLATES_JS__
     const padNum = n => String(n).padStart(2, "0");
     const prevStage = stages.find(s => s.id === currentStageId - 1);
     const nextStage = stages.find(s => s.id === currentStageId + 1);
-    const publishedOrder = ["F01", "F03", "F06", "D01", "D02"];
+    const publishedOrder = ["F01", "F02", "F03", "F04", "F05", "F06", "D01", "D02", "D03", "D04", "D05", "D06"];
     const topicIdx = publishedOrder.indexOf(topicCode);
 
     let prevCardHtml = `<div></div>`;
@@ -7714,7 +15120,7 @@ __LESSON_TEMPLATES_JS__
   }
 
   function renderCatalogView() {
-    const featuredCodes = ["F01", "F03", "F06", "D01", "D02"];
+    const featuredCodes = ["F01", "F02", "F03", "F04", "F05", "F06", "D01", "D02", "D03", "D04", "D05", "D06"];
     const featuredCards = featuredCodes.map(code => {
       const cfg = TOPIC_CONFIG[code];
       const { group, item } = findTopicContext(code);
@@ -7796,16 +15202,16 @@ __LESSON_TEMPLATES_JS__
         <div class="lesson-header-grid has-artwork">
           <div>
             <span class="catalog-kicker">FSDS · EDAI · DSAI LEARNING ACADEMY</span>
-            <h1 class="lesson-title">Danh mục 26 Học phần Kỹ thuật &amp; Hệ thống Dữ liệu</h1>
-            <p class="lesson-lead" style="margin-bottom:0;">Chương trình đào tạo Full-Stack Data Science, Data Engineering &amp; AI Engineering gồm 4 Track chuyên sâu: nắm vững lý thuyết cốt lõi, thực hành Lab thực chiến và làm chủ hệ thống qua 119 sơ đồ kiến trúc Colored ASCII.</p>
+            <h1 class="lesson-title">Danh mục 49 Học phần Toàn chương trình FSDS (EDAI &amp; DSAI)</h1>
+            <p class="lesson-lead" style="margin-bottom:0;">Chương trình đào tạo Full-Stack Data Science gồm 2 khóa lớn (<strong>EDAI — Engineering for Data &amp; AI</strong> 26 học phần &amp; <strong>DSAI — Data Science &amp; AI</strong> 23 học phần) chia làm 6 Track chuyên sâu: nắm vững lý thuyết từ gốc, thực hành Lab thực chiến và làm chủ hệ thống qua 266 sơ đồ kiến trúc Colored ASCII cùng 12 phòng thí nghiệm mô phỏng 2D.</p>
           </div>
           <div class="lesson-hero-art" aria-hidden="true">
-            ${renderBadgeSealHtml("ObjectCompass", "26 Học phần · 4 Tracks")}
+            ${renderBadgeSealHtml("ObjectCompass", "49 Học phần · 6 Tracks")}
           </div>
         </div>
       </header>
       <section style="margin-bottom:40px;">
-        <h2 style="font-family:var(--cds-font-serif);font-size:22px;font-weight:400;letter-spacing:-0.015em;margin:0 0 12px;color:var(--ink-bold);">Học phần Đã Xuất bản Toàn diện (19 Chặng · 119 Sơ đồ Kiến trúc)</h2>
+        <h2 style="font-family:var(--cds-font-serif);font-size:22px;font-weight:400;letter-spacing:-0.015em;margin:0 0 12px;color:var(--ink-bold);">Học phần Đã Xuất bản Toàn diện (12 Học phần · 59 Chặng · 266 Sơ đồ Kiến trúc &amp; 12 Mô phỏng 2D)</h2>
         <div class="catalog-grid">${featuredCards}</div>
       </section>
       ${trackSections}
@@ -7844,7 +15250,7 @@ __LESSON_TEMPLATES_JS__
       return `
         <div style="grid-column:1/-1;padding:24px;border-radius:12px;background:var(--cds-surface-1);border:1px solid var(--cds-border-default);display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;">
           <div>
-            <strong style="display:block;font-size:15px;margin-bottom:4px;color:var(--cds-text-primary);">Chưa có "${escapeHtml(rawQ)}" trong 74 thuật ngữ mặc định — Hãy để Gemini AI giải thích ngay!</strong>
+            <strong style="display:block;font-size:15px;margin-bottom:4px;color:var(--cds-text-primary);">Chưa có "${escapeHtml(rawQ)}" trong 130 thuật ngữ mặc định — Hãy để Gemini AI giải thích ngay!</strong>
             <span style="font-size:13px;color:var(--cds-text-secondary);">AI sẽ tự động phân tích bản chất cốt lõi, cơ chế hoạt động và tạo ví dụ thực tế (kèm lưu vào TTL Cache).</span>
           </div>
           <button type="button" class="ui-btn" style="background:var(--cds-clay);color:#fff;border-color:var(--cds-clay);" onclick="openCustomAiTermModal(${JSON.stringify(rawQ)})">✦ Giải thích "${escapeHtml(rawQ)}" bằng AI</button>
@@ -7893,9 +15299,17 @@ __LESSON_TEMPLATES_JS__
     const filters = [
       { id: "ALL", label: `Tất cả (${totalCount})` },
       { id: "F01", label: "F01 · Linux & Bash" },
+      { id: "F02", label: "F02 · Python & Async" },
       { id: "F03", label: "F03 · Database & PostgreSQL" },
+      { id: "F04", label: "F04 · Web API & FastAPI" },
+      { id: "F05", label: "F05 · Pytest & TDD" },
       { id: "F06", label: "F06 · Docker & Kubernetes" },
-      { id: "D02", label: "D02 · Storage & Lakehouse" }
+      { id: "D01", label: "D01 · Kafka & Debezium CDC" },
+      { id: "D02", label: "D02 · Storage & Lakehouse" },
+      { id: "D03", label: "D03 · Apache Spark Batch" },
+      { id: "D04", label: "D04 · Apache Flink Stream" },
+      { id: "D05", label: "D05 · DW, OLAP & Feast" },
+      { id: "D06", label: "D06 · Airflow & DataHub" }
     ];
     const filterBtns = filters.map(f => `
       <button type="button" class="glossary-filter-pill ${activeGlossaryFilter === f.id ? 'active' : ''}" data-filter="${f.id}" onclick="filterGlossaryDictionary('${f.id}', null)">${escapeHtml(f.label)}</button>
@@ -7925,7 +15339,7 @@ __LESSON_TEMPLATES_JS__
         </div>
       </div>
       <div class="glossary-dict-controls">
-        <input type="search" class="glossary-dict-search" placeholder="Lọc nhanh 74 thuật ngữ nền tảng hoặc gõ từ mới để hỏi AI..." value="${escapeHtml(activeGlossaryQuery)}" oninput="filterGlossaryDictionary(null, this.value)" aria-label="Tìm kiếm trong từ điển thuật ngữ" />
+        <input type="search" class="glossary-dict-search" placeholder="Lọc nhanh 130 thuật ngữ nền tảng hoặc gõ từ mới để hỏi AI..." value="${escapeHtml(activeGlossaryQuery)}" oninput="filterGlossaryDictionary(null, this.value)" aria-label="Tìm kiếm trong từ điển thuật ngữ" />
         <div class="glossary-filter-pills">${filterBtns}</div>
       </div>
       <div class="glossary-dict-grid" id="glossaryDictGrid">
@@ -8022,7 +15436,7 @@ __LESSON_TEMPLATES_JS__
             </tbody>
           </table>
         </div>
-        <p>Học phần này đang ở trạng thái đề cương. Xem các học phần đã xuất bản đầy đủ tại <a href="#/F01/1" onclick="selectTopic('F01');return false;">F01 · Linux Fundamentals</a>, <a href="#/F03/1" onclick="selectTopic('F03');return false;">F03 · Database Fundamentals</a>, <a href="#/F06/1" onclick="selectTopic('F06');return false;">F06 · Containerization &amp; Orchestration</a>, hoặc <a href="#/D02/1" onclick="selectTopic('D02');return false;">D02 · Storage Layer</a>.</p>
+        <p>Học phần này đang ở trạng thái đề cương. Xem 12 học phần đã xuất bản đầy đủ tại <a href="#/catalog" onclick="openCatalogView();return false;">Danh mục Khóa học (F01–F06 &amp; D01–D06)</a>.</p>
       </div>
     `;
   }
@@ -8107,15 +15521,15 @@ __LESSON_TEMPLATES_JS__
       <div class="rail-nav-shortcuts">
         <button type="button" class="rail-shortcut-btn ${activeTopic === 'CATALOG' ? 'active' : ''}" onclick="openCatalogView()">
           <span>Danh mục khóa học</span>
-          <span class="rail-shortcut-badge">26 học phần</span>
+          <span class="rail-shortcut-badge">49 học phần</span>
         </button>
         <button type="button" class="rail-shortcut-btn ${activeTopic === 'GLOSSARY' ? 'active' : ''}" onclick="openGlossaryView()">
           <span>Từ điển kỹ thuật AI</span>
-          <span class="rail-shortcut-badge">74 thuật ngữ</span>
+          <span class="rail-shortcut-badge">130 thuật ngữ</span>
         </button>
       </div>
 
-      <div class="rail-section-heading"><span>Lộ trình 4 Tracks</span><span>26</span></div>
+      <div class="rail-section-heading"><span>Lộ trình 6 Tracks (EDAI + DSAI)</span><span>49</span></div>
       <div class="track-list">
         ${tracksHtml}
       </div>
@@ -8563,11 +15977,41 @@ __LESSON_TEMPLATES_JS__
       container.innerHTML = renderGlossaryView();
     } else if (TOPIC_CONFIG[activeTopic]) {
       container.innerHTML = renderTopic(activeTopic);
+      if (activeTopic === "F01" && activeStorageStage === 1) {
+        renderLinux2DSlide();
+      }
+      if (activeTopic === "F02" && activeStorageStage === 1) {
+        renderPython2DSlide();
+      }
+      if (activeTopic === "F03" && activeStorageStage === 1) {
+        renderDatabase2DSlide();
+      }
+      if (activeTopic === "D02" && activeStorageStage === 1) {
+        renderStorage2DSlide();
+      }
+      if (activeTopic === "F04" && activeStorageStage === 1) {
+        renderApi2DSlide();
+      }
+      if (activeTopic === "F05" && activeStorageStage === 1) {
+        renderValidation2DSlide();
+      }
       if (activeTopic === "F06" && activeStorageStage === 1) {
         renderInfra2DSlide();
       }
       if (activeTopic === "D01" && activeStorageStage === 1) {
         renderIngestion2DSlide();
+      }
+      if (activeTopic === "D03" && activeStorageStage === 1) {
+        renderSpark2DSlide();
+      }
+      if (activeTopic === "D04" && activeStorageStage === 1) {
+        renderFlink2DSlide();
+      }
+      if (activeTopic === "D05" && activeStorageStage === 1) {
+        renderConsumption2DSlide();
+      }
+      if (activeTopic === "D06" && activeStorageStage === 1) {
+        renderOrchestration2DSlide();
       }
       bindGlossaryTerms(container);
     } else {
@@ -8709,6 +16153,36 @@ __LESSON_TEMPLATES_JS__
         keywords: normalizeSearch(`F01 linux bash ${stg.title}`)
       });
     }
+    const f02StationLists = [
+      [1, PYTHON_CHANG1_STATIONS, "python cpython bytecode pyobject ob_refcnt reference counting cyclic gc malloc free dependency hell site-packages venv virtualenv poetry uv pubgrub hardlink pyproject.toml uv.lock crawler.py"],
+      [2, PYTHON_CHANG2_STATIONS, "name binding object reference is vs == value equality identity mutable immutable hashable aliasing list tuple set dict hash table o(1) dynamic array o(n) __name__ __main__ *args **kwargs type hints __annotations__ fastapi pydantic"],
+      [3, PYTHON_CHANG3_STATIONS, "exception stack unwinding valueerror typeerror keyerror context manager with __enter__ __exit__ file descriptor errno 24 open modes r w a x read readlines readline iterator oom argparse cli standard library pathlib datetime json re logging"],
+      [4, PYTHON_CHANG4_STATIONS, "sync async blocking non-blocking i/o judit polgar cpu idle asyncio event loop epoll kqueue coroutine async def await asyncio.gather wsgi asgi flask django requests fastapi uvicorn httpx aiohttp gil processpoolexecutor"]
+    ];
+    for (const [stgId, stList, kwExtra] of f02StationLists) {
+      for (const st of stList) {
+        entries.push({
+          kind: "Trạm kiến thức",
+          title: st.fullTitle,
+          sub: `I. Engineering Foundation / F02 · Python Fundamentals / Chặng ${stgId}`,
+          topic: "F02",
+          stage: stgId,
+          section: st.id,
+          keywords: normalizeSearch(`${st.code} ${st.fullTitle} ${kwExtra}`)
+        });
+      }
+    }
+    for (const stg of PYTHON_STAGES) {
+      entries.push({
+        kind: "Lộ trình Chặng",
+        title: `F02 · ${stg.title}`,
+        sub: "I. Engineering Foundation / Python Fundamentals",
+        topic: "F02",
+        stage: stg.id,
+        section: null,
+        keywords: normalizeSearch(`F02 python uv asyncio fastapi ${stg.title}`)
+      });
+    }
     for (const st of DB_CHANG1_STATIONS) {
       entries.push({
         kind: "Trạm kiến thức",
@@ -8762,6 +16236,67 @@ __LESSON_TEMPLATES_JS__
         stage: stg.id,
         section: null,
         keywords: normalizeSearch(`F03 database postgresql sql nosql ${stg.title}`)
+      });
+    }
+    const f04StationLists = [
+      [1, API_CHANG1_STATIONS, "web api osi 7 layers tcp ip 4 layers application transport network link pdu encapsulation http request response stateless endpoint url get post put patch delete idempotent status code 200 201 401 403 404 422 500 dns recursive root tld authoritative tls https sha-256 tcp 3-way handshake syn syn-ack ack isn 1000 5000 udp ipv4 ipv6 nat mac address order 8888"],
+      [2, API_CHANG2_STATIONS, "api architectures postman report rest 6 principles roy fielding client-server statelessness uniform interface caching layered system code on demand over-fetching under-fetching graphql query ast dataloader n+1 grpc protocol buffers protobuf http/2 binary framing multiplexing websocket 101 switching protocols full-duplex sse server-sent events text/event-stream webhook reverse api hmac-sha256"],
+      [3, API_CHANG3_STATIONS, "api security 6 threats unauthorized broken authentication data exposure bola injection rate abuse prompt injection aaa framework authentication authorization rbac abac accounting audit log basic authentication base64 encoding jwt json web token header payload signature hs256 rs256 oauth 2.0 authorization code grant consent flow access token"],
+      [4, API_CHANG4_STATIONS, "health check endpoints kubernetes probes /liveness /readiness cascading restart storm ml model loading performance metrics response time rps error rate uptime latency distribution p50 p95 p99 tail latency load testing stress testing spike soak capacity volume graceful degradation hard failure"],
+      [5, API_CHANG5_STATIONS, "fastapi python wsgi flask vs asgi uvicorn uvloop httptools starlette async def vs def event loop blocking worker threadpool pydantic v2 rust validation http 422 response_model middleware onion pipeline cors dependency injection depends locust gevent load testing locustfile.py"]
+    ];
+    for (const [stgId, stList, kwExtra] of f04StationLists) {
+      for (const st of stList) {
+        entries.push({
+          kind: "Trạm kiến thức",
+          title: st.fullTitle,
+          sub: `I. Engineering Foundation / F04 · Web API / Chặng ${stgId}`,
+          topic: "F04",
+          stage: stgId,
+          section: st.id,
+          keywords: normalizeSearch(`${st.code} ${st.fullTitle} ${kwExtra}`)
+        });
+      }
+    }
+    for (const stg of API_STAGES) {
+      entries.push({
+        kind: "Chặng bài đọc",
+        title: `F04 · ${stg.title}`,
+        sub: "I. Engineering Foundation / Web API",
+        topic: "F04",
+        stage: stg.id,
+        section: null,
+        keywords: normalizeSearch(`F04 web api http tcp rest graphql grpc websocket sse webhook jwt oauth fastapi locust ${stg.title}`)
+      });
+    }
+    const f05StationLists = [
+      [1, VALIDATION_CHANG1_STATIONS, "validation verification v-model shift-left cost of bugs 1x 30x manual automated black-box grey-box white-box glass-box sdet hoare logic symbolic execution mutation testing mutant checkout_order ord-8888"],
+      [2, VALIDATION_CHANG2_STATIONS, "functional non-functional testing unit integration system acceptance alpha beta uat performance load testing 500 ccu stress testing 5000 ccu security usability compatibility smoke regression recovery monkey"],
+      [3, VALIDATION_CHANG3_STATIONS, "pytest test discovery test class fixture @pytest.fixture yield setup teardown conftest.py markers @pytest.mark pyproject.toml pytestunknownmarkwarning skip skipif xfail parametrize @pytest.mark.parametrize"],
+      [4, VALIDATION_CHANG4_STATIONS, "mocking pytest-mock mocker.patch magicmock return_value side_effect assert_called_once_with patch where used myapp.service testcontainers postgrescontainer tox tox.ini code coverage pytest-cov miss tdd red green refactor"]
+    ];
+    for (const [stgId, stList, kwExtra] of f05StationLists) {
+      for (const st of stList) {
+        entries.push({
+          kind: "Trạm kiến thức",
+          title: st.fullTitle,
+          sub: `I. Engineering Foundation / F05 · Validation & Verification / Chặng ${stgId}`,
+          topic: "F05",
+          stage: stgId,
+          section: st.id,
+          keywords: normalizeSearch(`${st.code} ${st.fullTitle} ${kwExtra}`)
+        });
+      }
+    }
+    for (const stg of VALIDATION_STAGES) {
+      entries.push({
+        kind: "Chặng bài đọc",
+        title: `F05 · ${stg.title}`,
+        sub: "I. Engineering Foundation / Validation & Verification",
+        topic: "F05",
+        stage: stg.id,
+        section: null,
+        keywords: normalizeSearch(`F05 validation verification pytest tdd v-model mocking testcontainers ${stg.title}`)
       });
     }
     for (const st of CONTAINER_CHANG1_STATIONS) {
@@ -8848,6 +16383,132 @@ __LESSON_TEMPLATES_JS__
         stage: stg.id,
         section: null,
         keywords: normalizeSearch(`D01 ingestion kafka debezium cdc ${stg.title}`)
+      });
+    }
+    const d03StationLists = [
+      [1, SPARK_CHANG1_STATIONS, "apache spark batch transformation single-machine mapreduce driver sparksession dagscheduler taskscheduler cluster manager yarn kubernetes worker executor partition task narrow wide shuffle lazy evaluation"],
+      [2, SPARK_CHANG2_STATIONS, "spark rdd resilient distributed dataset lineage graph parallelize python subprocess ipc pickle dataframe schema immutable dataset structtype inferschema"],
+      [3, SPARK_CHANG3_STATIONS, "serialization deserialization java kryo kryoserializer in-memory computing cache persist unpersist memory_only memory_and_disk memory_only_ser disk_only unified memory manager dynamic eviction"],
+      [4, SPARK_CHANG4_STATIONS, "batch challenges data skew shuffle explosion high cardinality wide schema schema evolution catalyst optimizer predicate pushdown constant folding column pruning project tungsten off-heap unsaferow cache-aware l1 l2 l3 whole-stage codegen adaptive query execution aqe"],
+      [5, SPARK_CHANG5_STATIONS, "manual performance tuning shuffle partitions broadcast hash join sort-merge join bucketing skewed keys salting approx_count_distinct hyperloglog pre-aggregation column pruning mergeschema"],
+      [6, SPARK_CHANG6_STATIONS, "spark operational techniques spark ui dashboard active stages shuffle read write disk spill driver executor oom dynamic allocation schedulerbacklogtimeout executoridletimeout data compaction small files coalesce repartition optimize"]
+    ];
+    for (const [stgId, stList, kwExtra] of d03StationLists) {
+      for (const st of stList) {
+        entries.push({
+          kind: "Trạm kiến thức",
+          title: st.fullTitle,
+          sub: `II. Data Engineering / D03 · Batch Transformation (Spark) / Chặng ${stgId}`,
+          topic: "D03",
+          stage: stgId,
+          section: st.id,
+          keywords: normalizeSearch(`${st.code} ${st.fullTitle} ${kwExtra}`)
+        });
+      }
+    }
+    const d06StationLists = [
+      [1, ORCHESTRATION_CHANG1_STATIONS, "pipeline orchestration naive cron scheduling 03:20 am race condition dependency management parallel execution triggers state tracking failure handling resource pools order 8888 daily_sales_pipeline"],
+      [2, ORCHESTRATION_CHANG2_STATIONS, "cronjob crontab 5 fields atomicity idempotency delete insert merge upsert partition overwrite data interval logical date backfill catchup dynamic task mapping expand asset aware scheduling"],
+      [3, ORCHESTRATION_CHANG3_STATIONS, "apache airflow workflows as code dag directed acyclic graph dag run task instance scheduler executor worker metadata database web server operators pythonoperator bashoperator dockeroperator sensors s3keysensor poke reschedule deferrable triggerer xcom uri"],
+      [4, ORCHESTRATION_CHANG4_STATIONS, "airflow administration variables connections fernet key secrets backend vault sequentialexecutor localexecutor celeryexecutor kubernetesexecutor concurrency parallelism max_active_runs pools monitoring grid view prometheus grafana"],
+      [5, ORCHESTRATION_CHANG5_STATIONS, "data quality validation gartner 11.8m phe covid unity 6 dimensions accuracy completeness consistency timeliness validity uniqueness circuit breaker pattern branchpythonoperator data contracts schema drift great expectations gx spark deequ datahub lineage openlineage mcp mcl"]
+    ];
+    for (const [stgId, stList, kwExtra] of d06StationLists) {
+      for (const st of stList) {
+        entries.push({
+          kind: "Trạm kiến thức",
+          title: st.fullTitle,
+          sub: `II. Data Engineering / D06 · Orchestration & Governance / Chặng ${stgId}`,
+          topic: "D06",
+          stage: stgId,
+          section: st.id,
+          keywords: normalizeSearch(`${st.code} ${st.fullTitle} ${kwExtra}`)
+        });
+      }
+    }
+    for (const stg of ORCHESTRATION_STAGES) {
+      entries.push({
+        kind: "Chặng bài đọc",
+        title: `D06 · ${stg.title}`,
+        sub: "II. Data Engineering / Orchestration & Governance",
+        topic: "D06",
+        stage: stg.id,
+        section: null,
+        keywords: normalizeSearch(`D06 orchestration airflow great expectations deequ datahub ${stg.title}`)
+      });
+    }
+    for (const stg of SPARK_STAGES) {
+      entries.push({
+        kind: "Chặng bài đọc",
+        title: `D03 · ${stg.title}`,
+        sub: "II. Data Engineering / Transformation Layer (Batch · Spark)",
+        topic: "D03",
+        stage: stg.id,
+        section: null,
+        keywords: normalizeSearch(`D03 spark batch transformation catalyst tungsten aqe ${stg.title}`)
+      });
+    }
+    const d04StationLists = [
+      [1, FLINK_CHANG1_STATIONS, "apache flink stream processing unbounded bounded data stateful exactly-once jobmanager dispatcher scheduler checkpoint coordinator taskmanager task slots managed memory sub-tasks parallelism slot sharing heartbeats source rewind order 8888"],
+      [2, FLINK_CHANG2_STATIONS, "time semantics event time ingestion time processing time time skew watermark allowed delay out-of-orderness timestamp extractor watermark generator withidleness monotonous timestamps bounded delay p95 p99 custom watermarkgenerator"],
+      [3, FLINK_CHANG3_STATIONS, "windowing finite slice tumbling window sliding window session window session gap global window window trigger eventtimetrigger silent failure oom late events allowed lateness collecting waiting deleted refire side output dead letter queue"],
+      [4, FLINK_CHANG4_STATIONS, "flink apis datastream api processfunction keyedprocessfunction map filter flatmap keyby window aggregate union connect stream-table duality dynamic table table api flink sql tumble hop session interoperability"],
+      [5, FLINK_CHANG5_STATIONS, "state management stateful operator valuestate liststate mapstate statettl keyed state operator state key groups hashmapstatebackend embeddedrocksdbstatebackend rocksdb checkpoint barriers chandy-lamport fault recovery savepoint two-phase commit"],
+      [6, FLINK_CHANG6_STATIONS, "performance optimization operator chaining disablechaining startnewchain slotsharinggroup backpressure credit-based flow control flink web ui set_parallelism async i/o asyncdatastream rocksdb block cache session mode application mode kubernetes"]
+    ];
+    for (const [stgId, stList, kwExtra] of d04StationLists) {
+      for (const st of stList) {
+        entries.push({
+          kind: "Trạm kiến thức",
+          title: st.fullTitle,
+          sub: `II. Data Engineering / D04 · Stream Transformation (Flink) / Chặng ${stgId}`,
+          topic: "D04",
+          stage: stgId,
+          section: st.id,
+          keywords: normalizeSearch(`${st.code} ${st.fullTitle} ${kwExtra}`)
+        });
+      }
+    }
+    for (const stg of FLINK_STAGES) {
+      entries.push({
+        kind: "Chặng bài đọc",
+        title: `D04 · ${stg.title}`,
+        sub: "II. Data Engineering / Transformation Layer II (Stream · Flink)",
+        topic: "D04",
+        stage: stg.id,
+        section: null,
+        keywords: normalizeSearch(`D04 flink stream transformation watermark window rocksdb checkpoint backpressure ${stg.title}`)
+      });
+    }
+    const d05StationLists = [
+      [1, CONSUMPTION_CHANG1_STATIONS, "consumption layer data warehouse dwh staging area data marts purchasing sales inventory etl extract transform load er modeling entity relationship 1nf 2nf 3nf atomic partial transitive dependency order_detail"],
+      [2, CONSUMPTION_CHANG2_STATIONS, "dimensional modeling kimball fact table factsales dimension table dimdate dimcustomer grain additive semi-additive non-additive inventorylevel star schema snowflake schema dim_city dim_state dim_country role-playing"],
+      [3, CONSUMPTION_CHANG3_STATIONS, "slowly changing dimensions scd type 0 type 1 type 2 type 3 type 4 type 6 surrogate key peter pan data vault hub link satellite inmon top-down kimball bottom-up medallion bronze silver gold naming convention"],
+      [4, CONSUMPTION_CHANG4_STATIONS, "olap online analytical processing columnar storage vectorized execution simd avx-512 distributed query clickhouse mergetree sparse index granule 8192 zookeeper keeper apache pinot real-time offline hybrid table time boundary star-tree index"],
+      [5, CONSUMPTION_CHANG5_STATIONS, "feature store feast ml fraud detection txn_9f3a21c8 training-serving skew duplicated effort offline store online store redis static contextual critical features entity featureview feast apply get_historical_features point-in-time asof join materialize-incremental get_online_features"]
+    ];
+    for (const [stgId, stList, kwExtra] of d05StationLists) {
+      for (const st of stList) {
+        entries.push({
+          kind: "Trạm kiến thức",
+          title: st.fullTitle,
+          sub: `II. Data Engineering / D05 · Consumption Layer / Chặng ${stgId}`,
+          topic: "D05",
+          stage: stgId,
+          section: st.id,
+          keywords: normalizeSearch(`${st.code} ${st.fullTitle} ${kwExtra}`)
+        });
+      }
+    }
+    for (const stg of CONSUMPTION_STAGES) {
+      entries.push({
+        kind: "Chặng bài đọc",
+        title: `D05 · ${stg.title}`,
+        sub: "II. Data Engineering / Consumption Layer",
+        topic: "D05",
+        stage: stg.id,
+        section: null,
+        keywords: normalizeSearch(`D05 consumption data warehouse kimball scd data vault clickhouse pinot feast feature store ${stg.title}`)
       });
     }
     for (const st of STORAGE_CHANG1_STATIONS) {
@@ -9691,9 +17352,16 @@ def _load_obfuscated_ai_vault() -> dict:
 def main():
     storage_ascii = build_storage_ascii_diagrams()
     linux_ascii = build_linux_ascii_diagrams()
+    python_ascii = build_python_ascii_diagrams()
     db_ascii = build_db_ascii_diagrams()
+    api_ascii = build_api_ascii_diagrams()
+    validation_ascii = build_validation_ascii_diagrams()
     container_ascii = build_container_ascii_diagrams()
     ingestion_ascii = build_ingestion_ascii_diagrams()
+    spark_ascii = build_spark_ascii_diagrams()
+    flink_ascii = build_flink_ascii_diagrams()
+    orchestration_ascii = build_orchestration_ascii_diagrams()
+    consumption_ascii = build_consumption_ascii_diagrams()
 
     compiled_html_template = HTML_TEMPLATE.replace("__LESSON_TEMPLATES_JS__", compile_lesson_templates_js())
 
@@ -9742,9 +17410,16 @@ def main():
     data_out = {
         "storage_diagrams": _build_diag_map(storage_ascii, "storage"),
         "linux_diagrams": _build_diag_map(linux_ascii, "linux"),
+        "python_diagrams": _build_diag_map(python_ascii, "python"),
         "db_diagrams": _build_diag_map(db_ascii, "db"),
+        "api_diagrams": _build_diag_map(api_ascii, "api"),
+        "validation_diagrams": _build_diag_map(validation_ascii, "validation"),
         "container_diagrams": _build_diag_map(container_ascii, "container"),
         "ingestion_diagrams": _build_diag_map(ingestion_ascii, "ingestion"),
+        "spark_diagrams": _build_diag_map(spark_ascii, "spark"),
+        "flink_diagrams": _build_diag_map(flink_ascii, "flink"),
+        "orchestration_diagrams": _build_diag_map(orchestration_ascii, "orchestration"),
+        "consumption_diagrams": _build_diag_map(consumption_ascii, "consumption"),
         "pictograms": pictograms_payload,
         "masks": masks_payload,
         "ai_vault": _load_obfuscated_ai_vault(),
@@ -9771,7 +17446,7 @@ def main():
     )
     (ROOT / "fsds-learning-hub.html").write_text(html, encoding="utf-8")
     (ROOT / "index.html").write_text(html, encoding="utf-8")
-    total_diags = sum(len(data_out[k]) for k in ("storage_diagrams", "linux_diagrams", "db_diagrams", "container_diagrams", "ingestion_diagrams"))
+    total_diags = sum(len(data_out[k]) for k in ("storage_diagrams", "linux_diagrams", "python_diagrams", "db_diagrams", "api_diagrams", "validation_diagrams", "container_diagrams", "ingestion_diagrams", "spark_diagrams", "flink_diagrams", "orchestration_diagrams", "consumption_diagrams"))
     g_stats = glossary_payload["stats"]
     print(
         f"Built fsds-learning-hub.html + index.html ({len(html):,} bytes), content/lessons-data.json, "

@@ -1,0 +1,187 @@
+      <div class="prose">
+        <x-spine id="validation-4-spine" badge="TRONG BÀI HỌC NÀY · F05 · CHẶNG 4" title="Chặng 4: Cô Lập Phụ Thuộc (mocker.patch, MagicMock, Testcontainers), Đa Môi Trường (tox, pytest-cov) &amp; Quy Trình TDD" subtitle="Trạm 4.1 → 4.2">Khép kín quy trình kiểm định chuyên nghiệp: cô lập phụ thuộc ngoại vi bằng <strong>pytest-mock (<code>mocker.patch</code>, <code>MagicMock</code>, <code>side_effect</code>)</strong>, nắm vững quy tắc vàng <em>&quot;Patch tại nơi sử dụng&quot;</em>, dựng container PostgreSQL thật bằng <strong>Testcontainers</strong>, tự động hóa đa môi trường với <strong>tox</strong>, đo điểm mù bằng <strong>Code Coverage (<code>pytest-cov</code>)</strong> và làm chủ vòng lặp <strong>TDD (Red → Green → Refactor)</strong>.</x-spine>
+
+        <section class="lesson-section" id="validation-4-1">
+          <h2 id="validation-4-1-h2" tabindex="-1">Trạm 4.1: Cô lập Phụ thuộc với pytest-mock (mocker.patch, MagicMock, side_effect) &amp; Quy tắc Vàng &quot;Patch Where Used&quot;</h2>
+
+          <p>Khi kiểm thử logic nội tại của hàm <code>process_data()</code> hoặc <code>checkout_order()</code>, bài Unit Test không được phép phụ thuộc vào cơ sở dữ liệu thật (có thể đang rỗng hoặc thay đổi liên tục), cổng thanh toán bên thứ ba hay hệ thống tệp vật lý (<em>Slide 52–54</em>). <strong>Mocking</strong> giải quyết bài toán này bằng cách thay thế tạm thời các phụ thuộc ngoại vi bằng đối tượng giả định có kiểm soát trong suốt thời gian chạy test, rồi tự động hoàn trả trạng thái gốc ngay khi hàm test kết thúc. Trong hệ sinh thái <code>pytest</code>, plugin <strong><code>pytest-mock</code></strong> cung cấp fixture <code>mocker</code> với hai vũ khí cốt lõi: <strong><code>mocker.patch()</code></strong> (đánh tráo một hàm hoặc đối tượng mục tiêu theo đường dẫn chuỗi) và <strong><code>mocker.MagicMock()</code></strong> (tạo đối tượng giả linh hoạt cho phép ấn định kết quả trả về qua <code>return_value</code>, kiểm chứng lịch sử lời gọi bằng <code>assert_called_once()</code> hoặc <code>assert_called_once_with(...)</code>, và mô phỏng chuỗi kịch bản thành công/ném lỗi liên tiếp qua <code>side_effect=[{"name": "Hung"}, Exception("API Error")]</code> kết hợp <code>with pytest.raises(...)</code> — <em>Slide 57–59</em>).</p>
+
+          <p>Sai lầm phổ biến nhất khiến kỹ sư tốn hàng giờ gỡ lỗi khi dùng <code>mocker.patch()</code> là vi phạm <strong>Quy tắc Vàng về Không gian Tên (<em>Slide 55–56 — &quot;You must patch the function where it is used, not where it is defined&quot;</em>)</strong>. Giả sử tệp <code>myapp/api.py</code> định nghĩa hàm <code>def get_data(): return {"value": 5}</code>, còn tệp <code>myapp/service.py</code> nạp hàm đó bằng câu lệnh <code>from myapp.api import get_data</code> để tính <code>process_data()</code>. Ngay tại thời điểm thực thi lệnh <code>from ... import</code>, Python đã gắn trực tiếp một tham chiếu bộ nhớ (<em>reference binding</em>) tên <code>get_data</code> vào bên trong không gian tên cục bộ của <code>myapp.service</code>. Do đó, nếu bài test gọi <code>mocker.patch("myapp.api.get_data", return_value={"value": 10})</code>, nó chỉ thay đổi nhãn trong module gốc <code>myapp.api</code>, còn hàm <code>process_data()</code> trong <code>myapp.service</code> vẫn gọi vào tham chiếu cũ và trả về kết quả sai (<code>5 * 2 = 10</code> thay vì <code>20</code>). Để đánh tráo trúng đích, bạn <strong>bắt buộc phải patch ngay tại module nơi hàm đó được gọi sử dụng</strong>: <code>mocker.patch("myapp.service.get_data", return_value={"value": 10})</code>.</p>
+
+          <x-figure id="validation-4-1-fig" key="4.1" title="Sơ đồ 4.1 — Giải phẫu Bẫy Không gian Tên Python: Tại sao phải mocker.patch tại Nơi Hàm Được Gọi (myapp.service)?">Cơ chế tham chiếu bộ nhớ khi dùng câu lệnh from myapp.api import get_data: giải thích tại sao patch vào myapp.api thất bại và bắt buộc phải patch vào myapp.service.get_data.</x-figure>
+
+          <pre><code># 1. QUY TẮC VÀNG "PATCH WHERE USED" (Slide 55–56)
+# Giả sử myapp/service.py viết: from myapp.api import get_data
+from myapp.service import process_data
+import pytest
+
+def test_patch_wrong_namespace(mocker):
+    # SAI: Patch tại nơi định nghĩa (myapp.api) -> myapp.service vẫn giữ tham chiếu cũ!
+    mocker.patch("myapp.api.get_data", return_value={"value": 10})
+    # process_data() vẫn gọi get_data() thật (trả về 5 -> 5 * 2 = 10, KHÔNG phải 20)
+
+def test_patch_correct_where_used(mocker):
+    # ĐÚNG: Patch ngay tại không gian tên nơi hàm được sử dụng (myapp.service)
+    mock_func = mocker.patch("myapp.service.get_data", return_value={"value": 10})
+    assert process_data() == 20
+    mock_func.assert_called_once()
+
+# 2. MAGICMOCK VỚI SIDE_EFFECT &amp; KIỂM CHỨNG LỜI GỌI (Slide 57–59)
+def get_user_name(api_client, user_id):
+    response = api_client.get(f"/users/{user_id}")
+    return response["name"]
+
+def test_get_user_name_and_error(mocker):
+    mock_api = mocker.MagicMock()
+    # Lần gọi 1 trả về dict hợp lệ; lần gọi 2 chủ động ném ngoại lệ API Error
+    mock_api.get.side_effect = [{"name": "Hung"}, Exception("API Error")]
+
+    # Lần gọi thứ nhất: Thành công và kiểm chứng đúng đối số đường dẫn
+    assert get_user_name(mock_api, 123) == "Hung"
+    mock_api.get.assert_called_once_with("/users/123")
+
+    # Lần gọi thứ hai: Kích hoạt nhánh bắt lỗi bằng pytest.raises
+    with pytest.raises(Exception, match="API Error"):
+        get_user_name(mock_api, 123)</code></pre>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Công cụ Mocking (<code>pytest-mock</code>)</th>
+                  <th>Cơ chế Hoạt động Cốt lõi</th>
+                  <th>Tình huống Thực chiến Điển hình</th>
+                  <th>Lưu ý Kỹ thuật Chống Bẫy</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong><code>mocker.patch("module_where_used.func")</code></strong><br><em>(Slide 53–56)</em></td>
+                  <td>Thay thế tạm thời hàm/class tại đường dẫn chỉ định bằng đối tượng giả và tự động khôi phục khi kết thúc hàm test.</td>
+                  <td>Chặn các lời gọi hàm truy vấn DB, gọi REST API bên ngoài hoặc đọc/ghi tệp vật lý trong Unit Test.</td>
+                  <td>Nếu tệp đích dùng <code>from a import b</code>, bắt buộc patch vào <code>target_module.b</code> chứ không patch vào <code>a.b</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>mocker.MagicMock(return_value=...)</code></strong><br><em>(Slide 57–58)</em></td>
+                  <td>Khởi tạo đối tượng giả đa năng cho phép truy cập mọi thuộc tính/phương thức ảo và trả về giá trị cố định qua <code>return_value</code>.</td>
+                  <td>Truyền trực tiếp đối tượng giả (Dependency Injection) như <code>api_client</code>, <code>db_session</code> vào hàm cần kiểm thử.</td>
+                  <td>Không cần patch đường dẫn chuỗi nếu hàm đã được thiết kế nhận đối tượng phụ thuộc qua tham số đầu vào.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>MagicMock(side_effect=[...])</code></strong><br><em>(Slide 59)</em></td>
+                  <td>Trả về tuần tự từng phần tử trong danh sách qua mỗi lần gọi, hoặc chủ động ném <code>Exception</code> để mô phỏng sự cố.</td>
+                  <td>Kiểm thử cơ chế <code>Retry</code> khi mạng chập chờn (lần 1 lỗi timeout, lần 2 thành công) hoặc kiểm thử nhánh xử lý ngoại lệ.</td>
+                  <td>Kết hợp với <code>with pytest.raises(Exception):</code> để xác minh hàm xử lý đúng khi phụ thuộc bên ngoài sập.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>assert_called_once()</code> / <code>assert_called_once_with(...)</code></strong><br><em>(Slide 54, 58)</em></td>
+                  <td>Kiểm tra sổ nhật ký của Mock xem hàm giả có được gọi đúng 1 lần và truyền chính xác các đối số kỳ vọng hay không.</td>
+                  <td>Xác minh hàm nghiệp vụ truyền đúng <code>user_id</code>, đúng câu truy vấn hoặc không gọi thừa API tính phí hai lần.</td>
+                  <td>Nếu hàm thực tế không gọi tới đối tượng Mock hoặc truyền lệch đối số (ví dụ <code>123</code> vs <code>"123"</code>), phép kiểm chứng sẽ báo Fail ngay lập tức.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Mocking cực kỳ sắc bén để cô lập Unit Test chạy trong vài mili-giây, nhưng nó mang một giới hạn bản chất: <strong>Mock chỉ phản ánh giả định chủ quan của người viết test</strong>. Nếu câu lệnh SQL bạn viết dùng cú pháp không tương thích với PostgreSQL 16 hoặc vi phạm ràng buộc khóa ngoại (<code>Foreign Key</code>), một đối tượng <code>MagicMock</code> vẫn ngoan ngoãn trả về <code>return_value</code> giả tạo và báo Pass! Để kiểm chứng sự tương tác với hạ tầng thật, chạy trên nhiều phiên bản Python và đo lường độ phủ mã nguồn, chúng ta bước sang <strong>Trạm 4.2</strong>.</p>
+        </section>
+
+        <section class="lesson-section" id="validation-4-2">
+          <h2 id="validation-4-2-h2" tabindex="-1">Trạm 4.2: Kiểm thử Hạ tầng Thật với Testcontainers, Ma trận Đa môi trường tox, Độ phủ pytest-cov &amp; Vòng lặp TDD (Red-Green-Refactor)</h2>
+
+          <p>Để lấp đầy khoảng trống giữa Unit Test và môi trường Production, đường ống kiểm định hiện đại phối hợp bộ 3 công cụ tự động hóa chuyên biệt (<em>Slide 60–64</em>): (1) <strong><code>Testcontainers</code></strong> (<em>Slide 60–61</em>) tự động khởi chạy các Docker container chứa dịch vụ thật (PostgreSQL 16, Kafka, Redis, Elasticsearch) ngay khi bước vào khối <code>with PostgresContainer("postgres:16") as postgres:</code>, cấp chuỗi kết nối thực tế qua <code>postgres.get_connection_url()</code> cho <code>SQLAlchemy</code>, và tự động hủy container sạch sẽ sau khi bài Integration Test kết thúc — chấm dứt hoàn toàn cảnh dùng chung một Database test bị nhiễm bẩn dữ liệu; (2) <strong><code>tox</code> (<code>tox.ini</code>)</strong> (<em>Slide 62–63</em>) tự động tạo các môi trường ảo (<code>virtualenv</code>) độc lập, cài đặt thư viện phụ thuộc (<code>deps = pytest</code>) và chạy kiểm thử đồng loạt trên ma trận nhiều phiên bản Python (<code>envlist = py39, py310, py311</code>) hoặc nhiều phiên bản thư viện (như PyTorch 1.x vs 2.x); và (3) <strong><code>Code Coverage</code> (<code>pytest-cov</code>)</strong> (<em>Slide 64</em>) đo lường tỷ lệ phần trăm dòng mã nguồn thực sự được chạy qua theo công thức <code>Coverage = (lines tested / total lines) * 100%</code> bằng lệnh <code>pytest --cov=myproj tests/</code>, trong đó cột <strong><code>Miss</code></strong> chỉ đích danh các dòng code chưa từng được kiểm thử — chính là những <strong>điểm mù (Blind Spots)</strong> tiềm ẩn lỗi.</p>
+
+          <p>Mảnh ghép cuối cùng hoàn thiện tư duy kiểm định là phương pháp <strong>Test-Driven Development (TDD — Phát triển hướng kiểm thử, <em>Slide 65–68</em>)</strong>. Thay vì viết xong toàn bộ code rồi mới viết test đối phó, TDD đảo ngược quy trình bằng việc <strong>viết bài test trước khi viết code thực thi</strong> theo vòng lặp 3 pha ngắn gọn: <strong><code>RED</code> (Write a failing test)</strong> — viết một bài test nhỏ định nghĩa hành vi mong muốn cho tính năng chưa tồn tại và chạy để thấy nó <strong>Fail</strong> đúng lý do kỳ vọng; <strong><code>GREEN</code> (Write just enough code)</strong> — viết lượng code tối giản nhất có thể chỉ đủ để làm bài test chuyển sang <strong>Pass (Green)</strong> mà chưa cần tối ưu sớm; và <strong><code>REFACTOR</code> (Clean it up)</strong> — làm sạch cấu trúc, khử trùng lặp và tối ưu hóa mã nguồn trong khi bộ test đóng vai trò lưới bảo hiểm giữ kết quả luôn xanh. Nhìn nhận thực tế (<em>Slide 68</em>), TDD ép lập trình viên thiết kế hàm tách biệt (<em>modular/decoupled</em>), tạo ra bộ tài liệu sống (<strong>Living Documentation</strong>) và mang lại sự tự tin tuyệt đối khi Refactor, nhưng đổi lại thời gian phát triển ban đầu <strong>chậm hơn <code>20–50%</code></strong> và tốn công bảo trì test khi yêu cầu thay đổi liên tục. Vì vậy, kỹ sư thực chiến chỉ áp dụng TDD cho <strong>logic nghiệp vụ phức tạp, module xử lý dữ liệu/AI cốt lõi, dự án dài hạn</strong>, và chủ động bỏ qua TDD khi làm <strong>Rapid Prototyping, CRUD đơn giản hoặc khi bài toán còn đang thử nghiệm thay đổi hàng giờ</strong>.</p>
+
+          <x-figure id="validation-4-2-fig" key="4.2" title="Sơ đồ 4.2 — Hệ sinh thái Testcontainers + tox + pytest-cov (94% Cover / 6% Miss) &amp; Chu trình 3 Pha TDD (Red → Green → Refactor)">Kết hợp Testcontainers (Docker DB thật), tox (đa phiên bản Python), pytest-cov (phát hiện điểm mù Miss) và vòng lặp 3 bước Red → Green → Refactor của TDD.</x-figure>
+
+          <pre><code># 1. TESTCONTAINERS: DỰNG POSTGRESQL 16 THẬT TRONG DOCKER CHO INTEGRATION TEST (Slide 61)
+import sqlalchemy
+from testcontainers.postgres import PostgresContainer
+
+def test_with_real_postgres():
+    # Tự động tải và bật container postgres:16, tự động xóa sạch khi thoát khối with
+    with PostgresContainer("postgres:16") as postgres:
+        engine = sqlalchemy.create_engine(postgres.get_connection_url())
+        with engine.begin() as conn:
+            conn.execute(sqlalchemy.text("CREATE TABLE users (id INT, name TEXT)"))
+            conn.execute(sqlalchemy.text("INSERT INTO users VALUES (1, 'Hung')"))
+            result = conn.execute(sqlalchemy.text("SELECT name FROM users WHERE id = 1"))
+            assert result.scalar() == "Hung"
+
+# 2. CẤU HÌNH TOX.INI ĐA MÔI TRƯỜNG (Slide 63) &amp; ĐO ĐỘ PHỦ PYTEST-COV (Slide 64)
+# --- Nội dung tệp tox.ini ---
+# [tox]
+# envlist = py39, py310, py311
+# [testenv]
+# deps = pytest
+# commands = pytest
+
+# --- Chạy kiểm tra độ phủ mã nguồn trên Terminal ---
+# $ pytest --cov=myproj tests/
+# Name                 Stmts   Miss  Cover
+# ----------------------------------------
+# myproj/__init__.py       2      0   100%
+# myproj/app.py           28      2    93%
+# ----------------------------------------
+# TOTAL                   35      2    94%</code></pre>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Công cụ / Quy trình</th>
+                  <th>Bài toán Giải quyết &amp; Ưu điểm Cốt lõi</th>
+                  <th>Đánh đổi Thực tế (Trade-offs)</th>
+                  <th>Khi nào Nên dùng vs. Không nên dùng</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong><code>Testcontainers</code></strong><br><em>(Slide 60–61)</em></td>
+                  <td>Khởi tạo DB/Service thật (<code>postgres:16</code>, Redis, Kafka) bằng Docker ngay trong code Python; cô lập 100% giữa các lần chạy.</td>
+                  <td>Tốc độ khởi động container chậm hơn vài giây so với <code>MagicMock</code> và yêu cầu máy chạy test phải có Docker Daemon.</td>
+                  <td><strong>Nên dùng:</strong> Integration Test kiểm tra truy vấn SQL, Transaction, Migration.<br><strong>Không dùng:</strong> Unit Test kiểm tra hàm tính toán thuần túy.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>tox</code> (<code>tox.ini</code>)</strong><br><em>(Slide 62–63)</em></td>
+                  <td>Tự động hóa việc tạo <code>virtualenv</code> và chạy test xuyên suốt ma trận nhiều phiên bản Python (<code>py39</code>, <code>py310</code>, <code>py311</code>) chỉ bằng một lệnh <code>tox</code>.</td>
+                  <td>Tốn thời gian tạo môi trường ảo và cài đặt gói ở lần chạy đầu tiên; nhân thời gian chạy theo số lượng môi trường trong <code>envlist</code>.</td>
+                  <td><strong>Nên dùng:</strong> Thư viện nội bộ, SDK, pipeline CI/CD cần đảm bảo tương thích đa phiên bản.<br><strong>Không dùng:</strong> Chạy nháp lặp lại từng giây trên máy cá nhân (dùng trực tiếp <code>pytest</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong><code>pytest-cov</code> (Code Coverage)</strong><br><em>(Slide 64)</em></td>
+                  <td>Định lượng tỷ lệ dòng code được test thực thi (<code>Cover %</code>) và vạch trần các dòng bị bỏ sót ở cột <code>Miss</code> (Blind Spots).</td>
+                  <td>Độ phủ <code>100%</code> không đồng nghĩa với <code>0 bug</code> (code được chạy qua nhưng thiếu <code>assert</code> chặt hoặc thiếu kiểm thử biên vẫn lọt lỗi).</td>
+                  <td><strong>Nên dùng:</strong> Đặt ngưỡng kiểm soát chất lượng trên CI/CD và rà soát các nhánh <code>if/else</code> bị bỏ quên.<br><strong>Không dùng:</strong> Chạy đua con số <code>100%</code> hình thức bằng các bài test rỗng không có giá trị kiểm chứng.</td>
+                </tr>
+                <tr>
+                  <td><strong>TDD (<code>Red → Green → Refactor</code>)</strong><br><em>(Slide 65–68)</em></td>
+                  <td>Ép kiến trúc code tách biệt (<em>decoupled</em>), dễ kiểm thử ngay từ đầu, đóng vai trò <em>Living Documentation</em> và giúp Refactor không sợ vỡ hệ thống.</td>
+                  <td>Làm thời gian phát triển ban đầu <strong>chậm hơn <code>20–50%</code></strong>; tốn công viết lại test nếu yêu cầu sản phẩm thay đổi liên tục.</td>
+                  <td><strong>Nên dùng:</strong> Logic nghiệp vụ phức tạp, hàm biến đổi dữ liệu cốt lõi, hệ thống dài hạn.<br><strong>Không dùng:</strong> <em>Rapid Prototyping</em>, CRUD đơn giản, bài toán khám phá chưa rõ đầu ra.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="callout">
+            <div class="callout-title">Tổng kết Học phần F05 &amp; Bước chuyển sang F06 · Containerization &amp; Orchestration</div>
+            <p>Khép lại 4 chặng của <strong>F05 · Validation &amp; Verification</strong>, bạn đã nắm trọn bộ khung bảo hiểm chất lượng phần mềm: từ phân biệt <strong>Verification vs. Validation</strong>, thiết lập chốt chặn <strong>Static Analysis (<code>Ruff</code>, <code>MyPy</code>, <code>Bandit</code>, <code>Pre-commit</code>)</strong>, viết bài kiểm thử chuẩn <strong>AAA Pattern &amp; Fixtures/Parametrize</strong> trong <code>pytest</code>, cho tới cô lập phụ thuộc bằng <strong><code>pytest-mock</code> / <code>Testcontainers</code></strong>, chạy ma trận <strong><code>tox</code> + <code>pytest-cov</code></strong> và làm chủ vòng lặp <strong>TDD</strong>. Hãy chú ý cách <code>Testcontainers</code> vừa gọi <code>PostgresContainer("postgres:16")</code> để dựng một cơ sở dữ liệu cô lập trong vài giây rồi xóa sạch không để lại rác: bên dưới lớp vỏ tiện lợi đó, Linux Kernel dùng cơ chế <code>Namespaces</code>, <code>cgroups</code> và <code>OverlayFS</code> nào để tạo ra các container đó, và làm sao điều phối hàng trăm container trên cụm máy chủ Production? Chúng ta sẽ giải phẫu tận gốc ngay tại học phần tiếp theo: <strong>F06 · Containerization &amp; Orchestration</strong>.</p>
+          </div>
+        </section>
+
+        <section class="lesson-section summary-section" id="validation-4-summary">
+          <h2 id="validation-4-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 4 &amp; Khép kín Toàn bộ Học phần F05 · Validation &amp; Verification</h2>
+
+          <ol>
+            <li><strong>Tại sao <code>mocker.patch()</code> bắt buộc phải tuân thủ quy tắc <em>&quot;Patch tại nơi sử dụng, không phải nơi định nghĩa&quot;</em>?</strong> Vì câu lệnh <code>from myapp.api import get_data</code> trong <code>myapp/service.py</code> đã tạo một tham chiếu trực tiếp tên <code>get_data</code> ngay trong không gian tên <code>myapp.service</code>; nếu patch vào <code>myapp.api.get_data</code>, hàm trong <code>myapp.service</code> vẫn gọi vào đối tượng cũ. Bắt buộc phải viết <code>mocker.patch("myapp.service.get_data", ...)</code>.</li>
+            <li><strong>Làm thế nào để dùng <code>MagicMock</code> kiểm thử cả kịch bản thành công lẫn kịch bản sập mạng liên tiếp?</strong> Gán một danh sách vào thuộc tính <code>side_effect</code> (ví dụ: <code>mock_api.get.side_effect = [{"name": "Hung"}, Exception("API Error")]</code>), kiểm chứng lời gọi đầu bằng <code>assert_called_once_with(...)</code> và bắt ngoại lệ ở lời gọi thứ hai bằng <code>with pytest.raises(Exception):</code>.</li>
+            <li><strong>Khi nào bắt buộc phải dùng <code>Testcontainers</code> thay cho <code>pytest-mock</code>?</strong> Khi thực hiện Integration Test cần kiểm chứng câu lệnh SQL thực tế, ràng buộc khóa ngoại, Transaction hoặc hành vi đặc thù của engine hạ tầng thật (như <code>PostgresContainer("postgres:16")</code>) mà đối tượng giả <code>MagicMock</code> không thể phát hiện lỗi cú pháp.</li>
+            <li><strong>Bộ đôi <code>tox</code> và <code>pytest-cov</code> giải quyết hai điểm mù nào trong quy trình kiểm thử?</strong> <code>tox</code> (<code>tox.ini</code>) xóa bỏ điểm mù tương thích môi trường bằng cách tự động tạo <code>virtualenv</code> và chạy test trên nhiều phiên bản Python (<code>py39, py310, py311</code>); còn <code>pytest-cov</code> (<code>pytest --cov=myproj tests/</code>) xóa bỏ điểm mù mã nguồn bằng cách chỉ rõ những dòng code chưa từng được chạy qua tại cột <code>Miss</code>.</li>
+            <li><strong>Chu trình 3 bước của TDD là gì và đánh đổi định lượng lớn nhất cần cân nhắc là gì?</strong> Chu trình gồm <code>RED</code> (viết bài test thất bại trước) → <code>GREEN</code> (viết lượng code tối giản nhất để pass test) → <code>REFACTOR</code> (làm sạch code dưới sự bảo vệ của bộ test). TDD làm thời gian phát triển ban đầu chậm hơn <code>20–50%</code>, nên chỉ ưu tiên cho logic nghiệp vụ cốt lõi phức tạp và tránh áp dụng máy móc khi làm <em>Rapid Prototyping</em> hoặc CRUD đơn giản.</li>
+          </ol>
+
+          <p>Hoàn thành Chặng 4 cũng là lúc bạn khép lại toàn bộ Học phần <strong>F05 · Validation &amp; Verification</strong> với tư duy kiểm định thực chiến: kết hợp <strong>Static Analysis + Pytest + Mocking/Testcontainers + Coverage/TDD</strong> để mọi dòng code đẩy lên hệ thống AI/Data đều được chứng minh bằng bằng chứng thực nghiệm tự động.</p>
+        </section>
+      </div>

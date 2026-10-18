@@ -1,0 +1,599 @@
+      <div class="prose">
+        <x-spine id="api-2-spine" badge="TRONG BÀI HỌC NÀY · F04" title="Chặng 2: Sáu Phong Cách Kiến Trúc API — Giải Phẫu Cơ Học &amp; Ma Trận Đánh Đổi" subtitle="Trạm 2.1 → 2.5">Giải phẫu cơ học 6 phong cách kiến trúc API cốt lõi trên hành trình xử lý <strong>Order #8888</strong> (<code>order_id="ORD-8888"</code>, <code>user_id="USR-104"</code>, <code>amount=450000</code>) của dịch vụ <code>order-api</code>: từ 6 nguyên lý bất biến của <strong>REST API</strong>, truy vấn đồ thị 1 vòng mạng với <strong>GraphQL</strong>, gọi hàm nhị phân đa luồng <strong>gRPC (Protobuf/HTTP/2)</strong> đến truyền thông duy trì kết nối <strong>WebSocket</strong>, <strong>SSE</strong> và đẩy sự kiện đảo chiều <strong>Webhook</strong>.</x-spine>
+
+        <section class="lesson-section" id="api-2-1">
+          <h2 id="api-2-1-h2" tabindex="-1">Trạm 2.1: Toàn cảnh Hệ sinh thái Kiến trúc API (Postman Report) &amp; Sáu Nguyên lý Bất biến của REST API</h2>
+
+          <p><strong>Định lý Đánh đổi Kiến trúc Phần mềm (First Law of Software Architecture)</strong> do Mark Richards và Neal Ford phát biểu trong <em>Fundamentals of Software Architecture (2nd Ed, Ch. 1 &amp; Ch. 18)</em> khẳng định: <em>"Mọi quyết định trong kiến trúc phần mềm đều là một sự đánh đổi (Everything in software architecture is a trade-off)"</em>. Không tồn tại một kiến trúc API vạn năng thắng tuyệt đối trên mọi mặt trận: một giao thức tối ưu cho tính dễ đọc, bộ đệm CDN và khả năng tương thích trình duyệt rộng khắp sẽ phải đánh đổi bằng chi phí băng thông văn bản và số vòng lặp mạng; ngược lại, một giao thức ép sát giới hạn CPU và độ trễ nội bộ bằng khung nhị phân sẽ đánh mất khả năng gọi trực tiếp từ trình duyệt web. Thực tế khảo sát từ báo cáo <strong>Postman State of the API Report</strong> (<em>Slide 36–38</em>) chứng minh các hệ thống Production hiện đại không chọn một giao thức duy nhất mà kết hợp đa kiến trúc theo đúng đặc thù từng phân đoạn dữ liệu:</p>
+
+          <ul>
+            <li><strong>Nhóm Kiến trúc Truy vấn &amp; Tích hợp Đồng bộ (Request–Response):</strong> <strong>REST</strong> thống trị tuyệt đối ở mức <strong><code>93%</code></strong> đóng vai trò xương sống giao tiếp Web/Public API; <strong>GraphQL</strong> đạt <strong><code>33%</code></strong> tại tầng tổng hợp dữ liệu (BFF/Dashboard) cho giao diện phức tạp; <strong>SOAP</strong> vẫn duy trì <strong><code>25%</code></strong> trong các hệ thống ngân hàng lõi, ERP và bảo hiểm truyền thống; và <strong>gRPC</strong> chiếm <strong><code>14%</code></strong> tại mạch máu giao tiếp nội bộ tốc độ cao giữa các Microservices và dịch vụ suy luận AI/ML.</li>
+            <li><strong>Nhóm Kiến trúc Hướng Sự kiện &amp; Thời gian thực (Event-Driven &amp; Streaming):</strong> <strong>Webhooks</strong> đứng thứ hai toàn ngành với <strong><code>50%</code></strong> cho bài toán báo tin bất đồng bộ giữa các máy chủ (Server-to-Server); <strong>WebSockets</strong> chiếm <strong><code>35%</code></strong> cho truyền thông song công hai chiều (Full-Duplex); <strong>SSE (Server-Sent Events)</strong> đạt <strong><code>12%</code></strong> (và tăng trưởng bùng nổ cùng trào lưu truyền tải từng token của mô hình ngôn ngữ lớn LLM cũng như luồng log giám sát pipeline); bên cạnh các giao thức chuyên dụng cho IoT, hàng đợi tin nhắn và chuỗi cung ứng như <strong>MQTT (<code>8%</code>)</strong>, <strong>AMQP (<code>5%</code>)</strong> và <strong>EDI (<code>3%</code>)</strong>.</li>
+          </ul>
+
+          <x-figure id="api-2-1a-fig" key="2.1" title="Sơ đồ 2.1 — Toàn cảnh Tỷ lệ Áp dụng Kiến trúc API (Postman Report) &amp; Chu trình 4 Bước Giao tiếp REST">Thống kê tỷ lệ áp dụng 10 chuẩn giao tiếp API từ Postman Report (Slide 38) và giải phẫu 4 bước vòng đời giao tiếp REST API từ bắt tay TCP 3 bước đến phản hồi JSON (Slide 40).</x-figure>
+
+          <h3>Giải phẫu Chu trình 4 Bước Giao tiếp REST API trên đường truyền vật lý</h3>
+          <p>Được Roy Fielding định nghĩa trong luận án tiến sĩ năm 2000, <strong>REST (Representational State Transfer — Truyền tải Trạng thái Đại diện)</strong> không phải là một giao thức mạng mới mà là một <strong>phong cách kiến trúc (Architectural Style)</strong> đặt ra các ràng buộc trên nền giao thức <code>HTTP</code>. Khi ứng dụng của khách hàng <code>USR-104</code> gọi dịch vụ <code>order-api</code> để tạo hoặc tra cứu đơn hàng <strong>Order #8888</strong> (<code>order_id="ORD-8888"</code>, <code>amount=450000</code>), hoặc gọi <code>GET /v1/superheroes/42</code> (<em>Slide 37, 40</em>), luồng dữ liệu vận hành qua <strong>4 bước cơ học</strong> rõ ràng:</p>
+
+          <ol>
+            <li><strong>Bước 1 — Thiết lập kết nối tầng Giao vận (TCP 3-Way Handshake &amp; TLS):</strong> Trước khi bất kỳ byte HTTP nào được gửi đi, Client và Server phải hoàn tất bắt tay 3 bước <code>SYN → SYN-ACK → ACK</code> ở tầng Transport (kèm bắt tay mã hóa <code>TLS 1.3</code> nếu dùng <code>HTTPS</code>) để mở một kênh truyền luồng byte tin cậy.</li>
+            <li><strong>Bước 2 — Đóng gói &amp; Gửi Yêu cầu HTTP (HTTP Request + Headers + JSON Payload):</strong> Client gửi thông điệp yêu cầu gồm dòng lệnh phương thức + định danh tài nguyên (ví dụ <code>POST /v1/orders HTTP/1.1</code> hoặc <code>GET /v1/orders/ORD-8888 HTTP/1.1</code>), các tiêu đề siêu dữ liệu (<code>Host</code>, <code>Authorization: Bearer &lt;token&gt;</code>, <code>Content-Type: application/json</code>) và phần thân văn bản JSON biểu diễn trạng thái đơn hàng (<code>{"order_id": "ORD-8888", "user_id": "USR-104", "amount": 450000}</code>).</li>
+            <li><strong>Bước 3 — Thực thi Nghiệp vụ &amp; Tương tác Lưu trữ tại Máy chủ (Server Business Logic &amp; DB/Model Execution):</strong> Máy chủ <code>order-api</code> giải mã JSON, kiểm tra tính hợp lệ của lược đồ, thực thi truy vấn ACID xuống cơ sở dữ liệu PostgreSQL hoặc nạp dữ liệu vào mô hình học máy (như <code>/api/models/churn/v1</code>).</li>
+            <li><strong>Bước 4 — Trả Phản hồi Đại diện Trạng thái (HTTP Response + Status Code + JSON Representation):</strong> Server đóng gói kết quả thành thông điệp HTTP Response kèm mã trạng thái chuẩn hóa (<code>200 OK</code>, <code>201 Created</code>, <code>304 Not Modified</code>, <code>404 Not Found</code>) và phần thân JSON trả về cho Client hiển thị lên giao diện.</li>
+          </ol>
+
+          <x-figure id="api-2-1b-fig" key="2.2" title="Sơ đồ 2.2 — Giải phẫu 6 Nguyên lý Kiến trúc RESTful (Stateless Load Balancing, Caching &amp; Layered API Gateway)">Cơ chế vận hành thực tế của 6 nguyên lý REST: tách biệt Client–Server, cân bằng tải phi trạng thái (Stateless), giao diện đồng nhất (Uniform Interface), bộ đệm ETag/Cache-Control, kiến trúc phân lớp qua API Gateway và Code on Demand (Slide 41–48).</x-figure>
+
+          <h3>Giải phẫu Cơ học 6 Nguyên lý Bất biến của Kiến trúc REST API</h3>
+          <p>Một API chỉ thực sự được gọi là <strong>RESTful</strong> khi tuân thủ nghiêm ngặt 5 nguyên lý bắt buộc đầu tiên (và nguyên lý thứ 6 tùy chọn) trong mô hình của Roy Fielding (<em>Slide 41–48</em>). Bảng dưới đây phân tích cơ chế vật lý, cách áp dụng trực tiếp trên hệ thống <code>order-api</code> và hậu quả kỹ thuật nếu vi phạm từng nguyên lý:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Nguyên lý REST (Slide 41–48)</th>
+                  <th>Cơ chế Vật lý &amp; Header/URI Chuẩn</th>
+                  <th>Lợi ích Mở rộng cho <code>order-api</code></th>
+                  <th>Hệ lụy nếu Vi phạm trên Production</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Client–Server Architecture</strong><br><em>(Phân tách Mối quan tâm — Separation of Concerns)</em></td>
+                  <td><strong>Client</strong> chỉ quản lý giao diện (UI) và tương tác người dùng; <strong>Server</strong> quản lý lưu trữ dữ liệu, bảo mật và tính toán. Giao tiếp hoàn toàn qua tham số đường dẫn định danh tài nguyên như <code>/api/models/churn/v1</code>, <code>/users/123</code>, <code>/datasets/sales-2025</code>, <code>/v1/orders/ORD-8888</code> (<em>Slide 42</em>).</td>
+                  <td>Đội Mobile App (iOS/Android), Web Frontend và đội Backend/Data Engineering có thể phát triển, kiểm thử và triển khai độc lập miễn là giữ đúng hợp đồng URI và lược đồ JSON.</td>
+                  <td>Nếu trộn lẫn logic truy vấn DB hoặc quy tắc tính phí vào mã nguồn Client, mỗi lần đổi công thức tính thuế của <strong>Order #8888</strong> sẽ buộc hàng triệu người dùng phải cập nhật lại ứng dụng di động trên App Store.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Statelessness</strong><br><em>(Phi trạng thái — "No Memory")</em></td>
+                  <td>Máy chủ <strong>không lưu bất kỳ ngữ cảnh phiên làm việc (Session State) nào của Client trong RAM</strong> giữa 2 lần gọi. Mọi HTTP Request từ <code>USR-104</code> bắt buộc phải tự mang đầy đủ thông tin xác thực (<code>Authorization: Bearer &lt;JWT&gt;</code>), tham số phân trang và ngữ cảnh truy vấn (<em>Slide 43</em>).</td>
+                  <td>Cho phép <strong>Mở rộng Ngang Tức thì (Horizontal Auto-Scaling)</strong>: Bộ cân bằng tải (<strong>Load Balancer</strong>) có thể điều phối Request #1 của <code>USR-104</code> vào <code>Server 1</code> và Request #2 vào <code>Server 3</code> mà không cần đồng bộ bộ nhớ hay cấu hình <em>Sticky Sessions</em>; nếu <code>Server 1</code> sập, <code>Server 2</code> tiếp nhận ngay lập tức.</td>
+                  <td>Nếu lưu giỏ hàng của <code>USR-104</code> trong RAM của <code>Server 1</code>, khi Load Balancer đẩy lệnh thanh toán <strong>Order #8888</strong> sang <code>Server 2</code>, máy chủ sẽ báo lỗi rỗng giỏ hàng; nếu dùng Sticky Session, khi <code>Server 1</code> quá tải hoặc khởi động lại, toàn bộ phiên giao dịch đang mở sẽ bị đứt gãy.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Uniform Interface</strong><br><em>(Giao diện Đồng nhất — Ràng buộc Cốt lõi)</em></td>
+                  <td>Chuẩn hóa qua 4 quy tắc (<em>Slide 44–45</em>):<br>1) <strong>Định danh tài nguyên bằng danh từ URI</strong> (<code>/products/iphone-15</code>, <code>/v1/superheroes/42</code>, <code>/v1/orders/ORD-8888</code> — cấm nhét động từ kiểu <code>/getOrderById</code>);<br>2) <strong>Thao tác qua động từ HTTP chuẩn</strong> (<code>GET</code> đọc, <code>POST</code> tạo, <code>PUT/PATCH</code> sửa, <code>DELETE</code> xóa);<br>3) <strong>Thông điệp tự mô tả</strong> (<code>Content-Type: application/json</code>);<br>4) <strong>HATEOAS</strong> (đính kèm siêu liên kết <code>_links</code> chỉ dẫn các bước chuyển trạng thái hợp lệ tiếp theo như <code>cancel</code>, <code>pay</code>, <code>invoice</code>).</td>
+                  <td>Tạo ra một ngôn ngữ quy ước chung cho toàn bộ hệ sinh thái: bất kỳ kỹ sư, công cụ kiểm thử hay cổng API Gateway nào nhìn vào <code>DELETE /v1/orders/ORD-8888</code> đều hiểu ngay ngữ nghĩa và tính chất lũy đẳng (Idempotency) mà không cần đọc mã nguồn bên trong.</td>
+                  <td>Thiết kế kiểu "RPC đội lốt REST" (dùng <code>POST /api/doEverything</code> trả về <code>200 OK</code> kèm chuỗi <code>{"error": "Failed"}</code>) làm vô hiệu hóa hoàn toàn cơ chế tự động thử lại (Retry), bộ đệm HTTP và hệ thống cảnh báo lỗi của API Gateway/CDN.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Caching</strong><br><em>(Bộ nhớ đệm — "Speed Boost")</em></td>
+                  <td>Mọi phản hồi HTTP phải khai báo tường minh khả năng lưu đệm thông qua các Header chuẩn như <code>Cache-Control: public, max-age=300</code> và thẻ định danh phiên bản nội dung <code>ETag: "v2-9f8a1b"</code> (phối hợp với <code>If-None-Match</code> để trả về <code>304 Not Modified</code> không tốn phần thân dữ liệu — <em>Slide 46</em>).</td>
+                  <td>Khi hàng chục nghìn người dùng cùng xem danh mục sản phẩm hoặc thông tin siêu anh hùng <code>GET /v1/superheroes/42</code>, trình duyệt và CDN trả kết quả ngay từ bộ đệm biên mà không chạm tới Database của <code>order-api</code>, giảm tới <code>80–95%</code> tải đọc I/O.</td>
+                  <td>Thiếu Header kiểm soát bộ đệm khiến dữ liệu tĩnh bị truy vấn lặp lại gây nghẽn cổ chai Database; hoặc ngược lại, cấu hình nhầm bộ đệm công cộng trên endpoint nhạy cảm như <code>GET /v1/orders/ORD-8888</code> làm lộ thông tin đơn hàng của <code>USR-104</code> cho người dùng khác.</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Layered System</strong><br><em>(Hệ thống Phân lớp — "Invisible Middlemen")</em></td>
+                  <td>Client chỉ giao tiếp với một điểm đầu mối duy nhất mà hoàn toàn không biết (và không cần quan tâm) yêu cầu của mình đang đi qua chuỗi các lớp trung gian: <strong>Firewall (WAF) → API Gateway (Auth Service + Logging/Rate Limit) → Load Balancer → Microservices (<code>Service A</code>, <code>Service C</code>)</strong> (<em>Slide 47</em>).</td>
+                  <td>Tách rời các mối quan tâm xuyên suốt (Cross-cutting Concerns): xác thực chữ ký JWT, giới hạn tần suất gọi (Rate Limiting), ghi nhật ký kiểm toán và định tuyến phiên bản được xử lý tập trung tại tầng <strong>API Gateway</strong> trước khi chạm tới mã nghiệp vụ của <code>order-api</code>.</td>
+                  <td>Nếu để Client kết nối trực tiếp vào địa chỉ IP nội bộ của từng Microservice (bỏ qua tầng Gateway/Load Balancer), hệ thống sẽ lộ bề mặt tấn công mạng nội bộ và buộc Client phải tự cập nhật cấu hình mỗi khi tách hoặc di chuyển dịch vụ.</td>
+                </tr>
+                <tr>
+                  <td><strong>6. Code on Demand</strong><br><em>(Mã thực thi theo Yêu cầu — Optional)</em></td>
+                  <td>Nguyên lý <strong>tùy chọn duy nhất</strong> trong 6 nguyên lý (<em>Slide 48</em>): Server có thể mở rộng chức năng của Client lúc chạy bằng cách trả về đoạn mã thực thi được (ví dụ đoạn mã JavaScript vẽ biểu đồ tương tác hoặc kịch bản tiền xử lý dữ liệu đầu vào cho mô hình ML).</td>
+                  <td>Cho phép cập nhật linh hoạt các tiện ích hiển thị động hoặc quy tắc kiểm tra biểu mẫu phức tạp từ phía máy chủ mà không cần phát hành lại gói cài đặt tĩnh của Client.</td>
+                  <td>Ít được bật trong các API doanh nghiệp hiện đại vì rủi ro bảo mật thực thi mã từ xa (XSS / Code Injection) và vì các ứng dụng Mobile/Backend-to-Backend không chạy động cơ JavaScript của trình duyệt. <strong>Chỉ cần thỏa mãn 5 nguyên lý đầu tiên là đạt chuẩn RESTful.</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="api-2-2">
+          <h2 id="api-2-2-h2" tabindex="-1">Trạm 2.2: Điểm nghẽn của REST (Over-fetching &amp; Under-fetching) &amp; Truy vấn Đồ thị theo Yêu cầu với GraphQL</h2>
+
+          <p>Dù REST API thống trị <code>93%</code> thế giới Web nhờ sự đơn giản và khả năng tận dụng bộ đệm HTTP, mô hình gắn chặt mỗi URL với một cấu trúc tài nguyên cố định của REST bộc lộ hai điểm nghẽn cơ học nghiêm trọng khi ứng dụng di động hoặc trang Dashboard quản trị cần hiển thị màn hình theo dõi chi tiết đơn hàng <strong>Order #8888</strong> (kết hợp thông tin đơn hàng <code>ORD-8888</code>, hồ sơ khách hàng <code>USR-104</code>, trạng thái tồn kho sản phẩm và điểm rủi ro gian lận từ mô hình AI — <em>Slide 37, 49</em>):</p>
+
+          <ul>
+            <li><strong>Over-fetching (Lấy thừa dữ liệu — Lãng phí băng thông &amp; bộ nhớ):</strong> Trên màn hình danh sách đơn hàng rút gọn của ứng dụng di động, giao diện chỉ cần hiển thị đúng 3 trường: <code>order_id</code> (<code>"ORD-8888"</code>), <code>amount</code> (<code>450000</code>) và <code>status</code> (<code>"PAID"</code>) — tổng dung lượng thực chất chỉ khoảng <strong><code>120 bytes</code></strong>. Thế nhưng khi gọi <code>GET /v1/orders/ORD-8888</code> (hoặc <code>GET /v1/superheroes/42</code>), máy chủ REST trả về nguyên vẹn đối tượng JSON chuẩn gồm 60 cột cơ sở dữ liệu (lịch sử địa chỉ giao hàng đầy đủ, ghi chú kho, siêu dữ liệu kiểm toán, chuỗi JSON cấu hình khuyến mãi...) nặng tới <strong><code>45 KB</code></strong>. Hơn <code>99%</code> lượng byte truyền qua mạng di động 4G và công sức giải mã JSON trên CPU điện thoại bị vứt bỏ hoàn toàn.</li>
+            <li><strong>Under-fetching &amp; Đa vòng lặp mạng (<code>N+1 HTTP Round Trips</code>):</strong> Ngược lại, một endpoint đơn lẻ <code>GET /v1/orders/ORD-8888</code> lại <strong>không cung cấp đủ dữ liệu (Under-fetching)</strong> để vẽ toàn bộ màn hình chi tiết đơn hàng. Để lấy thêm tên và hạng thẻ của khách hàng <code>USR-104</code>, danh sách tên sản phẩm trong giỏ và điểm chấm gian lận, ứng dụng Client buộc phải thực hiện <strong>4 chuyến khứ hồi mạng tuần tự (Sequential WAN Round Trips)</strong>:
+              <ol>
+                <li><code>GET /v1/orders/ORD-8888</code> → chờ <code>60ms</code> để biết đơn hàng thuộc về <code>user_id = "USR-104"</code> và gồm các mã mặt hàng nào.</li>
+                <li><code>GET /v1/users/USR-104</code> → chờ tiếp <code>60ms</code> để lấy tên khách hàng và hạng thành viên.</li>
+                <li><code>GET /v1/orders/ORD-8888/items</code> → chờ tiếp <code>60ms</code> để lấy chi tiết từng sản phẩm và trạng thái kho.</li>
+                <li><code>GET /api/models/churn/v1?user_id=USR-104</code> → chờ tiếp <code>60ms</code> để lấy chỉ số rủi ro rời bỏ/gian lận.</li>
+              </ol>
+              Trên mạng di động có độ trễ vòng lặp <code>RTT = 60ms</code>, chuỗi 4 cuộc gọi nối đuôi nhau tiêu tốn tối thiểu <strong><code>240ms</code> chỉ riêng thời gian chờ đường truyền</strong> trước khi màn hình kịp hiển thị.
+            </li>
+          </ul>
+
+          <x-figure id="api-2-2-fig" key="2.3" title="Sơ đồ 2.3 — Đối chiếu Cơ học REST (Over-fetching &amp; Under-fetching Đa Vòng lặp) vs. GraphQL (Single Round-Trip Query AST &amp; DataLoader)">So sánh trực diện 4 vòng gọi HTTP tuần tự trả thừa dữ liệu của REST với 1 vòng gọi POST /graphql duy nhất của GraphQL kèm cơ chế gom lô DataLoader chống lỗi N+1 ở tầng Database (Slide 37, 49).</x-figure>
+
+          <h3>Cơ chế GraphQL hóa giải Over-fetching và Under-fetching trong 1 Vòng mạng</h3>
+          <p>Ra đời tại Facebook năm 2012 (mã nguồn mở năm 2015), <strong>GraphQL</strong> không coi hệ thống dữ liệu là các tài nguyên rời rạc nằm sau hàng trăm URL, mà mô hình hóa toàn bộ miền nghiệp vụ thành một <strong>Đồ thị Kiểu dữ liệu Chặt chẽ (Strongly-Typed Schema Graph)</strong> truy cập qua <strong>một điểm cuối (Single Endpoint) duy nhất là <code>POST /graphql</code></strong> (<em>Slide 37, 49</em>). Quyền quyết định cấu trúc dữ liệu trả về được chuyển từ Server sang Client: Client gửi một câu truy vấn khai báo (Declarative Query AST) chỉ định chính xác từng trường cần lấy ở nhiều tầng liên kết, và Engine GraphQL trên máy chủ sẽ duyệt cây cú pháp, gọi các hàm phân giải (<strong>Resolvers</strong>) tương ứng rồi trả về gói JSON khớp 100% cấu trúc yêu cầu trong <strong>đúng 1 chuyến mạng (1 Round Trip)</strong>:</p>
+
+          <pre><code># 1. Truy vấn GraphQL gửi qua POST /graphql: chỉ định đúng các trường cần thiết của Order #8888
+query GetOrderDashboard($orderId: ID!) {
+  order(id: $orderId) {
+    order_id
+    amount
+    status
+    customer {
+      user_id
+      full_name
+      loyalty_tier
+    }
+    items {
+      sku
+      quantity
+    }
+    fraudAssessment {
+      risk_score
+      model_version
+    }
+  }
+}
+
+# 2. Phản hồi JSON trong 1 vòng mạng duy nhất: KHÔNG thừa 1 trường (Zero Over-fetching), KHÔNG thiếu dữ liệu liên kết
+{
+  "data": {
+    "order": {
+      "order_id": "ORD-8888",
+      "amount": 450000,
+      "status": "PAID",
+      "customer": {
+        "user_id": "USR-104",
+        "full_name": "Nguyen Van A",
+        "loyalty_tier": "GOLD"
+      },
+      "items": [
+        { "sku": "SKU-LAPTOP-01", "quantity": 1 }
+      ],
+      "fraudAssessment": {
+        "risk_score": 0.04,
+        "model_version": "churn-fraud-v1.4"
+      }
+    }
+  }
+}</code></pre>
+
+          <h3>Ba Đánh đổi Kỹ thuật Sống còn khi Vận hành GraphQL trên Production</h3>
+          <p>Theo nguyên lý đánh đổi kiến trúc (<em>Richards &amp; Ford, Ch. 18</em> &amp; <em>Slide 49</em>), việc GraphQL giải phóng hoàn toàn phía Client lại chuyển <strong>3 bài toán phức tạp về hiệu năng và bảo mật</strong> sang phía máy chủ Backend:</p>
+
+          <ol>
+            <li><strong>Vô hiệu hóa Bộ đệm HTTP/CDN truyền thống (Broken HTTP URL Caching):</strong> Trong REST, mỗi tài nguyên có một URL định danh riêng (như <code>GET /v1/orders/ORD-8888</code> hay <code>GET /v1/superheroes/42</code>), nên trình duyệt, Cloudflare CDN hoặc Varnish Proxy dễ dàng lấy URL làm khóa lưu đệm (Cache Key). Ngược lại, mọi truy vấn GraphQL đều bắn phương thức <code>POST</code> vào cùng một địa chỉ <code>/graphql</code> với nội dung truy vấn động nằm bên trong phần thân (Request Body) — nơi các bộ đệm HTTP chuẩn mặc định bỏ qua. Để lưu đệm cho GraphQL, đội kỹ thuật buộc phải triển khai <strong>Persisted Queries</strong> (ánh xạ mỗi câu truy vấn thành mã băm <code>SHA-256</code> gửi qua <code>GET</code>) hoặc cài đặt bộ đệm chuẩn hóa theo từng thực thể (Normalized Object Cache) ở tầng Client/Gateway.</li>
+            <li><strong>Cạm bẫy Truy vấn <code>N+1</code> ở tầng Resolver (The N+1 Resolver Problem) &amp; Giải pháp <code>DataLoader</code>:</strong> Dù Client chỉ tốn 1 lần gọi mạng tới <code>/graphql</code>, nếu người dùng truy vấn danh sách 50 đơn hàng kèm thông tin <code>customer</code> của từng đơn, một cài đặt Resolver ngây thơ sẽ chạy 1 câu lệnh <code>SELECT * FROM orders LIMIT 50</code> rồi lặp 50 lần gọi hàm <code>resolve_customer(user_id)</code> — sinh ra <strong>50 câu lệnh <code>SELECT * FROM users WHERE user_id = ?</code> riêng lẻ</strong> bắn phá Database! Để khắc phục, mọi máy chủ GraphQL Production bắt buộc phải tích hợp mẫu thiết kế <strong>DataLoader (Batching &amp; Deduplication)</strong>: trì hoãn việc gọi DB trong cùng một vòng lặp sự kiện (Event Loop Tick), gom toàn bộ 50 mã <code>user_id</code> (kể cả <code>USR-104</code>) thành một mảng duy nhất và thực thi đúng 1 câu lệnh gom lô <code>SELECT * FROM users WHERE user_id IN ('USR-104', ...)</code>.</li>
+            <li><strong>Tấn công Làm cạn kiệt Tài nguyên bằng Truy vấn Đệ quy Sâu (Nested Query Depth Attack):</strong> Vì lược đồ đồ thị cho phép liên kết hai chiều (<code>Order → Customer → Orders → Customer → Orders...</code>), kẻ tấn công hoặc một lập trình viên bất cẩn có thể gửi một câu truy vấn lồng nhau 15 tầng khiến CPU máy chủ và Database bị treo cứng theo cấp số nhân. Do đó, cổng GraphQL bắt buộc phải cấu hình <strong>Giới hạn Độ sâu Truy vấn (Query Depth Limiting, ví dụ <code>max_depth = 5</code>)</strong> và <strong>Phân tích Trọng số Chi phí (Query Cost / Complexity Analysis)</strong> để từ chối các truy vấn vượt ngưỡng trước khi thực thi.</li>
+          </ol>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chiều kích Kỹ thuật</th>
+                  <th>REST API (Resource-Oriented)</th>
+                  <th>GraphQL (Graph Query-Oriented)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Cấu trúc Endpoint</strong></td>
+                  <td>Đa điểm cuối (Multiple Endpoints) gắn với từng tài nguyên: <code>GET /v1/orders/ORD-8888</code>, <code>GET /v1/users/USR-104</code>, <code>GET /v1/superheroes/42</code>.</td>
+                  <td>Đơn điểm cuối duy nhất (Single Endpoint): thường là <code>POST /graphql</code> cho mọi thao tác <code>Query</code>, <code>Mutation</code> và <code>Subscription</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Định dạng &amp; Kiểm soát Payload</strong></td>
+                  <td><strong>Do Server quyết định cố định:</strong> Máy chủ định nghĩa sẵn cấu trúc JSON trả về cho mỗi endpoint.</td>
+                  <td><strong>Do Client khai báo động:</strong> Client gửi cây cú pháp truy vấn (Query AST) yêu cầu chính xác các trường và quan hệ lồng nhau.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Hiện tượng Over/Under-fetching</strong></td>
+                  <td>Thường xuyên xảy ra: lấy thừa 60 cột khi chỉ cần 3 cột (Over-fetching) hoặc thiếu dữ liệu liên kết trên màn hình tổng hợp (Under-fetching).</td>
+                  <td><strong>Triệt tiêu hoàn toàn ở tầng mạng:</strong> Trả về đúng số trường được yêu cầu, không thừa một byte và gom đủ các thực thể liên kết.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Số vòng mạng (Network RTT)</strong></td>
+                  <td>Cần $N$ chuyến khứ hồi mạng tuần tự hoặc song song từ Client để lắp ghép nhiều tài nguyên liên quan.</td>
+                  <td><strong>Đúng 1 chuyến khứ hồi mạng (1 Round Trip)</strong> từ Client tới GraphQL Gateway; việc gom dữ liệu diễn ra trên mạng nội bộ tốc độ cao.</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Cơ chế HTTP / CDN Caching</strong></td>
+                  <td><strong>Hỗ trợ nguyên bản xuất sắc:</strong> Tận dụng trực tiếp <code>GET</code> URL, <code>Cache-Control</code>, <code>ETag</code> trên mọi trình duyệt và CDN toàn cầu.</td>
+                  <td><strong>Phức tạp:</strong> Không dùng được bộ đệm URL mặc định cho <code>POST /graphql</code>; cần <em>Automatic Persisted Queries (APQ)</em> hoặc bộ đệm đồ thị phía Client (Apollo/Relay).</td>
+                </tr>
+                <tr>
+                  <td><strong>6. Quản lý Phiên bản (Versioning)</strong></td>
+                  <td>Phân tách phiên bản rõ ràng trên đường dẫn hoặc Header (<code>/v1/orders</code> → <code>/v2/orders</code>, <code>/api/models/churn/v1</code>).</td>
+                  <td><strong>Tiến hóa lược đồ liên tục (Versionless Schema Evolution):</strong> Đánh dấu trường cũ bằng chỉ thị <code>@deprecated</code> và thêm trường mới mà không cần đổi URL.</td>
+                </tr>
+                <tr>
+                  <td><strong>7. Trường hợp Sử dụng Tối ưu</strong></td>
+                  <td>Public API cho đối tác bên ngoài, CRUD chuẩn, dịch vụ cần bộ đệm CDN mạnh và quản trị bảo mật theo từng đường dẫn tài nguyên.</td>
+                  <td>Tầng <strong>Backend-for-Frontend (BFF)</strong> phục vụ ứng dụng Mobile, Dashboard phân tích đa chiều cần tổng hợp dữ liệu từ hàng chục Microservices.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="api-2-3">
+          <h2 id="api-2-3-h2" tabindex="-1">Trạm 2.3: gRPC &amp; Protocol Buffers (Protobuf) — Gọi Hàm Từ Xa Nhị phân Đa luồng trên HTTP/2</h2>
+
+          <p>Khi dịch vụ <code>order-api</code> nhận yêu cầu thanh toán cho <strong>Order #8888</strong> (<code>amount=450000</code>), trước khi trừ tiền, nó phải gọi sang một loạt dịch vụ nội bộ trong cụm Kubernetes: kiểm tra hạn mức tín dụng, khóa tồn kho và đặc biệt là gọi dịch vụ suy luận học máy <strong><code>ModelService.Predict(input_data)</code></strong> để chấm điểm gian lận thời gian thực (<em>Slide 04, 50–51</em>). Ở quy mô <code>10.000 đơn hàng/giây</code>, mỗi đơn kích hoạt 5–10 cuộc gọi nội bộ (East–West Microservice Traffic), cả REST lẫn GraphQL đều trở thành nút thắt cổ chai vật lý vì 2 lý do cốt lõi:</p>
+
+          <ul>
+            <li><strong>Chi phí tuần tự hóa văn bản JSON (Text Serialization Overhead):</strong> Định dạng JSON lặp đi lặp lại toàn bộ chuỗi ký tự tên trường (<code>"order_id"</code>, <code>"user_id"</code>, <code>"amount"</code>, <code>"device_fingerprint"</code>) trong từng gói tin và buộc CPU của cả máy gửi lẫn máy nhận phải quét từng ký tự UTF-8, tìm dấu ngoặc kép, dấu phẩy và chuyển đổi chuỗi văn bản <code>"450000"</code> sang số nguyên nhị phân 64-bit trong thanh ghi.</li>
+            <li><strong>Nghẽn đầu hàng đợi trên HTTP/1.1 (Head-of-Line Blocking):</strong> Trên kết nối <code>HTTP/1.1</code> truyền thống, nếu một yêu cầu chấm điểm mất <code>50ms</code> đang chiếm giữ kết nối TCP, các yêu cầu tiếp theo trên cùng kết nối đó phải xếp hàng chờ đợi tuần tự hoặc buộc hệ thống phải mở hàng nghìn kết nối TCP song song gây cạn kiệt cổng mạng (Ephemeral Ports) và bộ nhớ Kernel.</li>
+          </ul>
+
+          <x-figure id="api-2-3-fig" key="2.4" title="Sơ đồ 2.4 — Giải phẫu Kiến trúc gRPC: Hợp đồng .proto, Mã hóa Nhị phân Protobuf &amp; Đa luồng HTTP/2 Multiplexing">Cơ chế biên dịch tệp hợp đồng .proto sang Client Stub / Server Skeleton, nén khung nhị phân Protobuf bằng thẻ số Field Tag và truyền đa luồng đồng thời trên một kết nối TCP duy nhất của HTTP/2 (Slide 50–52).</x-figure>
+
+          <h3>Triết lý Cốt lõi của gRPC: Gọi Hàm Từ Xa (Remote Procedure Call) qua Hợp đồng <code>.proto</code></h3>
+          <p>Được Google phát triển (kế thừa từ hệ thống RPC nội bộ <em>Stubby</em> xử lý hàng chục tỷ yêu cầu mỗi giây) và mở mã nguồn năm 2015, <strong>gRPC (Google Remote Procedure Call)</strong> thay đổi hoàn toàn tư duy giao tiếp mạng: thay vì buộc lập trình viên tự lắp ghép đường dẫn URL, mã hóa JSON và kiểm tra mã lỗi HTTP, gRPC cho phép dịch vụ <code>order-api</code> <strong>gọi trực tiếp một hàm nằm trên máy chủ từ xa (<code>result = model_service.Predict(input_data)</code>) hệt như đang gọi một phương thức nội bộ trong cùng tiến trình</strong> (<em>Slide 50–51</em>).</p>
+
+          <p>Trái tim của gRPC là phương pháp thiết kế <strong>Contract-First (Hợp đồng đi trước)</strong> sử dụng ngôn ngữ định nghĩa giao diện <strong>Protocol Buffers (<code>.proto</code>)</strong>. Từ một tệp <code>fraud_model.proto</code> duy nhất, trình biên dịch <code>protoc</code> tự động sinh mã nguồn (Code Generation) cho hơn 10 ngôn ngữ khác nhau — tạo ra lớp <strong>Client Stub</strong> (cho <code>order-api</code> viết bằng Go/Node.js) và <strong>Server Skeleton</strong> (cho <code>ModelService</code> viết bằng Python/C++):</p>
+
+          <pre><code>// 1. Hợp đồng giao tiếp fraud_model.proto (Protocol Buffers v3 — Slide 51)
+syntax = "proto3";
+package fsds.ml.v1;
+
+// Định nghĩa dịch vụ suy luận mô hình như một tập hợp các hàm từ xa (RPC)
+service ModelService {
+  // 1. Unary RPC: Gửi 1 yêu cầu chấm điểm Order #8888, nhận 1 kết quả tức thì
+  rpc Predict (PredictRequest) returns (PredictResponse);
+
+  // 2. Server Streaming RPC: Gửi 1 mã lô, nhận luồng kết quả chấm điểm liên tục
+  rpc StreamBatchPredictions (BatchRequest) returns (stream PredictResponse);
+}
+
+// Cấu trúc dữ liệu được đánh số thứ tự thẻ trường (Field Tags: 1, 2, 3, 4)
+message PredictRequest {
+  string order_id = 1;       // Ví dụ: "ORD-8888" (Tag = 1)
+  string user_id = 2;        // Ví dụ: "USR-104"  (Tag = 2)
+  int64  amount_vnd = 3;     // Ví dụ: 450000     (Tag = 3 — mã hóa Varint siêu gọn)
+  repeated float features = 4; // Vector đặc trưng đầu vào cho mô hình ML (Tag = 4)
+}
+
+message PredictResponse {
+  string order_id = 1;
+  float  fraud_probability = 2; // Ví dụ: 0.018
+  bool   is_approved = 3;       // Ví dụ: true
+}</code></pre>
+
+          <pre><code># 2. Phía Client (order-api): Gọi hàm từ xa thông qua Stub tự sinh mà không cần viết code HTTP/JSON
+import grpc
+import fraud_model_pb2, fraud_model_pb2_grpc
+
+channel = grpc.insecure_channel("model-service.internal:50051")
+model_service = fraud_model_pb2_grpc.ModelServiceStub(channel)
+
+# Gọi hàm từ xa hệt như hàm cục bộ (Slide 50: result = model_service.Predict(input_data))
+input_data = fraud_model_pb2.PredictRequest(
+    order_id="ORD-8888",
+    user_id="USR-104",
+    amount_vnd=450000,
+    features=[0.12, 0.85, 1.04]
+)
+result = model_service.Predict(input_data, timeout=0.05)  # Deadline 50ms
+print(f"Order {result.order_id} Approved: {result.is_approved} (Score: {result.fraud_probability})")</code></pre>
+
+          <h3>Hai Vũ khí Vật lý tạo nên Tốc độ của gRPC: Protobuf Binary &amp; HTTP/2 Multiplexing</h3>
+          <p>Hiệu năng vượt trội của gRPC trước REST/JSON đến từ sự kết hợp giữa định dạng tuần tự hóa nhị phân <strong>Protocol Buffers</strong> ở tầng biểu diễn và giao thức <strong>HTTP/2</strong> ở tầng truyền tải (<em>Slide 51–52 &amp; Kurose Ch. 2</em>):</p>
+
+          <ul>
+            <li><strong>Mã hóa nhị phân bằng Thẻ số Trường (Numeric Field Tags &amp; Varint Encoding):</strong> Khi truyền qua mạng, Protobuf <strong>loại bỏ hoàn toàn tên trường văn bản</strong> (<code>"order_id"</code>, <code>"user_id"</code>, <code>"amount_vnd"</code>). Thay vào đó, mỗi trường được nhận diện bằng một <strong>số nguyên Tag</strong> đã khai báo trong tệp <code>.proto</code> (<code>1</code>, <code>2</code>, <code>3</code>) ghép với kiểu dữ liệu (Wire Type) chỉ tốn đúng <strong><code>1 byte</code></strong> tiêu đề cho mỗi trường! Hơn nữa, con số <code>450000</code> trong JSON tốn 6 ký tự ASCII (<code>6 bytes</code>), nhưng trong Protobuf được nén bằng thuật toán <strong>Varint</strong> thành 3 byte số nguyên nhị phân thuần túy. Kết quả là kích thước gói tin giảm từ <strong><code>3x đến 5x</code></strong> và tốc độ đóng/mở gói trên CPU nhanh hơn từ <strong><code>5x đến 10x</code></strong> so với JSON.</li>
+            <li><strong>Ghép kênh Đa luồng trên HTTP/2 (Binary Framing &amp; Stream Multiplexing):</strong> gRPC chạy độc quyền trên nền <code>HTTP/2</code>. Thay vì gửi văn bản thuần túy, <code>HTTP/2</code> chia nhỏ mọi thông điệp thành các khung nhị phân (<code>HEADERS frame</code> và <code>DATA frame</code>) gắn nhãn định danh luồng (<code>Stream ID</code>), cho phép <strong>hàng nghìn cuộc gọi RPC đồng thời giữa <code>order-api</code> và <code>ModelService</code> chạy đan xen trên một kết nối TCP duy nhất</strong> mà không khóa lẫn nhau ở tầng ứng dụng. Đồng thời, thuật toán <strong>HPACK</strong> nén toàn bộ các HTTP Header lặp lại thành bảng chỉ mục tĩnh/động siêu nhỏ.</li>
+            <li><strong>Bốn Chế độ Giao tiếp Linh hoạt (4 RPC Streaming Modes):</strong> Nhờ các luồng song công của HTTP/2, gRPC hỗ trợ 4 mẫu giao tiếp nguyên bản ngay trong một định nghĩa dịch vụ: (1) <strong>Unary RPC</strong> (1 Request → 1 Response cổ điển); (2) <strong>Server Streaming RPC</strong> (Client gửi 1 yêu cầu, Server trả về luồng dữ liệu liên tục); (3) <strong>Client Streaming RPC</strong> (Client đẩy một luồng lô dữ liệu lớn lên Server rồi nhận 1 báo cáo tổng hợp); và (4) <strong>Bidirectional Streaming RPC</strong> (cả hai chiều cùng mở luồng đẩy dữ liệu độc lập theo thời gian thực).</li>
+          </ul>
+
+          <h3>Đánh đổi của gRPC: Tại sao gRPC không thay thế được REST trên Trình duyệt Web?</h3>
+          <p>Dù thống trị giao tiếp nội bộ (Microservices &amp; AI Inference), gRPC chỉ chiếm <code>14%</code> thị phần tổng thể (<em>Slide 38, 52</em>) do <strong>3 rào cản kỹ thuật</strong> rõ rệt:</p>
+
+          <ol>
+            <li><strong>Trình duyệt Web không thể gọi gRPC trực tiếp (Lack of Native Browser Support):</strong> Các API mạng trên trình duyệt hiện đại (như <code>fetch()</code> và <code>XMLHttpRequest</code>) không cho phép mã JavaScript kiểm soát trực tiếp các khung nhị phân (Binary Frames) của <code>HTTP/2</code> cũng như không đọc được phần tiêu đề cuối luồng (<strong>HTTP/2 Trailing Headers</strong> như <code>grpc-status</code> và <code>grpc-message</code> mà gRPC bắt buộc sử dụng để báo cáo kết quả cuộc gọi). Muốn gọi gRPC từ trình duyệt, hệ thống bắt buộc phải dựng một lớp Proxy biên dịch trung gian (như <strong>Envoy Proxy với <code>gRPC-Web</code></strong>) để dịch yêu cầu HTTP/1.1/HTTP/2 của trình duyệt sang luồng gRPC chuẩn.</li>
+            <li><strong>Payload nhị phân không đọc được bằng mắt thường (Non-Human-Readable Wire Format):</strong> Khi gỡ lỗi mạng bằng <code>curl</code>, Wireshark hay bảng Network của Chrome DevTools, gói tin Protobuf chỉ hiển thị dưới dạng chuỗi byte nhị phân vô nghĩa nếu kỹ sư không có sẵn tệp lược đồ <code>.proto</code> đúng phiên bản để giải mã.</li>
+            <li><strong>Khớp nối hợp đồng chặt chẽ &amp; Hệ sinh thái nhỏ hơn REST:</strong> Mọi đối tác gọi API đều phải nhận tệp <code>.proto</code> và chạy trình biên dịch sinh mã Stub trước khi tích hợp, không phù hợp cho các Public API mở rộng cần tính linh hoạt "cắm là chạy" như REST + JSON.</li>
+          </ol>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Đối sánh</th>
+                  <th>REST API (<code>HTTP/1.1</code> + <code>JSON</code>)</th>
+                  <th>gRPC (<code>HTTP/2</code> + <code>Protocol Buffers</code>)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Tư duy Mô hình hóa</strong></td>
+                  <td>Hướng Tài nguyên (<strong>Resource-Oriented</strong>): Thao tác danh từ qua động từ chuẩn (<code>GET /v1/orders/ORD-8888</code>).</td>
+                  <td>Hướng Hành động / Thủ tục (<strong>Action/Procedure-Oriented</strong>): Gọi trực tiếp hàm từ xa (<code>ModelService.Predict(input_data)</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>Định dạng Tuần tự hóa</strong></td>
+                  <td><strong>Văn bản JSON (UTF-8 Text):</strong> Dễ đọc bằng mắt thường, tự mô tả tên trường nhưng dung lượng lớn và tốn CPU phân tích chuỗi.</td>
+                  <td><strong>Nhị phân Protobuf (Binary):</strong> Nén bằng thẻ số Field Tag + Varint; nhỏ hơn <code>3x–5x</code> và giải mã nhanh hơn <code>5x–10x</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Giao thức Truyền tải</strong></td>
+                  <td>Chủ yếu <code>HTTP/1.1</code> (hoặc <code>HTTP/2</code>); truyền văn bản, dễ gặp nghẽn đầu hàng đợi (HOL Blocking) trên HTTP/1.1.</td>
+                  <td>Bắt buộc <strong><code>HTTP/2</code></strong>: ghép kênh đa luồng (Multiplexing) trên 1 kết nối TCP, nén Header bằng <code>HPACK</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Hợp đồng &amp; Sinh mã (Codegen)</strong></td>
+                  <td>Tùy chọn (thường bổ sung sau qua tài liệu <code>OpenAPI / Swagger</code>); lập trình viên tự viết code gọi HTTP.</td>
+                  <td><strong>Bắt buộc ngay từ đầu (Strict <code>.proto</code> Contract):</strong> Tự động sinh mã <code>Client Stub</code> và <code>Server Skeleton</code> kiểm tra kiểu lúc biên dịch.</td>
+                </tr>
+                <tr>
+                  <td><strong>Khả năng Streaming</strong></td>
+                  <td>Chỉ hỗ trợ <code>Request–Response</code> đơn lẻ (1 đi – 1 về).</td>
+                  <td>Hỗ trợ đủ <strong>4 chế độ</strong>: Unary, Server Streaming, Client Streaming và Bidirectional Streaming.</td>
+                </tr>
+                <tr>
+                  <td><strong>Tương thích Trình duyệt</strong></td>
+                  <td><strong>Tuyệt đối (100% Native):</strong> Mọi trình duyệt, <code>curl</code>, Postman đều gọi trực tiếp không cần cài đặt thêm.</td>
+                  <td><strong>Hạn chế:</strong> Trình duyệt không đọc được HTTP/2 Trailers của gRPC; bắt buộc phải đi qua cổng chuyển đổi <code>gRPC-Web</code> (Envoy Proxy).</td>
+                </tr>
+                <tr>
+                  <td><strong>Vị trí Tối ưu trong Kiến trúc</strong></td>
+                  <td>Giao tiếp Bắc–Nam (<strong>North–South Traffic</strong>): Từ Trình duyệt / Mobile App / Đối tác bên ngoài gọi vào API Gateway.</td>
+                  <td>Giao tiếp Đông–Tây (<strong>East–West Traffic</strong>): Giữa các Microservices nội bộ có thông lượng cao và gọi mô hình AI/ML thời gian thực.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="api-2-4">
+          <h2 id="api-2-4-h2" tabindex="-1">Trạm 2.4: Truyền thông Thời gian thực Duy trì Kết nối — WebSocket (Song công 2 Chiều) vs. Server-Sent Events (SSE 1 Chiều)</h2>
+
+          <p>Ba kiến trúc đầu tiên (<code>REST</code>, <code>GraphQL</code> và <code>gRPC Unary</code>) đều vận hành theo mô hình <strong>Client-Initiated Request–Response</strong>: máy chủ chỉ được phép lên tiếng khi Client chủ động hỏi trước. Mô hình này sụp đổ ngay khi bài toán đòi hỏi <strong>cập nhật thời gian thực từ phía máy chủ (Real-Time Server Push)</strong> — chẳng hạn khi khách hàng <code>USR-104</code> mở màn hình bản đồ theo dõi tài xế giao đơn hàng <strong>Order #8888</strong> từng giây, trò chuyện trực tiếp với nhân viên hỗ trợ, hoặc khi kỹ sư dữ liệu mở bảng điều khiển giám sát tiến trình chạy Job huấn luyện/xử lý dữ liệu lớn và chờ thông báo <code>Job Spark ID 123 completed.</code> (<em>Slide 04, 53–59</em>).</p>
+
+          <p>Nếu cố cưỡng ép REST giải quyết bài toán này bằng kỹ thuật <strong>HTTP Short Polling</strong> (lập lịch cho trình duyệt bắn lệnh <code>GET /v1/orders/ORD-8888/status</code> mỗi <code>1 giây/lần</code>), hệ thống sẽ rơi vào thảm họa lãng phí tài nguyên: với <code>50.000</code> khách hàng đang mở màn hình chờ đơn hàng trong khi trạng thái đơn chỉ đổi <code>1 lần mỗi 5 phút</code> (<code>300 giây</code>), máy chủ <code>order-api</code> phải gánh <code>50.000 requests/giây</code> mà <strong><code>99.67%</code> trong số đó chỉ trả về kết quả rỗng hoặc trạng thái cũ</strong>, tiêu tốn hàng chục gigabit băng thông chỉ để truyền đi truyền lại các tiêu đề HTTP Header và Cookie nặng nề.</p>
+
+          <x-figure id="api-2-4-fig" key="2.5" title="Sơ đồ 2.5 — Đối chiếu Cơ chế Bắt tay WebSocket (101 Switching Protocols Song công) vs. Server-Sent Events (SSE text/event-stream Đơn hướng)">Giải phẫu 4 bước nâng cấp giao thức WebSocket (Full-Duplex 2 chiều ws:// / wss://) đối sánh với luồng đẩy sự kiện 1 chiều qua HTTP chuẩn của Server-Sent Events (SSE) kèm cơ chế tự động kết nối lại (Slide 54–59).</x-figure>
+
+          <h3>1. WebSocket — Nâng cấp Giao thức sang Kênh Song công Toàn phần (Full-Duplex 2 Chiều)</h3>
+          <p>Được chuẩn hóa trong <code>RFC 6455</code>, <strong>WebSocket</strong> xóa bỏ hoàn toàn vòng lặp hỏi–đáp HTTP bằng cách sử dụng một yêu cầu HTTP ban đầu làm "bàn đạp" để <strong>nâng cấp (Upgrade) kết nối TCP bên dưới thành một đường ống nhị phân/văn bản hai chiều tồn tại bền vững</strong> (<code>ws://</code> cho kết nối thường hoặc <code>wss://</code> cho kết nối mã hóa TLS). Theo đúng sơ đồ giải phẫu trên <em>Slide 54–56</em>, vòng đời một phiên WebSocket diễn ra qua <strong>4 bước cơ học</strong>:</p>
+
+          <ol>
+            <li><strong>Bước 1 — Yêu cầu Nâng cấp Giao thức (HTTP Upgrade Handshake Request):</strong> Client gửi một gói tin <code>HTTP/1.1 GET</code> tiêu chuẩn tới máy chủ nhưng đính kèm cặp Header đặc biệt xin chuyển đổi giao thức:
+              <pre><code>GET /realtime/orders/ORD-8888 HTTP/1.1
+Host: api.fsds.vn
+Upgrade: websocket
+Connection: Upgrade
+Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
+Sec-WebSocket-Version: 13</code></pre>
+            </li>
+            <li><strong>Bước 2 — Phản hồi Chuyển đổi Giao thức (<code>101 Switching Protocols</code>):</strong> Nếu chấp thuận, Server trả về mã trạng thái <strong><code>HTTP/1.1 101 Switching Protocols</code></strong> kèm chữ ký xác nhận <code>Sec-WebSocket-Accept</code>. Ngay sau byte cuối cùng của phản hồi <code>101</code> này, giao thức HTTP kết thúc nhiệm vụ và rút lui; <strong>cùng một ổ cắm kết nối TCP (TCP Socket) đó được giữ mở liên tục</strong> và chuyển sang nói ngôn ngữ khung truyền của WebSocket.</li>
+            <li><strong>Bước 3 — Truyền thông Song công Hai chiều Thời gian thực (Full-Duplex Persistent Messaging):</strong> Kể từ thời điểm này, cả Client (<code>USR-104</code>) và Server (<code>order-api</code>) đều bình đẳng: bất kỳ bên nào cũng có thể chủ động đẩy khung tin nhắn (Text hoặc Binary Frame) sang bên kia bất cứ lúc nào mà không cần chờ đối phương hỏi trước. Chi phí khung bọc (Frame Overhead) của mỗi tin nhắn WebSocket chỉ tốn từ <strong><code>2 đến 14 bytes</code></strong> (thay vì <code>500–800 bytes</code> HTTP Header của Polling), giúp truyền tọa độ GPS của tài xế giao đơn <strong>Order #8888</strong> hoặc tin nhắn trò chuyện ở độ trễ vài mili-giây.</li>
+            <li><strong>Bước 4 — Đóng kết nối Tường minh (Connection Termination):</strong> Đường ống duy trì mở cho đến khi một trong hai bên gửi khung điều khiển <code>Close Frame</code> (ví dụ khi đơn hàng <strong>Order #8888</strong> đã giao thành công hoặc người dùng đóng ứng dụng) để giải phóng tài nguyên cổng TCP.</li>
+          </ol>
+
+          <p><strong>Đánh đổi kỹ thuật của WebSocket (Slide 57):</strong> Vì mỗi kết nối WebSocket là một <strong>kết nối có trạng thái giữ chặt trong RAM (Stateful Persistent Connection)</strong>, việc mở rộng ngang (Horizontal Scaling) phức tạp hơn REST rất nhiều. Nếu <code>USR-104</code> đang giữ kết nối WebSocket vào <code>Server 1</code>, nhưng sự kiện cập nhật vị trí đơn hàng <strong>Order #8888</strong> lại được xử lý ở <code>Server 2</code>, <code>Server 2</code> không thể đẩy thẳng tin nhắn xuống điện thoại của <code>USR-104</code> mà bắt buộc phải đi qua một tầng <strong>Pub/Sub Backplane trung gian (như Redis Pub/Sub hoặc Apache Kafka)</strong> để chuyển tiếp sự kiện sang <code>Server 1</code>. Ngoài ra, WebSocket không tự động kết nối lại khi rớt mạng di động — kỹ sư phải tự lập trình cơ chế <code>Heartbeat (Ping/Pong)</code> và thuật toán <code>Exponential Backoff Reconnection</code> ở phía Client.</p>
+
+          <h3>2. Server-Sent Events (SSE) — Đẩy Sự kiện Đơn hướng (<code>Server → Client</code>) trên nền HTTP Chuẩn</h3>
+          <p>Trong rất nhiều bài toán thực tế, chúng ta <strong>không hề cần kênh giao tiếp 2 chiều</strong>: bảng theo dõi tiến độ chạy pipeline dữ liệu, bảng giá chứng khoán trực tuyến, thông báo trạng thái đơn hàng <strong>Order #8888</strong>, hay giao diện nhận từng từ (token) sinh ra từ mô hình LLM (như ChatGPT/Claude API) đều chỉ có nhu cầu <strong>Client gửi 1 yêu cầu ban đầu, sau đó chỉ có Server đẩy dữ liệu một chiều về Client (Unidirectional Push)</strong>. Dùng WebSocket cho các trường hợp này là một sự phức tạp hóa không cần thiết (Over-engineering).</p>
+
+          <p><strong>Server-Sent Events (SSE)</strong> giải quyết bài toán đẩy 1 chiều này ngay trên nền giao thức <strong><code>HTTP</code> tiêu chuẩn</strong> mà không cần nâng cấp sang giao thức lạ (<em>Slide 58–59</em>): Client khởi tạo kết nối bằng đối tượng <code>EventSource</code> có sẵn trong trình duyệt, và Server giữ mở phản hồi HTTP với tiêu đề <strong><code>Content-Type: text/event-stream</code></strong> để ghi nối tiếp các khối văn bản sự kiện (cách nhau bởi ký tự xuống dòng kép <code>\n\n</code>) xuống luồng truyền:</p>
+
+          <pre><code>HTTP/1.1 200 OK
+Content-Type: text/event-stream; charset=utf-8
+Cache-Control: no-cache
+Connection: keep-alive
+
+id: evt-901
+event: order_status
+data: {"order_id": "ORD-8888", "user_id": "USR-104", "status": "PACKING"}
+
+id: evt-902
+event: pipeline_update
+data: Job Spark ID 123 completed.</code></pre>
+
+          <p>Nhờ chạy thuần túy trên <code>HTTP/1.1</code> hoặc <code>HTTP/2</code>, SSE sở hữu <strong>3 lợi thế vận hành cực lớn</strong> so với WebSocket khi chỉ cần truyền một chiều (<em>Slide 59</em>): (1) <strong>Xuyên qua tường lửa và Proxy doanh nghiệp dễ dàng</strong> (không bị chặn bởi các cổng mạng cấm Header <code>Upgrade: websocket</code>); (2) <strong>Tự động kết nối lại và khôi phục sự kiện bị nhỡ (Built-in Auto-Reconnect &amp; Resume)</strong> — khi mạng chập chờn, đối tượng <code>EventSource</code> của trình duyệt tự động kết nối lại và gửi kèm Header <code>Last-Event-ID: evt-901</code> để máy chủ chỉ đẩy tiếp các sự kiện từ <code>evt-902</code> trở đi; và (3) <strong>Tận dụng ghép kênh HTTP/2</strong> để gộp nhiều luồng SSE trên cùng một kết nối TCP.</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Kỹ thuật</th>
+                  <th>HTTP Short Polling</th>
+                  <th>WebSocket (<code>RFC 6455</code>)</th>
+                  <th>Server-Sent Events (SSE)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Giao thức Nền tảng</strong></td>
+                  <td><code>HTTP</code> chuẩn (đóng/mở hoặc lặp lại Request liên tục).</td>
+                  <td>Giao thức riêng <strong><code>ws://</code> / <code>wss://</code></strong> (nâng cấp từ HTTP qua mã <code>101 Switching Protocols</code>).</td>
+                  <td><strong><code>HTTP</code> chuẩn</strong> giữ mở luồng phản hồi (<code>Content-Type: text/event-stream</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>Chiều hướng Truyền dữ liệu</strong></td>
+                  <td>Kéo từ Client (Client Pull theo chu kỳ cố định).</td>
+                  <td><strong>Song công toàn phần (Full-Duplex 2 chiều):</strong> Cả Client và Server đều đẩy dữ liệu bất kỳ lúc nào.</td>
+                  <td><strong>Đơn hướng (Unidirectional 1 chiều):</strong> Chỉ từ <strong><code>Server → Client</code></strong> sau khi kết nối mở.</td>
+                </tr>
+                <tr>
+                  <td><strong>Định dạng Khung dữ liệu</strong></td>
+                  <td>JSON / XML / HTML kèm toàn bộ HTTP Header mỗi lần hỏi.</td>
+                  <td>Hỗ trợ cả <strong>Nhị phân (Binary Frame)</strong> và <strong>Văn bản (Text Frame UTF-8)</strong> với <code>2–14 bytes</code> overhead.</td>
+                  <td><strong>Chỉ hỗ trợ Văn bản UTF-8</strong> (muốn gửi dữ liệu nhị phân phải mã hóa <code>Base64</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>Tự động Kết nối lại (Auto-Reconnect)</strong></td>
+                  <td>Mỗi chu kỳ là một Request mới độc lập.</td>
+                  <td><strong>Không có sẵn:</strong> Lập trình viên phải tự viết vòng lặp kết nối lại và kiểm tra <code>Ping/Pong</code>.</td>
+                  <td><strong>Tích hợp nguyên bản trong trình duyệt:</strong> Tự kết nối lại và gửi <code>Last-Event-ID</code> để nối tiếp luồng.</td>
+                </tr>
+                <tr>
+                  <td><strong>Tương thích Tường lửa / Proxy</strong></td>
+                  <td>Tuyệt đối (100% HTTP chuẩn).</td>
+                  <td>Dễ bị các Proxy cũ hoặc tường lửa doanh nghiệp cắt kết nối nếu chặn cơ chế <code>Connection: Upgrade</code>.</td>
+                  <td>Rất cao (đi qua cổng HTTP/HTTPS tiêu chuẩn như một phản hồi tải tệp dài).</td>
+                </tr>
+                <tr>
+                  <td><strong>Bài toán Thực tế Điển hình</strong></td>
+                  <td>Kiểm tra tác vụ nền không yêu cầu tức thời (chu kỳ <code>30–60 giây/lần</code>).</td>
+                  <td>Ứng dụng Chat 2 chiều, Game nhiều người chơi, Sàn giao dịch đặt lệnh trực tiếp, Cộng tác tài liệu trực tuyến.</td>
+                  <td><strong>Stream từng token của LLM (AI Chat)</strong>, đẩy log giám sát (<code>Job Spark ID 123 completed</code>), thông báo trạng thái <strong>Order #8888</strong>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="api-2-5">
+          <h2 id="api-2-5-h2" tabindex="-1">Trạm 2.5: Kiến trúc Hướng Sự kiện Đảo chiều với Webhook &amp; Đại Ma trận Quyết định 6 Kiến trúc API</h2>
+
+          <p>Nếu <code>WebSocket</code> và <code>SSE</code> giải quyết bài toán đẩy dữ liệu thời gian thực từ máy chủ xuống một <strong>trình duyệt hoặc ứng dụng di động đang mở sẵn kết nối trực tuyến</strong>, thì điều gì xảy ra khi hai <strong>hệ thống máy chủ độc lập của hai tổ chức khác nhau (Server-to-Server)</strong> cần thông báo sự kiện cho nhau? Hãy xét hai kịch bản kinh điển trên Production (<em>Slide 04, 37, 60–61</em>):</p>
+
+          <ul>
+            <li><strong>Kịch bản CI/CD (GitHub → Jenkins):</strong> Kỹ sư vừa đẩy một bản vá mã nguồn (<code>git push</code>) của dịch vụ <code>order-api</code> lên kho lưu trữ <strong>GitHub</strong>. Máy chủ tự động hóa <strong>Jenkins</strong> cần biết ngay sự kiện này để kích hoạt quy trình <code>Build, test, deploy</code>.</li>
+            <li><strong>Kịch bản Thanh toán Đơn hàng (Payment Gateway → <code>order-api</code>):</strong> Khách hàng <code>USR-104</code> quét mã QR ngân hàng để thanh toán <code>450.000 VNĐ</code> cho <strong>Order #8888</strong>. Quá trình xác nhận tại ngân hàng có thể mất từ <code>5 giây</code> đến <code>15 phút</code>. Hệ thống <code>order-api</code> không thể bắt giữ một kết nối đồng bộ chờ 15 phút, cũng không nên chạy vòng lặp Polling hỏi cổng thanh toán mỗi giây cho hàng triệu đơn hàng.</li>
+          </ul>
+
+          <p>Giải pháp chuẩn mực cho bài toán này là <strong>Webhook</strong> — thường được gọi là <strong>"Reverse API" (API Đảo chiều)</strong> hay nguyên lý <em>"Don't call us, we'll call you" (Đừng gọi hỏi chúng tôi liên tục, khi nào sự kiện xảy ra chúng tôi sẽ chủ động gọi bạn)</em> (<em>Slide 60–61</em>). Thay vì bên nhận (Jenkins hoặc <code>order-api</code>) phải đi hỏi bên phát (GitHub hoặc Cổng thanh toán), bên nhận chỉ cần <strong>mở sẵn một địa chỉ HTTP Endpoint công khai (Callback URL, ví dụ <code>POST https://api.fsds.vn/webhooks/payment</code>) và đăng ký URL đó với nhà cung cấp dịch vụ</strong>. Ngay tại khoảnh khắc sự kiện phát sinh (lập trình viên vừa <code>git push</code> lên GitHub, hoặc ngân hàng vừa gạch nợ thành công cho <strong>Order #8888</strong>), máy chủ nguồn sẽ đóng vai trò một HTTP Client bắn một yêu cầu <strong><code>HTTP POST</code> bất đồng bộ</strong> chứa toàn bộ dữ liệu sự kiện (Event Payload) thẳng vào Callback URL của bên nhận.</p>
+
+          <x-figure id="api-2-5-fig" key="2.6" title="Sơ đồ 2.6 — Cơ chế Đảo chiều Sự kiện Webhook (GitHub → Jenkins / Payment → order-api) &amp; Cây Quyết định Chọn Kiến trúc API">Luồng đăng ký Callback URL và bắn HTTP POST tự động khi sự kiện phát sinh (Slide 60–61), kèm 3 chốt chặn bảo mật/vận hành Webhook (Xác thực chữ ký HMAC, Phản hồi nhanh 202 Accepted, Xử lý lũy đẳng Idempotency).</x-figure>
+
+          <h3>Ba Quy tắc Kỹ thuật Bắt buộc khi Thiết kế Endpoint Nhận Webhook trên Production</h3>
+          <p>Vì một endpoint nhận Webhook là một đường dẫn <code>HTTP POST</code> mở ra Internet để máy chủ bên thứ ba gọi vào, nếu thiết kế ngây thơ như một API nội bộ bình thường, hệ thống <code>order-api</code> sẽ lập tức đối mặt với nguy cơ giả mạo giao dịch thanh toán hoặc nhân bản đơn hàng. Mọi kỹ sư Backend/Data khi xây dựng Webhook Receiver bắt buộc phải tuân thủ <strong>3 quy tắc bất biến</strong> sau:</p>
+
+          <ol>
+            <li><strong>Xác thực Chữ ký Mật mã học (Cryptographic HMAC Signature Verification):</strong> Làm sao <code>order-api</code> biết chắc gói tin <code>POST /webhooks/payment</code> báo rằng <em>"Order #8888 đã thanh toán 450.000 VNĐ"</em> thực sự đến từ cổng thanh toán hoặc GitHub chứ không phải do kẻ tấn công dùng <code>curl</code> bắn giả mạo? Khi đăng ký Webhook, hai bên sẽ chia sẻ một khóa bí mật chung (<code>Webhook Secret</code>). Trước khi gửi, máy chủ nguồn dùng thuật toán <strong><code>HMAC-SHA256</code></strong> băm toàn bộ phần thân gói tin (Raw Request Body) với khóa bí mật đó và đính kèm vào Header (ví dụ <code>X-Hub-Signature-256: sha256=757107ea0eb2509fc211221cce984b8a37570b6d7586c22c46f4379c8b043e17</code>). Máy chủ nhận bắt buộc phải tự tính lại mã băm <code>HMAC-SHA256</code> trên Raw Body và so sánh hằng số thời gian (Constant-time comparison); nếu lệch dù chỉ 1 bit, lập tức trả về <code>401 Unauthorized</code> và hủy bỏ yêu cầu.</li>
+            <li><strong>Phản hồi Nhanh (<code>200 OK / 202 Accepted</code> dưới <code>200ms</code>) &amp; Tách rời Xử lý Bất đồng bộ (Acknowledge Fast, Process Async):</strong> Các nhà cung cấp Webhook (như GitHub, Stripe, cổng thanh toán) đều áp đặt ngưỡng hết thời gian chờ (Timeout) rất ngắn (thường từ <code>3 đến 10 giây</code>). Nếu bên trong hàm nhận Webhook của <code>order-api</code>, bạn thực hiện đồng bộ việc xuất hóa đơn PDF, gửi email cho <code>USR-104</code> và gọi thêm 3 dịch vụ khác mất <code>12 giây</code>, phía gửi sẽ coi như cuộc gọi thất bại và bắn lại gói tin! Quy chuẩn đúng là: <strong>Xác thực chữ ký HMAC → Đẩy ngay sự kiện vào hàng đợi nội bộ (Redis / Kafka / SQS) → Trả về <code>202 Accepted</code> ngay lập tức trong vòng <code>&lt; 50ms</code></strong>, sau đó để tiến trình Worker phía sau từ từ xử lý nghiệp vụ.</li>
+            <li><strong>Đảm bảo Tính Lũy đẳng bằng Khóa Sự kiện (Idempotency via <code>event_id</code>):</strong> Do đặc tính mạng phân tán, các hệ thống gửi Webhook đều áp dụng cơ chế <strong>Thử lại theo cấp số nhân (At-Least-Once Delivery with Exponential Backoff)</strong>: nếu gói tin phản hồi <code>200 OK</code> của bạn bị rớt giữa đường mạng, cổng thanh toán sẽ gửi lại chính xác sự kiện <code>evt_paid_8888</code> đó sau <code>1 phút</code>, <code>5 phút</code>, <code>30 phút</code>... Do đó, bảng xử lý sự kiện của <code>order-api</code> bắt buộc phải đặt ràng buộc khóa duy nhất (<code>UNIQUE CONSTRAINT</code>) trên trường định danh <strong><code>event_id</code></strong> (hoặc kiểm tra trạng thái đơn hàng trước khi cập nhật) để đảm bảo dù nhận trùng 5 lần cùng một Webhook, khách hàng <code>USR-104</code> cũng chỉ được cộng điểm thưởng và xuất kho cho <strong>Order #8888</strong> đúng 1 lần duy nhất.</li>
+          </ol>
+
+          <pre><code># Mẫu thiết kế Chuẩn Production cho Webhook Receiver trên order-api (FastAPI / Python)
+import hmac, hashlib
+from fastapi import FastAPI, Request, Header, HTTPException, status
+
+app = FastAPI()
+WEBHOOK_SECRET = b"whsec_fsds_production_secret_key_2026"
+
+@app.post("/webhooks/payment", status_code=status.HTTP_202_ACCEPTED)
+async def handle_payment_webhook(
+    request: Request,
+    x_hub_signature_256: str = Header(None)
+):
+    raw_body = await request.body()
+
+    # 1. Xác thực chữ ký mật mã HMAC-SHA256 trên Raw Payload
+    expected_sig = "sha256=" + hmac.new(WEBHOOK_SECRET, raw_body, hashlib.sha256).hexdigest()
+    if not x_hub_signature_256 or not hmac.compare_digest(expected_sig, x_hub_signature_256):
+        raise HTTPException(status_code=401, detail="Invalid Webhook HMAC Signature")
+
+    payload = await request.json()
+    event_id = payload["event_id"]          # Ví dụ: "evt_99812_ord8888"
+    order_id = payload["data"]["order_id"]  # Ví dụ: "ORD-8888"
+
+    # 2. Chốt chặn Lũy đẳng (Idempotency) &amp; Đẩy vào hàng đợi bất đồng bộ để trả lời &lt; 50ms
+    is_new_event = await redis_client.set(f"webhook:dedup:{event_id}", "1", nx=True, ex=86400)
+    if is_new_event:
+        await kafka_producer.send("order-payment-events", value=payload)
+
+    # 3. Trả ngay 202 Accepted để cổng thanh toán không bị Timeout và không Retry vô ích
+    return {"status": "accepted", "event_id": event_id, "order_id": order_id}</code></pre>
+
+          <h3>Đại Ma trận Quyết định Kỹ thuật: Đối sánh Toàn diện 6 Phong cách Kiến trúc API</h3>
+          <p>Không một hệ thống lớn nào chỉ dùng duy nhất một phong cách API. Bảng ma trận tổng hợp dưới đây đóng vai trò kim chỉ nam để Kiến trúc sư Phần mềm và Kỹ sư Dữ liệu chọn đúng vũ khí cho từng mắt xích trong toàn bộ vòng đời của <strong>Order #8888</strong> (<em>Slide 37–61 &amp; Richards &amp; Ford Ch. 18</em>):</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chiều kích Kiến trúc</th>
+                  <th>1. REST API</th>
+                  <th>2. GraphQL</th>
+                  <th>3. gRPC</th>
+                  <th>4. WebSocket</th>
+                  <th>5. SSE</th>
+                  <th>6. Webhook</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Tỷ lệ Áp dụng (Postman Report)</strong></td>
+                  <td><strong><code>93%</code></strong> (Chuẩn mặc định toàn cầu)</td>
+                  <td><strong><code>33%</code></strong> (BFF / Tổng hợp dữ liệu)</td>
+                  <td><strong><code>14%</code></strong> (Microservices &amp; AI nội bộ)</td>
+                  <td><strong><code>35%</code></strong> (Tương tác 2 chiều thời gian thực)</td>
+                  <td><strong><code>12%</code></strong> (Stream 1 chiều &amp; AI LLM)</td>
+                  <td><strong><code>50%</code></strong> (Tích hợp sự kiện liên hệ thống)</td>
+                </tr>
+                <tr>
+                  <td><strong>Mô hình Tương tác &amp; Chiều hướng</strong></td>
+                  <td>Đồng bộ <code>Request–Response</code> (Client hỏi → Server đáp).</td>
+                  <td>Đồng bộ <code>Query–Response</code> (Client gửi cây truy vấn → Server đáp).</td>
+                  <td>Đồng bộ hoặc Luồng RPC (Unary + 3 chế độ Streaming).</td>
+                  <td><strong>Song công 2 chiều (Full-Duplex)</strong> trên kết nối giữ mở.</td>
+                  <td><strong>Đơn hướng 1 chiều (<code>Server → Client</code>)</strong> trên kết nối HTTP giữ mở.</td>
+                  <td><strong>Đảo chiều bất đồng bộ (Server-to-Server Push)</strong> khi có sự kiện.</td>
+                </tr>
+                <tr>
+                  <td><strong>Giao thức Truyền tải Nền tảng</strong></td>
+                  <td><code>HTTP/1.1</code>, <code>HTTP/2</code>, <code>HTTP/3</code>.</td>
+                  <td><code>HTTP/1.1</code> hoặc <code>HTTP/2</code> (qua <code>POST /graphql</code>).</td>
+                  <td>Bắt buộc <strong><code>HTTP/2</code></strong> (Binary Framing &amp; Multiplexing).</td>
+                  <td><strong><code>ws://</code> / <code>wss://</code></strong> trên TCP (nâng cấp qua <code>HTTP 101</code>).</td>
+                  <td><strong><code>HTTP/1.1</code> hoặc <code>HTTP/2</code></strong> chuẩn.</td>
+                  <td><strong><code>HTTP POST</code></strong> chuẩn bắn tới Callback URL.</td>
+                </tr>
+                <tr>
+                  <td><strong>Định dạng Dữ liệu (Payload)</strong></td>
+                  <td>Văn bản (chủ yếu <code>application/json</code>, đôi khi XML/HTML).</td>
+                  <td>Truy vấn <code>GraphQL AST</code> → Phản hồi <code>application/json</code>.</td>
+                  <td><strong>Nhị phân <code>Protocol Buffers</code></strong> (<code>.proto</code> Field Tags + Varint).</td>
+                  <td>Khung nhị phân (Binary Frame) hoặc văn bản UTF-8 (<code>2–14B</code> header).</td>
+                  <td>Luồng văn bản thuần túy <code>text/event-stream</code> (UTF-8).</td>
+                  <td>Thường là <code>application/json</code> kèm Header chữ ký <code>HMAC-SHA256</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Đặc tính Trạng thái &amp; Mở rộng (Scaling)</strong></td>
+                  <td><strong>Stateless (Phi trạng thái):</strong> Dễ dàng mở rộng ngang qua Load Balancer &amp; CDN.</td>
+                  <td><strong>Stateless ở tầng HTTP:</strong> Nhưng tốn CPU giải cây truy vấn và cần <code>DataLoader</code>.</td>
+                  <td><strong>Stateless hoặc Stream:</strong> Tối ưu băng thông và CPU bậc nhất cho mạng nội bộ.</td>
+                  <td><strong>Stateful (Có trạng thái):</strong> Giữ chặt Socket; cần <code>Redis Pub/Sub</code> khi mở rộng ngang.</td>
+                  <td><strong>Stateful Connection:</strong> Giữ mở luồng HTTP, nhưng nhẹ hơn và tự kết nối lại.</td>
+                  <td><strong>Stateless Event Push:</strong> Đòi hỏi hàng đợi bất đồng bộ và xử lý lũy đẳng (Idempotency).</td>
+                </tr>
+                <tr>
+                  <td><strong>Điểm mù / Rủi ro Vận hành Lớn nhất</strong></td>
+                  <td>Over-fetching (lấy thừa cột) và Under-fetching (nhiều vòng lặp RTT).</td>
+                  <td>Mất bộ đệm URL CDN mặc định; nguy cơ lỗi truy vấn <code>N+1</code> và đệ quy sâu.</td>
+                  <td>Trình duyệt web không gọi trực tiếp được (cần <code>gRPC-Web</code>); khó đọc gói tin thô.</td>
+                  <td>Tự quản lý kết nối lại, nhịp tim <code>Ping/Pong</code> và cân bằng tải kết nối dài.</td>
+                  <td>Chỉ truyền được 1 chiều từ Server về Client và chỉ hỗ trợ văn bản UTF-8.</td>
+                  <td>Nguy cơ giả mạo nếu thiếu kiểm tra chữ ký HMAC; trùng lặp dữ liệu khi bên gửi Retry.</td>
+                </tr>
+                <tr>
+                  <td><strong>Vai trò Thực tế với <code>Order #8888</code> &amp; Hệ thống Dữ liệu</strong></td>
+                  <td>Khách hàng <code>USR-104</code> bấm tạo đơn <code>POST /v1/orders</code> hoặc xem đơn <code>GET /v1/orders/ORD-8888</code>.</td>
+                  <td>Màn hình tổng quan Mobile lấy 1 lần đủ cả <code>Order #8888</code> + Hồ sơ <code>USR-104</code> + Tồn kho + Điểm rủi ro.</td>
+                  <td><code>order-api</code> gọi nội bộ <code>ModelService.Predict(input_data)</code> chấm điểm gian lận trong <code>5ms</code>.</td>
+                  <td>Bản đồ cập nhật tọa độ GPS 2 chiều giữa tài xế giao <strong>Order #8888</strong> và khách hàng <code>USR-104</code>.</td>
+                  <td>Đẩy thông báo <code>Job Spark ID 123 completed</code> hoặc stream câu trả lời trợ lý AI về trình duyệt.</td>
+                  <td>Cổng thanh toán báo <code>Order #8888</code> đã thu tiền; hoặc <code>GitHub → Jenkins</code> kích hoạt CI/CD.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="lesson-section summary-section" id="api-2-summary">
+          <h2 id="api-2-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 2 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <ol>
+            <li><strong>Tại sao nguyên lý Statelessness ("No Memory") là điều kiện tiên quyết giúp REST API mở rộng ngang (Horizontal Scaling) dễ dàng?</strong> Vì mỗi yêu cầu HTTP từ <code>USR-104</code> đều tự mang đầy đủ thông tin xác thực và ngữ cảnh mà không lưu trạng thái phiên trong RAM của máy chủ; nhờ đó Bộ cân bằng tải (Load Balancer) có thể phân phối bất kỳ yêu cầu nào của <strong>Order #8888</strong> tới bất kỳ máy chủ nào đang rảnh hoặc vừa được bật thêm mà không sợ mất phiên làm việc.</li>
+            <li><strong>GraphQL giải quyết hiện tượng Over-fetching và Under-fetching của REST như thế nào, và tại sao bắt buộc phải đi kèm <code>DataLoader</code>?</strong> Thay vì gọi 4 endpoint REST tuần tự trả thừa hàng chục cột không dùng, Client gửi một cây truy vấn khai báo tới <code>POST /graphql</code> để lấy đúng các trường cần thiết trong 1 vòng mạng duy nhất; tuy nhiên ở phía Backend, để ngăn các hàm Resolver bắn hàng chục câu lệnh <code>SELECT</code> rời rạc xuống Database (lỗi <code>N+1</code>), máy chủ bắt buộc phải dùng <code>DataLoader</code> để gom các khóa ngoại thành một truy vấn <code>WHERE id IN (...)</code> duy nhất.</li>
+            <li><strong>Cơ chế vật lý nào giúp gRPC đạt thông lượng cao gấp nhiều lần REST + JSON trong giao tiếp nội bộ như <code>ModelService.Predict(input_data)</code>?</strong> gRPC loại bỏ văn bản JSON lặp lại tên trường và thay bằng khung nhị phân <strong>Protocol Buffers</strong> định danh bằng thẻ số (Field Tags <code>1, 2, 3</code>) kèm nén số nguyên <code>Varint</code>, đồng thời chạy trên nền <strong>HTTP/2 Multiplexing</strong> cho phép ghép kênh hàng nghìn cuộc gọi RPC đồng thời trên một kết nối TCP duy nhất mà không bị nghẽn đầu hàng đợi (HOL Blocking).</li>
+            <li><strong>Khi nào nên chọn Server-Sent Events (SSE) thay vì WebSocket cho tính năng thời gian thực?</strong> Khi luồng dữ liệu thời gian thực chỉ cần truyền <strong>một chiều từ Server về Client</strong> (như stream từng token của mô hình LLM, đẩy thông báo trạng thái <strong>Order #8888</strong> hoặc báo cáo log <code>Job Spark ID 123 completed</code>), SSE vượt trội nhờ chạy ngay trên giao thức HTTP chuẩn, đi xuyên qua tường lửa dễ dàng và được trình duyệt hỗ trợ sẵn cơ chế tự động kết nối lại kèm <code>Last-Event-ID</code>.</li>
+            <li><strong>Tại sao một endpoint nhận Webhook (như cổng thanh toán báo <code>Order #8888</code> đã trả tiền) bắt buộc phải kiểm tra chữ ký <code>HMAC-SHA256</code>, trả về <code>202 Accepted</code> tức thì và xử lý lũy đẳng theo <code>event_id</code>?</strong> Vì Webhook là một URL công khai trên Internet: kiểm tra <code>HMAC-SHA256</code> ngăn chặn kẻ tấn công bắn gói tin thanh toán giả mạo; trả về <code>202 Accepted</code> ngay sau khi đẩy vào hàng đợi giúp tránh lỗi Timeout phía người gửi; và khóa lũy đẳng <code>event_id</code> đảm bảo việc bên gửi tự động thử lại (Retry) khi mạng chập chờn không làm nhân bản đơn hàng hay cộng tiền hai lần.</li>
+          </ol>
+
+          <p>Sau khi đã nắm vững cơ học truyền tải và ma trận đánh đổi của cả 6 phong cách kiến trúc API từ nội bộ ra biên mạng, câu hỏi sống còn tiếp theo là: khi mở các API này ra môi trường Internet đầy rẫy các cuộc tấn công tự động, làm thế nào để xác thực danh tính, phân quyền truy cập, chống giả mạo và bảo vệ hệ thống khỏi bị đánh sập? Hãy bước tiếp sang <strong>Chặng 3: Bảo mật API Toàn diện (API Security — Authentication, Authorization, Rate Limiting &amp; OWASP API Top 10)</strong>.</p>
+        </section>
+      </div>

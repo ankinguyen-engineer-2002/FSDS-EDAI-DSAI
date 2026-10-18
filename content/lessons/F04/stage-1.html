@@ -1,0 +1,330 @@
+      <div class="prose">
+        <x-spine id="api-1-spine" badge="TRONG BÀI HỌC NÀY · F04" title="Chặng 1: Giải Phẫu Giao Thức Web &amp; Bốn Tầng Mạng TCP/IP (Network Stack)" subtitle="Trạm 0.0 → 1.4">Hành trình vật lý của gói tin đặt hàng <strong>Order #8888</strong> (<code>POST /api/order-service/v1/orders</code>, <code>order_id=&quot;ORD-8888&quot;</code>, <code>user_id=&quot;USR-104&quot;</code>, <code>amount=450000</code>) đi từ <code>Client IP 192.168.1.10</code> qua <code>Router NAT 203.0.113.5</code>, phân giải tên miền <strong>DNS</strong>, thiết lập bắt tay <strong>TCP 3-Way Handshake</strong>, khóa kênh <strong>TLS/HTTPS</strong> và giải mã khung bản tin <strong>HTTP Request/Response</strong> tại máy chủ <code>FSDS Server 142.250.190.78:443</code>.</x-spine>
+
+        <section class="lesson-section" id="api-0-map">
+          <h2 id="api-0-map-h2" tabindex="-1">Trạm 0.0: Nhân vật chính order-api (Order #8888) &amp; Bản đồ Kiến trúc 5 Chặng Web API</h2>
+
+          <p>Đóng vai trò cầu nối trực tiếp giữa động cơ cơ sở dữ liệu giao dịch ở <strong>F03 · Database Fundamentals</strong> và đường ống thu thập dữ liệu ở <strong>D01 · Ingestion Layer</strong>, toàn bộ học phần <strong>F04 · Web API</strong> theo chân một nhân vật chính xuyên suốt: dịch vụ <strong><code>order-api</code> xử lý yêu cầu đặt đơn <code>Order #8888</code> (<code>POST /api/order-service/v1/orders</code>, <code>order_id="ORD-8888"</code>, <code>user_id="USR-104"</code>, <code>amount=450000</code>) gửi từ thiết bị <code>Client IP 192.168.1.10</code> qua trạm biến đổi địa chỉ <code>Router NAT 203.0.113.5</code> tới máy chủ <code>FSDS Server 142.250.190.78:443</code></strong> (song hành cùng các thực thể <code>/api/superhero-service/v1/superheroes/{id}</code> và <code>fsds_server.com/users</code> trong <em>Slide 04–35</em>). Để ngăn chặn thảm họa lộ mật khẩu cơ sở dữ liệu hoặc khách hàng tự ý sửa giá đơn hàng nếu kết nối thẳng tới cổng TCP <code>5432</code> của PostgreSQL, <code>order-api</code> phải đứng làm chốt chặn biên phòng kiểm soát mọi gói tin đi vào hệ thống. Xuyên suốt 5 chặng học, chúng ta sẽ bóc tách từ cơ chế đóng gói byte trên cáp mạng <strong>TCP/IP</strong>, lựa chọn giữa <strong>6 phong cách kiến trúc API</strong>, dựng hàng rào bảo mật <strong>AAA / JWT / OAuth 2.0</strong>, kiểm thử chịu tải cho tới việc trực tiếp vận hành động cơ bất đồng bộ <strong>FastAPI ASGI</strong>.</p>
+
+          <x-figure id="api-0-1" key="0.1" title="Sơ đồ 0.1 — Bản đồ Tư duy 5 Chặng: Hành trình Gói tin Order #8888 qua Kiến trúc Web API">Toàn cảnh lộ trình nhân quả 5 Chặng (18 Trạm) từ gói tin mạng TCP/IP, 6 phong cách kiến trúc API, bảo mật AAA/JWT/OAuth 2.0, kiểm thử chịu tải tới động cơ FastAPI ASGI.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chặng &amp; Trạm</th>
+                  <th>Trọng tâm Slide 04 &amp; Giáo trình Sách</th>
+                  <th>Điểm nghẽn Khởi phát</th>
+                  <th>Cơ chế Giải quyết Vật lý</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Chặng 1</strong><br/><em>Trạm 0.0 → 1.4</em><br/>Giao thức Web &amp; 4 Tầng TCP/IP</td>
+                  <td>• Bản chất <strong>API vs. Web API</strong>; đối chiếu mô hình <strong>OSI (7 tầng)</strong> và <strong>TCP/IP (4 tầng)</strong> (<em>Slide 04–08</em>; <em>Kurose &amp; Ross</em> Ch. 1).<br/>• Giải phẫu <strong>HTTP Request/Response</strong>, <strong>6 thành phần Endpoint URL</strong>, <strong>DNS</strong>, <strong>TLS/HTTPS</strong> (<em>Slide 09–25</em>; <em>Kurose</em> Ch. 2, 8).<br/>• <strong>TCP 3-Way Handshake</strong> vs. <strong>UDP</strong>, <strong>IPv4/IPv6</strong>, <strong>NAT</strong>, <strong>MAC</strong> &amp; luồng 10 bước thực tế (<em>Slide 26–35</em>; <em>Beej's Guide</em> Ch. 3, 5).</td>
+                  <td>Cho phép ứng dụng khách kết nối thẳng vào socket DB làm lộ quyền quản trị; truyền văn bản thuần (Plaintext HTTP) trên mạng WAN khiến kẻ tấn công <strong>MitM</strong> đọc trộm hoặc sửa <code>amount=450000</code>; mất gói tin trên đường truyền.</td>
+                  <td>Đóng gói <strong>PDU</strong> qua 4 tầng TCP/IP; định tuyến qua <strong>DNS</strong> &amp; <strong>Router NAT</strong>; thiết lập kết nối tin cậy bằng <strong>TCP 3-Way Handshake</strong> (<code>SYN</code> → <code>SYN-ACK</code> → <code>ACK</code>) và khóa mật mã kép <strong>TLS (Asymmetric + Symmetric + SHA-256)</strong>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 2</strong><br/><em>Trạm 2.1 → 2.4</em><br/>6 Phong cách Kiến trúc API</td>
+                  <td>• Giải phẫu <strong>REST API</strong> và 6 ràng buộc kiến trúc của Roy Fielding, <strong>Richardson Maturity Model (L0–L3)</strong> (<em>Slide 36–41</em>; <em>Design of Web APIs</em> Ch. 2).<br/>• Đối chiếu <strong>GraphQL</strong>, <strong>gRPC (HTTP/2 + Protobuf)</strong>, <strong>SOAP (WSDL/XML)</strong>, <strong>Webhook</strong> và <strong>WebSocket</strong> (<em>Slide 42–53</em>; <em>Designing Data-Intensive Applications</em> Ch. 4).</td>
+                  <td>Gọi REST truyền thống bị <strong>Over-fetching / Under-fetching</strong> hoặc lỗi truy vấn <code>N+1</code>; truyền JSON văn bản giữa các Microservices nội bộ gây nghẽn băng thông và tốn CPU phân tích cú pháp; hỏi thăm trạng thái đơn hàng bằng Polling làm sập máy chủ.</td>
+                  <td>Dùng <strong>REST</strong> chuẩn hóa cho Public API; <strong>GraphQL + DataLoader</strong> gom truy vấn linh hoạt cho Frontend; <strong>gRPC Protobuf</strong> nhị phân tốc độ cao cho gọi nội bộ <code>order-api ↔ inventory-service</code>; <strong>Webhook</strong> cho cổng thanh toán và <strong>WebSocket</strong> cho đẩy thông báo thời gian thực.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 3</strong><br/><em>Trạm 3.1 → 3.4</em><br/>Bảo mật AAA, JWT, OAuth 2.0 &amp; API Gateway</td>
+                  <td>• Khung bảo mật <strong>AAA (Authentication, Authorization, Accounting)</strong>, đối chiếu <strong>Session-based vs. Token-based</strong> (<em>Slide 54–59</em>).<br/>• Giải phẫu 3 phần <strong>JWT (Header.Payload.Signature)</strong> và luồng 6 bước <strong>OAuth 2.0 Authorization Code Flow</strong> (<em>Slide 60–65</em>; <em>API Security in Action</em> Ch. 4–6).<br/>• <strong>CORS</strong>, <strong>Rate Limiting (Token Bucket)</strong>, <strong>Idempotency-Key</strong> &amp; <strong>API Gateway</strong>.</td>
+                  <td>Lưu <code>session_id</code> trong RAM của 1 máy chủ khiến tải không thể nhân rộng ngang (Horizontal Scaling); sửa đổi trái phép <code>user_id="USR-104"</code> trong token; khách hàng bấm nút thanh toán 2 lần khi mạng lag gây trừ tiền kép cho <code>Order #8888</code>.</td>
+                  <td>Xác thực không trạng thái bằng chữ ký số <strong>JWT (HMAC-SHA256 / RS256)</strong>; ủy quyền qua <strong>OAuth 2.0</strong>; đặt <strong>API Gateway</strong> cưỡng chế <strong>Token Bucket Rate Limiting</strong> và khóa chống trùng <strong>Idempotency-Key</strong> trên Redis.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 4</strong><br/><em>Trạm 4.1 → 4.3</em><br/>Vòng đời, Tài liệu OpenAPI &amp; Kiểm thử API</td>
+                  <td>• Chiến lược <strong>API Versioning</strong> (URI Path, Query Param, Custom Header), tiến hóa lược đồ tương thích ngược (<em>Design of Web APIs</em> Ch. 9).<br/>• Đặc tả <strong>OpenAPI 3.1 (Swagger)</strong>, <strong>Contract-First Design</strong> và tháp kiểm thử 4 tầng: <strong>Functional, Integration, Load/Stress (k6/Locust), Security Testing (OWASP API Top 10)</strong> (<em>Slide 66–69</em>).</td>
+                  <td>Đổi tên trường JSON trên <code>order-api</code> làm sập tức thì ứng dụng di động của hàng trăm nghìn khách hàng chưa kịp cập nhật; chỉ đo thời gian phản hồi trung bình (Average Latency) che giấu hiện tượng đuôi trễ <code>p99 = 8,500ms</code> khi Flash Sale.</td>
+                  <td>Định tuyến phiên bản <code>/v1/orders</code> → <code>/v2/orders</code> kèm <code>Sunset</code> header; sinh tự động hợp đồng <strong>OpenAPI 3.1</strong> từ code; kiểm thử tải theo phân vị <strong>p95/p99</strong>, ngăn chặn lỗi <strong>BOLA (Broken Object Level Authorization)</strong>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 5</strong><br/><em>Trạm 5.1 → 5.4</em><br/>Xây dựng Web API Thực chiến với FastAPI</td>
+                  <td>• Động cơ <strong>ASGI (Uvicorn + uvloop)</strong> đối chiếu với <strong>WSGI (Gunicorn/Flask)</strong>, vòng lặp sự kiện <code>async/await</code> (<em>Slide 70–75</em>; <em>FastAPI Modern Python Web Development</em> Ch. 3).<br/>• Xác thực dữ liệu bằng <strong>Pydantic v2 (Rust core)</strong>, <strong>Dependency Injection (<code>Depends</code>)</strong>, kết nối DB bất đồng bộ và <strong>BackgroundTasks</strong> (<em>Slide 76–86</em>).</td>
+                  <td>Viết hàm <code>async def</code> nhưng gọi thư viện đồng bộ (<code>time.sleep</code> hoặc <code>requests.get</code>) làm đóng băng toàn bộ <strong>Event Loop</strong> của máy chủ; lộ mật khẩu băm <code>password_hash</code> của <code>USR-104</code> trong JSON trả về.</td>
+                  <td>Vận hành non-blocking I/O trên <strong>Uvicorn ASGI</strong>; tách biệt hoàn toàn mô hình <code>OrderCreate</code> / <code>OrderResponse</code> bằng <strong>Pydantic v2</strong>; quản lý vòng đời phiên DB qua <code>Depends(get_db)</code> với <code>yield</code> và đẩy tác vụ gửi email sang <strong>BackgroundTasks</strong>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="lesson-section" id="api-1-0-sim">
+          <h2 id="api-1-0-sim-h2" tabindex="-1">Trạm 1.0 (Mô phỏng 2D): Phòng Thí Nghiệm Cắt Lớp TCP/IP, 6 Kiến Trúc API, JWT/OAuth &amp; Động Cơ FastAPI ASGI</h2>
+
+          <p>Trước khi mổ xẻ từng tầng giao thức mạng, hãy trực tiếp điều khiển gói tin <strong>Order #8888</strong> (<code>POST /api/order-service/v1/orders</code>) đi qua <strong>6 kịch bản vận hành tương tác</strong> trong Phòng Thí Nghiệm 2D dưới đây: từ giải phẫu 10 bước đóng gói <code>DNS + TCP 3-Way Handshake + TLS + NAT</code> trên 4 tầng TCP/IP, kiểm chứng tính chất lũy đẳng (Idempotency) khi mạng đứt giữa các phương thức <code>GET / POST / PUT / DELETE</code>, đọ sức băng thông giữa <code>REST vs. GraphQL vs. gRPC vs. WebSocket</code>, thử nghiệm giả mạo chữ ký <code>JWT &amp; OAuth 2.0</code>, kích hoạt lá chắn <code>Rate Limiting &amp; Idempotency-Key</code>, cho tới quan sát cách một lệnh gọi đồng bộ làm tắc nghẽn <code>FastAPI ASGI Event Loop</code>.</p>
+
+          <x-api2d></x-api2d>
+        </section>
+
+        <section class="lesson-section" id="api-1-1">
+          <h2 id="api-1-1-h2" tabindex="-1">Trạm 1.1: Bản chất API vs. Web API &amp; Đối chiếu Mô hình OSI (7 Tầng) với TCP/IP (4 Tầng Thực chiến)</h2>
+
+          <p>Tại sao ứng dụng di động trên điện thoại của khách hàng <code>USR-104</code> không được phép mở kết nối thẳng tới địa chỉ <code>142.250.190.78:5432</code> của cơ sở dữ liệu PostgreSQL để tự chạy lệnh <code>INSERT INTO orders VALUES ('ORD-8888', 450000)</code>? Nếu trao thông tin đăng nhập cơ sở dữ liệu cho thiết bị đầu cuối, bất kỳ người dùng nào dịch ngược ứng dụng cũng có thể lấy được chuỗi kết nối, tự ý sửa giá đơn hàng về <code>0 đồng</code>, xóa sạch bảng dữ liệu bằng <code>DROP TABLE</code>, hoặc làm cạn kiệt toàn bộ <code>max_connections</code> của máy chủ DB. Do đó, hệ thống bắt buộc phải dựng lên một <strong>API (Application Programming Interface — Giao diện lập trình ứng dụng)</strong> đóng vai trò là bản hợp đồng giao tiếp trung gian (<em>Slide 04–05</em>). Xét về mặt vật lý bộ nhớ, cần phân biệt rạch ròi giữa hai cấp độ API: <strong>Local API (Hàm gọi nội bộ / Thư viện phần mềm)</strong> như lời gọi <code>math.sqrt(16)</code> hay <code>pandas.read_csv()</code> diễn ra hoàn toàn bên trong cùng một không gian địa chỉ RAM (Address Space) bằng thao tác đẩy thanh ghi ngăn xếp (Stack Frame) với độ trễ chỉ <code>1–5 nanoseconds</code> và hầu như không bao giờ rớt gói; ngược lại, <strong>Web API</strong> là giao diện cho phép hai hệ thống nằm trên các máy vật lý cách nhau hàng nghìn kilomet giao tiếp qua hạ tầng mạng Internet với độ trễ <code>10–150 milliseconds</code> (chậm hơn gấp hàng triệu lần), buộc dữ liệu phải tuần tự hóa (Serialization) thành chuỗi byte và đối mặt với rủi ro đứt cáp, nghẽn bộ đệm router hay kẻ tấn công nghe lén trên đường truyền.</p>
+
+          <p>Để một thông điệp đặt hàng <code>Order #8888</code> từ không gian bộ nhớ của ứng dụng khách biến thành các xung ánh sáng chạy qua cáp quang biển tới máy chủ <code>order-api</code>, hệ thống mạng không thể viết thành một khối mã nguồn nguyên khối khổng lồ mà phải chia thành kiến trúc phân tầng (Layered Architecture) (<em>Kurose &amp; Ross — Computer Networking: A Top-Down Approach</em>, Ch. 1.5; <em>Slide 06–08</em>). Trong lịch sử, tổ chức ISO đã đề xuất <strong>Mô hình Tham chiếu OSI 7 Tầng (Open Systems Interconnection)</strong> mang tính lý thuyết hàn lâm: <code>7. Application</code> → <code>6. Presentation</code> → <code>5. Session</code> → <code>4. Transport</code> → <code>3. Network</code> → <code>2. Data Link</code> → <code>1. Physical</code>. Tuy nhiên, hạ tầng Internet thực tế được vận hành bởi <strong>Mô hình TCP/IP 4 Tầng (Practical Internet Stack)</strong>: các kỹ sư thiết kế Internet nhận thấy việc quản lý phiên (Session) và định dạng mã hóa dữ liệu (Presentation như nén Gzip, mã hóa TLS hay định dạng JSON) gắn chặt không thể tách rời khỏi logic ứng dụng, nên đã gộp cả 3 tầng trên của OSI (Tầng 5, 6, 7) thành một <strong>Tầng Ứng dụng (Application Layer)</strong> duy nhất; đồng thời gộp 2 tầng dưới cùng của OSI (Tầng 1 Physical và Tầng 2 Data Link) thành <strong>Tầng Liên kết (Link Layer / Network Access Layer)</strong>. Khi gói tin <code>Order #8888</code> đi từ trên xuống dưới tại máy khách, mỗi tầng sẽ bọc thêm một phần đầu ngữ cảnh điều khiển (Header) tạo thành các <strong>Đơn vị Dữ liệu Giao thức (PDU — Protocol Data Unit)</strong> theo đúng chuỗi bao bọc (Encapsulation): <strong>Message</strong> (Tầng Application) → bọc thêm TCP Header thành <strong>Segment</strong> (hoặc <strong>Datagram</strong> nếu dùng UDP ở Tầng Transport) → bọc thêm IP Header thành <strong>Packet / Datagram</strong> (Tầng Network/Internet) → bọc thêm Ethernet/Wi-Fi MAC Header và chuỗi kiểm lỗi FCS ở đuôi thành <strong>Frame</strong> (Tầng Link) trước khi phát thành dòng <strong>Bits (0/1)</strong> trên đường truyền vật lý.</p>
+
+          <x-figure id="api-1-1-fig" key="1.1" title="Sơ đồ 1.1 — Đối chiếu API Nội bộ vs. Web API &amp; Đóng gói Gói tin qua Mô hình OSI (7 Tầng) ↔ TCP/IP (4 Tầng)">Sự khác biệt vật lý giữa lời gọi hàm trong RAM và Web API qua mạng, kèm ánh xạ 7 tầng OSI sang 4 tầng TCP/IP và quy trình đóng gói PDU (Message → Segment → Packet → Frame).</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tầng TCP/IP (4 Tầng Thực chiến) ↔ Tầng OSI (7 Tầng Lý thuyết)</th>
+                  <th>Đơn vị Dữ liệu (PDU) &amp; Chi phí Header (Overhead)</th>
+                  <th>Giao thức Cốt lõi (Slide 07–08 &amp; Kurose Ch. 1)</th>
+                  <th>Vai trò Vật lý đối với Gói tin <code>Order #8888</code></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Tầng 4: Application Layer (Tầng Ứng dụng)</strong><br/><em>Gộp OSI Tầng 7 (Application) + Tầng 6 (Presentation) + Tầng 5 (Session)</em></td>
+                  <td><strong>Message (Thông điệp)</strong><br/>Payload JSON (<code>~120 bytes</code>) + HTTP Headers (<code>~200–800 bytes</code>) + TLS Record Header (<code>5 bytes</code>).</td>
+                  <td><code>HTTP/1.1</code>, <code>HTTP/2</code>, <code>HTTP/3</code>, <code>TLS/SSL (HTTPS)</code>, <code>DNS</code>, <code>WebSocket</code>, <code>gRPC</code>, <code>SSH</code>, <code>SMTP</code>.</td>
+                  <td>Định hình cú pháp yêu cầu <code>POST /api/order-service/v1/orders</code> mang JSON <code>{"order_id":"ORD-8888","amount":450000}</code>, phân giải tên miền <code>fsds_server.com</code> qua <strong>DNS</strong> và mã hóa chống nghe lén bằng <strong>TLS</strong>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Tầng 3: Transport Layer (Tầng Giao vận)</strong><br/><em>Tương ứng OSI Tầng 4 (Transport)</em></td>
+                  <td><strong>Segment (TCP)</strong> hoặc <strong>Datagram (UDP)</strong><br/>TCP Header tối thiểu <code>20 bytes</code> (thường <code>32 bytes</code> kèm Options); UDP Header cố định <code>8 bytes</code>.</td>
+                  <td><code>TCP</code> (Transmission Control Protocol), <code>UDP</code> (User Datagram Protocol), <code>QUIC</code>.</td>
+                  <td>Định danh tiến trình đầu cuối qua số hiệu cổng (<strong>Source Port</strong> ngẫu nhiên <code>54321</code> trên máy khách → <strong>Destination Port</strong> <code>443</code> của <code>order-api</code>); cắt thông điệp lớn thành các mảnh nhỏ, đánh số thứ tự <code>Sequence Number</code> và truyền lại nếu rớt gói.</td>
+                </tr>
+                <tr>
+                  <td><strong>Tầng 2: Internet / Network Layer (Tầng Mạng)</strong><br/><em>Tương ứng OSI Tầng 3 (Network)</em></td>
+                  <td><strong>Packet (Gói tin IP)</strong><br/>IPv4 Header tiêu chuẩn <code>20 bytes</code>; IPv6 Header cố định <code>40 bytes</code>.</td>
+                  <td><code>IPv4</code>, <code>IPv6</code>, <code>ICMP</code> (dùng cho lệnh <code>ping</code> / <code>traceroute</code>), <code>NAT</code>, <code>BGP</code>, <code>OSPF</code>.</td>
+                  <td>Gắn địa chỉ logic toàn cầu (<strong>Source IP</strong> <code>192.168.1.10</code> → biến đổi qua <strong>NAT</strong> thành <code>203.0.113.5</code> → <strong>Destination IP</strong> <code>142.250.190.78</code>) và tìm đường đi tối ưu (Routing) nhảy qua hàng chục trạm Router liên mạng từ nhà khách hàng tới trung tâm dữ liệu FSDS.</td>
+                </tr>
+                <tr>
+                  <td><strong>Tầng 1: Link Layer / Network Access (Tầng Liên kết)</strong><br/><em>Gộp OSI Tầng 2 (Data Link) + Tầng 1 (Physical)</em></td>
+                  <td><strong>Frame (Khung truyền) &amp; Bits</strong><br/>Ethernet Header <code>14 bytes</code> + FCS Trailer <code>4 bytes</code> (<code>18 bytes</code>); giới hạn kích thước khung chuẩn <code>MTU = 1500 bytes</code>.</td>
+                  <td><code>Ethernet (IEEE 802.3)</code>, <code>Wi-Fi / WLAN (IEEE 802.11)</code>, <code>ARP</code>, cáp đồng xoắn đôi, cáp quang (Fiber Optics).</td>
+                  <td>Di chuyển khung dữ liệu qua từng chặng vật lý liền kề (Hop-by-Hop) dựa trên địa chỉ phần cứng <strong>MAC Address (48-bit)</strong> từ card mạng điện thoại/laptop qua bộ chuyển mạch <strong>LAN Switch</strong> tới cổng trong của <strong>Router Gateway</strong>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Nhờ kiến trúc 4 tầng độc lập này, lập trình viên phát triển dịch vụ <code>order-api</code> không cần phải viết lại trình điều khiển sóng Wi-Fi hay thuật toán định tuyến cáp quang biển mỗi khi thêm một trường dữ liệu mới vào đơn hàng. Trong 4 tầng của mô hình TCP/IP, nơi kỹ sư phần mềm và kỹ sư dữ liệu trực tiếp thiết kế hợp đồng giao tiếp hàng ngày chính là đỉnh tháp: <strong>Tầng Ứng dụng (Application Layer)</strong> với giao thức xương sống <strong>HTTP</strong> tại <strong>Trạm 1.2</strong>.</p>
+        </section>
+
+        <section class="lesson-section" id="api-1-2">
+          <h2 id="api-1-2-h2" tabindex="-1">Trạm 1.2: Tầng Ứng dụng (Application Layer) — Giải phẫu HTTP Request, Endpoint URL 6 Thành phần &amp; HTTP Response</h2>
+
+          <p><strong>HTTP (Hypertext Transfer Protocol)</strong> là giao thức tầng ứng dụng vận hành theo mô hình <strong>Request-Response (Yêu cầu – Phản hồi)</strong> nghiêm ngặt: máy khách (<strong>Client</strong>) luôn là bên chủ động khởi tạo và gửi bản tin yêu cầu trước, còn máy chủ (<strong>Server</strong>) lắng nghe, thực thi nghiệp vụ và trả về bản tin phản hồi tương ứng (<em>Slide 09–11</em>; <em>Kurose &amp; Ross</em> Ch. 2.2). Đặc tính kiến trúc quan trọng bậc nhất của HTTP là <strong>Stateless (Không lưu trạng thái)</strong>: mỗi cặp Request–Response là một giao dịch hoàn toàn độc lập, máy chủ <code>order-api</code> không hề lưu giữ ký ức nào trong RAM về việc khách hàng <code>USR-104</code> vừa gọi API đăng nhập cách đó 2 giây. Tại sao các nhà thiết kế Web lại cố tình chọn kiến trúc Stateless thay vì giữ trạng thái kết nối? Nếu máy chủ phải ghi nhớ trạng thái phiên của 100.000 khách hàng trong bộ nhớ cục bộ, thì khi máy khách gửi yêu cầu đặt hàng <code>Order #8888</code> tiếp theo, bộ cân bằng tải (Load Balancer) bắt buộc phải trỏ đúng về con máy chủ cũ (<strong>Sticky Session</strong>); nếu máy chủ đó sập hoặc quá tải, toàn bộ phiên giao dịch sẽ biến mất. Nhờ tính chất Stateless, bất kỳ máy chủ nào trong cụm 50 máy chủ <code>order-api</code> cũng có thể xử lý ngay lập tức yêu cầu <code>Order #8888</code>, với điều kiện bản tin <strong>HTTP Request</strong> phải mang theo đầy đủ thông tin tự chứng thực (như thẻ <code>Authorization: Bearer &lt;token&gt;</code>) bên trong cấu trúc 4 thành phần chuẩn mực của nó (<em>Slide 12–17</em>).</p>
+
+          <p>Khi mở gói tin <strong>HTTP Request</strong> ở cấp độ chuỗi byte văn bản, nó luôn được cấu thành từ đúng <strong>4 phần</strong> ngăn cách rõ ràng:
+            <strong>(1) Request Line (Dòng yêu cầu đầu tiên)</strong> gồm 3 trường cách nhau bởi dấu cách: <code>HTTP Method</code> + <code>Request Target (URI Path)</code> + <code>HTTP Version</code> (ví dụ trên <em>Slide 13</em>: <code>GET /doc/test.html HTTP/1.1</code> hoặc với đơn hàng của chúng ta là <code>POST /api/order-service/v1/orders HTTP/1.1</code>). Năm phương thức (HTTP Verbs) cốt lõi trên <em>Slide 14</em> quyết định hành động lên tài nguyên và mang hai thuộc tính sống còn trong kỹ thuật hệ thống là <strong>Safe (An toàn — chỉ đọc, không làm thay đổi trạng thái máy chủ)</strong> và <strong>Idempotent (Lũy đẳng — thực thi 1 lần hay lặp lại $N$ lần cùng một yêu cầu đều để lại trạng thái dữ liệu trên máy chủ giống hệt nhau)</strong>: <code>GET</code> (đọc dữ liệu, vừa Safe vừa Idempotent), <code>PUT</code> (ghi đè toàn bộ tài nguyên tại vị trí xác định, Idempotent), <code>DELETE</code> (xóa tài nguyên, Idempotent vì xóa lần 2 kết quả tài nguyên vẫn là đã biến mất), <code>PATCH</code> (cập nhật một phần trường dữ liệu), và <code>POST</code> (tạo mới tài nguyên hoặc kích hoạt xử lý — <strong>không Safe và không Idempotent</strong>, nghĩa là nếu khách hàng bấm thanh toán <code>Order #8888</code> qua <code>POST</code> mà mạng đứt rồi trình duyệt tự gửi lại lần 2 mà thiếu khóa chống trùng, hệ thống sẽ tạo ra 2 đơn hàng và trừ tiền 2 lần!).
+            <strong>(2) Request Headers (Các dòng tiêu đề siêu dữ liệu)</strong> nằm ngay dưới Request Line theo định dạng <code>Key: Value</code> (<em>Slide 15</em>), cung cấp ngữ cảnh điều khiển cho máy chủ như <code>Host: fsds_server.com</code> (định danh tên miền đích), <code>User-Agent: Mozilla/5.0</code> (loại phần mềm máy khách), <code>Accept: application/json</code> (định dạng phản hồi mong muốn), <code>Content-Type: application/json</code>, <code>Content-Length: 74</code> (số byte chính xác của phần thân bản tin để bộ đọc TCP biết điểm dừng), và <code>Authorization: Bearer ...</code>.
+            <strong>(3) Blank Line (Dòng trống bắt buộc <code>\r\n\r\n</code> — CRLF)</strong> đóng vai trò vách ngăn vật lý báo hiệu kết thúc vùng Header và bắt đầu vùng dữ liệu tải.
+            <strong>(4) Request Message Body (Phần thân dữ liệu tùy chọn)</strong> chứa nội dung nghiệp vụ gửi lên trong các lệnh <code>POST/PUT/PATCH</code> (vắng mặt trong lệnh <code>GET</code>): lịch sử Web đi từ định dạng chuỗi truy vấn mã hóa URL truyền thống <code>bookId=12345&amp;author=Tan+Ah+Teck</code> (<em>Slide 16</em>) sang chuẩn <strong>JSON (JavaScript Object Notation)</strong> <code>{"bookId": 12345, "author": "Tan Ah Teck"}</code> (<em>Slide 17</em>) và gói tin đặt hàng <code>{"order_id": "ORD-8888", "user_id": "USR-104", "amount": 450000}</code> nhờ khả năng biểu diễn cấu trúc cây lồng nhau và kiểu dữ liệu số/chuỗi/mảng tường minh.</p>
+
+          <x-figure id="api-1-2a-fig" key="1.2" title="Sơ đồ 1.2 — Giải phẫu Khung Bản tin HTTP Request &amp; HTTP Response (4 Thành phần &amp; Vách ngăn CRLF)">Bóc tách từng byte của bản tin HTTP Request và HTTP Response với 4 thành phần đối xứng qua vách ngăn dòng trống CRLF (\r\n\r\n).</x-figure>
+
+          <p>Địa chỉ đích mà bản tin HTTP nhắm tới được gọi là <strong>HTTP Endpoint</strong>. Theo chuẩn thiết kế trên <em>Slide 18–20</em> với ví dụ kinh điển <code>http://example.com/api/superhero-service/v1/superheroes/{id}?fields=name,origin</code> (và tương đương với <code>https://fsds_server.com/api/order-service/v1/orders/ORD-8888?fields=status,amount</code>), một URL Endpoint hoàn chỉnh được giải phẫu thành <strong>6 phân đoạn định tuyến</strong> từ trái sang phải: <strong>(1) Host</strong> (<code>http://example.com</code> — giao thức và tên miền máy chủ), <strong>(2) Service</strong> (<code>/api/superhero-service</code> — tiền tố định tuyến của API Gateway để trỏ đúng vào vi dịch vụ tương ứng), <strong>(3) API Version</strong> (<code>/v1</code> — khóa phiên bản hợp đồng dữ liệu để khi nâng cấp lên <code>/v2</code> không làm gãy ứng dụng cũ), <strong>(4) Resource Type</strong> (<code>/superheroes</code> hoặc <code>/orders</code> — danh từ số nhiều đại diện cho tập hợp tài nguyên), <strong>(5) Resource ID</strong> (<code>/{id}</code> như <code>/42</code> hoặc <code>/ORD-8888</code> — định danh duy nhất của một bản ghi cụ thể), và <strong>(6) Query String</strong> (<code>?fields=name,origin</code> — tham số lọc, phân trang hoặc chọn trường bắt đầu sau dấu chấm hỏi <code>?</code> và nối nhau bằng dấu <code>&amp;</code>). Điểm tinh túy của thiết kế Web API nằm ở chỗ: <strong>cùng một địa chỉ Endpoint khi kết hợp với các HTTP Method khác nhau sẽ thực thi các hành động hoàn toàn khác nhau</strong> (<em>Slide 20</em>) — gửi <code>GET /v1/superheroes/42</code> là đọc thông tin siêu anh hùng số 42, gửi <code>PUT /v1/superheroes/42</code> là cập nhật hồ sơ siêu anh hùng đó, còn gửi <code>DELETE /v1/superheroes/42</code> là xóa bản ghi khỏi hệ thống mà không cần đẻ ra các URL động từ rườm rà như <code>/getSuperhero</code> hay <code>/deleteSuperhero</code>.</p>
+
+          <p>Sau khi máy chủ tiếp nhận Endpoint và xử lý xong nghiệp vụ, nó đóng gói kết quả trả về trong khung <strong>HTTP Response</strong> cũng gồm đúng <strong>4 phần đối xứng</strong> (<em>Slide 21–23</em>): <strong>(1) Status Line (Dòng trạng thái)</strong> mở đầu bằng phiên bản giao thức, <strong>Mã trạng thái 3 chữ số (HTTP Status Code)</strong> và cụm từ mô tả ngắn (Reason Phrase), ví dụ <code>HTTP/1.1 200 OK</code> hoặc <code>HTTP/1.1 201 Created</code>; <strong>(2) Response Headers</strong> chứa siêu dữ liệu phản hồi từ máy chủ như <code>Date: Sun, 18 Oct 2026 08:56:53 GMT</code>, <code>Server: Apache/2.2.14</code> (hoặc <code>uvicorn</code>), <code>Last-Modified</code>, thẻ kiểm tra bộ nhớ đệm <code>ETag</code>, <code>Content-Length</code> và <code>Content-Type: text/html</code> (hoặc <code>application/json</code>); <strong>(3) Blank Line (<code>\r\n\r\n</code>)</strong> tách rời tiêu đề khỏi nội dung; và <strong>(4) Response Body</strong> chứa tài liệu HTML hoặc đối tượng JSON kết quả của <code>Order #8888</code>. Chữ số đầu tiên của mã <strong>Status Code</strong> phân loại ngay lập tức bản chất kết quả thành <strong>5 nhóm tiêu chuẩn</strong> (<em>Slide 22</em>): <code>1xx Informational</code> (thông báo tiếp nhận tạm thời), <code>2xx Success</code> (xử lý thành công như <code>200 OK</code>, <code>201 Created</code>), <code>3xx Redirection</code> (điều hướng sang URL khác hoặc dùng lại bản lưu bộ nhớ đệm như <code>301 Moved Permanently</code>, <code>304 Not Modified</code>), <code>4xx Client Error</code> (lỗi do phía máy khách gửi yêu cầu sai cú pháp, thiếu quyền hoặc vượt ngưỡng như <code>400 Bad Request</code>, <code>401 Unauthorized</code>, <code>403 Forbidden</code>, <code>404 Not Found</code>, <code>422 Unprocessable Entity</code>, <code>429 Too Many Requests</code>), và <code>5xx Server Error</code> (yêu cầu của máy khách hoàn toàn hợp lệ nhưng máy chủ nội bộ hoặc cơ sở dữ liệu bị sập/quá hạn thời gian như <code>500 Internal Server Error</code>, <code>502 Bad Gateway</code>, <code>503 Service Unavailable</code>, <code>504 Gateway Timeout</code>).</p>
+
+          <x-figure id="api-1-2b-fig" key="1.3" title="Sơ đồ 1.3 — Giải phẫu 6 Phân đoạn URL Endpoint &amp; Ma trận Tổ hợp HTTP Methods + Status Codes">Cấu trúc định tuyến 6 phần của một RESTful Endpoint chuẩn mực và sự phân nhánh hành vi theo 5 phương thức HTTP cùng 5 nhóm Status Code.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Phương thức HTTP &amp; Nhóm Status Code</th>
+                  <th>Đặc tính Kỹ thuật (Safe / Idempotent / Body)</th>
+                  <th>Tổ hợp Endpoint Thực chiến (Slide 14, 20 &amp; <code>order-api</code>)</th>
+                  <th>Mã Phản hồi Điển hình &amp; Kịch bản Rủi ro Vận hành</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong><code>GET</code></strong><br/>(Truy vấn đọc tài nguyên)</td>
+                  <td>• <strong>Safe:</strong> Có (Chỉ đọc)<br/>• <strong>Idempotent:</strong> Có ($N$ lần gọi = 1 lần)<br/>• <strong>Request Body:</strong> Không sử dụng</td>
+                  <td>• <code>GET /v1/superheroes/42?fields=name,origin</code><br/>• <code>GET /api/order-service/v1/orders/ORD-8888</code></td>
+                  <td>• <code>200 OK</code> (Trả về JSON đơn hàng)<br/>• <code>304 Not Modified</code> (Khớp <code>ETag</code>, dùng Cache)<br/>• <code>404 Not Found</code> (Không tồn tại mã <code>ORD-8888</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong><code>POST</code></strong><br/>(Khởi tạo tài nguyên mới / Xử lý)</td>
+                  <td>• <strong>Safe:</strong> Không (Làm đổi trạng thái DB)<br/>• <strong>Idempotent:</strong> <strong>KHÔNG</strong><br/>• <strong>Request Body:</strong> Bắt buộc (JSON/Form)</td>
+                  <td>• <code>POST /v1/superheroes</code><br/>• <code>POST /api/order-service/v1/orders</code> (Tạo đơn <code>Order #8888</code> với <code>amount=450000</code>)</td>
+                  <td>• <code>201 Created</code> (Tạo mới thành công + Header <code>Location</code>)<br/>• <strong>Rủi ro:</strong> Mạng đứt khi chờ phản hồi, Client tự retry lệnh <code>POST</code> sẽ tạo đơn trùng nếu thiếu <code>Idempotency-Key</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>PUT</code></strong><br/>(Thay thế trọn vẹn tài nguyên)</td>
+                  <td>• <strong>Safe:</strong> Không<br/>• <strong>Idempotent:</strong> <strong>CÓ</strong> (Ghi đè toàn phần)<br/>• <strong>Request Body:</strong> Bắt buộc (Trọn bộ bản ghi)</td>
+                  <td>• <code>PUT /v1/superheroes/42</code><br/>• <code>PUT /api/order-service/v1/orders/ORD-8888</code> (Ghi đè toàn bộ thông tin đơn hàng)</td>
+                  <td>• <code>200 OK</code> hoặc <code>204 No Content</code><br/>• Nếu bỏ sót một trường trong JSON gửi lên, <code>PUT</code> sẽ ghi đè trường đó thành <code>NULL</code>/mặc định.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>PATCH</code></strong><br/>(Cập nhật một phần trường dữ liệu)</td>
+                  <td>• <strong>Safe:</strong> Không<br/>• <strong>Idempotent:</strong> Tùy cách cài đặt (Thường Có nếu gán giá trị tĩnh)<br/>• <strong>Request Body:</strong> Chỉ chứa các trường cần sửa</td>
+                  <td>• <code>PATCH /v1/superheroes/42</code><br/>• <code>PATCH /api/order-service/v1/orders/ORD-8888</code> với Body <code>{"status": "SHIPPED"}</code></td>
+                  <td>• <code>200 OK</code><br/>• Tiết kiệm băng thông hơn <code>PUT</code> vì không phải truyền lại toàn bộ danh sách sản phẩm của đơn hàng.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>DELETE</code></strong><br/>(Hủy / Xóa tài nguyên)</td>
+                  <td>• <strong>Safe:</strong> Không<br/>• <strong>Idempotent:</strong> <strong>CÓ</strong> (Trạng thái đích đều là đã xóa)<br/>• <strong>Request Body:</strong> Không khuyến nghị</td>
+                  <td>• <code>DELETE /v1/superheroes/42</code><br/>• <code>DELETE /api/order-service/v1/orders/ORD-8888</code></td>
+                  <td>• <code>200 OK</code> hoặc <code>204 No Content</code> (Lần gọi 1)<br/>• <code>404 Not Found</code> hoặc <code>204</code> (Lần gọi lặp lại, trạng thái dữ liệu trên DB không bị thay đổi thêm).</td>
+                </tr>
+                <tr>
+                  <td><strong>Phân biệt Nhóm Lỗi <code>4xx</code> vs. <code>5xx</code></strong><br/>(<em>Slide 22</em>)</td>
+                  <td>• <strong><code>4xx</code> (Lỗi thuộc về Client):</strong> Không được retry mù quáng khi chưa sửa Request.<br/>• <strong><code>5xx</code> (Lỗi thuộc về Server):</strong> Có thể retry với thuật toán <em>Exponential Backoff</em>.</td>
+                  <td>• <code>400 Bad Request</code> / <code>422</code>: Sai kiểu dữ liệu <code>amount="abc"</code>.<br/>• <code>401 Unauthorized</code>: Thiếu/hết hạn Token.<br/>• <code>403 Forbidden</code>: Có Token nhưng <code>USR-104</code> đòi xem đơn của <code>USR-999</code>.<br/>• <code>429 Too Many Requests</code>: Vượt ngưỡng Rate Limit.</td>
+                  <td>• <code>500 Internal Server Error</code>: Code Python trên <code>order-api</code> văng ngoại lệ chưa bắt.<br/>• <code>502 Bad Gateway</code> / <code>503</code> / <code>504</code>: Máy chủ <code>order-api</code> hoặc DB PostgreSQL phía sau bị sập/quá tải.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Tuy nhiên, bản tin HTTP Request dù được đóng gói chuẩn xác đến đâu cũng chưa thể tự rời khỏi máy khách vì hai rào cản vật lý: thứ nhất, card mạng và bộ định tuyến chỉ biết tìm đường bằng địa chỉ số nhị phân IP chứ không hiểu chuỗi chữ cái <code>fsds_server.com</code> trong trường <code>Host</code>; thứ hai, toàn bộ văn bản HTTP vừa giải phẫu ở trên đang ở dạng <strong>Plaintext (Văn bản thuần có thể đọc bằng mắt thường)</strong>, nghĩa là bất kỳ thiết bị chuyển mạch nào trên đường truyền cũng đọc được số tiền <code>amount=450000</code> và đánh cắp được thẻ <code>Authorization</code>. Để tháo gỡ hai nút thắt này, Tầng Ứng dụng phải triệu hồi bộ đôi giao thức hộ tống <strong>DNS</strong> và <strong>TLS (HTTPS)</strong> tại <strong>Trạm 1.3</strong>.</p>
+        </section>
+
+        <section class="lesson-section" id="api-1-3">
+          <h2 id="api-1-3-h2" tabindex="-1">Trạm 1.3: Bộ đôi Bảo hộ Tầng Ứng dụng — Phân giải Tên miền DNS &amp; Kênh Mã hóa TLS (HTTPS)</h2>
+
+          <p><strong>DNS (Domain Name System — Hệ thống phân giải tên miền)</strong> đóng vai trò là cuốn danh bạ phân tán toàn cầu của Internet, dịch các tên miền thân thiện với con người (như <code>www.google.com</code> hay <code>fsds_server.com</code>) sang địa chỉ IP định tuyến máy tính (<code>142.250.190.78</code>) thông qua cổng mặc định <code>UDP Port 53</code> (<em>Slide 24</em>; <em>Kurose &amp; Ross</em> Ch. 2.4). Khi ứng dụng khách chuẩn bị gửi đơn hàng <code>Order #8888</code> tới <code>https://fsds_server.com/api/order-service/v1/orders</code>, hệ thống không lập tức hỏi các máy chủ quốc tế mà thực hiện quy trình <strong>2 pha: (1) Cache Search (Tìm kiếm bộ nhớ đệm cục bộ)</strong> và <strong>(2) Hierarchy Lookup (Truy vấn phân cấp đệ quy)</strong>. Ở pha đầu tiên, trình duyệt kiểm tra <strong>Browser DNS Cache</strong>, nếu không thấy sẽ gọi xuống hệ điều hành để tra cứu <strong>OS Cache / tệp <code>/etc/hosts</code></strong> và bộ đệm của <strong>Local Router</strong>; nếu bản ghi <code>A Record</code> (IPv4) hoặc <code>AAAA Record</code> (IPv6) còn hạn sống <strong>TTL (Time-To-Live)</strong>, địa chỉ IP được trả về ngay lập tức trong <code>&lt; 1ms</code>. Chỉ khi toàn bộ bộ nhớ đệm đều trượt (Cache Miss), gói tin truy vấn DNS mới đi ra ngoài tới <strong>Recursive Resolver</strong> của nhà mạng ISP (hoặc <code>8.8.8.8</code> của Google / <code>1.1.1.1</code> của Cloudflare) để thực hiện hành trình leo cây phân cấp 3 bậc: hỏi <strong>Root Nameserver (<code>.</code>)</strong> để lấy địa chỉ máy chủ quản lý đuôi tên miền → hỏi <strong>TLD Nameserver (Top-Level Domain, ví dụ <code>.com</code>)</strong> để lấy địa chỉ máy chủ ủy quyền của tổ chức → và cuối cùng hỏi <strong>Authoritative Nameserver</strong> của <code>fsds_server.com</code> để nhận về địa chỉ IP chính xác <code>142.250.190.78</code> (mất khoảng <code>15–80ms</code> cho lần tra cứu đầu tiên rồi lưu vào Cache cho hàng nghìn yêu cầu tiếp theo).</p>
+
+          <p>Sau khi có được địa chỉ IP đích từ DNS, trước khi bơm bất kỳ dòng văn bản HTTP nào của <code>Order #8888</code> lên mạng, giao thức <strong>TLS (Transport Layer Security — tiền thân là SSL)</strong> phải đứng ra bọc lấy HTTP để biến nó thành <strong>HTTPS (HTTP Secure)</strong> chạy trên cổng chuẩn <code>TCP Port 443</code> (thay vì cổng <code>80</code> của HTTP thuần) (<em>Slide 25</em>; <em>Kurose &amp; Ross</em> Ch. 8.6). TLS giải quyết triệt để nguy cơ tấn công nghe lén và sửa dữ liệu giữa đường (<strong>Man-in-the-Middle — MitM Attack</strong>) bằng sự kết hợp cơ học của <strong>3 trụ cột mật mã học</strong>:
+            <strong>(1) Asymmetric Encryption (Mã hóa bất đối xứng bằng cặp khóa Public Key / Private Key — như thuật toán <code>ECDHE / RSA</code>)</strong> được sử dụng trong giai đoạn bắt tay ban đầu (TLS Handshake): máy chủ trình diện chứng chỉ số (Digital Certificate do tổ chức CA cấp) chứa <code>Public Key</code> để máy khách kiểm tra danh tính thật của <code>fsds_server.com</code> và dùng khóa bất đối xứng này để thỏa thuận an toàn một khóa bí mật dùng chung mà kẻ nghe lén không thể giải mã.
+            <strong>(2) Symmetric Encryption (Mã hóa đối xứng bằng khóa phiên Session Key — như <code>AES-256-GCM</code> hoặc <code>ChaCha20-Poly1305</code>)</strong>: tại sao không dùng mã hóa bất đối xứng cho toàn bộ dữ liệu đơn hàng? Vì các phép toán lũy thừa modulo của khóa bất đối xứng tiêu tốn CPU gấp <code>100–1.000 lần</code> so với phép dịch bit của khóa đối xứng! Do đó, ngay khi hai bên thống nhất xong <strong>Session Key</strong>, toàn bộ nội dung HTTP Request (gồm cả URL Path, Headers <code>Authorization</code> và JSON Body <code>amount=450000</code>) đều được khóa đối xứng biến thành chuỗi <strong>Ciphertext (Bản mã vô nghĩa)</strong> ở tốc độ phần cứng trước khi rời khỏi máy khách.
+            <strong>(3) Cryptographic Hashing &amp; Integrity (Băm mật mã kiểm tra toàn vẹn — như <code>SHA-256</code> / HMAC / AEAD Tag)</strong>: để chống lại kịch bản kẻ tấn công dù không đọc được bản mã nhưng cố tình lật ngẫu nhiên một vài bit trên cáp mạng nhằm phá hoại số tiền đơn hàng, TLS tính toán một mã băm kiểm chứng (Message Authentication Code / Integrity Tag) bằng thuật toán một chiều <code>SHA-256</code> đính kèm vào mỗi khung truyền; tại đầu nhận <code>order-api</code>, chỉ cần <code>1 bit</code> bị thay đổi trên đường đi, giá trị băm tính lại sẽ lệch hoàn toàn so với chữ ký đính kèm và máy chủ lập tức hủy bỏ gói tin.</p>
+
+          <x-figure id="api-1-3-fig" key="1.4" title="Sơ đồ 1.4 — Chu trình Phân giải Đệ quy DNS (Root → TLD → Authoritative) &amp; Cơ chế Bảo mật Kép TLS (Encryption + SHA-256 Integrity)">Lộ trình tìm địa chỉ IP qua bộ nhớ đệm và cây phân cấp DNS 3 tầng, kết hợp với đường hầm TLS biến Plaintext HTTP thành Ciphertext có kiểm chứng toàn vẹn SHA-256.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Cơ chế Bảo hộ Tầng Ứng dụng (Slide 24–25)</th>
+                  <th>Nguyên lý Vật lý &amp; Toán học Cốt lõi</th>
+                  <th>Độ trễ / Chi phí Tính toán</th>
+                  <th>Vai trò Bảo vệ Gói tin <code>Order #8888</code></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>DNS Cache Search</strong><br/>(Tìm kiếm bộ đệm DNS)</td>
+                  <td>Tra cứu tuần tự tại <code>Browser Cache</code> → <code>OS Resolver (/etc/hosts)</code> → <code>Local Router Cache</code> dựa trên thời gian sống <strong>TTL</strong> của bản ghi.</td>
+                  <td><code>&lt; 0.5 – 2 ms</code><br/>(Không phát sinh lưu lượng ra mạng Internet bên ngoài).</td>
+                  <td>Giúp các yêu cầu đặt hàng và chuyển trang liên tiếp tới <code>fsds_server.com</code> biết ngay IP <code>142.250.190.78</code> mà không phải chờ hỏi lại hệ thống DNS quốc tế.</td>
+                </tr>
+                <tr>
+                  <td><strong>DNS Hierarchy Lookup</strong><br/>(Truy vấn phân cấp đệ quy)</td>
+                  <td>Khi Cache Miss, <strong>Recursive Resolver</strong> (<code>8.8.8.8</code>) lần lượt hỏi <code>Root Server (.)</code> → <code>TLD Server (.com)</code> → <code>Authoritative Server</code> qua <code>UDP Port 53</code>.</td>
+                  <td><code>15 – 80 ms</code><br/>(Tốn 3–4 vòng hỏi đáp qua mạng WAN khi truy cập lần đầu).</td>
+                  <td>Cho phép đội vận hành <code>order-api</code> đổi địa chỉ IP máy chủ hoặc chuyển vùng đám mây (Failover) một cách trong suốt mà khách hàng không cần cập nhật lại ứng dụng.</td>
+                </tr>
+                <tr>
+                  <td><strong>TLS Asymmetric Encryption</strong><br/>(Mã hóa bất đối xứng: <code>ECDHE / RSA</code>)</td>
+                  <td>Sử dụng cặp khóa <strong>Public Key</strong> (công khai trong chứng chỉ X.509) và <strong>Private Key</strong> (giữ tuyệt mật trên máy chủ) để xác thực máy chủ và trao đổi khóa.</td>
+                  <td>Chi phí CPU cao; tốn thêm <code>1 RTT</code> trong quá trình bắt tay <strong>TLS 1.3 Handshake</strong> ban đầu.</td>
+                  <td>Chống giả mạo danh tính máy chủ (Phishing/Spoofing) và thiết lập an toàn chìa khóa phiên (Session Key) ngay trên đường truyền công cộng không tin cậy.</td>
+                </tr>
+                <tr>
+                  <td><strong>TLS Symmetric Encryption</strong><br/>(Mã hóa đối xứng: <code>AES-256-GCM</code>)</td>
+                  <td>Cả Client và Server dùng chung một <strong>Session Key</strong> tạm thời (sinh mới cho mỗi phiên kết nối) để mã hóa và giải mã luồng dữ liệu hai chiều.</td>
+                  <td>Cực nhanh (<code>&lt; 0.1 ms</code> nhờ tập lệnh tăng tốc phần cứng <code>AES-NI</code> tích hợp sẵn trên CPU hiện đại).</td>
+                  <td>Biến toàn bộ nội dung đơn hàng <code>Order #8888</code>, thông tin thẻ và <code>Authorization</code> header từ <strong>Plaintext</strong> thành <strong>Ciphertext</strong> chống đọc trộm hoàn toàn.</td>
+                </tr>
+                <tr>
+                  <td><strong>TLS Cryptographic Hashing</strong><br/>(Kiểm chứng toàn vẹn: <code>SHA-256</code>)</td>
+                  <td>Hàm băm một chiều tạo ra chuỗi dấu vân tay độ dài cố định (<code>256-bit</code>) cho mỗi bản ghi TLS; không thể đảo ngược và thay đổi hoàn toàn nếu lệch <code>1 bit</code> (Avalanche Effect).</td>
+                  <td>Tích hợp trực tiếp trong chế độ mã hóa xác thực <strong>AEAD</strong> với chi phí băng thông chỉ <code>16–32 bytes</code> mỗi khung.</td>
+                  <td>Đảm bảo <strong>Data Integrity (Tính toàn vẹn)</strong>: phát hiện và chặn đứng tức thì mọi hành vi sửa lén số tiền <code>amount=450000</code> của kẻ tấn công <strong>MitM</strong>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Nhờ DNS cung cấp tọa độ IP đích <code>142.250.190.78</code> và TLS chuẩn bị cơ chế khóa mật mã, thông điệp ở Tầng Ứng dụng đã sẵn sàng. Nhưng bản thân TLS và HTTP đều không có khả năng tự truyền byte qua mạng hay tự phục hồi khi cáp quang bị rớt gói tin — chúng bắt buộc phải ủy thác xuống các tầng bên dưới: <strong>Tầng Giao vận (TCP/UDP)</strong>, <strong>Tầng Mạng (IP/NAT)</strong> và <strong>Tầng Liên kết (MAC/Ethernet)</strong> tại <strong>Trạm 1.4</strong>.</p>
+        </section>
+
+        <section class="lesson-section" id="api-1-4">
+          <h2 id="api-1-4-h2" tabindex="-1">Trạm 1.4: Tầng Giao vận (TCP 3-Way Handshake vs. UDP), Tầng Mạng &amp; Liên kết (IP, NAT, MAC) &amp; Luồng 10 Bước Thực tế</h2>
+
+          <p>Tại <strong>Tầng Giao vận (Transport Layer)</strong>, hệ điều hành cung cấp hai giao thức có triết lý vận hành đối lập nhau là <strong>TCP (Transmission Control Protocol)</strong> và <strong>UDP (User Datagram Protocol)</strong> (<em>Slide 26–31</em>; <em>Kurose &amp; Ross</em> Ch. 3; <em>Beej's Guide to Network Programming</em> Ch. 3). Hầu hết các Web API (HTTP/1.1, HTTP/2, gRPC, REST, GraphQL) và kết nối cơ sở dữ liệu đều chọn <strong>TCP</strong> làm nền tảng vì ba cam kết sắt đá: <strong>Connection-Oriented (Hướng kết nối)</strong>, <strong>Guaranteed Delivery (Đảm bảo giao nhận 100% — tự động phát hiện mất gói và truyền lại)</strong>, và <strong>Ordered Data (Bảo toàn thứ tự byte tuyệt đối — nếu gói tin số 2 đi đường vòng đến sau gói tin số 3, bộ đệm TCP tại nhân hệ điều hành sẽ xếp lại đúng thứ tự <code>1 → 2 → 3</code> trước khi trao cho ứng dụng <code>order-api</code>)</strong>. Để thiết lập được kênh truyền tin cậy này và đồng bộ hóa bộ đếm thứ tự byte (<strong>ISN — Initial Sequence Number</strong>) giữa hai đầu, trước khi bất kỳ byte dữ liệu TLS hay HTTP nào được gửi đi, máy khách và máy chủ bắt buộc phải hoàn tất nghi thức <strong>Bắt tay 3 bước TCP (TCP 3-Way Handshake)</strong> theo đúng máy trạng thái trên <em>Slide 28–30</em>:
+            <strong>Bước 1 (<code>SYN</code> — Synchronize):</strong> Máy khách chuyển trạng thái socket từ <code>CLOSED</code> sang <code>SYN_SENT</code>, gửi một phân đoạn TCP bật cờ <code>Flags: SYN</code> kèm số thứ tự khởi tạo <code>Sequence Number = 1000</code> tới cổng <code>443</code> của máy chủ (đang mở cổng chờ ở trạng thái <code>LISTEN</code>).
+            <strong>Bước 2 (<code>SYN-ACK</code> — Synchronize &amp; Acknowledge):</strong> Máy chủ nhận được gói <code>SYN</code>, chuyển trạng thái từ <code>LISTEN</code> sang <code>SYN_RECEIVED</code>, cấp phát bộ đệm nhận/gửi và phản hồi lại phân đoạn bật đồng thời hai cờ <code>Flags: SYN, ACK</code>, mang theo số thứ tự khởi tạo riêng của máy chủ <code>Sequence Number = 5000</code> cùng số xác nhận <code>Acknowledgment Number = 1001</code> (bằng đúng <code>Client ISN + 1</code>, hàm ý: <em>"Tôi đã nhận tốt byte số 1000 của bạn, đang chờ byte số 1001"</em>).
+            <strong>Bước 3 (<code>ACK</code> — Acknowledge):</strong> Máy khách nhận gói <code>SYN-ACK</code>, kiểm tra thấy số <code>1001</code> khớp chuẩn liền lập tức chuyển sang trạng thái <strong><code>ESTABLISHED</code></strong> và bắn trả gói xác nhận cuối cùng bật cờ <code>Flags: ACK</code> với <code>Acknowledgment Number = 5001</code> (bằng <code>Server ISN + 1</code>); ngay khoảnh khắc máy chủ nhận được gói <code>ACK</code> này, máy chủ cũng bước vào trạng thái <strong><code>ESTABLISHED</code></strong> và đường ống truyền dữ liệu chính thức thông suốt. Ngược lại hoàn toàn với TCP, giao thức <strong>UDP</strong> (<em>Slide 31</em>) là giao thức <strong>Connectionless (Không kết nối — bắn thẳng dữ liệu không cần bắt tay)</strong>, <strong>Best-Effort Delivery (Mất gói thì bỏ luôn, không truyền lại)</strong> và <strong>No Ordering (Không xếp lại thứ tự)</strong> với phần Header siêu nhẹ chỉ <code>8 bytes</code> (so với <code>20–32 bytes</code> của TCP). Nhờ loại bỏ hoàn toàn độ trễ chờ bắt tay và hiện tượng nghẽn đầu hàng (Head-of-Line Blocking khi chờ truyền lại gói cũ), UDP trở thành vũ khí tối thượng cho truyền phát video trực tiếp (Live Streaming), gọi thoại VoIP, trò chơi trực tuyến thời gian thực (Gaming), truy vấn <strong>DNS</strong> và giao thức <strong>HTTP/3 (QUIC)</strong> thế hệ mới.</p>
+
+          <x-figure id="api-1-4a-fig" key="1.5" title="Sơ đồ 1.5 — Giải phẫu Máy trạng thái TCP 3-Way Handshake (ISN 1000 / 5000) &amp; Đối chiếu TCP vs. UDP">Chu trình bắt tay 3 bước đồng bộ hóa Sequence Number (1000 → 1001, 5000 → 5001) đưa kết nối vào trạng thái ESTABLISHED và sự đánh đổi giữa TCP tin cậy với UDP tốc độ cao.</x-figure>
+
+          <p>Sau khi Tầng Giao vận đóng gói xong phân đoạn TCP, dữ liệu được chuyển xuống <strong>Tầng Mạng (Network Layer)</strong> và <strong>Tầng Liên kết (Link Layer)</strong> để thực sự di chuyển qua không gian vật lý (<em>Slide 32–34</em>; <em>Beej's Guide</em> Ch. 3.2). Tại Tầng Mạng, mỗi gói tin được gắn địa chỉ <strong>IP (Internet Protocol)</strong> thuộc một trong hai thế hệ: <strong>IPv4</strong> dùng cấu trúc <code>32-bit</code> chia làm 4 cụm thập phân cách nhau bởi dấu chấm (ví dụ <code>192.168.1.1</code> hoặc <code>142.250.190.78</code>), cung cấp tối đa $2^{32} \approx 4,29\text{ tỷ}$ địa chỉ trên toàn cầu; vì kho địa chỉ IPv4 đã cạn kiệt trước sự bùng nổ của hàng chục tỷ điện thoại và thiết bị IoT, <strong>IPv6</strong> ra đời với cấu trúc <code>128-bit</code> biểu diễn bằng 8 cụm hệ thập lục phân (ví dụ <code>2001:0db8:85a3:0000:0000:8a2e:0370:7334</code>), mở rộng không gian địa chỉ lên tới $2^{128} \approx 3,4 \times 10^{38}$ địa chỉ. Đồng thời, để tiết kiệm IPv4, các mạng nội bộ gia đình và văn phòng sử dụng dải địa chỉ riêng tư (<strong>Private IP</strong> như <code>192.168.1.x</code>) kết hợp với cơ chế <strong>NAT (Network Address Translation — Dịch địa chỉ mạng)</strong> tại chiếc <strong>Router / Gateway</strong> biên: khi máy khách gửi gói tin ra Internet, Router sẽ thay thế địa chỉ nguồn nội bộ <code>192.168.1.10:54321</code> bằng địa chỉ công cộng duy nhất của đường truyền <code>203.0.113.5:60001</code> và ghi nhớ ánh xạ này vào <strong>Bảng NAT (NAT Translation Table)</strong> để khi máy chủ trả kết quả về, Router biết chính xác phải chuyển gói tin vào máy <code>Client 1 (192.168.1.10)</code> chứ không nhầm sang máy <code>Client 2 (192.168.1.11)</code> đang ngồi cùng phòng. Trong khi địa chỉ <strong>IP (Tầng 3)</strong> giữ nguyên từ đầu đến cuối hành trình liên mạng (chỉ đổi tại trạm NAT) để chỉ đường tới đích cuối cùng, thì ở <strong>Tầng Liên kết (Tầng 2 — Ethernet có dây hoặc Wireless LAN Wi-Fi)</strong>, khung truyền lại dựa vào địa chỉ phần cứng <strong>MAC Address (48-bit, ví dụ <code>AA:BB:CC:11:22:33</code> gắn chết trên chip card mạng NIC)</strong> và địa chỉ MAC nguồn/đích này được thay mới liên tục sau mỗi chặng nhảy (Hop-by-Hop) từ máy khách → qua <strong>Switch</strong> → tới <strong>Router</strong>.</p>
+
+          <p>Để kết nối toàn bộ kiến thức của cả 4 tầng thành một bức tranh vận hành sống động, hãy theo dõi <strong>Hành trình 10 bước thực tế</strong> trên <em>Slide 35</em> khi máy khách <code>Client 1 (Private IP 192.168.1.10)</code> gửi yêu cầu <code>GET fsds_server.com/users</code> (hoặc <code>POST fsds_server.com/api/order-service/v1/orders</code> cho <code>Order #8888</code>):
+            <strong>(1)</strong> <code>Client 1</code> phát hiện chưa biết địa chỉ IP của <code>fsds_server.com</code> nên đóng gói bản tin truy vấn DNS gửi tới máy chủ <code>DNS Server (8.8.8.8)</code>;
+            <strong>(2)</strong> Khung truyền đi qua bộ chuyển mạch nội bộ <strong>LAN Switch</strong> đến cổng trong của <strong>Router / Gateway (Private IP <code>192.168.1.1</code>)</strong>;
+            <strong>(3)</strong> Router thực hiện phép biến đổi <strong>NAT</strong>, đổi địa chỉ nguồn từ <code>192.168.1.10</code> thành địa chỉ <strong>Public IP <code>203.0.113.5</code></strong> rồi đẩy gói tin ra đường cáp quang ISP tới <code>8.8.8.8</code>;
+            <strong>(4)</strong> <code>DNS Server (8.8.8.8)</code> tra cứu và trả lời địa chỉ IP của <code>fsds_server.com</code> là <code>142.250.190.78</code> về lại địa chỉ <code>203.0.113.5</code>;
+            <strong>(5)</strong> Router tra bảng NAT và chuyển tiếp bản tin phản hồi DNS qua Switch về đúng cho <code>Client 1 (192.168.1.10)</code>;
+            <strong>(6)</strong> Có được IP đích <code>142.250.190.78</code>, <code>Client 1</code> thực hiện bắt tay <strong>TCP 3-Way Handshake</strong> + <strong>TLS Handshake</strong> rồi bắn gói tin HTTP Request (Nguồn: <code>192.168.1.10</code> → Đích: <code>142.250.190.78:443</code>) đi qua Switch tới Router;
+            <strong>(7)</strong> Router một lần nữa áp dụng <strong>NAT</strong> (đổi nguồn thành <code>203.0.113.5:60002</code>) và định tuyến gói tin xuyên qua Internet tới máy chủ <strong><code>FSDS Server (142.250.190.78)</code></strong>;
+            <strong>(8)</strong> <code>FSDS Server</code> mở từng lớp vỏ Frame → IP Packet → TCP Segment → TLS Record, xử lý yêu cầu tại ứng dụng và đóng gói bản tin <strong>HTTP Response (<code>200 OK</code> / <code>201 Created</code>)</strong> gửi ngược về địa chỉ công cộng <code>203.0.113.5:60002</code>;
+            <strong>(9)</strong> Khi gói phản hồi chạm tới cổng ngoài của Router, Router tra cứu cổng <code>60002</code> trong <strong>Bảng NAT</strong> để dịch ngược địa chỉ đích thành <code>192.168.1.10:54322</code>;
+            <strong>(10)</strong> Cuối cùng, Switch dựa vào địa chỉ <strong>MAC</strong> của <code>Client 1</code> để chuyển khung dữ liệu về đúng màn hình của <code>Client 1</code> mà hoàn toàn không làm phiền tới <code>Client 2 (192.168.1.11)</code> hay <code>Client 3 (192.168.1.12)</code> trong cùng mạng LAN.</p>
+
+          <x-figure id="api-1-4b-fig" key="1.6" title="Sơ đồ 1.6 — Hành trình 10 Bước Gói tin Thực tế qua LAN Switch, Router NAT (203.0.113.5), DNS (8.8.8.8) &amp; FSDS Server (142.250.190.78)">Toàn cảnh đường đi 10 bước của gói tin từ mạng nội bộ (Private IP 192.168.1.10) qua trạm dịch địa chỉ NAT (Public IP 203.0.113.5) tới DNS Server và FSDS Server rồi quay về đúng máy khách.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Đối chiếu (Slide 26–35)</th>
+                  <th>Giao thức / Cơ chế A</th>
+                  <th>Giao thức / Cơ chế B</th>
+                  <th>Hệ quả Kỹ thuật đối với <code>order-api</code> &amp; <code>Order #8888</code></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Tầng Giao vận: <code>TCP</code> vs. <code>UDP</code></strong></td>
+                  <td><strong>TCP (Transmission Control Protocol):</strong> Hướng kết nối (bắt tay 3 bước <code>SYN → SYN-ACK → ACK</code>), đảm bảo không mất gói, giữ nguyên thứ tự byte, điều khiển tắc nghẽn; Header <code>20–32 bytes</code>.</td>
+                  <td><strong>UDP (User Datagram Protocol):</strong> Không kết nối (bắn thẳng gói tin), chấp nhận rơi rụng gói để đổi lấy độ trễ cực thấp, không xếp thứ tự; Header cố định <code>8 bytes</code>.</td>
+                  <td>Mọi giao dịch tài chính và đặt đơn <code>Order #8888</code> qua REST/gRPC/HTTP/1.1-2 đều bắt buộc chạy trên <strong>TCP</strong> để không bị mất chữ số nào của <code>amount=450000</code>; còn truy vấn <strong>DNS</strong> bước đầu chạy trên <strong>UDP</strong> để đạt tốc độ nhanh nhất.</td>
+                </tr>
+                <tr>
+                  <td><strong>Tầng Mạng: <code>IPv4</code> vs. <code>IPv6</code></strong></td>
+                  <td><strong>IPv4 (32-bit):</strong> Biểu diễn thập phân 4 byte (ví dụ <code>192.168.1.10</code>, <code>142.250.190.78</code>), tổng cộng $\approx 4,29\text{ tỷ}$ địa chỉ; phải dùng kèm <strong>NAT</strong> do cạn kiệt địa chỉ.</td>
+                  <td><strong>IPv6 (128-bit):</strong> Biểu diễn thập lục phân 16 byte (ví dụ <code>2001:db8::8a2e:370:7334</code>), tổng cộng $\approx 3,4 \times 10^{38}$ địa chỉ; Header cố định <code>40 bytes</code> tối ưu cho Router xử lý nhanh.</td>
+                  <td>Máy chủ <code>FSDS Server</code> hiện đại luôn cấu hình <strong>Dual-Stack (chạy song song cả IPv4 lẫn IPv6)</strong> tại tầng Load Balancer để thiết bị di động 4G/5G (thường dùng IPv6 thuần) kết nối mượt mà.</td>
+                </tr>
+                <tr>
+                  <td><strong>Định danh Tầng 3 (<code>IP</code>) vs. Tầng 2 (<code>MAC</code>)</strong></td>
+                  <td><strong>Địa chỉ IP (Tầng Network — L3):</strong> Địa chỉ logic phân cấp theo vùng mạng; giữ vai trò định hướng <strong>End-to-End</strong> từ mạng nguồn tới mạng đích (chỉ đổi tại biên NAT).</td>
+                  <td><strong>Địa chỉ MAC (Tầng Link — L2):</strong> Địa chỉ vật lý <code>48-bit</code> gắn với card mạng (Ethernet / Wi-Fi); chỉ có giá trị trong cùng một mạng LAN và <strong>đổi mới ở từng chặng nhảy (Hop-by-Hop)</strong>.</td>
+                  <td>Khi <code>Client 1</code> gửi gói tin, <strong>Switch</strong> chỉ nhìn vào địa chỉ <strong>MAC</strong> ở Tầng 2 để chuyển khung tới Router, còn <strong>Router</strong> bóc lớp vỏ Tầng 2 ra và nhìn vào địa chỉ <strong>IP</strong> ở Tầng 3 để quyết định đường ra Internet.</td>
+                </tr>
+                <tr>
+                  <td><strong>Cơ chế <code>Private IP</code> &amp; <code>NAT Translation</code></strong></td>
+                  <td><strong>Private IP (<code>192.168.1.10</code>):</strong> Chỉ dùng miễn phí bên trong mạng LAN nội bộ; các Router ngoài Internet toàn cầu từ chối định tuyến trực tiếp dải IP này.</td>
+                  <td><strong>Public IP (<code>203.0.113.5</code>) + Bảng NAT:</strong> Router biên ghi ánh xạ <code>(192.168.1.10 : Port 54322) ↔ (203.0.113.5 : Port 60002)</code> khi gói tin đi ra và dịch ngược khi gói tin quay về.</td>
+                  <td>Tại máy chủ <code>order-api</code>, nếu chỉ đọc địa chỉ IP nguồn mặc định sẽ thấy hàng trăm nhân viên cùng một công ty đều có chung IP <code>203.0.113.5</code> — cần lưu ý khi thiết kế bộ giới hạn tốc độ (<strong>Rate Limiting theo IP vs. theo User ID</strong>).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Khép lại Chặng 1, chúng ta đã mổ xẻ trọn vẹn cơ chế vật lý đưa gói tin <code>Order #8888</code> vượt qua 4 tầng mạng TCP/IP: từ ánh xạ tên miền <strong>DNS</strong>, bắt tay 3 bước <strong>TCP</strong> (<code>ISN 1000 / 5000</code>), bọc thép mật mã <strong>TLS/HTTPS</strong>, đi qua trạm dịch địa chỉ <strong>NAT</strong> cho tới khi giải mã thành bản tin <strong>HTTP Request/Response</strong> tại máy chủ <code>142.250.190.78:443</code>. Nhưng khi đường ống mạng đã thông suốt, một câu hỏi kiến trúc sống còn lập tức xuất hiện: <strong>Giữa hàng chục dịch vụ trong hệ thống — từ ứng dụng di động cần lấy dữ liệu linh hoạt, dịch vụ nội bộ <code>order-api ↔ inventory-service</code> cần tốc độ mili-giây, cổng thanh toán cần báo kết quả bất đồng bộ cho tới màn hình theo dõi tài xế thời gian thực — tại sao một mình REST API không thể gánh vác tất cả, và khi nào phải chọn GraphQL, gRPC, SOAP, Webhook hay WebSocket?</strong> Chúng ta bước sang <strong>Chặng 2: Sáu Phong Cách Kiến Trúc API (REST, GraphQL, gRPC, SOAP, Webhook, WebSocket)</strong>.</p>
+        </section>
+
+        <section class="lesson-section summary-section" id="api-1-summary">
+          <h2 id="api-1-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 1 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <ol>
+            <li><strong>Tại sao ứng dụng khách không được kết nối thẳng vào cổng cơ sở dữ liệu mà phải đi qua Web API, và tại sao mô hình TCP/IP thực tế lại gộp 7 tầng OSI xuống còn 4 tầng?</strong><br/>Kết nối thẳng từ thiết bị khách vào DB làm lộ thông tin xác thực quản trị, phá vỡ lớp kiểm tra nghiệp vụ và làm cạn kiệt kết nối máy chủ; <strong>Web API</strong> đứng làm cổng kiểm soát hợp đồng giao tiếp qua mạng (độ trễ <code>10–150ms</code> so với <code>1–5ns</code> của lời gọi hàm nội bộ trong RAM). Mô hình <strong>TCP/IP 4 tầng</strong> gộp 3 tầng trên của OSI (Application, Presentation, Session) thành một <strong>Tầng Ứng dụng</strong> duy nhất và gộp 2 tầng dưới (Data Link, Physical) thành <strong>Tầng Liên kết</strong> vì trong thực tế giao thức mạng, việc quản lý phiên và mã hóa/định dạng dữ liệu gắn chặt trực tiếp vào giao thức ứng dụng (như HTTP + TLS), tạo nên chuỗi đóng gói PDU gọn gàng: <code>Message → Segment/Datagram → Packet → Frame</code>.</li>
+            <li><strong>Tính chất Stateless của HTTP mang lại lợi thế mở rộng hệ thống nào, và tại sao phương thức <code>POST</code> tạo đơn <code>Order #8888</code> lại không Idempotent trong khi <code>GET</code>, <code>PUT</code>, <code>DELETE</code> đều Idempotent?</strong><br/><strong>Stateless (Không lưu trạng thái)</strong> nghĩa là máy chủ không cần giữ ký ức phiên làm việc của khách hàng trong RAM giữa các lần gọi, cho phép cụm <code>order-api</code> nhân rộng ngang hàng chục máy chủ phía sau Load Balancer mà máy nào cũng xử lý được yêu cầu ngay lập tức. Một phương thức là <strong>Idempotent (Lũy đẳng)</strong> nếu thực thi lặp lại $N$ lần cùng một yêu cầu vẫn để lại trạng thái dữ liệu trên máy chủ giống hệt 1 lần gọi (như <code>GET</code> chỉ đọc, <code>PUT</code> ghi đè toàn phần tại đúng ID đó, <code>DELETE</code> xóa cùng một ID); ngược lại, <code>POST /v1/orders</code> mỗi lần gửi lại sẽ sinh ra một bản ghi đơn hàng mới và trừ tiền thêm một lần nữa nếu không có cơ chế khóa <code>Idempotency-Key</code>.</li>
+            <li><strong>Một địa chỉ HTTP Endpoint chuẩn mực được cấu thành từ 6 phân đoạn nào và khác biệt căn bản giữa nhóm mã lỗi <code>4xx</code> với <code>5xx</code> là gì?</strong><br/>Theo chuẩn <em>Slide 18–20</em> (<code>http://example.com/api/superhero-service/v1/superheroes/{id}?fields=name,origin</code>), 6 phân đoạn gồm: <strong>Host</strong> (máy chủ), <strong>Service</strong> (định tuyến vi dịch vụ), <strong>API Version</strong> (phiên bản hợp đồng <code>/v1</code>), <strong>Resource Type</strong> (danh từ số nhiều <code>/superheroes</code> hoặc <code>/orders</code>), <strong>Resource ID</strong> (định danh bản ghi), và <strong>Query String</strong> (tham số lọc/chọn trường sau dấu <code>?</code>). Khi nhận phản hồi, nhóm <strong><code>4xx</code> (Client Error: <code>400, 401, 403, 404, 429</code>)</strong> báo hiệu lỗi thuộc về phía máy khách gửi yêu cầu sai hoặc thiếu quyền nên không được tự động gửi lại mù quáng; còn nhóm <strong><code>5xx</code> (Server Error: <code>500, 502, 503, 504</code>)</strong> báo hiệu yêu cầu hợp lệ nhưng máy chủ hoặc DB phía sau gặp sự cố.</li>
+            <li><strong>Tại sao giao thức TLS (HTTPS) không dùng mã hóa bất đối xứng cho toàn bộ luồng dữ liệu mà phải kết hợp cả Asymmetric Encryption, Symmetric Encryption và SHA-256 Hashing?</strong><br/>Mã hóa bất đối xứng (<strong>Asymmetric — Public/Private Key</strong>) giải quyết bài toán xác thực danh tính máy chủ và trao đổi khóa trên kênh không an toàn nhưng tính toán rất chậm; do đó TLS chỉ dùng nó ở bước bắt tay ban đầu để hai bên thống nhất một khóa phiên (<strong>Session Key</strong>). Sau đó, toàn bộ dữ liệu HTTP của <code>Order #8888</code> được mã hóa bằng thuật toán đối xứng (<strong>Symmetric — AES-256-GCM</strong>) ở tốc độ phần cứng thành <strong>Ciphertext</strong>, đồng thời đính kèm mã băm một chiều (<strong>Cryptographic Hashing — SHA-256</strong>) để đảm bảo nếu kẻ tấn công MitM sửa đổi dù chỉ <code>1 bit</code> trên đường truyền, phép kiểm tra toàn vẹn sẽ phát hiện và hủy kết nối ngay lập tức.</li>
+            <li><strong>Giải thích chính xác các con số Sequence/Acknowledgment trong bắt tay 3 bước TCP (Slide 28–30) và vai trò của bảng NAT trong luồng 10 bước mạng thực tế (Slide 35)?</strong><br/>Trong <strong>TCP 3-Way Handshake</strong>: (1) Client gửi <code>SYN</code> với <code>Seq = 1000</code> (chuyển sang <code>SYN_SENT</code>); (2) Server nhận và đáp trả <code>SYN, ACK</code> với <code>Seq = 5000</code> và <code>Ack = 1001</code> (tức <code>Client ISN + 1</code>, chuyển sang <code>SYN_RECEIVED</code>); (3) Client gửi <code>ACK</code> với <code>Ack = 5001</code> (tức <code>Server ISN + 1</code>), đưa cả hai đầu vào trạng thái <strong><code>ESTABLISHED</code></strong>. Khi gói tin của <code>Client 1 (Private IP 192.168.1.10)</code> đi qua <strong>Router</strong> ra Internet để tới <code>DNS (8.8.8.8)</code> và <code>FSDS Server (142.250.190.78)</code>, cơ chế <strong>NAT</strong> đổi IP nguồn thành <code>Public IP 203.0.113.5</code> kèm cổng ánh xạ trong bảng NAT, giúp khi gói tin phản hồi quay về từ Internet, Router dịch ngược và giao qua Switch về đúng địa chỉ MAC của <code>Client 1</code> mà không nhầm sang <code>Client 2</code> hay <code>Client 3</code>.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/F04/2" onclick="selectStorageStage(2);return false;">Sang Chặng 2: Sáu Phong Cách Kiến Trúc API (REST, GraphQL, gRPC, SOAP, Webhook, WebSocket) →</a></p>
+        </section>
+      </div>

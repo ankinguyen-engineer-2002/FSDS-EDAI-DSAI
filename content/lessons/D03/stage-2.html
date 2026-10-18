@@ -1,0 +1,293 @@
+      <div class="prose">
+        <x-spine id="spark-2-spine" badge="CHẶNG 2 · ABSTRACTIONS &amp; APIS (RDD VS DATAFRAME)" title="Chặng 2: Các Tầng Trừu Tượng Dữ Liệu — Giải Phẫu Spark RDD, Đồ Thị Huyết Thống Lineage &amp; Spark DataFrame" subtitle="Trạm 2.1 → 2.4">Giải phẫu hai cách biểu diễn dữ liệu cốt lõi bên trong Apache Spark: từ <strong>RDD (Resilient Distributed Dataset)</strong> cấp thấp tự phục hồi qua đồ thị huyết thống <code>Lineage</code> đến bảng cấu trúc bất biến <strong>DataFrame</strong> chạy hoàn toàn trong JVM tránh nút thắt cổ chai Python Worker IPC.</x-spine>
+
+        <section class="lesson-section" id="spark-2-1">
+          <h2 id="spark-2-1-h2" tabindex="-1">Trạm 2.1: Giải phẫu Spark RDD (Resilient Distributed Dataset) — Phân tán Logic &amp; Tự Phục hồi Qua Đồ thị Huyết thống (Lineage)</h2>
+
+          <p><strong>Resilient Distributed Dataset (RDD — Tập dữ liệu Phân tán Tự phục hồi)</strong> là tầng trừu tượng dữ liệu nền tảng nhất của Apache Spark, biểu diễn một tập hợp phần tử <strong>chỉ đọc (Immutable)</strong> được chia nhỏ thành các phân vùng logic (<code>Partitions</code>) để tính toán song song trên nhiều máy chủ Worker. Điểm đột phá cốt lõi trong thiết kế của RDD là: <strong>một RDD không được định nghĩa bởi vị trí lưu trữ vật lý của dữ liệu trên đĩa hay trong RAM, mà được định nghĩa bởi danh sách các phân vùng (<code>Partitions</code>) và công thức tính toán ra chúng từ dữ liệu cha (<code>Lineage</code>)</strong> (<em>Slides 17–20</em>). Nhờ tách rời biểu diễn logic khỏi vị trí vật lý, Spark loại bỏ hoàn toàn chi phí nhân bản dữ liệu trung gian $3\times$ trên RAM mà vẫn đảm bảo khả năng chịu lỗi phần cứng ở quy mô hàng trăm Terabyte.</p>
+
+          <p>Khi xử lý lô dữ liệu đơn hàng khổng lồ (bao gồm giao dịch <strong>Order #8888</strong>) trải rộng trên cụm máy chủ, tên gọi <strong>R-D-D</strong> phản ánh chính xác ba cơ chế vận hành vật lý bên dưới lớp vỏ API (<em>Slides 20–22</em> &amp; <em>Learning Spark, 2nd Edition</em> Ch. 2):</p>
+
+          <ul>
+            <li><strong>Dataset (Tập dữ liệu định nghĩa qua công thức tính):</strong> Một đối tượng <code>RDD</code> không chứa dữ liệu thô bên trong bộ nhớ của Driver, mà là một bản thiết kế siêu dữ liệu giữ các thuộc tính cốt lõi: danh sách các mảnh phân vùng (<code>getPartitions</code>), hàm tính toán trên từng mảnh (<code>compute(split, context)</code>), danh sách phụ thuộc vào các RDD cha (<code>getDependencies</code>), bộ băm phân vùng tùy chọn (<code>Partitioner</code>) và vị trí ưu tiên gần dữ liệu nhất (<code>getPreferredLocations</code>).</li>
+            <li><strong>Distributed (Phân tán logic xuyên cụm Worker):</strong> Toàn bộ tập dữ liệu được cắt thành $N$ phân vùng độc lập (<code>Partition 0</code>, <code>Partition 1</code>, <code>Partition 2</code>...) và rải đều qua các máy chủ vật lý <code>Worker A</code>, <code>Worker B</code>, <code>Worker C</code>. Mỗi <code>Task</code> trên Executor chỉ đọc và biến đổi độc lập đúng một <code>Partition</code> được giao trên luồng CPU cục bộ mà không cần khóa (Lock) toàn bảng (<em>Slide 21</em>).</li>
+            <li><strong>Resilient (Tự phục hồi bằng Đồ thị Huyết thống — <code>Lineage</code>):</strong> Trong các hệ thống phân tán thế hệ cũ, để chống mất dữ liệu khi một nút mạng sập nguồn, hệ thống phải chép nhân bản mọi kết quả trung gian ra $3$ máy chủ khác nhau, làm tốn gấp $3\times$ dung lượng RAM và nghẽn băng thông mạng nội bộ. Spark giải quyết bài toán này bằng cách ghi lại toàn bộ lịch sử các bước biến đổi tạo nên RDD — gọi là <strong>Đồ thị Huyết thống (<code>Lineage</code>)</strong>: ví dụ <code>RDD 1 → filter → RDD 2 → groupBy → RDD 3</code>. Khi máy chủ <code>Worker B</code> bị sập làm mất mảnh <code>Partition 1</code> của <code>RDD 2</code>, Spark không cần bản sao dự phòng nào cả; trình lập lịch chỉ cần tra cứu đồ thị <code>Lineage</code> và <strong>chạy lại đúng chuỗi phép biến đổi từ gốc cho riêng mảnh <code>Partition 1</code> bị mất</strong> trên một máy chủ Worker khác còn sống (<em>Slide 22</em>).</li>
+          </ul>
+
+          <x-figure id="spark-2-1-fig" key="2.1" title="Sơ đồ 2.1 — Giải phẫu Spark RDD (Resilient Distributed Dataset): Phân tán Logic &amp; Tự Phục hồi Qua Đồ thị Huyết thống (Lineage)">Cơ chế ánh xạ các khối dữ liệu vật lý thành tập Partition logic và tái tạo phân vùng bị mất bằng lịch sử biến đổi Lineage.</x-figure>
+
+          <p>Bảng dưới đây đối chiếu cơ chế chịu lỗi bằng <strong>Đồ thị Huyết thống (<code>Lineage Recomputation</code>)</strong> của Spark RDD so với cơ chế nhân bản vật lý truyền thống:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chiều kích Kỹ thuật</th>
+                  <th>Nhân bản Vật lý Truyền thống (3x Replication)</th>
+                  <th>Tự phục hồi Qua Huyết thống (<code>Spark RDD Lineage</code>)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Nguyên lý bảo vệ dữ liệu trung gian</strong></td>
+                  <td>Sao chép mỗi khối dữ liệu sang <code>3</code> nút mạng vật lý qua mạng LAN sau mỗi bước xử lý.</td>
+                  <td>Chỉ lưu công thức biến đổi (<code>RDD 1 → filter → RDD 2 → groupBy → RDD 3</code>) dưới dạng đồ thị có hướng <code>DAG</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chi phí bộ nhớ &amp; Băng thông lúc chạy bình thường</strong></td>
+                  <td>Tiêu tốn <strong>$300\%$ dung lượng lưu trữ</strong> và làm nghẽn cổ chai đường truyền mạng do phải đồng bộ bản sao liên tục.</td>
+                  <td><strong>$0\%$ chi phí nhân bản mạng</strong>; dữ liệu nằm yên trong RAM của từng Worker và chảy thẳng qua ống dẫn CPU.</td>
+                </tr>
+                <tr>
+                  <td><strong>Cơ chế khôi phục khi <code>Worker B</code> sập</strong></td>
+                  <td>Chuyển hướng luồng đọc sang bản sao vật lý thứ hai trên một máy chủ khác.</td>
+                  <td>Tái thực thi (Re-run) chuỗi phép biến đổi trong <code>Lineage</code> cho <strong>duy nhất phân vùng (<code>Partition</code>) bị mất</strong> từ nguồn gần nhất.</td>
+                </tr>
+                <tr>
+                  <td><strong>Điều kiện tiên quyết bắt buộc</strong></td>
+                  <td>Các khối dữ liệu có thể cho phép ghi đè tại chỗ (Mutable blocks) kèm giao thức đồng thuận.</td>
+                  <td>Mọi RDD bắt buộc phải <strong>Bất biến (Immutable)</strong> và hàm biến đổi phải có tính <strong>Tất định (Deterministic)</strong> để chạy lại ra đúng kết quả cũ.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Dù đồ thị <code>Lineage</code> giúp RDD đạt khả năng chịu lỗi xuất sắc với chi phí bộ nhớ tối thiểu, việc làm việc trực tiếp với API RDD cấp thấp trong ngôn ngữ Python lại ẩn chứa một cái bẫy hiệu năng nghiêm trọng ở tầng giao tiếp liên tiến trình (IPC) — điểm nghẽn sẽ lộ diện ngay khi chúng ta khởi tạo và chạy hàm biến đổi trên <code>PySpark RDD</code> tại Trạm 2.2.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="spark-2-2">
+          <h2 id="spark-2-2-h2" tabindex="-1">Trạm 2.2: Khởi tạo Spark RDD (SparkSession, SparkContext, parallelize) &amp; Nút thắt Cổ chai Python Subprocess IPC</h2>
+
+          <p>Từ phiên bản Spark 2.0 trở đi, mọi ứng dụng Spark đều giao tiếp với cụm tính toán thông qua một cổng vào hợp nhất duy nhất là đối tượng <strong><code>SparkSession</code></strong>; bên dưới lớp vỏ này, <code>SparkSession</code> tự động bọc và quản lý đối tượng <strong><code>SparkContext</code> (<code>sc</code>)</strong> — hạt nhân điều khiển kết nối cụm và cấp phát <code>RDD</code> cấp thấp. Để tạo một <code>RDD</code> từ tập dữ liệu có sẵn trong bộ nhớ bằng PySpark, kỹ sư thực hiện quy trình 3 bước chuẩn mực: khởi tạo <code>SparkSession</code> với cấu hình <code>.master("local[*]")</code> (sử dụng toàn bộ số lõi CPU hiện có trên máy), trích xuất <code>spark.sparkContext</code>, và gọi hàm <code>sc.parallelize(data, numSlices=2)</code> để cắt danh sách phần tử thành <code>2</code> phân vùng song song (<em>Slide 23</em>).</p>
+
+          <pre><code>from pyspark.sql import SparkSession
+
+# 1. Create a SparkSession (entry point to Spark)
+spark = SparkSession.builder \
+    .appName("CreateRDDExample") \
+    .master("local[*]") \
+    .getOrCreate()
+
+# 2. Get SparkContext from SparkSession
+sc = spark.sparkContext
+
+# 3. Create an RDD from a Python list
+data = [1, 2, 3, 4, 5]
+my_rdd = sc.parallelize(data, numSlices=2)
+
+print(f"Number of partitions: {my_rdd.getNumPartitions()}")
+# Output: Number of partitions: 2</code></pre>
+
+          <p>Tuy nhiên, ngay khi lập trình viên áp dụng các hàm ẩn danh Python (như <code>my_rdd.map(lambda x: x * 2)</code> hoặc <code>my_rdd.filter(lambda x: x &gt; 2)</code>) lên <code>RDD</code> trên môi trường Production có hàng trăm triệu dòng, tốc độ thực thi lập tức sụt giảm từ $5\times$ đến $20\times$ so với code viết bằng Scala/Java hoặc DataFrame. Nguyên nhân gốc rễ nằm ở <strong>Án phạt Tuần tự hóa Kép qua Ống dẫn Tiến trình Phụ (Double Serialization IPC Penalty)</strong>: vì động cơ thực thi cốt lõi của Spark (<code>Executor</code>) chạy trên máy ảo <strong>JVM (Java Virtual Machine)</strong> hoàn toàn mù trước mã byte của hàm <code>lambda</code> Python, mỗi <code>Executor JVM</code> buộc phải khởi chạy kèm một tiến trình hệ điều hành <strong><code>python</code> worker subprocess</strong> riêng biệt và bơm từng dòng dữ liệu qua lại bằng giao thức tuần tự hóa <code>Pickle</code> qua cổng mạng nội bộ (<code>Local Loopback Socket</code>) (<em>Learning Spark, 2nd Edition</em> Ch. 2–3).</p>
+
+          <x-figure id="spark-2-2-fig" key="2.2" title="Sơ đồ 2.2 — Khởi tạo Spark RDD vs. Nút thắt Cổ chai Python Subprocess IPC trong PySpark">Quy trình 3 bước tạo RDD và lý do vật lý khiến hàm lambda trên Python RDD chậm gấp nhiều lần biểu thức DataFrame.</x-figure>
+
+          <h3>Giải phẫu 4 bước thắt cổ chai khi thực thi hàm <code>lambda</code> trên Python RDD</h3>
+          <p>Khi một Task trên <code>Executor</code> xử lý phân vùng chứa 10 triệu bản ghi bằng lệnh <code>rdd.map(lambda x: x * 2)</code>, dữ liệu không được tính toán trực tiếp trong RAM của JVM mà phải đi qua chuỗi 4 bước chuyển đổi đắt đỏ:</p>
+
+          <ol>
+            <li><strong>Tuần tự hóa khỏi vùng nhớ JVM (JVM Heap Serialization):</strong> Tiến trình <code>JVM Executor</code> đọc khối dữ liệu từ đĩa hoặc bộ nhớ đệm, sau đó phải đóng gói từng bản ghi thành luồng byte nhị phân và đẩy qua kết nối <code>TCP Loopback Socket</code> (hoặc <code>Unix Domain Socket</code>) sang tiến trình con <code>python</code>.</li>
+            <li><strong>Giải tuần tự hóa bằng <code>pickle.loads()</code> trong CPython:</strong> Tiến trình phụ <code>python worker</code> đọc luồng byte từ Socket và gọi thư viện <code>CPickle / CloudPickle</code> để cấp phát hàng triệu đối tượng <code>PyObject</code> mới trong vùng nhớ CPython Heap.</li>
+            <li><strong>Thực thi tuần tự từng dòng dưới khóa <code>GIL</code>:</strong> Trình thông dịch Python chạy vòng lặp gọi hàm <code>lambda x: x * 2</code> cho từng đối tượng một mà không có bất kỳ cơ chế thực thi vector hóa (SIMD) hay tối ưu hóa mã máy nào.</li>
+            <li><strong>Đóng gói ngược bằng <code>pickle.dumps()</code> trả về JVM:</strong> Kết quả đầu ra lại phải được <code>pickle.dumps()</code> tuần tự hóa thành chuỗi byte, bơm ngược qua ống Socket về lại <code>JVM Executor</code> để phục vụ các bước <code>Shuffle</code> hoặc ghi xuống đĩa tiếp theo.</li>
+          </ol>
+
+          <div class="callout warn">
+            <div class="callout-title">Rủi ro Vận hành Thực chiến — Lỗi <code>PythonWorkerException</code> &amp; Tràn RAM Ngoài Tầm Kiểm Soát của JVM</div>
+            <p>Vì tiến trình <code>python worker</code> nằm hoàn toàn <strong>bên ngoài vùng nhớ <code>spark.executor.memory</code> của JVM</strong>, nếu hàm <code>lambda</code> trên RDD vô tình tích tụ danh sách lớn trong CPython Heap, bộ điều phối tài nguyên của cụm (<code>Kubernetes</code> / <code>YARN</code>) sẽ giết chết Container do vượt ngưỡng giới hạn RAM vật lý (<code>Container Killed by YARN/K8s for exceeding memory limits</code>) dù biểu đồ bộ nhớ JVM trên Spark Web UI vẫn báo trống. Làm thế nào để viết code bằng Python nhưng toàn bộ phép biến đổi lại chạy 100% bên trong JVM mà không cần bật <code>python worker</code>? Đó chính là lý do ra đời của <strong>Spark DataFrame</strong> tại Trạm 2.3.</p>
+          </div>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="spark-2-3">
+          <h2 id="spark-2-3-h2" tabindex="-1">Trạm 2.3: Giải phẫu Spark DataFrame — Bảng Cấu trúc Có Lược đồ (Schema), Tính Bất Biến (Immutability) &amp; Đa Nguồn Dữ liệu</h2>
+
+          <p><strong>Spark DataFrame</strong> là một tập dữ liệu phân tán được tổ chức theo cấu trúc bảng quan hệ gồm các <strong>hàng (<code>rows</code>)</strong>, các <strong>cột được đặt tên (<code>columns</code>)</strong> và một <strong>lược đồ tường minh (<code>schema</code>)</strong> mô tả chính xác tên cột cùng kiểu dữ liệu nguyên thủy của từng cột (như <code>id: int</code>, <code>name: string</code>, <code>age: int</code>) (<em>Slides 24–25</em>). Khác với <code>RDD</code> vốn coi mỗi bản ghi là một hộp đen đối tượng mà Spark không hề biết bên trong có trường nào, việc gắn chặt <code>Schema</code> vào dữ liệu giúp Spark nắm rõ cấu trúc vật lý của từng byte ngay trước khi chạy truy vấn. Nhờ đó, khi lập trình viên viết code bằng PySpark DataFrame, Python chỉ đóng vai trò ngôn ngữ khai báo bản thiết kế truy vấn (Logical Plan), còn toàn bộ quá trình đọc, lọc, tính toán và nén nhị phân đều được thực thi 100% bên trong động cơ <strong>JVM / Project Tungsten</strong> mà không tốn một byte nào truyền qua <code>python worker subprocess</code>.</p>
+
+          <p>Trong kiến trúc Data Engineering hiện đại, <strong>Spark DataFrame</strong> trở thành giao diện lập trình tiêu chuẩn nhờ hội tụ 3 trụ cột kỹ thuật vượt trội (<em>Slides 26–27</em> &amp; <em>Learning Spark, 2nd Edition</em> Ch. 3):</p>
+
+          <ul>
+            <li><strong>Dữ liệu có cấu trúc kèm Lược đồ (<code>Structured Data with Schema</code>):</strong> Mỗi cột trong DataFrame được định danh rõ ràng bằng tên và kiểu dữ liệu chuẩn hóa của Spark SQL (<code>IntegerType</code>, <code>LongType</code>, <code>DoubleType</code>, <code>StringType</code>, <code>TimestampType</code>). Nhờ biết trước kiểu dữ liệu, Spark không cần lưu đối tượng Java/Python cồng kềnh kèm con trỏ đối tượng (vốn làm phình kích thước dữ liệu lên $2\times–5\times$), mà đóng gói thẳng thành các mảng byte nhị phân liên tiếp (<code>UnsafeRow</code>) trong bộ nhớ <code>Off-Heap / On-Heap</code> của <strong>Project Tungsten</strong>.</li>
+            <li><strong>Hệ phép toán khai báo chuẩn SQL &amp; Đa nguồn dữ liệu (<code>SQL-like Operations &amp; Unified Data Sources</code>):</strong> Kỹ sư thao tác trực tiếp trên tên cột thông qua bộ toán tử bậc cao quen thuộc như <code>select()</code>, <code>filter()</code>, <code>join()</code>, <code>groupBy()</code> và tích hợp liền mạch với hệ sinh thái đa nguồn đọc/ghi: từ tệp phân tích cột <code>Parquet</code>, tệp văn bản <code>CSV</code>, <code>JSON</code>, kho lưu trữ đám mây <code>Amazon S3</code> cho tới hệ quản trị cơ sở dữ liệu quan hệ <code>MySQL / PostgreSQL</code> qua giao thức <code>JDBC</code> (<em>Slide 26</em>).</li>
+            <li><strong>Tính Bất biến Tuyệt đối (<code>DataFrame Is Immutable</code>):</strong> Giống hệt <code>RDD</code>, một khi DataFrame đã được tạo ra, <strong>bạn không bao giờ có thể sửa đổi (mutate) dữ liệu của nó tại chỗ</strong>. Mọi phép biến đổi gọi trên <code>df1</code> (chẳng hạn lọc dòng hoặc nhân đôi giá trị cột) đều trả về một <strong>tham chiếu DataFrame hoàn toàn mới (<code>df2</code>, <code>df3</code>)</strong> gắn với nút kế hoạch thực thi mới, trong khi <code>df1</code> gốc vẫn nguyên vẹn 100% để đảm bảo an toàn cho cơ chế tự phục hồi lỗi (Recovery) và cho phép nhiều nhánh phân tích chạy song song mà không làm bẩn dữ liệu của nhau (<em>Slide 27</em>).</li>
+          </ul>
+
+          <x-figure id="spark-2-3-fig" key="2.3" title="Sơ đồ 2.3 — Giải phẫu Spark DataFrame: Lược đồ (Schema), Tính Bất Biến (Immutability) &amp; Đa Nguồn Dữ Liệu">Biểu diễn dữ liệu có cấu trúc theo hàng/cột kèm lược đồ tường minh và nguyên lý tạo DataFrame mới sau mỗi phép biến đổi.</x-figure>
+
+          <h3>Minh họa cơ học Tính Bất Biến (Immutability) qua chuỗi biến đổi DataFrame</h3>
+          <p>Khi áp dụng chuỗi phép biến đổi lên bảng người dùng hoặc đơn hàng, mỗi câu lệnh không hề sao chép vật lý bảng dữ liệu trong RAM mà chỉ tạo ra một đối tượng <code>DataFrame</code> mới trỏ tới cây kế hoạch logic mở rộng:</p>
+
+          <pre><code>from pyspark.sql.functions import col
+
+# df1 gốc: Chứa lược đồ (id: int, name: string, age: int) — Bất biến (Immutable)
+df1 = spark.read.parquet("s3a://fsds-lakehouse/bronze/users.parquet")
+
+# Phép biến đổi 1: Lọc người dùng trên 20 tuổi -> Sinh ra tham chiếu DataFrame mới df2
+df2 = df1.filter(col("age") &gt; 20)
+
+# Phép biến đổi 2: Chọn cột và tính toán biểu thức -> Sinh ra tham chiếu DataFrame mới df3
+df3 = df2.select(col("id"), col("name"), (col("age") + 1).alias("next_year_age"))
+
+# df1 và df2 vẫn giữ nguyên trạng thái ban đầu, hoàn toàn không bị thay đổi tại chỗ!</code></pre>
+
+          <p>Sự kết hợp giữa <strong>Lược đồ tường minh (<code>Schema</code>)</strong> và <strong>Tính bất biến (<code>Immutability</code>)</strong> chính là chìa khóa cho phép bộ tối ưu hóa truy vấn của Spark tự động sắp xếp lại thứ tự các phép toán trên cây biểu thức trước khi chạy. Vậy khi đặt <code>RDD</code>, <code>DataFrame</code> và <code>Dataset[T]</code> lên bàn cân so sánh trực diện, sự khác biệt về cú pháp code, thời điểm bắt lỗi và tốc độ thực thi diễn ra như thế nào? Chúng ta cùng mổ xẻ tại Trạm 2.4.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="spark-2-4">
+          <h2 id="spark-2-4-h2" tabindex="-1">Trạm 2.4: Đối chiếu Toàn diện RDD vs. DataFrame vs. Dataset[T] &amp; Thực chiến Khởi tạo DataFrame</h2>
+
+          <p>Sự khác biệt căn bản giữa lập trình <code>Spark RDD</code> và <code>Spark DataFrame</code> nằm ở việc chuyển dịch từ <strong>Mệnh lệnh Hộp đen (Imperative Opaque Code — chỉ cho Spark biết <em>làm thế nào</em> từng bước)</strong> sang <strong>Biểu thức Khai báo Có cấu trúc (Declarative Structured Expressions — chỉ cho Spark biết <em>cần lấy kết quả gì</em>)</strong> (<em>Slide 28</em>). Khi bạn viết <code>rdd.map(lambda x: x * 2)</code>, hàm <code>lambda</code> là một khối mã đóng kín khiến Spark mù hoàn toàn về mặt ngữ nghĩa và buộc phải đẩy dữ liệu sang tiến trình <code>python worker</code>. Ngược lại, khi bạn viết biểu thức cột trên DataFrame như <code>df.select("price") * 2</code> (hoặc <code>df.select(col("price") * 2)</code>), bạn đang xây dựng một <strong>Cây Biểu thức Trừu tượng (Abstract Syntax Tree — AST)</strong> thuần túy của Spark SQL: bộ tối ưu hóa <strong>Catalyst Optimizer</strong> đọc trực tiếp tên cột <code>price</code>, kiểm tra kiểu số trong <code>Schema</code>, và biên dịch thẳng phép nhân <code>* 2</code> thành mã byte JVM (<strong>Whole-Stage Code Generation</strong>) chạy trực tiếp trên mảng nhị phân <code>Tungsten</code> với tốc độ ngang ngửa code viết bằng Scala gốc.</p>
+
+          <x-figure id="spark-2-4-fig" key="2.4" title="Sơ đồ 2.4 — Đối chiếu Ba Tầng API: Spark RDD vs. DataFrame vs. Dataset[T]">So sánh cấu trúc lược đồ, khả năng tối ưu hóa tự động của Catalyst/Tungsten và hiệu năng thực thi trên PySpark.</x-figure>
+
+          <h3>4 Phương pháp Khởi tạo Spark DataFrame &amp; Kỷ luật Định nghĩa Schema Tường minh</h3>
+          <p>Trong thực tế triển khai pipeline dữ liệu, kỹ sư có 4 con đường chính để khởi tạo một <code>Spark DataFrame</code>: chuyển đổi từ <code>RDD</code> có sẵn bằng <code>.toDF()</code>, tạo từ danh sách đối tượng Python bằng <code>spark.createDataFrame()</code>, đọc từ hệ thống tệp lưu trữ (<code>CSV</code>, <code>JSON</code>, <code>Parquet</code>), hoặc kéo trực tiếp từ hệ quản trị cơ sở dữ liệu (<code>DBMS</code>) qua giao thức <code>JDBC</code> (<em>Slides 29–30</em>):</p>
+
+          <pre><code>from pyspark.sql import SparkSession
+from pyspark.sql.types import StructType, StructField, IntegerType, StringType, DoubleType
+
+spark = SparkSession.builder.appName("DataFrameCreationPatterns").getOrCreate()
+
+# -------------------------------------------------------------------------
+# CÁCH 1 &amp; 2: Tạo DataFrame từ RDD có sẵn (.toDF) hoặc từ Python Objects
+# -------------------------------------------------------------------------
+raw_data = [(1, "Alice", 23), (2, "Bob", 30), (3, "Charlie", 19)]
+
+# 1. Từ RDD chuyển sang DataFrame bằng .toDF()
+rdd = spark.sparkContext.parallelize(raw_data)
+df_from_rdd = rdd.toDF(["id", "name", "age"])
+
+# 2. Trực tiếp từ danh sách Python kèm Schema tường minh
+explicit_schema = StructType([
+    StructField("id", IntegerType(), nullable=False),
+    StructField("name", StringType(), nullable=True),
+    StructField("age", IntegerType(), nullable=True)
+])
+df_from_objs = spark.createDataFrame(raw_data, schema=explicit_schema)
+
+# -------------------------------------------------------------------------
+# CÁCH 3: Đọc từ Tệp lưu trữ (CSV, JSON, Parquet) — Chuẩn Production
+# -------------------------------------------------------------------------
+# KỶ LUẬT PRODUCTION: Luôn truyền .schema(explicit_schema) cho CSV/JSON
+# thay vì dùng inferSchema=True để tránh tốn thêm 1 Job quét toàn bộ tệp!
+df_csv = spark.read \
+    .option("header", "true") \
+    .schema(explicit_schema) \
+    .csv("s3a://fsds-lakehouse/raw/users.csv")
+
+df_json = spark.read \
+    .schema(explicit_schema) \
+    .json("s3a://fsds-lakehouse/raw/users.json")
+
+# Riêng tệp Parquet đã nhúng sẵn Schema ở phần Footer nên không cần khai báo lại
+df_parquet = spark.read.parquet("s3a://fsds-lakehouse/silver/users.parquet")
+
+# -------------------------------------------------------------------------
+# CÁCH 4: Đọc từ Hệ quản trị CSDL Quan hệ (DBMS) qua kết nối JDBC
+# -------------------------------------------------------------------------
+df_jdbc = spark.read \
+    .format("jdbc") \
+    .option("url", "jdbc:postgresql://oltp-db.internal:5432/commerce") \
+    .option("dbtable", "public.orders") \
+    .option("user", "spark_ingestion") \
+    .option("password", "********") \
+    .option("partitionColumn", "order_id") \
+    .option("lowerBound", "1") \
+    .option("upperBound", "10000000") \
+    .option("numPartitions", "8") \
+    .load()</code></pre>
+
+          <h3>Tại sao Production cấm dùng <code>inferSchema = True</code> trên tệp CSV/JSON lớn và mối quan hệ giữa <code>DataFrame</code> vs. <code>Dataset[T]</code>?</h3>
+          <p>Theo <em>Learning Spark, 2nd Edition</em> (Ch. 3), có hai nguyên lý kiến trúc quan trọng mà mọi kỹ sư dữ liệu cần nắm vững khi làm việc với tầng API bậc cao của Spark:</p>
+
+          <ul>
+            <li><strong>Cạm bẫy Quét Kép của <code>inferSchema=True</code> trên CSV và JSON:</strong> Khác với định dạng cột <code>Parquet</code> vốn lưu sẵn lược đồ nhị phân ngay tại phần <code>Footer</code> ở cuối tệp, các tệp văn bản như <code>CSV</code> và <code>JSON</code> hoàn toàn không có siêu dữ liệu kiểu cột. Nếu kỹ sư bật <code>.option("inferSchema", "true")</code> trên một thư mục CSV nặng <code>500 GB</code> trên <code>Amazon S3</code>, Spark bị ép phải <strong>kích hoạt ngay lập tức một Spark Job phụ đọc quét qua dữ liệu trên S3 chỉ để đoán kiểu cột</strong> trước khi chạy Job biến đổi chính. Chưa dừng lại ở việc làm tăng gấp đôi thời gian chờ I/O đầu vào, cơ chế đoán kiểu tự động còn cực kỳ mong manh: cột mã bưu chính (<code>zip_code</code>) có giá trị <code>00501</code> sẽ bị ép nhầm thành số nguyên <code>501</code> (mất số <code>0</code> ở đầu), hoặc một cột tình cờ chứa toàn giá trị rỗng (<code>null</code>) trong lô đầu tiên sẽ bị gán kiểu <code>StringType</code>/<code>NullType</code> làm gãy toàn bộ pipeline ghi vào bảng đích. Do đó, trên Production, việc định nghĩa <strong><code>StructType</code> (hoặc chuỗi DDL <code>"id INT, name STRING, age INT"</code>)</strong> là bắt buộc để đạt chi phí suy luận bằng <code>0</code> và khóa chặt hợp đồng dữ liệu (Schema Contract).</li>
+            <li><strong>Sự hợp nhất giữa <code>DataFrame</code> và <code>Dataset[T]</code> từ Spark 2.0:</strong> Trong ngôn ngữ có kiểu tĩnh như Scala và Java, Spark cung cấp <strong><code>Dataset[T]</code></strong> (ví dụ <code>Dataset[Order]</code>) gắn liền với một lớp đối tượng định kiểu chặt (Case Class / JavaBean) được kiểm tra kiểu ngay lúc biên dịch (Compile-time Type Safety), và thực chất <strong><code>DataFrame</code> chỉ là một bí danh kiểu (Type Alias) của <code>Dataset[Row]</code></strong> — nơi mỗi dòng là một đối tượng <code>Row</code> chung được kiểm tra tên cột/kiểu cột ở bước phân tích kế hoạch truy vấn (Analysis Time). Ngược lại, vì <strong>Python và R</strong> là các ngôn ngữ thông dịch định kiểu động (Dynamically Typed) không có trình biên dịch kiểm tra kiểu tĩnh, PySpark không tồn tại API <code>Dataset[T]</code> riêng biệt mà cung cấp 100% sức mạnh tối ưu hóa của <code>Catalyst</code> và <code>Tungsten</code> thông qua <strong><code>DataFrame</code></strong>.</li>
+          </ul>
+
+          <h3>Ma trận Đối chiếu Toàn diện: Spark RDD vs. Spark DataFrame vs. Spark Dataset[T]</h3>
+          <p>Bảng tổng hợp dưới đây đặt 3 tầng API của Apache Spark lên bàn cân qua 8 chiều kích kỹ thuật cốt lõi:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Kỹ thuật</th>
+                  <th><code>Spark RDD</code><br><em>(Spark 1.0 · Low-Level API)</em></th>
+                  <th><code>Spark DataFrame</code> (<code>Dataset[Row]</code>)<br><em>(Spark 1.3 / 2.0+ · Structured API)</em></th>
+                  <th><code>Spark Dataset[T]</code><br><em>(Spark 1.6 / 2.0+ · Typed Structured API)</em></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Biểu diễn dữ liệu &amp; Lược đồ (Schema)</strong></td>
+                  <td>Tập hợp các đối tượng Java / Python tùy ý; <strong>không có Schema</strong> (Spark mù cấu trúc bên trong bản ghi).</td>
+                  <td>Bảng quan hệ gồm <code>rows</code> và <code>columns</code> có tên; <strong>bắt buộc có <code>Schema</code> tường minh</strong> quản lý bởi Spark SQL.</td>
+                  <td>Tập hợp các đối tượng định kiểu mạnh <code>T</code> (Scala Case Class / JavaBean) kết hợp <strong><code>Schema</code> ánh xạ qua <code>Encoder</code></strong>.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Ngôn ngữ hỗ trợ</strong></td>
+                  <td><code>Scala</code>, <code>Java</code>, <code>Python</code>, <code>R</code>.</td>
+                  <td><code>Scala</code>, <code>Java</code>, <code>Python (PySpark)</code>, <code>R</code>, <code>SQL</code>.</td>
+                  <td><strong>Chỉ có trên <code>Scala</code> và <code>Java</code></strong> (không có trên Python/R do thiếu trình biên dịch kiểu tĩnh).</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Phong cách lập trình</strong></td>
+                  <td><strong>Imperative (Mệnh lệnh):</strong> Chỉ định <em>cách làm</em> từng bước qua hàm bậc cao (<code>map</code>, <code>flatMap</code>, <code>filter</code>, <code>reduceByKey</code>).</td>
+                  <td><strong>Declarative (Khai báo):</strong> Chỉ định <em>cần lấy gì</em> qua biểu thức quan hệ (<code>select</code>, <code>where</code>, <code>groupBy</code>, <code>join</code>).</td>
+                  <td><strong>Hybrid (Lai ghép):</strong> Vừa hỗ trợ biểu thức khai báo SQL, vừa hỗ trợ hàm định kiểu <code>map(order =&gt; order.price)</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Thời điểm bắt lỗi Cú pháp &amp; Kiểu dữ liệu</strong></td>
+                  <td>Lỗi cú pháp bắt lúc <strong>Compile-time</strong> (Scala/Java) hoặc <strong>Runtime</strong> (Python); lỗi sai kiểu dữ liệu chỉ nổ lúc <strong>Runtime</strong>.</td>
+                  <td>Lỗi cú pháp bắt lúc <strong>Compile-time</strong>; lỗi sai tên cột hoặc sai kiểu cột bắt lúc <strong>Analysis-time</strong> (trước khi chạy Job).</td>
+                  <td>Bắt trọn cả lỗi cú pháp lẫn lỗi sai tên trường / kiểu dữ liệu ngay tại <strong>Compile-time (An toàn kiểu cao nhất)</strong>.</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Tối ưu hóa truy vấn (<code>Catalyst Optimizer</code>)</strong></td>
+                  <td><strong>Không có:</strong> Spark chạy y nguyên thứ tự lệnh do người dùng viết (nếu <code>join</code> trước <code>filter</code> thì phải chịu toàn bộ dữ liệu).</td>
+                  <td><strong>Tự động 100%:</strong> Đẩy bộ lọc xuống sát nguồn (<code>Predicate Pushdown</code>), cắt tỉa cột thừa (<code>Column Pruning</code>) và sắp xếp lại kế hoạch.</td>
+                  <td><strong>Tự động trên các phép toán quan hệ</strong> (nhưng nếu lạm dụng hàm <code>lambda</code> kiểu hộp đen sẽ làm giảm khả năng đẩy bộ lọc).</td>
+                </tr>
+                <tr>
+                  <td><strong>6. Quản trị RAM &amp; Tuần tự hóa (<code>Project Tungsten</code>)</strong></td>
+                  <td>Lưu đối tượng nguyên bản trên JVM/CPython Heap; tốn bộ nhớ tiêu đề đối tượng, chịu áp lực dọn rác <code>GC</code> nặng; dùng <code>Java/Kryo/Pickle</code>.</td>
+                  <td>Lưu dưới dạng nhị phân phẳng <strong><code>UnsafeRow</code> (Tungsten Off-Heap/On-Heap)</strong> + sinh mã máy <code>Whole-Stage Codegen</code>; <strong>~0% tải <code>GC</code></strong>.</td>
+                  <td>Sử dụng <strong>Spark Internal <code>Encoders</code></strong> để ánh xạ nhanh giữa định dạng nhị phân <code>Tungsten</code> và đối tượng <code>T</code> khi cần thiết.</td>
+                </tr>
+                <tr>
+                  <td><strong>7. Hiệu năng trên <code>PySpark</code> (Python)</strong></td>
+                  <td><strong>Rất chậm (Nghẽn cổ chai):</strong> Bị phạt <strong>Double Serialization IPC</strong> qua ống Socket giữa <code>JVM</code> và tiến trình phụ <code>python worker</code>.</td>
+                  <td><strong>Nhanh tương đương Scala/Java:</strong> Biểu thức cột được biên dịch và chạy <strong>100% bên trong <code>JVM Executor</code></strong>, không bật <code>python worker</code>.</td>
+                  <td>Không áp dụng cho Python (trên PySpark, mọi tác vụ đều dùng <code>DataFrame</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>8. Khi nào nên sử dụng trong thực tế?</strong></td>
+                  <td>Xử lý dữ liệu phi cấu trúc hoàn toàn (văn bản tự do, luồng nhị phân thô) hoặc cần kiểm soát phân vùng vật lý ở mức cực thấp.</td>
+                  <td><strong>Mặc định cho 95%+ bài toán Data Engineering, ETL/ELT, Lakehouse và phân tích dữ liệu có cấu trúc/bán cấu trúc.</strong></td>
+                  <td>Các ứng dụng viết bằng <code>Scala/Java</code> đòi hỏi kiểm tra hợp đồng kiểu dữ liệu nghiêm ngặt ngay ở bước biên dịch CI/CD.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="summary-section" id="spark-2-summary">
+          <h2 id="spark-2-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 2 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <ol>
+            <li><strong>Tại sao nói Spark RDD được định nghĩa bởi các phân vùng (<code>Partitions</code>) và công thức tính (<code>Lineage</code>) chứ không phải vị trí lưu trữ vật lý?</strong> Vì <code>RDD</code> là một tầng trừu tượng logic chỉ đọc (Immutable): nó lưu danh sách các phân vùng cùng đồ thị lịch sử các phép biến đổi (<code>RDD 1 → filter → RDD 2 → groupBy → RDD 3</code>); khi một máy chủ <code>Worker</code> sập làm mất một phân vùng trong RAM, Spark chỉ cần chạy lại đúng nhánh <code>Lineage</code> của phân vùng đó để tái tạo dữ liệu mà không cần nhân bản $3\times$ bộ nhớ.</li>
+            <li><strong>Cơ chế vật lý nào khiến việc gọi hàm <code>rdd.map(lambda x: ...)</code> trong PySpark chậm hơn nhiều lần so với dùng biểu thức cột trên DataFrame?</strong> Vì động cơ <code>Executor</code> của Spark chạy trên máy ảo <code>JVM</code> không thể thực thi trực tiếp mã byte của hàm <code>lambda</code> Python; nó buộc phải tuần tự hóa từng bản ghi khỏi JVM, truyền qua cổng Socket nội bộ sang tiến trình phụ <code>python worker subprocess</code> để chạy <code>pickle.loads()</code>, thực thi hàm Python dưới khóa <code>GIL</code>, rồi lại <code>pickle.dumps()</code> trả ngược về JVM (<strong>Double Serialization IPC Penalty</strong>).</li>
+            <li><strong>Tại sao mọi phép biến đổi trên Spark DataFrame đều tạo ra một DataFrame mới (<code>Immutability</code>) thay vì sửa trực tiếp dữ liệu tại chỗ?</strong> Tính bất biến bảo toàn nguyên vẹn dữ liệu của các DataFrame cha trong suốt vòng đời ứng dụng: nhờ đó Spark có thể tái thực thi chính xác từng bước khi có nút mạng gặp sự cố (Fault Recovery) và cho phép nhiều luồng phân tích rẽ nhánh từ cùng một DataFrame gốc mà không xảy ra tranh chấp khóa (Race Condition) hay làm hỏng dữ liệu của nhau.</li>
+            <li><strong>Khi viết <code>df.select(col("price") * 2)</code> trong PySpark, tại sao tiến trình phụ <code>python worker</code> không hề bị đánh thức?</strong> Vì <code>col("price") * 2</code> không phải là một hàm hộp đen Python chạy trên từng dòng, mà là một cây biểu thức khai báo (AST) được gửi sang <code>JVM</code>; tại đây, bộ tối ưu hóa <code>Catalyst</code> đối chiếu với <code>Schema</code> của bảng và biên dịch thẳng thành mã byte JVM (<code>Whole-Stage Codegen</code>) thao tác trực tiếp trên vùng nhớ nhị phân <code>Tungsten</code>.</li>
+            <li><strong>Tại sao các đường ống dữ liệu Production luôn truyền <code>StructType</code> tường minh khi đọc tệp CSV/JSON thay vì bật <code>inferSchema = True</code>?</strong> Bật <code>inferSchema = True</code> bắt Spark phải chạy thêm một <code>Job</code> phụ đọc quét toàn bộ tệp trên <code>S3/HDFS</code> chỉ để đoán kiểu dữ liệu (gây lãng phí I/O gấp đôi) và dễ đoán sai kiểu khi gặp chuỗi số có số <code>0</code> ở đầu hoặc cột toàn <code>null</code>; truyền <code>StructType</code> tường minh loại bỏ hoàn toàn bước quét phụ này và khóa chặt hợp đồng lược đồ ngay từ cửa ngõ đọc dữ liệu.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/D03/3" onclick="selectStorageStage(3);return false;">Sang Chặng 3: Tuần Tự Hóa (Java vs. Kryo) &amp; Quản Trị Bộ Nhớ Hợp Nhất (In-Memory Computing) →</a></p>
+        </section>
+      </div>

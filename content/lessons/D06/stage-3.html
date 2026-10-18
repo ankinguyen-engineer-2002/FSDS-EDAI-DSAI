@@ -1,0 +1,393 @@
+      <div class="prose">
+        <x-spine id="orchestration-3-spine" badge="TRONG BÀI HỌC NÀY · D06" title="Chặng 3: Kiến Trúc Apache Airflow, Đồ Thị DAG, Operators, Sensors &amp; Cơ Học Truyền Tin XCom" subtitle="Trạm 3.1 → 3.4">Giải phẫu nội tạng <strong>Apache Airflow</strong>: từ triết lý <em>Workflows as Code</em> trên đồ thị <strong>DAG (Directed Acyclic Graph)</strong>, mô hình phối hợp 6 thành phần quanh <strong>Metadata Database</strong> (và bước tiến <strong>Airflow 3.0 Task Execution API</strong>), đến hệ sinh thái <strong>Operators / Deferrable Sensors</strong> và cơ chế truyền siêu dữ liệu <strong>XCom</strong>.</x-spine>
+
+        <section class="lesson-section" id="orchestration-3-1">
+          <h2 id="orchestration-3-1-h2" tabindex="-1">Trạm 3.1: Bản Chất Apache Airflow ("Nhạc Trưởng, Không Phải Công Nhân"), Đồ Thị DAG &amp; Bộ Tứ Khái Niệm Cốt Lõi</h2>
+
+          <p><strong>Apache Airflow</strong> là nền tảng điều phối quy trình dữ liệu mã nguồn mở (<strong>Open-Source Workflow Orchestration Platform</strong>) khởi nguồn từ Airbnb năm 2014 và trở thành dự án cấp cao nhất của Quỹ Phần mềm Apache, cho phép các đội ngũ dữ liệu định nghĩa, lập lịch, thực thi và giám sát toàn bộ đường ống dưới dạng mã nguồn Python (<strong>Workflows as Code</strong> — Slides 18–19 &amp; <em>Data Pipelines with Apache Airflow, 2nd Ed</em> Ch. 1.2–1.3). Thay vì kéo thả hộp thoại trên giao diện đồ họa đóng kín hoặc cấu hình hàng trăm dòng XML cứng nhắc, việc biểu diễn đường ống <code>daily_sales_pipeline</code> bằng code Python thuần mang lại 4 lợi thế kỹ thuật quyết định: (1) <strong>Quản lý phiên bản và bình duyệt mã nguồn (Version Control &amp; Code Review)</strong> trực tiếp trên Git/GitHub kèm kiểm thử tự động trong đường ống CI/CD; (2) <strong>Sinh quy trình động (Dynamic Pipeline Generation)</strong> bằng vòng lặp hoặc tệp cấu hình để tự động tạo hàng chục nhánh tác vụ mà không phải sao chép thủ công; (3) <strong>Khả năng mở rộng vô hạn (Extensibility)</strong> nhờ hệ sinh thái thư viện Python và hàng trăm gói tích hợp nhà cung cấp (Provider Packages); và (4) <strong>Chạy bù lịch sử nguyên bản (First-Class Backfilling)</strong> cho bất kỳ khoảng thời gian quá khứ nào chỉ bằng một lệnh duy nhất.</p>
+
+          <p>Tuy nhiên, sai lầm kiến trúc phổ biến và đắt giá nhất của kỹ sư mới làm quen với Airflow là nhầm lẫn giữa <strong>tác nhân điều phối (Orchestrator)</strong> và <strong>động cơ xử lý dữ liệu (Data Processing Engine)</strong>. Như khẳng định đanh thép trên Slide 20: <em>"Airflow coordinates work. It usually does not perform heavy data processing itself"</em> — Airflow là <strong>nhạc trưởng cầm đũa chỉ huy dàn nhạc, tuyệt đối không phải công nhân khuân vác dữ liệu</strong>. Airflow <strong>KHÔNG PHẢI</strong> là cơ sở dữ liệu (Database), <strong>KHÔNG PHẢI</strong> kho dữ liệu (Data Warehouse), <strong>KHÔNG PHẢI</strong> động cơ tính toán phân tán dữ liệu lớn (như Apache Spark), <strong>KHÔNG PHẢI</strong> hệ thống xử lý luồng thời gian thực (như Apache Flink hay Kafka), <strong>KHÔNG PHẢI</strong> hàng đợi thông điệp (Message Queue) và <strong>KHÔNG PHẢI</strong> nơi lưu trữ các tập dữ liệu lớn. Nếu trong tác vụ <code>clean_orders</code> của đường ống <code>daily_sales_pipeline</code>, kỹ sư viết lệnh <code>pd.read_csv("s3://lake/raw/orders_50gb.csv")</code> để nạp <code>50 GB</code> dữ liệu giao dịch vào bộ nhớ RAM của tiến trình Airflow Worker (vốn chỉ được cấp <code>2–4 GB RAM</code>), nhân hệ điều hành Linux sẽ lập tức kích hoạt <strong>OOM Killer (Out-Of-Memory Killer)</strong> bắn tín hiệu <code>SIGKILL (Exit Code -9 / 137)</code> bức tử tiến trình Worker, kéo sập cả các tác vụ lân cận trên cùng máy chủ. Kiến trúc chuẩn bắt buộc Airflow chỉ gửi lệnh kích hoạt qua mạng (Submit API / SQL / Container) để <strong>ủy thác (Offload)</strong> toàn bộ gánh nặng tính toán cho các hệ thống chuyên dụng như cụm Apache Spark, kho dữ liệu PostgreSQL/Snowflake/BigQuery (qua dbt) hoặc các Container độc lập.</p>
+
+          <x-figure id="orchestration-3-1-fig" key="3.1" title="Sơ đồ 3.1 — Ranh Giới Điều Phối vs. Tính Toán Nặng, Cấu Trúc Đồ Thị DAG Không Chu Trình &amp; Phân Cấp DAG → DAG Run → Task Instance">Tại sao Airflow đóng vai nhạc trưởng kích hoạt Spark/dbt/SQL thay vì tự xử lý dữ liệu lớn, và mối quan hệ 1-N giữa định nghĩa tĩnh (DAG/Task) với thực thi động (DAG Run/Task Instance).</x-figure>
+
+          <h3>Tại sao Airflow biểu diễn quy trình bằng Đồ thị Có hướng Không chu trình (DAG — Directed Acyclic Graph)?</h3>
+          <p>Để đảm bảo các tác vụ trong đường ống <code>daily_sales_pipeline</code> luôn thực thi đúng trình tự nhân – quả và chắc chắn kết thúc hữu hạn, Airflow mô hình hóa mọi quy trình dưới dạng cấu trúc toán học <strong>DAG (Directed Acyclic Graph — Đồ thị Có hướng Không chu trình)</strong> (Slide 21 &amp; <em>Airflow 2nd Ed</em> Ch. 1.2):</p>
+          <ul>
+            <li><strong>Graph (Đồ thị $G = (V, E)$):</strong> Tập hợp các đỉnh (<strong>Nodes / Vertices</strong>) đại diện cho các tác vụ (<code>extract_orders</code>, <code>clean_orders</code>, <code>load_warehouse</code>, <code>refresh_dashboard</code>) và các cạnh nối (<strong>Edges</strong>) biểu thị mối quan hệ phụ thuộc giữa chúng.</li>
+            <li><strong>Directed (Có hướng):</strong> Mọi cạnh nối đều có mũi tên chỉ hướng rõ ràng từ tác vụ thượng nguồn (Upstream) sang tác vụ hạ nguồn (Downstream), được khai báo trong Python qua toán tử dịch bit <code>&gt;&gt;</code>: chuỗi <code>extract_orders &gt;&gt; clean_orders &gt;&gt; load_warehouse &gt;&gt; refresh_dashboard</code> quy định <code>clean_orders</code> chỉ được phép khởi chạy sau khi <code>extract_orders</code> đã hoàn tất thành công (<code>success</code>).</li>
+            <li><strong>Acyclic (Không chu trình — Cấm vòng lặp):</strong> Đồ thị tuyệt đối <strong>không được phép tồn tại bất kỳ đường đi khép kín nào quay ngược lại đỉnh đã đi qua</strong> (ví dụ: cấm <code>Task A &gt;&gt; Task B &gt;&gt; Task C &gt;&gt; Task A</code>). Về mặt toán học, một đồ thị có hướng chỉ có thể sắp xếp thứ tự thực thi tuyến tính (<strong>Topological Sort</strong>) khi và chỉ khi nó không có chu trình. Nếu cho phép vòng lặp, Task A sẽ chờ Task C hoàn thành trong khi Task C lại chờ Task A, đẩy toàn bộ đường ống vào trạng thái <strong>khóa chết vô tận (Circular Deadlock / Infinite Loop)</strong> không bao giờ chạm tới điểm kết thúc. Ngay khi nạp tệp Python, bộ phân tích của Airflow sẽ kiểm tra chu trình và lập tức ném ngoại lệ <code>AirflowDagCycleException</code> nếu phát hiện phụ thuộc vòng.</li>
+          </ul>
+
+          <h3>Bộ tứ Khái niệm Cốt lõi (4 Core Concepts) &amp; Ranh giới Trách nhiệm của Airflow</h3>
+          <p>Khi vận hành đường ống <code>daily_sales_pipeline</code> xử lý giao dịch <strong>Order #8888</strong> (<code>order_id="ORD-8888"</code>, <code>amount=450000</code>), kỹ sư phải phân biệt rạch ròi giữa <strong>Bản thiết kế tĩnh (Static Definition)</strong> trong mã nguồn và <strong>Thực thể thực thi động (Runtime Instantiation)</strong> được ghi nhận trong cơ sở dữ liệu theo từng khung thời gian (Slide 19–22 &amp; <em>Airflow 2nd Ed</em> Ch. 2.2):</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Khái niệm / Góc nhìn</th>
+                  <th>Bản chất Cơ học trong Airflow</th>
+                  <th>Minh họa Thực tế trên Đường ống <code>daily_sales_pipeline</code></th>
+                  <th>Đối chiếu Ranh giới: Airflow LÀ GÌ vs. KHÔNG PHẢI LÀ GÌ</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. DAG (Directed Acyclic Graph)</strong><br><em>[Định nghĩa Tĩnh — Lược đồ Quy trình]</em></td>
+                  <td>Bản thiết kế tổng thể của một quy trình công việc (Workflow Definition), quy định tập hợp các bước, chiều phụ thuộc (<code>&gt;&gt;</code>), lịch chạy (<code>schedule</code>) và chính sách thử lại.</td>
+                  <td>Đối tượng <code>DAG(dag_id="daily_sales_pipeline", schedule="@daily")</code> định nghĩa quy trình tổng hợp doanh thu bán hàng mỗi ngày.</td>
+                  <td><strong>Airflow LÀ:</strong> Hệ thống quản lý vòng đời phụ thuộc, lập lịch theo thời gian/sự kiện và theo dõi trạng thái quy trình tập trung (Workflow Orchestrator).</td>
+                </tr>
+                <tr>
+                  <td><strong>2. DAG Run</strong><br><em>[Thực thể Động — Phiên chạy của DAG]</em></td>
+                  <td>Một lần khởi tạo và thực thi cụ thể của toàn bộ DAG cho một khoảng thời gian dữ liệu (<code>logical_date</code> / <code>data_interval</code>) hoặc một lần kích hoạt xác định.</td>
+                  <td>Phiên chạy <code>manual__2026-05-15</code> (hoặc <code>scheduled__2026-05-15T00:00:00+00:00</code>) xử lý toàn bộ đơn hàng phát sinh trong ngày <code>2026-05-15</code>.</td>
+                  <td><strong>Airflow KHÔNG PHẢI LÀ:</strong> Động cơ xử lý luồng liên tục (Streaming Engine như Flink/Kafka) hay hàng đợi thông điệp độ trễ mili-giây (Message Queue).</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Task (Tác vụ)</strong><br><em>[Định nghĩa Tĩnh — Đỉnh Đồ thị]</em></td>
+                  <td>Một đơn vị công việc nguyên tử (A single unit of work / Step) được định nghĩa bên trong DAG thông qua việc khởi tạo một <strong>Operator</strong> hoặc hàm gắn <code>@task</code>.</td>
+                  <td>4 đỉnh trên đồ thị: <code>extract_orders</code>, <code>clean_orders</code>, <code>load_warehouse</code> và <code>refresh_dashboard</code>.</td>
+                  <td><strong>Airflow LÀ:</strong> Bộ điều khiển gọi API/CLI để kích hoạt công việc trên hệ thống tính toán ngoài (Spark, dbt, Docker, Cloud Warehouse).</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Task Instance (TI)</strong><br><em>[Thực thể Động — Phiên chạy của Task]</em></td>
+                  <td>Một lần thực thi cụ thể của một <strong>Task</strong> bên trong một <strong>DAG Run</strong> xác định, được định danh bởi bộ khóa <code>(dag_id, task_id, run_id, try_number)</code> và mang trạng thái vòng đời riêng.</td>
+                  <td>Thực thể <code>TaskInstance(task_id="clean_orders", run_id="manual__2026-05-15")</code> đang chạy (<code>running</code>) để chuẩn hóa bản ghi <code>Order #8888</code> (<code>450,000 VND</code>).</td>
+                  <td><strong>Airflow KHÔNG PHẢI LÀ:</strong> Động cơ tính toán dữ liệu lớn (Big Data Engine) hay cơ sở dữ liệu lưu trữ bảng giao dịch (Database / Data Warehouse).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Nắm vững ranh giới "Nhạc trưởng chỉ huy – Công nhân tính toán ngoài" cùng mối quan hệ 1-N giữa cặp tĩnh (<code>DAG</code> / <code>Task</code>) và cặp động (<code>DAG Run</code> / <code>Task Instance</code>) giúp chúng ta tránh triệt để lỗi tràn bộ nhớ trên Worker. Nhưng bên dưới nắp máy, những tiến trình phần mềm nào của Airflow đang âm thầm đọc tệp Python, kiểm tra lịch chạy và đẩy <code>Task Instance</code> ra thực thi? Chúng ta tiến vào <strong>Trạm 3.2</strong>.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="orchestration-3-2">
+          <h2 id="orchestration-3-2-h2" tabindex="-1">Trạm 3.2: Giải Phẫu 6 Thành Phần Kiến Trúc Airflow &amp; Luồng Phối Hợp Qua Metadata Database (Từ Airflow 2.x Đến Airflow 3.0)</h2>
+
+          <p>Một cụm Apache Airflow hoàn chỉnh trong môi trường Production không phải là một khối thực thi đơn lẻ (Monolith), mà là một hệ thống phân tán gồm <strong>6 thành phần cốt lõi</strong> phối hợp bất đồng bộ với nhau xung quanh một nguồn sự thật duy nhất là <strong>Metadata Database</strong> (Slides 23–24 &amp; <em>Airflow 2nd Ed</em> Ch. 2.3, Ch. 15.1–15.5). Thay vì để giao diện người dùng (Web UI) hay trình lập lịch (Scheduler) gọi trực tiếp vào nhau qua kết nối mạng đồng bộ dễ đứt gãy, mọi thành phần trong Airflow đều tuân thủ nguyên tắc tách biệt trách nhiệm (Single Responsibility) và giao tiếp thông qua trạng thái bền vững được ghi trong cơ sở dữ liệu siêu dữ liệu (PostgreSQL hoặc MySQL).</p>
+
+          <x-figure id="orchestration-3-2-fig" key="3.2" title="Sơ đồ 3.2 — Giải Phẫu 6 Thành Phần Kiến Trúc Apache Airflow &amp; Vòng Lặp Điều Phối Quanh Metadata Database (Slide 23–24)">Luồng tương tác đơn trách nhiệm từ tệp Python DAG qua DAG Processor, Scheduler, Executor, Workers và Web UI lấy Metadata Database làm nguồn sự thật duy nhất.</x-figure>
+
+          <h3>Vòng lặp Tương tác Bất đồng bộ quanh Metadata Database &amp; Bước tiến Kiến trúc Airflow 3.0</h3>
+          <p>Hãy theo dõi hành trình cơ học khi đường ống <code>daily_sales_pipeline</code> được phân tích và kích hoạt phiên chạy <code>manual__2026-05-15</code> đi qua cả 6 mảnh ghép kiến trúc (Slide 24):</p>
+          <ul>
+            <li><strong>Bước 1 — Phân tích cú pháp và tuần tự hóa đồ thị (DAG Parsing &amp; Serialization):</strong> Kỹ sư triển khai tệp mã nguồn <code>daily_sales_pipeline.py</code> vào thư mục <strong>DAG Directory</strong>. Tiến trình <strong>DAG Processor</strong> (tách rời độc lập với vòng lặp lập lịch từ Airflow 2.3+ và chuẩn hóa hoàn toàn trong Airflow 3.0) định kỳ quét thư mục này mỗi <code>min_file_process_interval</code> (mặc định <code>30 giây</code>), thực thi mã Python để dựng đối tượng đồ thị, chuyển đổi cấu trúc đồ thị thành chuỗi JSON (<strong>DAG Serialization</strong>) và lưu thẳng vào bảng <code>serialized_dag</code> trong <strong>Metadata Database</strong>.</li>
+            <li><strong>Bước 2 — Vòng lặp Lập lịch và Kiểm tra Phụ thuộc (Scheduling Loop):</strong> Tiến trình <strong>Scheduler</strong> liên tục chạy vòng lặp trái tim (<code>scheduler_heartbeat_sec = 5s</code>), đọc cấu trúc DAG đã tuần tự hóa từ <strong>Metadata Database</strong> mà không cần chạm vào tệp Python gốc. Khi thấy phiên chạy <code>manual__2026-05-15</code> có tác vụ <code>extract_orders</code> đã hoàn tất (<code>success</code>), Scheduler kiểm tra quy tắc phụ thuộc của tác vụ kế tiếp <code>clean_orders</code>, chuyển trạng thái của <code>TaskInstance(clean_orders)</code> trong Metadata DB sang <code>scheduled</code> rồi đưa vào hàng đợi của <strong>Executor</strong> (trạng thái <code>queued</code>).</li>
+            <li><strong>Bước 3 — Điều phối và Thực thi trên Worker (Dispatch &amp; Execution):</strong> <strong>Executor</strong> (cơ chế cắm rời chạy gắn liền với Scheduler như <code>LocalExecutor</code>, <code>CeleryExecutor</code> hoặc <code>KubernetesExecutor</code>) quyết định <em>cách thức và nơi chốn</em> chạy tác vụ. Executor đẩy lệnh thực thi tới một nút <strong>Worker</strong> rảnh rỗi. Tiến trình Worker nhận lệnh, cập nhật trạng thái <code>TaskInstance(clean_orders)</code> sang <code>running</code>, thực thi hàm <code>operator.execute(context)</code> để chuẩn hóa giao dịch <code>Order #8888</code>, xuất nhật ký ra kho lưu trữ (Remote Task Logs) và ghi kết quả cuối cùng (<code>success</code> hoặc <code>failed</code>) về lại <strong>Metadata Database</strong>.</li>
+            <li><strong>Bước 4 — Quan sát và Điều khiển qua Giao diện (Observability &amp; Control):</strong> <strong>Web Server / API Server (Web UI)</strong> hoàn toàn không bao giờ tự đọc tệp Python hay tự chạy tác vụ; nó chỉ truy vấn bảng trạng thái từ <strong>Metadata Database</strong> và kéo tệp log từ kho lưu trữ để hiển thị sơ đồ Grid/Graph màu xanh lá (<code>success</code>) hoặc đỏ (<code>failed</code>) cho kỹ sư vận hành.</li>
+            <li><strong>Bước ngoặt Kiến trúc Airflow 3.0 — Task Execution API Server &amp; Zero Direct DB Access:</strong> Trong kiến trúc Airflow 2.x truyền thống, các tiến trình <strong>Workers</strong> nắm giữ trực tiếp chuỗi kết nối SQL (<code>sql_alchemy_conn</code>) để tự đọc/ghi trạng thái vào Metadata Database; điều này tạo ra lỗ hổng bảo mật (mã Python của một tác vụ bất kỳ có thể truy vấn trộm toàn bộ bảng <code>connection</code>/<code>variable</code>) và gây cạn kiệt kết nối DB (Connection Exhaustion) khi hàng nghìn Workers cùng mở kết nối đồng thời. Bước sang <strong>Airflow 3.0</strong>, kiến trúc bổ sung tầng <strong>Task Execution API Server</strong> kết hợp <strong>Task SDK</strong>: tiến trình Worker bị tước bỏ hoàn toàn quyền kết nối trực tiếp vào Metadata Database (<strong>Zero Direct DB Access</strong>) và bắt buộc phải giao tiếp qua giao thức HTTP/gRPC có xác thực token ngắn hạn với API Server, giúp cô lập bảo mật tuyệt đối và bảo vệ Metadata Database khỏi bão kết nối.</li>
+          </ul>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Thành phần Kiến trúc</th>
+                  <th>Trách nhiệm Đơn lẻ (Single Responsibility)</th>
+                  <th>Cạm bẫy Chí mạng (Failure Modes / Anti-Patterns)</th>
+                  <th>Thông số Tinh chỉnh &amp; Chuẩn Vận hành Production</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. DAG Files (DAG Directory)</strong></td>
+                  <td>Các tệp mã nguồn Python khai báo cấu trúc đồ thị, lịch chạy, danh sách Operators và luồng phụ thuộc <code>&gt;&gt;</code>.</td>
+                  <td><strong>Top-Level Code Anti-Pattern:</strong> Viết lệnh gọi API ngoài, đọc DB hoặc gọi <code>Variable.get()</code> ngay ở ngoài hàm/Operator khiến lệnh đó bị chạy lặp lại <strong>mỗi 30 giây</strong> mỗi khi DAG Processor quét tệp, làm sập DB nguồn!</td>
+                  <td>Chỉ đặt mã khởi tạo nhẹ ở mức Top-level; đưa mọi kết nối mạng/DB vào bên trong thân hàm <code>@task</code> hoặc phương thức <code>execute()</code> của Operator; sử dụng Jinja Template <code>{{ var.value.my_var }}</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Scheduler (+ Standalone DAG Processor)</strong></td>
+                  <td>Bộ não trung tâm theo dõi thời gian, kiểm tra điều kiện phụ thuộc thượng nguồn và chuyển trạng thái <code>Task Instance</code> sang <code>scheduled</code> → <code>queued</code>.</td>
+                  <td><strong>DAG Parsing Bottleneck:</strong> Nếu gộp chung bộ phân tích tệp với Scheduler trên hàng nghìn tệp DAG nặng, vòng lặp lập lịch bị trễ (Scheduling Delay).</td>
+                  <td>Tách riêng tiến trình <code>airflow dag-processor</code> độc lập; điều chỉnh <code>min_file_process_interval = 30–60s</code>, <code>parsing_processes = 4–8</code> và chạy 2+ Scheduler ở chế độ <strong>High Availability (Active-Active)</strong>.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Executor</strong></td>
+                  <td>Cơ chế điều phối cắm rời (Pluggable dispatcher) quyết định <em>nơi nào và bằng hạ tầng nào</em> các tác vụ ở trạng thái <code>queued</code> sẽ được đem đi chạy.</td>
+                  <td>Chọn sai Executor cho quy mô tải: dùng <code>LocalExecutor</code> trên 1 máy đơn lẻ cho hàng trăm tác vụ nặng gây tranh chấp CPU/RAM toàn cục.</td>
+                  <td>Cấu hình qua <code>core.executor</code>: dùng <code>LocalExecutor</code> cho quy mô nhỏ, <code>CeleryExecutor</code> cho tác vụ tần suất cao độ trễ thấp, <code>KubernetesExecutor</code> cho cô lập Pod tuyệt đối (chi tiết ở Chặng 4).</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Workers</strong></td>
+                  <td>Các tiến trình, nút máy chủ hoặc Kubernetes Pods trực tiếp nạp mã tác vụ và thực thi hàm <code>operator.execute(context)</code>.</td>
+                  <td><strong>OOM Kill (<code>SIGKILL -9</code>) &amp; Xung đột Thư viện:</strong> Xử lý DataFrame lớn ngay trong RAM của Worker hoặc cài đặt các gói Python xung đột phiên bản trên cùng một môi trường Worker.</td>
+                  <td>Ủy thác tính toán nặng sang Spark/dbt/Warehouse; cô lập môi trường bằng <code>DockerOperator</code> / <code>KubernetesPodOperator</code>; trong Airflow 3.0, Worker giao tiếp qua <strong>Task Execution API</strong> thay vì mở kết nối DB trực tiếp.</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Metadata Database (PostgreSQL / MySQL)</strong></td>
+                  <td><strong>Nguồn sự thật trung tâm (Central Source of Truth — Slide 24)</strong> lưu trữ <code>serialized_dag</code>, lịch sử <code>dag_run</code>, trạng thái <code>task_instance</code>, <code>connection</code>, <code>variable</code> và <code>xcom</code>.</td>
+                  <td><strong>Connection Exhaustion &amp; XCom Bloat:</strong> Hàng trăm Workers mở kết nối trực tiếp làm tràn <code>max_connections</code> của PostgreSQL, hoặc bảng <code>xcom</code>/<code>log</code> phình hàng trăm GB không được dọn dẹp.</td>
+                  <td>Tuyệt đối không dùng SQLite trong Production; bắt buộc đặt <strong>PgBouncer</strong> (Connection Pooler) trước PostgreSQL (hoặc dùng Task Execution API của Airflow 3.0) và chạy định kỳ <code>airflow db clean</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>6. Web Server / API Server (Web UI)</strong></td>
+                  <td>Đọc dữ liệu từ Metadata DB (<code>serialized_dag</code>, <code>task_instance</code>) và kho log để hiển thị giao diện Grid/Graph, lịch sử chạy, SLA và cung cấp REST API kích hoạt DAG.</td>
+                  <td>Truy vấn nhật ký tác vụ quá lớn hoặc mở trang Grid View của DAG có hàng chục nghìn lần chạy làm treo tiến trình Gunicorn/FastAPI của Web Server.</td>
+                  <td>Cấu hình <strong>Remote Logging</strong> đẩy toàn bộ nhật ký tác vụ lên Object Storage (<code>S3</code> / <code>GCS</code> / <code>MinIO</code>) và giới hạn quyền truy cập theo vai trò (RBAC).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Nhờ kiến trúc 6 thành phần giao tiếp qua <strong>Metadata Database</strong> và lớp bảo vệ <strong>Task Execution API</strong>, Airflow có thể điều phối hàng chục nghìn tác vụ mỗi ngày mà không sợ mất trạng thái khi bất kỳ nút Worker hay Web Server nào khởi động lại. Nhưng bên trong mỗi đỉnh <code>Task</code> trên đồ thị, chúng ta có những công cụ (Operators &amp; Sensors) nào để tương tác với thế giới bên ngoài mà không làm kẹt cứng toàn bộ cụm Worker? Chúng ta bước sang <strong>Trạm 3.3</strong>.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="orchestration-3-3">
+          <h2 id="orchestration-3-3-h2" tabindex="-1">Trạm 3.3: Hệ Sinh Thái Operators (Action / Transfer) &amp; Cơ Học Sensors (Poke vs. Reschedule vs. Deferrable Triggerer)</h2>
+
+          <p>Nếu <strong>DAG</strong> là khung xương quy định trình tự thực thi thì <strong>Operators</strong> và <strong>Sensors</strong> chính là các khối cơ bắp định nghĩa công việc cụ thể mà từng tác vụ sẽ thực hiện (Slides 25–27 &amp; <em>Airflow 2nd Ed</em> Ch. 2.2, Ch. 7.1, Ch. 9.4–9.5, Ch. 11.4). Trong kiến trúc Airflow, mọi tác vụ đều kế thừa từ lớp cơ sở <code>BaseOperator</code> và được chia thành 3 nhóm chức năng chính: (1) <strong>Action Operators</strong> — thực thi một hành động hoặc kích hoạt tính toán trên hệ thống đích (chạy hàm Python, câu lệnh Bash, truy vấn SQL, gọi REST API hoặc bật Container Docker/Kubernetes); (2) <strong>Transfer Operators</strong> — di chuyển dữ liệu trực tiếp từ hệ thống nguồn sang hệ thống đích (ví dụ <code>S3ToPostgresOperator</code>); và (3) <strong>Sensors (Bộ cảm biến)</strong> — một phân lớp đặc biệt của Operator không thực hiện biến đổi dữ liệu mà <strong>chờ đợi cho tới khi một điều kiện bên ngoài được thỏa mãn</strong> (như tệp tin xuất hiện trên S3 hoặc phân vùng bảng nguồn được cập nhật xong) rồi mới mở cổng cho các tác vụ hạ nguồn chạy tiếp.</p>
+
+          <x-figure id="orchestration-3-3-fig" key="3.3" title="Sơ đồ 3.3 — Phân Loại Operators &amp; Giải Phẫu 3 Chế Độ Chờ Của Sensor (Poke Chiếm Slot vs. Reschedule vs. Async Deferrable Triggerer)">Cách giải cứu cụm Worker khỏi thảm họa kẹt cứng (Sensor Deadlock) bằng chế độ Reschedule và tiến trình bất đồng bộ asyncio Triggerer.</x-figure>
+
+          <h3>Cạm bẫy "Kẹt cứng Cụm Worker" (Sensor Deadlock) &amp; Tiến hóa 3 Chế độ Chờ của Sensor</h3>
+          <p>Trong đường ống <code>daily_sales_pipeline</code>, trước khi tác vụ <code>extract_orders</code> có thể đọc dữ liệu giao dịch ngày <code>2026-05-15</code> (chứa đơn hàng <code>Order #8888</code>), chúng ta thường đặt một bộ cảm biến <code>wait_for_orders_file</code> (dùng <code>S3KeySensor</code> hoặc <code>FileSensor</code>) ở đầu nguồn để chờ tệp <code>orders_2026-05-15.parquet</code> do hệ thống đối tác đẩy lên. Tuy nhiên, việc cấu hình chế độ chờ của Sensor là ranh giới sinh tử quyết định cụm Airflow sống khỏe hay rơi vào trạng thái <strong>tê liệt toàn cục (Sensor Deadlock / Worker Starvation)</strong> (<em>Airflow 2nd Ed</em> Ch. 7.1 &amp; Ch. 9.5):</p>
+          <ul>
+            <li><strong>1. Chế độ <code>mode="poke"</code> (Mặc định truyền thống — Ngủ giữ chỗ trong Worker):</strong> Khi khởi chạy ở chế độ <code>poke</code>, Sensor chiếm lấy <strong>1 Worker Slot</strong> (trạng thái <code>running</code>), kiểm tra xem tệp đã có trên S3 chưa; nếu chưa thấy, nó gọi lệnh <code>time.sleep(poke_interval=60)</code> để ngủ ngay bên trong tiến trình Worker rồi kiểm tra lại. <strong>Thảm họa Sensor Deadlock:</strong> Giả sử toàn bộ cụm Airflow của bạn có tổng cộng <code>16 Worker Slots</code>, và có <code>16</code> đường ống DAG cùng khởi chạy lúc <code>00:00</code> để chờ tệp từ đối tác bị trễ 4 tiếng. Cả 16 Sensors sẽ chiếm trọn <code>16/16 Worker Slots</code> chỉ để nằm ngủ (CPU = 0%)! Khi đó, không còn bất kỳ một Worker Slot trống nào trên toàn cụm để chạy các tác vụ thực sự khác — thậm chí nếu chính tác vụ tạo ra tệp tin mà Sensor đang chờ cũng nằm trên cụm Airflow đó, toàn bộ hệ thống sẽ <strong>khóa chết vĩnh viễn</strong> cho tới khi hết hạn <code>timeout</code> (mặc định lên tới <code>7 ngày</code>!).</li>
+            <li><strong>2. Chế độ <code>mode="reschedule"</code> (Trả lại Worker Slot giữa các lần kiểm tra):</strong> Để phá vỡ thế kẹt của <code>poke</code>, khi đặt <code>mode="reschedule"</code>, nếu lần kiểm tra đầu tiên chưa thấy tệp, Sensor sẽ <strong>tự kết thúc tiến trình kiểm tra, giải phóng ngay lập tức Worker Slot</strong> cho tác vụ khác dùng, và chuyển trạng thái của chính nó trong Metadata DB sang <code>up_for_reschedule</code> kèm mốc thời gian hẹn đánh thức kế tiếp. Đúng <code>60 giây</code> sau, Scheduler mới cấp lại Worker Slot để Sensor kiểm tra lại trong vài mili-giây. Đánh đổi nhỏ là mỗi chu kỳ thức – ngủ tốn thêm một lượt truy vấn lập lịch của Scheduler.</li>
+            <li><strong>3. Chế độ <code>deferrable=True</code> (Deferrable Operators &amp; Tiến trình bất đồng bộ <code>Triggerer</code> — Chuẩn Hiện đại Airflow 2.2+ &amp; 3.0):</strong> Thay vì bắt Scheduler và Worker cứ phải nạp đi nạp lại tác vụ mỗi 60 giây như <code>reschedule</code>, khi bật cờ <code>deferrable=True</code>, ngay khi thấy tệp chưa có, Worker ném ngoại lệ nội bộ <code>TaskDeferred</code> để chuyển giao việc chờ đợi sang một thành phần kiến trúc chuyên biệt thứ 7 mang tên <strong>Triggerer</strong> (trạng thái tác vụ chuyển thành <code>deferred</code>, giải phóng <strong>100% Worker Slot</strong>). Tiến trình <strong>Triggerer</strong> chạy vòng lặp sự kiện bất đồng bộ <strong>Python <code>asyncio</code> Event Loop</strong>: chỉ một tiến trình Triggerer duy nhất tốn vài trăm MB RAM có thể theo dõi đồng thời <strong>hàng nghìn Sensors và Operators đang chờ</strong> (S3, SQL, HTTP, Spark Job, Databricks Run) mà không tốn bất kỳ một Worker Slot hay chu kỳ lập lịch nào của Scheduler. Ngay khoảnh khắc tệp <code>orders_2026-05-15.parquet</code> xuất hiện trên S3, Triggerer bắn sự kiện đánh thức để Scheduler đưa tác vụ trở lại Worker hoàn tất.</li>
+          </ul>
+
+          <pre><code># Minh họa định nghĩa DAG kết hợp Deferrable Sensor, @task PythonOperator và DockerOperator cô lập (Slide 25–27)
+from datetime import datetime
+from airflow.sdk import DAG, task
+from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
+from airflow.providers.docker.operators.docker import DockerOperator
+from docker.types import Mount
+
+with DAG(
+    dag_id="daily_sales_pipeline",
+    start_date=datetime(2026, 5, 1),
+    schedule="@daily",
+    catchup=False,
+) as dag:
+
+    # 1. Sensor bất đồng bộ (Deferrable): Nhường việc chờ tệp S3 cho asyncio Triggerer (0 Worker Slot bị chiếm!)
+    wait_for_orders = S3KeySensor(
+        task_id="wait_for_orders_file",
+        bucket_name="enterprise-data-lake",
+        bucket_key="raw/orders/{{ ds }}/orders.parquet",
+        aws_conn_id="aws_lake_default",
+        poke_interval=60,
+        timeout=3600 * 4,     # Luôn đặt timeout tường minh (4 giờ), cấm để mặc định 7 ngày!
+        deferrable=True,      # Giải phóng hoàn toàn Worker Slot sang trạng thái 'deferred'
+    )
+
+    # 2. PythonOperator (@task): Chỉ điều phối / kiểm tra siêu dữ liệu nhẹ, trả về URI cho bước sau
+    @task(task_id="extract_and_validate_meta")
+    def validate_orders_metadata(ds: str | None = None) -&gt; str:
+        s3_uri = f"s3://enterprise-data-lake/raw/orders/{ds}/orders.parquet"
+        # Ủy thác đọc metadata file footer (chứa Order #8888, amount=450000), KHÔNG nạp 50GB vào RAM Worker
+        return s3_uri
+
+    # 3. DockerOperator (Slide 25 &amp; Ch. 11.4): Cô lập hoàn toàn thư viện ML/Data Processing trong Container riêng
+    clean_and_score_orders = DockerOperator(
+        task_id="clean_orders",
+        image="registry.internal/data-eng/order-cleaner-lgb:0.0.1",
+        command="--input-uri {{ ti.xcom_pull(task_ids='extract_and_validate_meta') }} --date {{ ds }}",
+        mounts=[Mount(source="/mnt/shared_staging", target="/data", type="bind")],
+        auto_remove="success",
+        docker_url="unix://var/run/docker.sock",
+    )
+
+    # 4. SQL Operator: Ủy thác tính toán tổng hợp nặng xuống thẳng động cơ Data Warehouse (PostgreSQL / Snowflake)
+    load_warehouse = SQLExecuteQueryOperator(
+        task_id="load_warehouse",
+        conn_id="postgres_dw_prod",
+        sql="CALL sp_merge_daily_sales('{{ ds }}');",
+    )
+
+    wait_for_orders &gt;&gt; validate_orders_metadata() &gt;&gt; clean_and_score_orders &gt;&gt; load_warehouse</code></pre>
+
+          <h3>Bảng tổng hợp Hệ sinh thái Operators Phổ biến &amp; Đối sánh 3 Chế độ Thực thi Sensor</h3>
+          <p>Bảng dưới đây hệ thống hóa 7 nhóm Operators thông dụng nhất trong thực tế (Slide 25–26) cùng ma trận lựa chọn 3 chế độ Sensor (Slide 27 &amp; <em>Airflow 2nd Ed</em> Ch. 7, 9, 11):</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Nhóm Operator / Chế độ Sensor</th>
+                  <th>Đại diện Tiêu biểu trong Airflow</th>
+                  <th>Mục đích Sử dụng &amp; Cơ chế Hoạt động</th>
+                  <th>Quy tắc Thiết kế Chuẩn Production (Best Practice)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Thực thi Hàm Python</strong></td>
+                  <td><code>PythonOperator</code> / Decorator <code>@task</code> (TaskFlow API)</td>
+                  <td>Chạy một hàm Python tùy chỉnh để gọi SDK ngoài, kiểm tra logic điều phối hoặc biến đổi dữ liệu nhỏ.</td>
+                  <td>Cấm nạp tập dữ liệu lớn (DataFrame hàng GB) vào bộ nhớ Worker; nếu cần thư viện riêng biệt hãy dùng <code>@task.virtualenv</code> hoặc <code>@task.docker</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Thực thi Lệnh Vỏ (Shell / CLI)</strong></td>
+                  <td><code>BashOperator</code> / <code>@task.bash</code></td>
+                  <td>Chạy câu lệnh dòng lệnh Bash, tập lệnh shell hoặc kích hoạt công cụ CLI như <code>dbt build</code>, <code>spark-submit</code>.</td>
+                  <td>Đảm bảo câu lệnh trả về mã thoát khác 0 (Non-zero exit code) khi thất bại để Airflow bắt được lỗi; tránh nhúng mật khẩu thô vào chuỗi lệnh.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Truy vấn Cơ sở Dữ liệu &amp; Kho Dữ liệu</strong></td>
+                  <td><code>SQLExecuteQueryOperator</code> (thay thế <code>PostgresOperator</code> cũ), <code>BigQueryInsertJobOperator</code></td>
+                  <td>Đẩy câu lệnh <code>COPY</code>, <code>MERGE</code>, <code>CREATE TABLE AS</code> xuống thực thi trực tiếp trên phần cứng của Data Warehouse.</td>
+                  <td>Viết câu lệnh SQL đảm bảo tính <strong>Idempotent (Lũy đẳng)</strong> (dùng <code>DELETE WHERE date = '{{ ds }}'</code> + <code>INSERT</code> hoặc <code>MERGE</code>) để chạy lại an toàn.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Thực thi Container Cô lập (Slide 25)</strong></td>
+                  <td><code>DockerOperator</code>, <code>KubernetesPodOperator</code></td>
+                  <td>Khởi chạy một Container/Pod độc lập từ Docker Image (ví dụ <code>airflow-lgb-stage:0.0.1</code>) với đầy đủ thư viện C++/CUDA/ML riêng biệt.</td>
+                  <td>Cách tốt nhất để giải quyết <strong>Dependency Hell</strong> (xung đột phiên bản thư viện Python với Airflow) và giới hạn cứng định mức CPU/RAM cho từng tác vụ.</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Gọi API &amp; Thông báo Cảnh báo</strong></td>
+                  <td><code>HttpOperator</code>, <code>EmailOperator</code>, <code>SlackWebhookOperator</code></td>
+                  <td>Kích hoạt Webhook dịch vụ ngoài (như làm mới bộ đệm BI Dashboard) hoặc bắn cảnh báo tới kênh Slack/Email của đội trực vận hành.</td>
+                  <td>Ưu tiên gắn hàm cảnh báo vào <code>on_failure_callback</code> ở cấp DAG/Task thay vì tạo thêm các đỉnh Task thông báo rời rạc làm rối đồ thị.</td>
+                </tr>
+                <tr>
+                  <td><strong>6. Sensor: <code>mode="poke"</code> vs. <code>mode="reschedule"</code></strong></td>
+                  <td><code>S3KeySensor</code>, <code>FileSensor</code>, <code>SqlSensor</code>, <code>HttpSensor</code>, <code>ExternalTaskSensor</code></td>
+                  <td><code>poke</code> giữ chặt Worker Slot và ngủ (<code>sleep</code>); <code>reschedule</code> trả lại Worker Slot và đưa tác vụ về trạng thái <code>up_for_reschedule</code> giữa hai lần hỏi.</td>
+                  <td>Chỉ dùng <code>poke</code> khi thời gian chờ rất ngắn (<code>&lt; 30s</code>) và kiểm tra mỗi vài giây; bắt buộc chuyển sang <code>reschedule</code> hoặc <code>deferrable=True</code> nếu chờ từ vài phút trở lên và luôn đặt <code>timeout</code> hợp lý.</td>
+                </tr>
+                <tr>
+                  <td><strong>7. Sensor Bất đồng bộ: <code>deferrable=True</code> (Triggerer)</strong></td>
+                  <td>Các Sensor/Operator hỗ trợ Async Triggers trên tiến trình <code>Triggerer</code></td>
+                  <td>Tác vụ tạm dừng trên Worker (trạng thái <code>deferred</code>, tốn <strong>0 Worker Slot</strong>) và bàn giao việc lắng nghe sự kiện I/O cho vòng lặp <code>asyncio</code> của Triggerer.</td>
+                  <td><strong>Mặc định khuyên dùng (Opinionated Default)</strong> cho mọi tác vụ chờ I/O kéo dài trong Airflow hiện đại, giúp cụm tiết kiệm tới 80–90% tài nguyên Worker nhàn rỗi.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Trong đoạn mã trên, hãy để ý biểu thức <code>{{ ti.xcom_pull(task_ids='extract_and_validate_meta') }}</code> mà tác vụ <code>clean_orders</code> dùng để lấy đường dẫn tệp S3 từ tác vụ đứng trước. Tại sao hai tác vụ trong cùng một tệp Python lại không thể dùng chung một biến toàn cục (Global Variable) hoặc đọc tệp tạm trong <code>/tmp</code>, và cơ chế <strong>XCom</strong> hoạt động như thế nào dưới gầm bàn? Chúng ta tiến tới <strong>Trạm 3.4</strong>.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="orchestration-3-4">
+          <h2 id="orchestration-3-4-h2" tabindex="-1">Trạm 3.4: Cô Lập Tác Vụ (Task Isolation) &amp; Cơ Chế Truyền Siêu Dữ Liệu XCom (Tại Sao Cấm Đẩy DataFrame Qua XCom?)</h2>
+
+          <p>Trong một cụm Airflow phân tán sử dụng <code>CeleryExecutor</code> hoặc <code>KubernetesExecutor</code>, mỗi <strong>Task Instance</strong> là một đơn vị thực thi <strong>cô lập hoàn toàn về không gian bộ nhớ và máy chủ vật lý (Strict Task Isolation)</strong> (Slide 28 &amp; <em>Airflow 2nd Ed</em> Ch. 6.5). Khi đường ống <code>daily_sales_pipeline</code> chạy phiên <code>manual__2026-05-15</code>, tác vụ <code>extract_orders</code> có thể được điều phối chạy trên <strong>Worker Node A</strong> (hoặc <code>Pod-1</code>), trong khi tác vụ kế tiếp <code>clean_orders</code> lại được đẩy sang chạy trên <strong>Worker Node B</strong> (hoặc <code>Pod-2</code>) ở một máy chủ vật lý hoàn toàn khác. Hệ quả tất yếu của tính cô lập này là:</p>
+          <ul>
+            <li><strong>Biến toàn cục trong Python (Global Variables) hoàn toàn vô dụng:</strong> Nếu <code>extract_orders</code> sửa đổi một biến danh sách hoặc từ điển toàn cục trong tệp <code>daily_sales_pipeline.py</code> trên RAM của <code>Worker Node A</code>, tiến trình <code>clean_orders</code> chạy trên <code>Worker Node B</code> sẽ nạp một không gian bộ nhớ Python mới tinh và không bao giờ nhìn thấy thay đổi đó.</li>
+            <li><strong>Ổ đĩa cục bộ (Local Disk <code>/tmp</code>) không được chia sẻ giữa các nút:</strong> Nếu <code>extract_orders</code> ghi tệp <code>/tmp/order_8888.csv</code> xuống ổ cứng cục bộ của <code>Worker Node A</code> (hoặc hệ thống tệp tạm thời bên trong một Container Docker/Kubernetes Pod), thì ngay khi Pod kết thúc hoặc khi <code>clean_orders</code> mở đường dẫn <code>/tmp/order_8888.csv</code> trên <code>Worker Node B</code>, nó sẽ nhận ngay lỗi <code>FileNotFoundError</code>!</li>
+          </ul>
+
+          <p>Mặc dù các tác vụ bị cô lập về hạ tầng thực thi, quy trình thực tế vẫn đòi hỏi các bước phải <strong>trao đổi thông tin điều phối nhỏ (Small Coordination Metadata)</strong> cho nhau (Slide 28): tác vụ <code>Extract</code> vừa tải dữ liệu về cần báo cho <code>Transform</code> biết <em>đường dẫn tệp đích</em> (<code>s3://enterprise-data-lake/raw/orders/2026-05-15/orders.parquet</code>); tác vụ <code>Validation</code> vừa đếm số lượng bản ghi cần truyền con số <code>row_count = 125400</code> (hoặc trạng thái đơn hàng <code>Order #8888</code>) sang tác vụ <code>Branch / Decision</code> để quyết định có nạp vào kho hay không; và tác vụ <code>Training</code> sau khi huấn luyện xong cần gửi đường dẫn mô hình <code>model_path = "/models/v2"</code> cho tác vụ <code>Evaluation</code> kiểm định.</p>
+
+          <x-figure id="orchestration-3-4-fig" key="3.4" title="Sơ đồ 3.4 — Cơ Học Truyền Tin XCom (xcom_push / xcom_pull Qua Metadata DB) &amp; Mẫu Truyền Tham Chiếu URI (Pass-by-Reference)">Đối chiếu luồng truyền siêu dữ liệu nhỏ (&lt;1KB URI/row_count) an toàn qua bảng xcom với thảm họa đẩy trực tiếp DataFrame lớn làm tràn bộ nhớ Metadata DB.</x-figure>
+
+          <h3>Cơ học Hoạt động của XCom (Cross-Communication) &amp; Luật Vàng: Tại sao Cấm Đẩy DataFrame qua XCom?</h3>
+          <p>Để giải quyết bài toán trao đổi thông điệp giữa các tác vụ phân tán, Airflow cung cấp cơ chế <strong>XCom (viết tắt của Cross-Communication)</strong> hoạt động lấy <strong>Metadata Database</strong> làm trạm trung chuyển trung gian (Slide 29 &amp; <em>Airflow 2nd Ed</em> Ch. 6.5):</p>
+          <ul>
+            <li><strong>Chiều đẩy lên (<code>xcom_push</code>):</strong> Khi một tác vụ gọi phương thức tường minh <code>ti.xcom_push(key="model_path", value="/models/v2")</code> — hoặc đơn giản là dùng lệnh <code>return "/models/v2"</code> ở cuối một hàm PythonOperator / <code>@task</code> (Airflow sẽ tự động đẩy giá trị trả về vào khóa mặc định <code>key="return_value"</code>) — Worker sẽ <strong>tuần tự hóa (Serialize)</strong> giá trị đó thành chuỗi <strong>JSON</strong> và thực hiện câu lệnh <code>INSERT</code> ghi một dòng bản ghi vào bảng <code>xcom</code> bên trong <strong>Metadata Database</strong>, gắn kèm khóa định danh <code>(dag_id, task_id, run_id, key)</code>.</li>
+            <li><strong>Chiều kéo về (<code>xcom_pull</code>):</strong> Ở bước hạ nguồn chạy trên một máy Worker khác, tác vụ gọi <code>ti.xcom_pull(task_ids="train_model", key="model_path")</code> (hoặc trong TaskFlow API, chỉ cần truyền trực tiếp kết quả hàm thượng nguồn làm đối số cho hàm hạ nguồn). Worker hạ nguồn sẽ gửi câu lệnh <code>SELECT value FROM xcom</code> tới <strong>Metadata Database</strong>, giải tuần tự hóa (Deserialize) chuỗi JSON về lại đối tượng Python và đưa vào sử dụng.</li>
+          </ul>
+
+          <p><strong>Luật Vàng Bất Biến của XCom (The Golden Rule of XCom — Slide 29):</strong> Vì mọi giá trị XCom mặc định đều được lưu trực tiếp thành một cột dữ liệu bên trong bảng <code>xcom</code> của <strong>Metadata Database</strong> (vốn là trái tim điều phối sống còn của toàn cụm Airflow), XCom chịu giới hạn dung lượng vật lý cực kỳ nghiêm ngặt: chỉ tối đa <strong><code>48 KB</code></strong> trên cột <code>BLOB</code> của MySQL, khoảng <strong><code>64 KB</code></strong> trên SQLite, và dù cột <code>BYTEA</code> / <code>JSONB</code> của PostgreSQL có trần lý thuyết lên tới <code>1 GB</code>, việc đẩy các khối dữ liệu vài chục megabyte vào bảng <code>xcom</code> sẽ gây ra <strong>3 thảm họa dây chuyền</strong>:</p>
+          <ol>
+            <li><strong>Làm phình và nghẽn cổ chai Metadata Database:</strong> Hàng nghìn phiên chạy DAG mỗi ngày liên tục nhồi các chuỗi JSON/byte khổng lồ vào bảng <code>xcom</code> làm cạn kiệt dung lượng đĩa, tràn bộ nhớ đệm (Buffer Pool) và làm chậm toàn bộ các truy vấn lập lịch của Scheduler cũng như Web UI.</li>
+            <li><strong>Sập bộ nhớ Worker trong quá trình Serialize / Deserialize (OOM Kill):</strong> Để đẩy một Pandas DataFrame <code>500 MB</code> vào XCom, Worker thượng nguồn phải tốn gấp đôi RAM để chuyển đổi toàn bộ bảng sang chuỗi JSON rồi truyền qua mạng vào DB; sau đó Worker hạ nguồn lại phải tải toàn bộ chuỗi JSON đó từ DB về RAM để dựng lại DataFrame.</li>
+            <li><strong>Đánh mất khả năng kiểm toán và định dạng lưu trữ chuẩn:</strong> Dữ liệu nghiệp vụ bị chôn vùi dưới dạng nhị phân/JSON trong bảng hệ thống của Airflow thay vì được lưu chuẩn mực dưới định dạng cột nén <code>Parquet</code> / <code>Delta</code> / <code>Iceberg</code> trên Data Lakehouse.</li>
+          </ol>
+
+          <p>Do đó, quy tắc thiết kế bắt buộc trong mọi hệ thống Production là: <strong>Tuyệt đối không bao giờ đẩy trực tiếp các tập dữ liệu lớn (như Pandas DataFrames, danh sách hàng vạn bản ghi giao dịch) qua XCom mặc định!</strong> Thay vào đó, hãy áp dụng mẫu thiết kế <strong>Truyền theo Tham chiếu (Pass-by-Reference Pattern)</strong>: tác vụ thượng nguồn ghi tập dữ liệu lớn ra hệ thống lưu trữ ngoài chuyên dụng (Object Storage như <code>Amazon S3</code>, <code>GCS</code>, <code>MinIO</code> hoặc bảng Staging trong Data Warehouse), rồi <strong>chỉ đẩy chuỗi đường dẫn URI hoặc siêu dữ liệu định danh nhẹ nhàng (<code>&lt; 1 KB</code>) qua XCom</strong>:</p>
+
+          <pre><code># ĐỐI CHIẾU TRỰC DIỆN: Anti-Pattern (Đẩy cả DataFrame qua XCom) vs. Chuẩn Production (Pass-by-Reference URI)
+import pandas as pd
+from airflow.sdk import task
+
+# [SAI LẦM CHÍ MẠNG — ANTI-PATTERN]: Trả về trực tiếp DataFrame hàng triệu dòng qua XCom!
+# -&gt; Làm nổ bảng 'xcom' trong Metadata Database và gây lỗi OOM / SerializationError!
+@task
+def extract_orders_bad(ds: str | None = None) -&gt; pd.DataFrame:
+    df = pd.read_parquet(f"s3://enterprise-data-lake/raw/orders/{ds}/orders.parquet")
+    return df  # CẤM! Airflow sẽ cố serialize toàn bộ DataFrame này nhét vào PostgreSQL Metadata DB!
+
+
+# [CHUẨN PRODUCTION — PASS-BY-REFERENCE]: Lưu dữ liệu trên Object Storage (S3), chỉ truyền URI + Metadata (&lt; 200 bytes) qua XCom!
+@task
+def extract_orders_good(ds: str | None = None) -&gt; dict[str, str | int]:
+    raw_uri = f"s3://enterprise-data-lake/raw/orders/{ds}/orders.parquet"
+    staging_uri = f"s3://enterprise-data-lake/staging/orders/{ds}/cleaned_orders.parquet"
+    
+    # Đọc, lọc và ghi thẳng kết quả ra S3 Parquet (hoặc ủy thác cho Spark/DuckDB/Polars)
+    df = pd.read_parquet(raw_uri)
+    df_clean = df[df["amount"] &gt; 0]  # Giữ lại giao dịch hợp lệ gồm Order #8888 (amount=450000)
+    df_clean.to_parquet(staging_uri, index=False)
+    
+    # XCom chỉ lưu đúng một JSON siêu nhẹ (~120 bytes) vào bảng 'xcom' của Metadata DB!
+    return {
+        "staging_uri": staging_uri,
+        "row_count": len(df_clean),
+        "sample_order_id": "ORD-8888",
+    }
+
+@task
+def load_warehouse_good(extract_meta: dict[str, str | int]) -&gt; None:
+    # Tự động xcom_pull từ điển siêu dữ liệu (~120 bytes) từ Metadata DB
+    target_uri = extract_meta["staging_uri"]
+    rows = extract_meta["row_count"]
+    print(f"Đang nạp {rows} dòng từ {target_uri} (gồm {extract_meta['sample_order_id']}) vào Data Warehouse...")</code></pre>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Phương thức Truyền Dữ liệu giữa các Task</th>
+                  <th>Nơi Lưu trữ Vật lý</th>
+                  <th>Giới hạn Dung lượng Payload An toàn</th>
+                  <th>Đánh giá Kiến trúc &amp; Trường hợp Áp dụng</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Biến Toàn cục Python (Global Variables) hoặc Đĩa cục bộ (<code>/tmp</code>)</strong></td>
+                  <td>Bộ nhớ RAM hoặc ổ cứng cục bộ của một tiến trình/máy Worker đơn lẻ.</td>
+                  <td><strong><code>0 Bytes</code></strong> trong môi trường phân tán (<code>Celery</code> / <code>K8s</code>).</td>
+                  <td><strong>Cấm tuyệt đối (Broken by Task Isolation):</strong> Gãy ngay lập tức khi tác vụ hạ nguồn được lập lịch chạy trên một nút Worker hoặc Container Pod khác.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. XCom Mặc định (Default XCom via Metadata DB — Slide 29)</strong></td>
+                  <td>Bảng <code>xcom</code> bên trong <strong>Metadata Database</strong> (PostgreSQL / MySQL).</td>
+                  <td>Khuyến nghị <strong><code>&lt; 1 KB – 10 KB</code></strong> (Trần cứng MySQL: <code>48 KB</code>; vượt ngưỡng này gây phình Metastore).</td>
+                  <td><strong>Chuẩn mực cho Siêu dữ liệu Điều phối (Coordination Metadata):</strong> Dùng để truyền đường dẫn URI (<code>"s3://..."</code>), tên bảng, <code>row_count</code>, <code>model_path</code>, ID phiên chạy hoặc cờ trạng thái.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Truyền Tham chiếu qua Kho Lưu trữ Ngoài (Pass-by-Reference Pattern)</strong></td>
+                  <td>Dữ liệu thật nằm trên <strong>Object Storage (S3 / GCS / MinIO)</strong> hoặc <strong>Data Warehouse</strong>; chỉ có địa chỉ URI nằm trong bảng <code>xcom</code>.</td>
+                  <td>Dữ liệu thật: <strong>Không giới hạn (<code>MB → TB</code>)</strong>; Payload XCom: <strong><code>&lt; 200 Bytes</code></strong>.</td>
+                  <td><strong>Chuẩn Vàng Production (Opinionated Default):</strong> Giữ cho Metadata DB luôn siêu nhẹ, tách biệt rõ ràng giữa dữ liệu nghiệp vụ (Data Plane) và siêu dữ liệu điều phối (Control Plane).</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Custom Object Storage XCom Backend (Airflow 2.8+ / 3.0 Object Storage XCom)</strong></td>
+                  <td>Cấu hình <code>core.xcom_backend</code> tự động chặn các đối tượng lớn hơn ngưỡng (<code>threshold</code>), ghi thành tệp trên S3/GCS và chỉ lưu con trỏ URI vào Metadata DB.</td>
+                  <td>Từ <strong><code>vài MB đến vài GB</code></strong> (tùy thuộc bộ nhớ RAM của Worker đọc/ghi).</td>
+                  <td>Hữu ích cho các đội Data Science muốn truyền trực tiếp đối tượng trung gian nhỏ/vừa giữa các hàm <code>@task</code> mà không muốn tự viết code đọc/ghi S3 thủ công, nhưng vẫn phải cẩn trọng giới hạn RAM của Worker.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Đến đây, chúng ta đã giải phẫu trọn vẹn nội tạng của Apache Airflow: từ ranh giới "Nhạc trưởng vs. Công nhân" trên đồ thị DAG không chu trình, vòng lặp phối hợp 6 thành phần quanh Metadata Database (cùng lớp bảo vệ Task Execution API của Airflow 3.0), đến cách giải cứu cụm khỏi khóa chết bằng Deferrable Sensors và nghệ thuật truyền tham chiếu URI qua XCom. Nhưng khi đưa cụm Airflow này lên vận hành thực tế với hàng trăm đường ống chạy song song, làm sao chúng ta chọn đúng <strong>Executor</strong> (<code>Local</code>, <code>Celery</code> hay <code>Kubernetes</code>), thiết lập <strong>3 tầng kiểm soát đồng thời (Concurrency Controls)</strong> để không bóp nghẹt cơ sở dữ liệu nguồn, và giám sát SLA/Alerts? Chúng ta bước sang <strong>Chặng 4</strong>.</p>
+        </section>
+
+        <section class="summary-section" id="orchestration-3-summary">
+          <h2 id="orchestration-3-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 3 &amp; Checklist 5 câu hỏi bản chất</h2>
+          <p><strong>Checklist tự kiểm tra Chặng 3 (5 Câu hỏi Bản chất):</strong></p>
+          <ol>
+            <li><strong>Tại sao câu châm ngôn <em>"Airflow là nhạc trưởng, không phải công nhân khuân vác dữ liệu"</em> lại là nguyên lý sống còn khi thiết kế đường ống, và điều gì xảy ra nếu bạn đọc một tệp CSV <code>50 GB</code> bằng Pandas ngay trong <code>PythonOperator</code>?</strong><br>Airflow là nền tảng điều phối (Workflow Orchestrator), không phải động cơ tính toán phân tán (như Spark) hay kho dữ liệu. Các tiến trình Airflow Worker chỉ được cấp phát bộ nhớ RAM giới hạn (thường <code>2–4 GB</code>) để chạy mã điều khiển nhẹ; việc nạp <code>50 GB</code> dữ liệu vào RAM của Worker sẽ kích hoạt <strong>Linux OOM Killer (<code>SIGKILL -9 / Exit Code 137</code>)</strong> giết chết tiến trình Worker ngay lập tức. Giải pháp chuẩn là để Airflow gọi lệnh kích hoạt Spark, dbt hoặc câu lệnh SQL trên Data Warehouse thực hiện phần tính toán nặng.</li>
+            <li><strong>Tại sao đồ thị quy trình của Airflow bắt buộc phải là <em>Directed Acyclic Graph (DAG)</em>, và sự khác biệt cơ học giữa cặp khái niệm <code>(DAG, Task)</code> với <code>(DAG Run, Task Instance)</code> là gì?</strong><br>Tính <strong>Có hướng (Directed)</strong> xác định rõ thứ tự phụ thuộc thượng nguồn → hạ nguồn (<code>&gt;&gt;</code>), còn tính <strong>Không chu trình (Acyclic)</strong> cấm tuyệt đối các vòng lặp khép kín (<code>A &gt;&gt; B &gt;&gt; A</code>) để đảm bảo đồ thị luôn có thể sắp xếp tuyến tính (Topological Sort) và kết thúc hữu hạn mà không bị khóa chết (Deadlock). Trong đó, <code>DAG</code> và <code>Task</code> là <strong>bản thiết kế tĩnh</strong> viết trong tệp code Python, còn <code>DAG Run</code> và <code>Task Instance</code> là <strong>các phiên thực thi động</strong> được khởi tạo cho một khoảng thời gian cụ thể (ví dụ <code>manual__2026-05-15</code>) kèm trạng thái vòng đời (<code>queued → running → success</code>) lưu trong Metadata DB.</li>
+            <li><strong>Trong 6 thành phần kiến trúc của Airflow, tại sao viết lệnh truy vấn cơ sở dữ liệu hoặc gọi API ngay ở mức ngoài cùng của tệp Python (Top-Level Code) lại là một thảm họa, và Airflow 3.0 đã cải tiến luồng giao tiếp của Worker với Metadata Database như thế nào?</strong><br>Tiến trình <strong>DAG Processor</strong> quét và thực thi toàn bộ các tệp Python trong thư mục DAG lặp đi lặp lại mỗi <code>min_file_process_interval</code> (mặc định <code>30 giây</code>) để trích xuất cấu trúc đồ thị; mọi lệnh đặt ở Top-level sẽ bị chạy hàng nghìn lần mỗi ngày gây quá tải hệ thống đích và làm treo bộ phân tích DAG. Ngoài ra, từ <strong>Airflow 3.0</strong>, các tiến trình Worker không còn giữ kết nối SQL trực tiếp vào Metadata Database (Zero Direct DB Access) mà phải giao tiếp qua <strong>Task Execution API Server</strong>, giúp ngăn chặn rò rỉ thông tin mật và triệt tiêu nguy cơ cạn kiệt kết nối DB.</li>
+            <li><strong>Hiện tượng "Kẹt cứng Sensor" (Sensor Deadlock) xảy ra như thế nào khi dùng <code>mode="poke"</code>, và cơ chế <code>deferrable=True</code> (Triggerer) vượt trội hơn cả <code>poke</code> lẫn <code>reschedule</code> ở điểm nào?</strong><br>Ở chế độ <code>mode="poke"</code>, Sensor chiếm giữ nguyên 1 Worker Slot trong suốt thời gian ngủ chờ điều kiện bên ngoài; nếu số lượng Sensor đang chờ bằng tổng số Worker Slots của cụm, toàn bộ cụm Airflow bị tê liệt không thể chạy bất kỳ tác vụ nào khác. Chế độ <code>mode="reschedule"</code> trả lại Worker Slot giữa các lần kiểm tra nhưng vẫn tốn chi phí lập lịch lại. Chế độ <code>deferrable=True</code> giải quyết triệt để bằng cách tạm dừng tác vụ trên Worker (tốn <code>0 Worker Slot</code>) và bàn giao việc chờ sự kiện I/O sang vòng lặp bất đồng bộ <code>asyncio</code> của tiến trình <strong>Triggerer</strong>, cho phép 1 tiến trình đơn lẻ lắng nghe hàng nghìn sự kiện đồng thời.</li>
+            <li><strong>Tại sao hai tác vụ kế tiếp nhau trong cùng một DAG không thể truyền dữ liệu qua biến toàn cục Python hoặc tệp trong thư mục <code>/tmp</code>, và quy tắc vàng khi sử dụng cơ chế <code>XCom</code> là gì?</strong><br>Do nguyên lý <strong>Cô lập Tác vụ (Task Isolation)</strong> trên các Executor phân tán, mỗi Task Instance chạy trong một tiến trình, Container hoặc máy chủ Worker hoàn toàn tách biệt nên không chia sẻ bộ nhớ RAM hay ổ đĩa cục bộ <code>/tmp</code>. Cơ chế <strong>XCom (<code>xcom_push</code> / <code>xcom_pull</code>)</strong> truyền dữ liệu bằng cách tuần tự hóa giá trị thành JSON và lưu vào bảng <code>xcom</code> trong <strong>Metadata Database</strong>. Vì vậy, <strong>cấm tuyệt đối đẩy dữ liệu lớn (như Pandas DataFrames) qua XCom mặc định</strong> để tránh làm phình Metadata DB và gây lỗi tràn RAM; thay vào đó, phải lưu dữ liệu lớn lên Object Storage (<code>S3</code>/<code>GCS</code>) hoặc Data Warehouse và chỉ truyền chuỗi địa chỉ tham chiếu URI (<code>&lt; 1 KB</code>) qua XCom.</li>
+          </ol>
+          <p style="margin-top:14px;"><a href="#/D06/4" onclick="selectStorageStage(4);return false;">Sang Chặng 4: Quản Trị Vận Hành, Mở Rộng Quy Mô (Executors), Kiểm Soát Đồng Thời 3 Tầng &amp; Giám Sát Airflow →</a></p>
+        </section>
+      </div>

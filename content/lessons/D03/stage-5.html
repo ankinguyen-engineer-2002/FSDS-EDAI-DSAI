@@ -1,0 +1,342 @@
+      <div class="prose">
+        <x-spine id="spark-5-spine" badge="CHẶNG 5 · MANUAL PERFORMANCE TUNING" title="Chặng 5: Sáu Kỹ Thuật Tinh Chỉnh Hiệu Năng Thủ Công — Shuffle, Join Strategies, Key Salting, High Cardinality, Wide Schema &amp; Schema Evolution" subtitle="Trạm 5.1 → 5.3">Khi các bộ tối ưu tự động chạm giới hạn trước dữ liệu cực đoan, kỹ sư dữ liệu phải trực tiếp can thiệp bằng 6 kỹ thuật phẫu thuật thủ công: định cỡ Partition chống <code>Disk Spill</code>, ép <code>Broadcast Hash Join</code>, rắc muối khóa nóng (<code>Key Salting</code>), đếm xấp xỉ <code>approx_count_distinct</code>, cắt tỉa cột sớm (<code>Column Pruning</code>) và quản trị lược đồ với <code>Iceberg / Delta Lake</code>.</x-spine>
+
+        <p>Ở <strong>Chặng 4</strong>, chúng ta đã chứng kiến sức mạnh của bộ ba tối ưu hóa nội sinh trong Apache Spark: <strong>Catalyst Optimizer</strong> tự động viết lại cây kế hoạch truy vấn và đẩy bộ lọc xuống tầng lưu trữ (<code>Predicate Pushdown</code>), <strong>Project Tungsten</strong> nén bản ghi thành dòng nhị phân <code>UnsafeRow</code> ngoài vùng nhớ <code>Off-Heap</code> kết hợp sinh mã <code>Whole-Stage CodeGen</code>, và <strong>Adaptive Query Execution (AQE)</strong> linh hoạt điều chỉnh kế hoạch dựa trên thống kê <code>Runtime Statistics</code>. Tuy nhiên, như <em>Slide 74 &amp; 76</em> và <em>Spark: The Definitive Guide</em> (Ch. 18–19) nhấn mạnh: <strong>các bộ tối ưu tự động không thể thay thế thiết kế dữ liệu tốt và kỹ năng tinh chỉnh thủ công của kỹ sư</strong>. Khi Job <code>daily_revenue_attribution.py</code> xử lý <code>500 GB</code> bảng <code>orders_silver</code> (chứa <strong>Order #8888</strong>) gặp phải khóa đại lý siêu lệch thực hiện phép tổng hợp <code>groupBy</code> (nơi AQE Skew Join không thể tự can thiệp), hoặc khi nối lặp đi lặp lại hai bảng lịch sử hàng trăm Gigabyte mỗi giờ, kỹ sư bắt buộc phải nắm vững <strong>6 kỹ thuật tinh chỉnh hiệu năng thủ công (Manual Performance Tuning)</strong> để trực tiếp tháo gỡ điểm nghẽn vật lý.</p>
+
+        <section class="lesson-section" id="spark-5-1">
+          <h2 id="spark-5-1-h2" tabindex="-1">Trạm 5.1: Tinh chỉnh Shuffle &amp; Partition Count và Lựa chọn Chiến lược Join (Broadcast Hash Join vs. Sort-Merge Join)</h2>
+
+          <p><strong>Định cỡ số lượng Partition chuẩn xác (mục tiêu <code>128 MB – 256 MB</code> mỗi Partition) kết hợp lọc dữ liệu sớm (<code>Filter Early</code>) và chọn đúng thuật toán kết nối bảng (<code>Broadcast Hash Join</code> thay vì <code>Sort-Merge Join</code>) là tuyến phòng thủ đầu tiên giúp triệt tiêu tới 90% lưu lượng <code>Shuffle Write / Read</code> qua mạng và xóa sổ hoàn toàn hiện tượng tràn đĩa <code>Disk Spill</code></strong> (<em>Slides 77–78</em>). Sai lầm phổ biến nhất khi vận hành Job <code>daily_revenue_attribution.py</code> là giữ nguyên tham số mặc định <code>spark.sql.shuffle.partitions = 200</code> cho mọi quy mô dữ liệu: khi trộn <code>500 GB</code> bảng <code>orders_silver</code> vào đúng <code>200</code> phân vùng, mỗi Task phải gánh trung bình <code>2.5 GB</code> dữ liệu nhị phân — vượt xa hạn mức bộ nhớ thực thi (<code>Execution Memory</code>) của một Core, buộc Spark phải xả tạm dữ liệu ra ổ cứng (<code>Spill to Disk</code>), tự biến mình thành Hadoop MapReduce chậm chạp. Ngược lại, nếu kỹ sư nâng mù quáng lên <code>50.000</code> Partition cho tập dữ liệu <code>10 GB</code>, mỗi Task chỉ xử lý <code>200 KB</code> trong vài mili-giây nhưng <code>Driver</code> lại tiêu tốn hàng chục phút chỉ để tuần tự hóa đặc tả Task (<code>Task RPC Scheduling Overhead</code>) và xả ra hàng vạn tệp nhỏ làm tê liệt hệ thống tệp đích.</p>
+
+          <x-figure id="spark-5-1-fig" key="5.1" title="Sơ đồ 5.1 — Tinh Chỉnh Thủ Công #1 &amp; #2: Định Cỡ Partition, Giảm Shuffle &amp; Chiến Lược Join (Broadcast vs. Sort-Merge)">Điểm ngọt kích thước Partition chống Disk Spill và cơ chế triệt tiêu 100% Shuffle bảng lớn bằng Broadcast Hash Join.</x-figure>
+
+          <h3 id="spark-5-1-partition-sizing">Công thức Định cỡ Partition &amp; Nguyên tắc Cắt giảm Dữ liệu trước Shuffle (Slides 77–78)</h3>
+          <p>Theo <em>Slide 77</em> (<em>Shuffle and Partition Tuning</em>) và <em>Slide 78</em> (<em>Reducing Shuffle Cost</em>), để cân bằng giữa <strong>độ song song (Parallelism)</strong> và <strong>chi phí điều phối (Scheduling Overhead)</strong>, kỹ sư áp dụng quy tắc định lượng hai bước trước mọi toán tử <code>Wide Transformation</code>:</p>
+          <ul>
+            <li><strong>Quy tắc định cỡ Partition tại pha Đọc và pha Shuffle:</strong> Khi đọc tệp từ Data Lakehouse, Spark chia Partition theo tham số <code>spark.sql.files.maxPartitionBytes</code> (mặc định <code>128 MB</code>). Nhưng ngay khi đi qua toán tử <code>join</code> hoặc <code>groupBy</code>, số lượng Partition đầu ra bị áp đặt bởi <code>spark.sql.shuffle.partitions</code> (mặc định <code>200</code>). Công thức vàng để tính số Partition chuẩn cho pha Shuffle là: <code>Số Partition Mục tiêu = Tổng dung lượng dữ liệu đầu vào Shuffle (MB) / (128 MB đến 200 MB)</code>, đồng thời đảm bảo con số này là bội số từ <code>2x</code> đến <code>4x</code> tổng số <code>Executor Cores</code> của cụm (ví dụ: <code>500 GB</code> dữ liệu Shuffle trên cụm <code>800 Cores</code> cần cấu hình <code>spark.sql.shuffle.partitions = 3200</code> để mỗi Task xử lý gọn <code>~160 MB</code> trong RAM với <code>0 byte Disk Spill</code>).</li>
+            <li><strong>Nguyên tắc Di chuyển Ít Dữ liệu Hơn (Move Less Data Between Executors — Slide 78):</strong> Tăng thêm máy chủ (<code>Scale-Out</code>) không giải quyết được gốc rễ của <strong>Shuffle Explosion</strong> nếu luồng code vẫn đẩy rác qua mạng. Kỹ sư bắt buộc áp dụng hai phép cắt tỉa trước khi gọi <code>join</code>/<code>groupBy</code>: (1) <strong><code>Filter Early</code></strong> — lọc bỏ sớm các đơn hàng hủy (<code>status != 'CANCELLED'</code>) và giới hạn đúng phân vùng ngày cần tính toán ngay sau lệnh <code>spark.read</code>; (2) <strong><code>Reduce Row Width</code></strong> — chỉ giữ lại đúng các cột khóa và cột số liệu cần thiết trước khi đẩy bản ghi vào đường ống <code>Exchange</code>.</li>
+          </ul>
+
+          <h3 id="spark-5-1-join-strategies">Đối chiếu Cơ học 3 Chiến lược Join: Sort-Merge Join (SMJ), Broadcast Hash Join (BHJ) &amp; Bucketed Join</h3>
+          <p>Trong Job <code>daily_revenue_attribution.py</code>, phép toán đắt đỏ nhất là kết nối bảng giao dịch khổng lồ <code>orders_silver</code> (<code>500 GB</code> / <code>2 tỷ dòng</code>, chứa <strong>Order #8888</strong>) với bảng danh mục cửa hàng <code>dim_merchants</code> (<code>8 MB</code>) và bảng hồ sơ khách hàng <code>users_silver</code> (<code>80 GB</code>). Việc lựa chọn chiến lược Join quyết định trực tiếp việc cụm máy chủ phải truyền <code>580 GB</code> hay <code>0 byte</code> qua mạng nội bộ (<em>Learning Spark, 2nd Edition</em>, Ch. 7, tr. 189–205):</p>
+
+          <pre><code>from pyspark.sql import SparkSession, functions as F
+from pyspark.sql.functions import broadcast
+
+spark = (
+    SparkSession.builder
+    .appName("D03_Stage5_Shuffle_And_Join_Tuning")
+    # 1. Định cỡ Shuffle Partition cho 500 GB dữ liệu (~160 MB / partition)
+    .config("spark.sql.shuffle.partitions", "3200")
+    # 2. Nâng ngưỡng tự động Broadcast từ 10 MB lên 64 MB cho các bảng Dimension vừa và nhỏ
+    .config("spark.sql.autoBroadcastJoinThreshold", 64 * 1024 * 1024)
+    .getOrCreate()
+)
+
+# Đọc bảng Fact 500 GB: Áp dụng FILTER EARLY & REDUCE ROW WIDTH ngay trước khi Shuffle (Slide 78)
+orders_filtered_df = (
+    spark.read.table("lakehouse.silver.orders_silver")
+    .filter((F.col("order_date") == F.lit("2026-10-18")) &amp; (F.col("status") == F.lit("PAID")))
+    .select("order_id", "user_id", "merchant_id", "amount_vnd")
+)
+
+# CHIẾN LƯỢC 1: BROADCAST HASH JOIN (BHJ) — Bảng Fact 500 GB x Bảng Dimension 8 MB
+# Dùng hàm broadcast() ép Spark phát sóng bảng nhỏ tới mọi Executor -&gt; 0% Shuffle bảng Fact!
+merchants_dim_df = (
+    spark.read.table("lakehouse.silver.dim_merchants")
+    .select("merchant_id", "merchant_tier", "commission_rate")
+)
+orders_with_merchant_df = orders_filtered_df.join(
+    broadcast(merchants_dim_df),
+    on="merchant_id",
+    how="inner"
+)
+
+# CHIẾN LƯỢC 2: BUCKETED SORT-MERGE JOIN — Khi nối lặp lại 2 bảng CÙNG LỚN (500 GB x 80 GB)
+# Tiền phân phối (Pre-shuffle &amp; Pre-sort) cả 2 bảng vào 256 Buckets theo khóa user_id khi ghi:
+(
+    orders_with_merchant_df.write
+    .format("parquet")
+    .bucketBy(256, "user_id")
+    .sortBy("user_id")
+    .mode("overwrite")
+    .saveAsTable("lakehouse.silver.orders_bucketed_256")
+)
+(
+    spark.read.table("lakehouse.silver.users_silver")
+    .select("user_id", "vip_segment", "registration_province")
+    .write
+    .format("parquet")
+    .bucketBy(256, "user_id")
+    .sortBy("user_id")
+    .mode("overwrite")
+    .saveAsTable("lakehouse.silver.users_bucketed_256")
+)
+
+# Khi Join 2 bảng đã chia cùng số Bucket (256) trên user_id: Triệt tiêu hoàn toàn bước Exchange Shuffle!
+bucketed_join_df = (
+    spark.table("lakehouse.silver.orders_bucketed_256")
+    .join(spark.table("lakehouse.silver.users_bucketed_256"), on="user_id", how="inner")
+)</code></pre>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Kỹ thuật</th>
+                  <th><code>Broadcast Hash Join (BHJ)</code></th>
+                  <th><code>Sort-Merge Join (SMJ)</code></th>
+                  <th><code>Bucketed Sort-Merge Join</code></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Điều kiện Kích hoạt</strong></td>
+                  <td>Một bảng đủ nhỏ để nằm gọn trong RAM của <code>Driver</code> và mỗi <code>Executor</code> (mặc định <code>spark.sql.autoBroadcastJoinThreshold &lt;= 10MB</code>, có thể nâng lên <code>64MB – 100MB</code> hoặc ép bằng <code>broadcast(df)</code>).</td>
+                  <td>Chiến lược mặc định của Spark khi <strong>cả hai bảng đều lớn</strong> vượt ngưỡng Broadcast và phép nối sử dụng điều kiện bằng (<code>Equi-Join: a.key = b.key</code>).</td>
+                  <td>Hai bảng lớn được kết nối lặp đi lặp lại trong nhiều Job hàng ngày trên cùng một khóa (như <code>user_id</code>) và đã được lưu sẵn bằng <code>.bucketBy(N, "key").sortBy("key")</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Cơ chế Vật lý Bên dưới</strong></td>
+                  <td><code>Driver</code> thu thập toàn bộ bảng nhỏ (<code>Collect</code>), đóng gói thành bảng băm <code>HashedRelation</code> rồi phát sóng (P2P Torrent Broadcast) tới bộ nhớ của mọi <code>Executor</code>. Mỗi <code>Executor</code> quét tuần tự mảnh bảng lớn cục bộ và tra cứu bảng băm trong RAM với độ phức tạp <code>O(1)</code>.</td>
+                  <td>Thực thi qua 3 pha nặng nề: (1) <strong><code>Exchange</code> (Shuffle)</strong> băm cả 2 bảng theo <code>hash(key) % N</code> để gom các dòng cùng khóa về cùng Partition; (2) <strong><code>Sort</code></strong> sắp xếp từng Partition theo khóa; (3) <strong><code>Merge</code></strong> trượt hai con trỏ song song để khớp các dòng trùng khóa.</td>
+                  <td>Khi ghi xuống Lakehouse, các dòng có cùng <code>hash(user_id) % 256</code> đã nằm sẵn trong cùng tệp <code>Bucket_k</code> và được sắp xếp trước. Lúc đọc lên để Join, Spark ghép trực tiếp <code>Bucket_k</code> của bảng A với <code>Bucket_k</code> của bảng B tại chỗ.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chi phí Shuffle &amp; Đĩa</strong></td>
+                  <td><strong><code>0% Shuffle</code> trên bảng Fact <code>500 GB</code></strong>; không cần sắp xếp (<code>Sort</code>), không phát sinh <code>Shuffle Spill</code>. Tốc độ nhanh gấp <code>10x – 50x</code> so với SMJ.</td>
+                  <td><strong>Shuffle <code>100%</code> cả hai bảng qua mạng</strong> (ví dụ: <code>500 GB + 80 GB = 580 GB</code> lưu lượng mạng và đĩa trung gian); nguy cơ <code>Disk Spill</code> rất cao nếu thiếu RAM.</td>
+                  <td><strong><code>0% Shuffle</code> và <code>0% Sort</code> tại thời điểm truy vấn (Read-time)</strong>; chi phí Shuffle/Sort chỉ trả một lần duy nhất lúc ghi dữ liệu (Write-time).</td>
+                </tr>
+                <tr>
+                  <td><strong>Rủi ro &amp; Giới hạn (Failure Modes)</strong></td>
+                  <td>Nếu ép <code>broadcast()</code> một bảng quá lớn (ví dụ <code>&gt; 1 GB</code>), <code>Driver</code> sẽ sập ngay lập tức với lỗi <code>OutOfMemoryError</code> hoặc chạm trần <code>spark.driver.maxResultSize</code> / <code>spark.sql.broadcastTimeout</code> (<code>300s</code>).</td>
+                  <td>Nhạy cảm cực độ với <strong>Data Skew</strong>: nếu một giá trị khóa chiếm đa số bản ghi, pha <code>Exchange</code> và <code>Sort</code> sẽ dồn toàn bộ tải vào một <code>Executor</code> duy nhất.</td>
+                  <td>Phải đồng bộ số lượng Bucket giữa hai bảng; nếu một bảng có <code>256</code> Bucket còn bảng kia không chia Bucket, Spark vẫn phải Shuffle bảng thứ hai.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p><strong>Đánh đổi kỹ thuật &amp; Điểm chuyển giao:</strong> <code>Broadcast Hash Join</code> là vũ khí tối thượng khi một phía của phép nối là bảng danh mục nhỏ (<code>&lt; 100 MB</code>), trong khi <code>Sort-Merge Join</code> là lựa chọn bắt buộc khi nối hai bảng giao dịch và người dùng cùng nặng hàng trăm Gigabyte hoặc khi chạy phép tổng hợp <code>groupBy(user_id)</code>. Nhưng điều gì sẽ xảy ra trong pha Shuffle của <code>Sort-Merge Join</code> hoặc <code>groupBy</code> nếu 80% tổng số đơn hàng trong ngày siêu khuyến mãi lại thuộc về một tài khoản đại lý bán buôn duy nhất mang mã <code>user_id = "VIP123"</code>? Khi đó, dù bạn có định cỡ <code>3.200</code> Partition hay cắm thêm <code>100</code> máy chủ mới, hàm băm tất định vẫn dồn toàn bộ <code>80 triệu dòng</code> vào đúng 1 Task duy nhất — dẫn chúng ta trực tiếp tới kỹ thuật phẫu thuật khóa nóng ở <strong>Trạm 5.2</strong>.</p>
+        </section>
+
+        <section class="lesson-section" id="spark-5-2">
+          <h2 id="spark-5-2-h2" tabindex="-1">Trạm 5.2: Hóa giải Khóa Bị Lệch Bằng Kỹ thuật Rắc Muối (Handling Skewed Keys with Salting)</h2>
+
+          <p><strong>Kỹ thuật Rắc muối Khóa (<code>Key Salting</code>) phá vỡ tính tất định của hàm băm <code>hash(key) % N</code> bằng cách nối thêm một hậu tố ngẫu nhiên trong miền <code>[0, K-1]</code> vào khóa nóng (biến một khóa <code>"VIP123"</code> thành <code>K</code> khóa con <code>"VIP123_0" .. "VIP123_K"</code>), giúp phân tán đều một tác vụ khổng lồ (<code>Straggler Task</code>) ra <code>K</code> Partition độc lập trên toàn bộ các <code>Executor</code> của cụm</strong> (<em>Slides 79–80</em>). Trong xử lý phân tán, tốc độ hoàn thành của một <code>Stage</code> bị quyết định bởi Task chậm nhất. Khi bảng <code>orders_silver</code> có <code>80 triệu dòng</code> (80% tổng dữ liệu) mang cùng khóa <code>user_id = "VIP123"</code>, phép băm phân vùng <code>hash("VIP123") % 200</code> luôn trả về cùng một chỉ số Partition cố định. Hệ quả là <code>199 Task</code> xử lý các khách hàng thông thường (như <code>"USR_02"</code>, <code>"USR_03"</code> hay đơn lẻ của <strong>Order #8888</strong>) hoàn tất chỉ sau <code>2 giây</code> rồi ngồi chờ không công, trong khi <code>Task</code> cuối cùng gánh <code>80 triệu dòng</code> của <code>"VIP123"</code> bị tràn RAM, ghi <code>Spill (Disk)</code> điên cuồng và treo suốt <code>45 phút</code> trước khi văng lỗi <code>ExecutorLostFailure (OOM)</code>.</p>
+
+          <x-figure id="spark-5-2-fig" key="5.2" title="Sơ đồ 5.2 — Tinh Chỉnh Thủ Công #3: Hóa Giải Data Skew Bằng Kỹ Thuật Rắc Muối Khóa (Key Salting)">Phân tách một khóa nóng VIP123 thành nhiều nhóm khóa con (VIP123_1..3) để chia đều tải cho toàn bộ Executors trong cụm.</x-figure>
+
+          <h3 id="spark-5-2-mechanisms">Ba Phác đồ Xử lý Khóa Lệch (Slides 79–80): Tách Luồng Riêng, Gom Nhóm 2 Pha &amp; Join Rắc Muối Nhân Bản</h3>
+          <p>Mặc dù <code>Adaptive Query Execution (AQE Skew Join)</code> ở <strong>Chặng 4</strong> có thể tự động chẻ nhỏ Partition bị lệch trong một số phép <code>Sort-Merge Join</code> đơn giản, AQE <strong>hoàn toàn bất lực</strong> trước các phép tổng hợp <code>groupBy("user_id")</code> bị lệch, các phép <code>Window Function</code> có <code>PARTITION BY user_id</code>, hoặc các đường ống phức tạp nơi thống kê Shuffle chưa kịp phản ánh độ lệch. Theo <em>Slide 79</em> (<em>Handling Skewed Keys</em>) và <em>Slide 80</em> (<em>Handling Skewed Keys with Salting</em>), kỹ sư dữ liệu giải quyết triệt để bài toán này qua 3 bước chuẩn mực:</p>
+          <ol>
+            <li><strong>Bước 1 — Nhận diện Khóa Nóng (Identify Heavy Keys) &amp; Xử lý Tách luồng (Split Processing):</strong> Chạy truy vấn lấy mẫu nhanh (<code>df.sample(0.01).groupBy("user_id").count().orderBy(F.desc("count")).limit(10)</code>) để tìm ra danh sách các khóa thống trị dữ liệu (ví dụ: <code>user_id = "VIP123"</code> hoặc <code>user_id IS NULL</code>). Nếu phép nối là giữa bảng lớn và bảng lớn nhưng chỉ có vài khóa <code>"VIP123"</code> bị lệch, kỹ sư có thể tách DataFrame thành 2 nhánh: nhánh chứa riêng <code>user_id == "VIP123"</code> được xử lý bằng <code>Broadcast Hash Join</code> (vì bên bảng đối ứng chỉ có đúng 1 dòng của <code>"VIP123"</code>!), nhánh còn lại chứa 99.9% khóa bình thường chạy <code>Sort-Merge Join</code> mượt mà, sau đó ghép kết quả bằng <code>unionByName()</code>.</li>
+            <li><strong>Bước 2 — Tổng hợp 2 Pha có Rắc Muối (Two-Phase Salted Aggregation cho <code>groupBy</code>):</strong> Khi cần tính tổng doanh thu <code>SUM(amount_vnd)</code> và số đơn <code>COUNT(order_id)</code> theo <code>user_id</code>, ta gắn thêm cột <code>salt = floor(rand() * K)</code> (với hệ số muối <code>K = 8</code> hoặc <code>16</code>). Ở <strong>Pha 1 (Partial Aggregation)</strong>, Spark thực hiện <code>groupBy("user_id", "salt")</code> — nhờ đó <code>80 triệu dòng</code> của <code>"VIP123"</code> được chia đều thành <code>K</code> nhóm con (mỗi nhóm chỉ còn <code>80M / K</code> dòng xử lý trên các <code>Executor</code> khác nhau) và rút gọn thành đúng <code>K</code> dòng tổng phụ. Ở <strong>Pha 2 (Final Aggregation)</strong>, ta bỏ cột <code>salt</code> và gọi <code>groupBy("user_id").agg(F.sum("partial_sum"))</code> trên đúng <code>K</code> dòng tổng phụ đó — tốn <code>0 ms</code> để ra kết quả chính xác tuyệt đối!</li>
+            <li><strong>Bước 3 — Phép Nối Rắc Muối kèm Nhân bản Bảng Đối ứng (Salted Skew Join):</strong> Khi nối bảng giao dịch lớn <code>orders_silver</code> (bị lệch ở <code>"VIP123"</code>) với bảng <code>users_silver</code> quá lớn không thể Broadcast, việc đổi khóa bên bảng giao dịch thành <code>"VIP123_0" .. "VIP123_7"</code> đòi hỏi bảng <code>users_silver</code> cũng phải có mặt đầy đủ cả 8 biến thể khóa đó để không bị rơi mất bản ghi khi <code>INNER JOIN</code>. Kỹ thuật chuẩn là: phía <strong>bảng bị lệch (Fact)</strong> nối thêm 1 số ngẫu nhiên <code>0..7</code> vào khóa; phía <strong>bảng tra cứu (Dimension/Lookup)</strong> dùng hàm <code>F.explode(F.array([F.lit(i) for i in range(8)]))</code> để nhân bản (replicate) dòng của khóa nóng thành 8 bản sao mang hậu tố từ <code>_0</code> đến <code>_7</code>.</li>
+          </ol>
+
+          <pre><code>from pyspark.sql import functions as F
+
+SALT_FACTOR = 8  # Chia 1 khóa nóng thành 8 nhóm con song song trên 8 Partitions / Executors
+
+# ==============================================================================
+# KỊCH BẢN A: TỔNG HỢP 2 PHA CÓ RẮC MUỐI (TWO-PHASE SALTED AGGREGATION)
+# ==============================================================================
+# Pha 1: Gắn hậu tố ngẫu nhiên [0..7] vào khóa để chia 80M dòng 'VIP123' thành 8 Tasks song song
+salted_orders_df = orders_filtered_df.withColumn(
+    "salt", (F.rand(seed=42) * SALT_FACTOR).cast("int")
+).withColumn(
+    "salted_user_id", F.concat_ws("_", F.col("user_id"), F.col("salt"))
+)
+
+partial_agg_df = (
+    salted_orders_df
+    .groupBy("user_id", "salted_user_id")
+    .agg(
+        F.sum("amount_vnd").alias("partial_revenue_vnd"),
+        F.count("order_id").alias("partial_order_count")
+    )
+)
+
+# Pha 2: Gom tổng cuối cùng theo user_id gốc (lúc này 'VIP123' chỉ còn đúng 8 dòng đã rút gọn!)
+final_user_revenue_df = (
+    partial_agg_df
+    .groupBy("user_id")
+    .agg(
+        F.sum("partial_revenue_vnd").alias("total_revenue_vnd"),
+        F.sum("partial_order_count").alias("total_order_count")
+    )
+)
+
+# ==============================================================================
+# KỊCH BẢN B: JOIN RẮC MUỐI CÓ CHỌN LỌC (SELECTIVE SALTED SKEW JOIN)
+# Chỉ rắc muối cho danh sách khóa nóng ['VIP123', 'VIP999'] để không làm phình toàn bộ bảng Users!
+# ==============================================================================
+HEAVY_KEYS = ["VIP123", "VIP999"]
+
+# 1. Phía bảng Fact (orders_silver): Nếu là khóa nóng thì gắn hậu tố ngẫu nhiên _0.._7, ngược lại giữ nguyên
+orders_skew_ready_df = orders_filtered_df.withColumn(
+    "join_key",
+    F.when(
+        F.col("user_id").isin(HEAVY_KEYS),
+        F.concat_ws("_", F.col("user_id"), (F.rand(seed=42) * SALT_FACTOR).cast("int"))
+    ).otherwise(F.col("user_id"))
+)
+
+# 2. Phía bảng Users (users_silver): Chỉ nhân bản 8 lần cho các dòng thuộc HEAVY_KEYS bằng explode()
+users_df = spark.read.table("lakehouse.silver.users_silver").select("user_id", "vip_segment", "province")
+salt_array_col = F.array([F.lit(i) for i in range(SALT_FACTOR)])
+
+users_skew_ready_df = users_df.withColumn(
+    "salt_exploded",
+    F.explode(
+        F.when(F.col("user_id").isin(HEAVY_KEYS), salt_array_col)
+         .otherwise(F.array(F.lit(None)))
+    )
+).withColumn(
+    "join_key",
+    F.when(
+        F.col("salt_exploded").isNotNull(),
+        F.concat_ws("_", F.col("user_id"), F.col("salt_exploded"))
+    ).otherwise(F.col("user_id"))
+).drop("salt_exploded")
+
+# 3. Thực hiện Sort-Merge Join trên cột join_key đã cân bằng tải hoàn hảo:
+balanced_joined_df = orders_skew_ready_df.join(users_skew_ready_df, on="join_key", how="inner")</code></pre>
+
+          <p><strong>Đánh đổi kỹ thuật &amp; Điểm chuyển giao:</strong> Kỹ thuật <strong>Selective Key Salting</strong> ở Kịch bản B chỉ nhân bản đúng các dòng thuộc <code>HEAVY_KEYS</code> trên bảng đối ứng thay vì nhân bản mù quáng toàn bộ bảng lên <code>K</code> lần, qua đó dập tắt hoàn toàn <code>Straggler Task</code> của <code>"VIP123"</code> mà chỉ tốn thêm vài byte bộ nhớ. Tuy nhiên, ngay cả khi dữ liệu đã được rải đều hoàn hảo trên mọi Partition, Job <code>daily_revenue_attribution.py</code> vẫn có thể sập vì tràn bộ nhớ hoặc nghẽn băng thông đọc đĩa khi chạm trán 3 bài toán cấu trúc dữ liệu ở <strong>Trạm 5.3</strong>: đếm chính xác hàng trăm triệu khách hàng duy nhất (<code>High Cardinality</code>), đọc bảng <code>1.000</code> cột (<code>Wide Schema</code>), và sự biến đổi lược đồ theo thời gian (<code>Schema Evolution</code>).</p>
+        </section>
+
+        <section class="lesson-section" id="spark-5-3">
+          <h2 id="spark-5-3-h2" tabindex="-1">Trạm 5.3: Tối ưu hóa High Cardinality (approx_count_distinct), Wide Schema (Column Pruning) &amp; Quản trị Schema Evolution</h2>
+
+          <p><strong>Ba kỹ thuật tinh chỉnh cuối cùng tập trung triệt tiêu sự lãng phí bộ nhớ, I/O và rủi ro đứt gãy đường ống do hình thái dữ liệu gây ra: thay thế phép đếm phân biệt chính xác bằng thuật toán xác suất HyperLogLog (<code>approx_count_distinct</code>) kết hợp gom nhóm sớm (<code>Pre-aggregation</code>) cho cột có <code>High Cardinality</code>; áp dụng chọn cột sớm (<code>Project Early</code>) trên định dạng cột Parquet/ORC để kích hoạt <code>Column Pruning</code> cho bảng <code>Wide Schema</code>; và kết hợp <code>Schema Enforcement</code> cùng <code>Schema Evolution</code> trên Delta Lake / Apache Iceberg để kiểm soát sự thay đổi cấu trúc bảng</strong> (<em>Slides 81–83</em>). Nếu Trạm 5.1 và 5.2 giải quyết bài toán <em>dữ liệu di chuyển như thế nào giữa các máy chủ</em>, thì Trạm 5.3 giải quyết bài toán <em>mỗi bản ghi tiêu tốn bao nhiêu byte RAM/I/O và làm sao để đường ống không gãy khi cấu trúc nguồn thay đổi</em>.</p>
+
+          <x-figure id="spark-5-3-fig" key="5.3" title="Sơ đồ 5.3 — Tinh Chỉnh Thủ Công #4, #5 &amp; #6: High Cardinality, Wide Schema &amp; Schema Evolution">Ba phác đồ giảm áp lực bộ nhớ và I/O cho bảng nhiều giá trị duy nhất, bảng siêu rộng 1.000 cột và bảng biến đổi lược đồ theo thời gian.</x-figure>
+
+          <h3 id="spark-5-3-high-cardinality">Kỹ thuật #4 — Tối ưu hóa High Cardinality bằng Đếm Xấp xỉ (approx_count_distinct) &amp; Pre-Aggregation (Slide 81)</h3>
+          <p>Một cột có <strong>Độ phân tán giá trị cao (High Cardinality)</strong> như <code>user_id</code>, <code>device_fingerprint</code> hoặc <code>session_id</code> chứa hàng chục đến hàng trăm triệu giá trị duy nhất (<em>Slide 60 &amp; 81</em>). Khi báo cáo vận hành yêu cầu đếm số lượng người dùng hoạt động duy nhất mỗi ngày (DAU) bằng câu lệnh <code>COUNT(DISTINCT user_id)</code> (hoặc <code>F.countDistinct("user_id")</code>), Spark bắt buộc phải giữ toàn bộ tập hợp các chuỗi <code>user_id</code> không trùng lặp vào bảng băm trong bộ nhớ của các <code>Executor</code> để đối chiếu khử trùng, đồng thời đẩy hàng trăm triệu khóa này qua Shuffle. Theo <em>Slide 81</em> và <em>Spark: The Definitive Guide</em> (Ch. 6, tr. 102–104), kỹ sư hóa giải áp lực bộ nhớ này bằng 2 cơ chế:</p>
+          <ul>
+            <li><strong>Đếm xấp xỉ siêu nhẹ với <code>approx_count_distinct()</code> (Thuật toán HyperLogLog):</strong> Trong 95% các bảng điều khiển BI, việc biết hôm nay sàn có <code>49.850.000</code> hay <code>50.120.000</code> người dùng truy cập không làm thay đổi quyết định kinh doanh. Hàm <code>F.approx_count_distinct("user_id", rsd=0.02)</code> sử dụng thuật toán xác suất <strong>HyperLogLog (HLL++)</strong>: thay vì lưu từng chuỗi <code>user_id</code> nguyên bản tốn hàng chục Gigabyte RAM, HLL băm mỗi <code>user_id</code> thành chuỗi nhị phân và chỉ đếm <em>số lượng bit <code>0</code> liên tiếp dài nhất ở đầu chuỗi băm</em> trong một mảng thanh ghi (Registers) cố định chỉ nặng khoảng <code>1.5 KB – 16 KB</code> cho mỗi nhóm! Kết quả đạt độ chính xác tới <code>98% – 99%</code> (sai số chuẩn tương đối <code>rsd = 0.01</code> đến <code>0.05</code>) nhưng giảm <code>99.9%</code> dung lượng RAM và chạy nhanh gấp <code>10x – 30x</code>.</li>
+            <li><strong>Gom nhóm cục bộ trước Shuffle (<code>Pre-Aggregation / Map-Side Combine</code>):</strong> Khi bắt buộc phải tính toán theo cột có độ phân tán cao, hãy tận dụng các hàm tổng hợp có tính kết hợp và giao hoán (như <code>SUM</code>, <code>COUNT</code>, <code>MIN</code>, <code>MAX</code> hoặc phác thảo <code>HyperLogLog</code>) trên <code>DataFrame API</code>. Nhờ cơ chế <code>HashAggregate</code> cục bộ tại <code>Map Stage</code> (tương tự <code>reduceByKey</code> thay vì <code>groupByKey</code>), mỗi Partition tự rút gọn các bản ghi trùng khóa ngay trong RAM của <code>Executor</code> trước khi gửi dữ liệu qua mạng, cắt giảm mạnh dung lượng <code>Shuffle Write</code>.</li>
+          </ul>
+
+          <h3 id="spark-5-3-wide-schema">Kỹ thuật #5 — Tối ưu hóa Bảng Siêu Rộng (Wide Schema) bằng Project Early &amp; Column Pruning (Slide 82)</h3>
+          <p>Trong thực tế doanh nghiệp, các bảng sự kiện hành vi người dùng hoặc bảng Feature Store phục vụ AI/ML thường là các <strong>Bảng Siêu Rộng (Wide Schema — Slide 61 &amp; 82)</strong> chứa từ <code>500</code> đến <code>1.000 cột</code>, trong khi Job <code>daily_revenue_attribution.py</code> chỉ thực sự cần đúng <code>5 cột</code> (<code>order_id</code>, <code>user_id</code>, <code>merchant_id</code>, <code>amount_vnd</code>, <code>status</code>). Việc viết thói quen <code>SELECT * FROM orders_wide</code> hoặc nối bảng trước rồi mới chọn cột ở bước cuối gây ra thảm họa kép: lãng phí <code>99.5%</code> băng thông đọc đĩa/mạng S3 và làm mỗi dòng <code>UnsafeRow</code> phình to gấp <code>200 lần</code> khi đi qua bộ đệm <code>Shuffle</code>. Phác đồ chuẩn của <em>Slide 82</em> gồm 3 nguyên tắc cứng:</p>
+          <ul>
+            <li><strong>Tuyệt đối cấm <code>SELECT *</code> trên bảng rộng (Read Only Needed Columns):</strong> Chỉ định tường minh danh sách các cột cần dùng ngay tại điểm đầu vào của đường ống.</li>
+            <li><strong>Chiếu cột sớm trước mọi phép Join và Aggregation (<code>Project Early</code>):</strong> Đặt lệnh <code>.select("order_id", "user_id", "amount_vnd")</code> <strong>ngay trước</strong> lệnh <code>.join()</code> hoặc <code>.groupBy()</code>. Thu hẹp bề rộng dòng (<code>Row Width</code>) từ <code>1.000 cột</code> xuống <code>3 cột</code> giúp một trang bộ nhớ <code>Tungsten Page</code> chứa được nhiều bản ghi hơn gấp hàng trăm lần, tránh hoàn toàn <code>Disk Spill</code> trong lúc trộn dữ liệu.</li>
+            <li><strong>Lưu trữ bằng định dạng Cột/Lai (<code>Apache Parquet / Apache ORC</code>) để kích hoạt <code>Column Pruning</code> tự động:</strong> Như đã chứng minh ở Học phần <code>D02</code>, các định dạng hướng dòng (<code>CSV</code>, <code>JSON</code>) buộc Spark phải đọc <code>100%</code> toàn bộ các byte của cả <code>1.000 cột</code> từ ổ đĩa lên RAM rồi mới vứt bỏ <code>995 cột</code> thừa. Ngược lại, trên định dạng cột <strong>Apache Parquet</strong> hoặc <strong>Apache ORC</strong>, mỗi cột được lưu thành các khối <code>Column Chunk</code> độc lập trong từng <code>Row Group</code>. Khi kết hợp với <code>Catalyst Column Pruning</code>, đầu đọc Parquet chỉ nhảy tới đúng địa chỉ byte của <code>5 cột</code> cần thiết trên S3/MinIO và <strong>bỏ qua hoàn toàn <code>995 cột</code> còn lại ngay tại tầng lưu trữ</strong>.</li>
+          </ul>
+
+          <h3 id="spark-5-3-schema-evolution">Kỹ thuật #6 — Quản trị Biến đổi Lược đồ (Schema Evolution Management) với Delta Lake &amp; Apache Iceberg (Slide 83)</h3>
+          <p>Ở <em>Slide 62</em>, chúng ta đã thấy cấu trúc dữ liệu không bao giờ đứng yên: ở <code>Day 1</code>, bảng sự kiện chỉ có 3 cột (<code>user_id</code>, <code>event</code>, <code>ts</code>), nhưng đến <code>Day 30</code>, đội sản phẩm bổ sung thêm 2 cột mới (<code>country</code>, <code>platform</code>), đổi tên cột hoặc mở rộng kiểu số nguyên từ <code>INT</code> lên <code>BIGINT</code>. Nếu đọc/ghi trực tiếp trên các thư mục tệp Parquet thuần túy, sự lệch pha lược đồ giữa các phân vùng ngày sẽ làm Job hạ nguồn văng lỗi hoặc âm thầm gán lệch dữ liệu giữa các cột. Theo <em>Slide 83</em> (<em>Schema Evolution Management</em>), giải pháp chuẩn kiến trúc Lakehouse hiện đại kết hợp hai cơ chế đối ứng trên <strong>Delta Lake</strong> hoặc <strong>Apache Iceberg</strong>:</p>
+          <ul>
+            <li><strong>Cưỡng chế Lược đồ tại Cổng Ghi (<code>Schema Enforcement</code> — Chặn đứng dữ liệu rác):</strong> Mặc định, khi một Job cố tình ghi một DataFrame có cột lạ hoặc sai kiểu dữ liệu (ví dụ ghi chuỗi <code>"FREE"</code> vào cột <code>amount_vnd BIGINT</code>) vào bảng Silver/Gold, Delta Lake và Iceberg sẽ kiểm tra đối chiếu lược đồ ngay tại thời điểm <code>COMMIT</code> và <strong>từ chối toàn bộ giao dịch ghi</strong> (<code>AnalysisException: A schema mismatch detected</code>), bảo vệ tuyệt đối các báo cáo tài chính hạ nguồn khỏi bị nhiễm bẩn.</li>
+            <li><strong>Tiến hóa Lược đồ Có Kiểm soát (<code>Schema Evolution</code> — Cho phép mở rộng an toàn):</strong> Khi việc thêm cột mới (<code>country</code>, <code>platform</code>) là chủ đích hợp lệ của nghiệp vụ, kỹ sư bật tùy chọn <code>.option("mergeSchema", "true")</code> trên Delta Lake / Iceberg (hoặc dùng siêu dữ liệu <code>Column ID</code> độc lập của Iceberg). Bảng đích sẽ tự động cập nhật <code>Schema Metadata</code> trong <code>_delta_log</code> / <code>metadata.json</code> để đón nhận 2 cột mới cho các bản ghi từ <code>Day 30</code> trở đi, đồng thời tự động điền giá trị <code>NULL</code> cho 2 cột này khi truy vấn lại các tệp dữ liệu lịch sử từ <code>Day 1</code> mà <strong>không cần viết lại bất kỳ tệp Parquet cũ nào</strong>.</li>
+          </ul>
+
+          <pre><code>from pyspark.sql import functions as F
+
+# 1. WIDE SCHEMA OPTIMIZATION (Slide 82): Project Early + Parquet Column Pruning
+# Bảng events_wide có 1.000 cột trên Parquet, nhưng ta chỉ .select() đúng 5 cột ngay lập tức!
+events_pruned_df = (
+    spark.read.format("iceberg")
+    .load("lakehouse.bronze.user_events_1000cols")
+    .filter(F.col("event_date") == F.lit("2026-10-18"))
+    .select("user_id", "event", "ts", "country", "platform")  # Bỏ qua 995 cột ngay tại đĩa S3!
+)
+
+# 2. HIGH CARDINALITY OPTIMIZATION (Slide 81): approx_count_distinct (HyperLogLog) + Pre-aggregation
+# Thay vì COUNT(DISTINCT user_id) ngốn hàng chục GB RAM, dùng HyperLogLog với sai số chuẩn 2% (rsd=0.02)
+daily_country_metrics_df = (
+    events_pruned_df
+    .groupBy("country", "platform")
+    .agg(
+        F.count("*").alias("total_events"),
+        F.approx_count_distinct("user_id", rsd=0.02).alias("approx_unique_users_dau")
+    )
+)
+
+# 3. SCHEMA EVOLUTION MANAGEMENT (Slide 83): Schema Enforcement + Safe Schema Evolution
+# Ghi vào bảng Gold trên Delta Lake / Iceberg có bật mergeSchema để tự động tiếp nhận cột 'platform' mới
+(
+    daily_country_metrics_df.write
+    .format("delta")
+    .mode("append")
+    .option("mergeSchema", "true")  # Cho phép tiến hóa lược đồ an toàn (thêm cột mới từ Day 30)
+    .saveAsTable("lakehouse.gold.daily_platform_dau")
+)</code></pre>
+
+          <h3 id="spark-5-3-matrix">Ma trận Tổng hợp 6 Kỹ thuật Tinh chỉnh Hiệu năng Thủ công (Manual Performance Tuning Playbook)</h3>
+          <p>Bảng ma trận dưới đây kết nối trực tiếp <strong>5 thách thức xử lý lô</strong> (đã nhận diện ở Chặng 4) với <strong>6 kỹ thuật tinh chỉnh thủ công</strong> (Chặng 5) thành cẩm nang tra cứu thực chiến cho kỹ sư dữ liệu:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Kỹ thuật Tinh chỉnh Thủ công</th>
+                  <th>Triệu chứng Bệnh lý trên Spark Job</th>
+                  <th>Giải pháp Code &amp; Cấu hình Chuẩn</th>
+                  <th>Cơ chế Giảm tải Vật lý Bên dưới</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Shuffle &amp; Partition Tuning</strong><br><em>(Slides 77–78)</em></td>
+                  <td>• Ít Partition: Task nặng hàng GB, xuất hiện <code>Spill (Memory)</code> và <code>Spill (Disk)</code>.<br>• Quá nhiều Partition: Hàng vạn Task chạy <code>&lt; 50 ms</code>, <code>Scheduler Delay</code> cao.</td>
+                  <td>• Đặt <code>spark.sql.shuffle.partitions</code> sao cho mỗi Partition nặng <code>128 MB – 256 MB</code>.<br>• Áp dụng <strong><code>Filter Early</code></strong> ngay sau khi đọc dữ liệu nguồn.</td>
+                  <td>Giữ toàn bộ dữ liệu trung gian của từng Task nằm gọn trong vùng nhớ <code>Off-Heap / Execution RAM</code>, triệt tiêu chi phí ghi/đọc đĩa tạm thời.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Join Strategy Selection</strong><br><em>(Slide 78)</em></td>
+                  <td>Phép nối giữa bảng Fact <code>500 GB</code> và bảng Dimension nhỏ tốn hàng chục phút vì <code>Sort-Merge Join</code> kéo toàn bộ <code>500 GB</code> qua mạng.</td>
+                  <td>• Bọc bảng nhỏ trong <code>broadcast(small_df)</code> hoặc nâng <code>spark.sql.autoBroadcastJoinThreshold</code>.<br>• Dùng <code>.bucketBy(N, "key")</code> khi nối 2 bảng lớn lặp đi lặp lại.</td>
+                  <td><strong><code>Broadcast Hash Join</code></strong> phát sóng bảng nhỏ tới mọi <code>Executor</code>, giúp bảng lớn <code>500 GB</code> đạt <strong><code>0% Shuffle</code></strong> và <strong><code>0% Sort</code></strong>.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Handling Skewed Keys with Salting</strong><br><em>(Slides 79–80)</em></td>
+                  <td>Thanh tiến độ Stage kẹt ở <code>199/200 Tasks</code>; 1 Task chứa khóa <code>user_id = 'VIP123'</code> xử lý 80% tổng số dòng và gây tràn bộ nhớ.</td>
+                  <td>• <strong>Tách luồng</strong> xử lý riêng khóa nóng.<br>• <strong>Key Salting</strong>: nối hậu tố ngẫu nhiên <code>_0.._K</code> vào khóa nóng; gom nhóm 2 pha hoặc nhân bản dòng tương ứng bên bảng tra cứu bằng <code>explode()</code>.</td>
+                  <td>Phá vỡ định mệnh băm cố định <code>hash("VIP123") % N</code>, chia nhỏ 1 tác vụ khổng lồ thành <code>K</code> tác vụ vừa vặn chạy song song trên nhiều <code>Executor</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. High Cardinality Optimization</strong><br><em>(Slide 81)</em></td>
+                  <td>Truy vấn <code>COUNT(DISTINCT user_id)</code> hoặc <code>groupBy(user_id)</code> trên hàng trăm triệu người dùng làm đầy RAM và gây <code>OutOfMemoryError</code>.</td>
+                  <td>• Thay bằng hàm đếm xấp xỉ <code>F.approx_count_distinct("user_id", rsd=0.02)</code>.<br>• Thực hiện <strong><code>Pre-aggregation</code></strong> cục bộ trước khi đẩy qua Shuffle.</td>
+                  <td>Thuật toán <strong>HyperLogLog</strong> ước lượng số lượng phần tử duy nhất bằng thanh ghi bit <code>~1.5 KB – 16 KB</code> thay vì giữ hàng trăm triệu chuỗi trong RAM (giảm <code>&gt; 99%</code> bộ nhớ).</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Wide Schema Optimization</strong><br><em>(Slide 82)</em></td>
+                  <td>Đọc bảng <code>1.000 cột</code> bằng <code>SELECT *</code> khiến tốc độ quét đĩa chậm và kích thước <code>Shuffle Write</code> phình to gấp hàng trăm lần dù chỉ dùng <code>5 cột</code>.</td>
+                  <td>• Cấm dùng <code>SELECT *</code>; gọi <code>.select(needed_cols)</code> ngay lập tức (<strong><code>Project Early</code></strong>).<br>• Lưu trữ trên định dạng cột <strong><code>Parquet</code> / <code>ORC</code></strong>.</td>
+                  <td>Kích hoạt <strong><code>Column Pruning</code></strong>: đầu đọc Parquet chỉ nạp đúng <code>Column Chunks</code> của <code>5 cột</code> cần thiết từ đĩa/S3 và thu hẹp tối đa bề rộng dòng <code>UnsafeRow</code> trong RAM.</td>
+                </tr>
+                <tr>
+                  <td><strong>6. Schema Evolution Management</strong><br><em>(Slide 83)</em></td>
+                  <td>Bảng nguồn thêm cột mới (<code>country</code>, <code>platform</code>) ở <code>Day 30</code> hoặc đổi kiểu dữ liệu khiến Job hạ nguồn bị gãy hoặc đọc sai cột.</td>
+                  <td>• Dùng <strong><code>Delta Lake</code></strong> hoặc <strong><code>Apache Iceberg</code></strong>.<br>• Mặc định bật <code>Schema Enforcement</code>; khi cần mở rộng hợp lệ, dùng <code>.option("mergeSchema", "true")</code>.</td>
+                  <td>Quản lý phiên bản lược đồ trong tầng <code>Metadata Log</code> (<code>_delta_log</code> / <code>metadata.json</code>), chặn dữ liệu bẩn ngay lúc ghi và hợp nhất cột mới mà không cần viết lại tệp cũ.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="summary-section" id="spark-5-summary">
+          <h2 id="spark-5-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 5 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <p><strong>Khép kín 6 kỹ thuật tinh chỉnh hiệu năng thủ công cho Job <code>daily_revenue_attribution.py</code>:</strong> Khi bộ ba tự động <code>Catalyst – Tungsten – AQE</code> đã làm hết phần việc của trình biên dịch, kỹ sư dữ liệu hoàn thiện hiệu năng của đường ống biến đổi <strong>Order #8888</strong> bằng cách kiểm soát trực tiếp luồng di chuyển và hình thái vật lý của dữ liệu: định cỡ Partition ở điểm ngọt <code>128 MB – 256 MB</code>, ép <code>Broadcast Hash Join</code> cho các bảng danh mục nhỏ để giữ <code>500 GB</code> bảng giao dịch đứng yên tại chỗ, rắc muối <code>Key Salting</code> để phân tán khóa đại lý <code>"VIP123"</code> qua nhiều máy chủ, dùng <code>approx_count_distinct</code> cho các chỉ số đếm phân biệt quy mô lớn, cắt tỉa <code>995/1.000</code> cột thừa ngay tại đĩa Parquet bằng <code>Project Early</code>, và khóa chặt hợp đồng dữ liệu bằng <code>Schema Enforcement &amp; Evolution</code> trên nền tảng <code>Apache Iceberg / Delta Lake</code>.</p>
+
+          <ol>
+            <li><strong>Điều gì xảy ra khi số lượng Partition quá ít hoặc quá nhiều, và quy tắc định cỡ số lượng Partition chuẩn cho một Stage có Shuffle là gì?</strong> → Nếu có quá ít Partition, mỗi Task phải xử lý lượng dữ liệu khổng lồ vượt quá bộ nhớ <code>Execution Memory</code>, buộc Spark phải xả dữ liệu tạm ra ổ cứng (<code>Disk Spill</code>) làm chậm Job hoặc gây lỗi <code>OOM</code>; nếu có quá nhiều Partition trên dữ liệu nhỏ, <code>Driver</code> bị nghẽn bởi chi phí lập lịch hàng vạn Task tí hon (<code>Scheduling Overhead</code>) và sinh ra vô số tệp nhỏ. Quy tắc chuẩn là cấu hình <code>spark.sql.shuffle.partitions</code> sao cho mỗi Partition xử lý khoảng <code>128 MB – 256 MB</code> dữ liệu (và số Partition bằng <code>2x – 4x</code> tổng số CPU Cores của cụm), đồng thời luôn lọc dòng sớm (<code>Filter Early</code>) trước khi Shuffle.</li>
+            <li><strong>Tại sao <code>Broadcast Hash Join (BHJ)</code> lại nhanh vượt trội so với <code>Sort-Merge Join (SMJ)</code> khi nối bảng Fact lớn với bảng Dimension nhỏ, và khi nào không được phép dùng BHJ?</strong> → Trong <code>Sort-Merge Join</code>, Spark phải băm và di chuyển (Shuffle) cả hai bảng qua mạng rồi sắp xếp (<code>Sort</code>) trước khi trộn. Ngược lại, <code>Broadcast Hash Join</code> thu thập bảng nhỏ về <code>Driver</code> rồi phát sóng bản sao bảng băm tới RAM của mọi <code>Executor</code>, giúp bảng lớn <code>500 GB</code> được đối chiếu ngay tại chỗ với <strong><code>0% Shuffle</code> và <code>0% Sort</code></strong>. Tuy nhiên, không được ép <code>broadcast()</code> khi bảng thứ hai quá lớn (vượt quá khả năng bộ nhớ của <code>Driver</code> và <code>Executor</code>, thường <code>&gt; 100 MB – 500 MB</code>) vì sẽ làm <code>Driver</code> sập ngay lập tức do <code>OutOfMemoryError</code>.</li>
+            <li><strong>Kỹ thuật Rắc muối Khóa (<code>Key Salting</code>) giải quyết bài toán khóa bị lệch (như <code>user_id = "VIP123"</code> chiếm 80% dữ liệu) trong phép <code>groupBy</code> và phép <code>join</code> theo cơ chế nào?</strong> → Vì hàm băm <code>hash("VIP123") % N</code> luôn đẩy toàn bộ bản ghi của <code>"VIP123"</code> vào một Partition duy nhất, kỹ thuật <code>Key Salting</code> nối thêm một hậu tố ngẫu nhiên từ <code>0</code> đến <code>K-1</code> để chẻ khóa <code>"VIP123"</code> thành <code>K</code> khóa con (<code>"VIP123_0" .. "VIP123_K"</code>) rải đều sang <code>K</code> Partition khác nhau. Với phép <code>groupBy</code>, ta thực hiện tổng hợp 2 pha (gom nhóm cục bộ theo <code>(user_id, salt)</code> trước, rồi bỏ <code>salt</code> để gom tổng cuối theo <code>user_id</code>); với phép <code>join</code>, ta nối muối ngẫu nhiên vào bảng bị lệch và dùng <code>explode(array(0..K-1))</code> để nhân bản bản ghi tương ứng bên bảng tra cứu.</li>
+            <li><strong>Làm thế nào để tối ưu hóa truy vấn đếm số lượng người dùng duy nhất (<code>High Cardinality</code>) trên bảng rộng <code>1.000 cột</code> (<code>Wide Schema</code>)?</strong> → Đối với bảng rộng <code>1.000 cột</code>, tuyệt đối tránh <code>SELECT *</code>, áp dụng <strong><code>Project Early</code></strong> (chỉ <code>.select()</code> đúng vài cột cần thiết ngay sau khi đọc và trước mọi phép Join/GroupBy) kết hợp lưu trữ trên định dạng cột <strong><code>Parquet / ORC</code></strong> để kích hoạt <strong><code>Column Pruning</code></strong> tự động bỏ qua <code>995 cột</code> thừa ngay tại đĩa. Đối với cột có hàng trăm triệu giá trị duy nhất, kết hợp gom nhóm sớm (<strong><code>Pre-aggregation</code></strong>) trước Shuffle và thay thế <code>COUNT(DISTINCT user_id)</code> bằng hàm <strong><code>approx_count_distinct("user_id")</code></strong> (thuật toán xác suất <code>HyperLogLog</code>) để giảm <code>&gt; 99%</code> bộ nhớ tiêu thụ với sai số chỉ khoảng <code>1% – 2%</code>.</li>
+            <li><strong>Sự khác biệt và mối quan hệ bổ trợ giữa <code>Schema Enforcement</code> và <code>Schema Evolution</code> trên Delta Lake / Apache Iceberg là gì?</strong> → <strong><code>Schema Enforcement</code></strong> (Cưỡng chế lược đồ) là cơ chế bảo vệ mặc định tại thời điểm ghi, tự động kiểm tra và từ chối mọi giao dịch <code>COMMIT</code> có cột lạ hoặc kiểu dữ liệu không tương thích để ngăn dữ liệu bẩn làm hỏng bảng hạ nguồn. <strong><code>Schema Evolution</code></strong> (Tiến hóa lược đồ, kích hoạt qua <code>mergeSchema = true</code> hoặc lệnh quản trị metadata của Iceberg/Delta) là cơ chế cho phép mở rộng cấu trúc bảng một cách an toàn và có kiểm soát khi nghiệp vụ thêm cột mới (như thêm cột <code>country</code>, <code>platform</code> ở <code>Day 30</code>) mà không làm gãy các Job đang chạy hay phải ghi lại các tệp dữ liệu lịch sử từ <code>Day 1</code>.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/D03/6" onclick="selectStorageStage(6);return false;">Sang Chặng 6: Kỹ Thuật Vận Hành Thực Chiến — Spark UI Analysis, Dynamic Allocation &amp; Data Compaction →</a></p>
+        </section>
+      </div>
