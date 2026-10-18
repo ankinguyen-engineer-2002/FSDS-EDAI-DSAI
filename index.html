@@ -255,6 +255,29 @@
     --ac-warn: #b45309;
     --ac-danger: #be123c;
     --ac-muted: #595650;
+
+    /* Interactive 2D Simulator Palette (Claude Academy Warm Parchment — Light Mode) */
+    --sim-bg: var(--cds-surface-1);
+    --sim-header-bg: var(--cds-surface-2);
+    --sim-canvas: #f6f4ec;
+    --sim-card: #ffffff;
+    --sim-card-alt: #eeeae0;
+    --sim-border: #d5d1c6;
+    --sim-border-muted: #b8b3a6;
+    --sim-ink: var(--cds-text-primary);
+    --sim-sub: var(--cds-text-body);
+    --sim-muted: var(--cds-text-muted);
+    --sim-clay: var(--accent);
+    --sim-clay-soft: var(--accent-soft);
+    --sim-clay-border: color-mix(in oklab, var(--cds-clay) 36%, transparent);
+    --sim-flow: var(--ac-flow);
+    --sim-flow-soft: color-mix(in oklab, var(--ac-flow) 12%, var(--sim-card));
+    --sim-ok: var(--ac-ok);
+    --sim-ok-soft: color-mix(in oklab, var(--ac-ok) 12%, var(--sim-card));
+    --sim-warn: var(--ac-warn);
+    --sim-warn-soft: color-mix(in oklab, var(--ac-warn) 14%, var(--sim-card));
+    --sim-danger: var(--ac-danger);
+    --sim-danger-soft: color-mix(in oklab, var(--ac-danger) 12%, var(--sim-card));
   }
 
   /* Dark Mode (Claude Academy Obsidian #141413) */
@@ -324,6 +347,29 @@
     --ac-warn: #fbbf24;
     --ac-danger: #fb7185;
     --ac-muted: #94a3b8;
+
+    /* Interactive 2D Simulator Palette (Claude Academy Warm Obsidian — Dark Mode) */
+    --sim-bg: var(--cds-surface-1);
+    --sim-header-bg: var(--cds-surface-2);
+    --sim-canvas: #161513;
+    --sim-card: #211f1c;
+    --sim-card-alt: #2a2824;
+    --sim-border: #3d3a34;
+    --sim-border-muted: #57534a;
+    --sim-ink: var(--cds-text-primary);
+    --sim-sub: var(--cds-text-body);
+    --sim-muted: var(--cds-text-muted);
+    --sim-clay: var(--accent);
+    --sim-clay-soft: var(--accent-soft);
+    --sim-clay-border: color-mix(in oklab, var(--cds-clay) 42%, transparent);
+    --sim-flow: var(--ac-flow);
+    --sim-flow-soft: color-mix(in oklab, var(--ac-flow) 16%, var(--sim-card));
+    --sim-ok: var(--ac-ok);
+    --sim-ok-soft: color-mix(in oklab, var(--ac-ok) 16%, var(--sim-card));
+    --sim-warn: var(--ac-warn);
+    --sim-warn-soft: color-mix(in oklab, var(--ac-warn) 17%, var(--sim-card));
+    --sim-danger: var(--ac-danger);
+    --sim-danger-soft: color-mix(in oklab, var(--ac-danger) 17%, var(--sim-card));
   }
 
   /* 6 Curated Editorial Accent Palettes (Default: Anthropic Clay #d97757) */
@@ -3047,12 +3093,12 @@
     40%, 80% { transform: translateX(5px) rotate(1deg); }
   }
   @keyframes infraPulseDanger {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55); }
-    50% { box-shadow: 0 0 22px 6px rgba(239, 68, 68, 0.22); }
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--sim-danger) 42%, transparent); }
+    50% { box-shadow: 0 0 22px 6px color-mix(in oklab, var(--sim-danger) 20%, transparent); }
   }
   @keyframes infraPulseSuccess {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45); }
-    50% { box-shadow: 0 0 20px 5px rgba(16, 185, 129, 0.2); }
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--sim-ok) 40%, transparent); }
+    50% { box-shadow: 0 0 20px 5px color-mix(in oklab, var(--sim-ok) 18%, transparent); }
   }
   @keyframes infraDataFlow {
     0% { background-position: 0% 50%; }
@@ -3060,12 +3106,13 @@
   }
   .infra2d-wrap {
     margin: 22px 0 28px;
-    border: 1px solid var(--border-strong);
-    border-radius: 12px;
-    background: #0b0f19;
-    color: #f1f5f9;
+    border: 1px solid var(--cds-border-default);
+    border-radius: var(--cds-radius-lg, 14px);
+    background: var(--sim-bg);
+    color: var(--sim-ink);
+    font-family: var(--cds-font-sans);
     overflow: hidden;
-    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.38);
+    box-shadow: var(--cds-shadow-card-ring);
   }
   .infra2d-header {
     display: flex;
@@ -3074,8 +3121,8 @@
     justify-content: space-between;
     gap: 10px;
     padding: 12px 16px;
-    background: #0f172a;
-    border-bottom: 1px solid #1e293b;
+    background: var(--sim-header-bg);
+    border-bottom: 1px solid var(--sim-border);
   }
   .infra2d-brand {
     display: flex;
@@ -3086,14 +3133,14 @@
     width: 38px;
     height: 38px;
     border-radius: 10px;
-    background: linear-gradient(135deg, #fbbf24, #f97316);
-    color: #0b0f19;
+    background: var(--cds-clay);
+    color: #faf9f5;
     font-weight: 800;
     font-size: 13px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: var(--font-mono);
+    font-family: var(--cds-font-mono);
     flex-shrink: 0;
   }
   .infra2d-brand-badges {
@@ -3109,19 +3156,22 @@
     letter-spacing: 0.05em;
     padding: 2px 8px;
     border-radius: 999px;
-    background: rgba(99, 102, 241, 0.18);
-    color: #a5b4fc;
-    border: 1px solid rgba(99, 102, 241, 0.35);
+    background: var(--sim-clay-soft);
+    color: var(--sim-clay);
+    border: 1px solid var(--sim-clay-border);
+    font-family: var(--cds-font-mono);
   }
   .infra2d-chapter {
     font-size: 11.5px;
     font-weight: 700;
-    color: #fbbf24;
+    color: var(--sim-warn);
+    font-family: var(--cds-font-sans);
   }
   .infra2d-title-bar {
-    font-size: 14.5px;
-    font-weight: 800;
-    color: #f8fafc;
+    font-family: var(--cds-font-serif);
+    font-size: 15.5px;
+    font-weight: 700;
+    color: var(--sim-ink);
     margin: 0;
   }
   .infra2d-dots {
@@ -3136,22 +3186,23 @@
     border-radius: 8px;
     font-size: 12px;
     font-weight: 700;
-    border: 1px solid #334155;
-    background: #1e293b;
-    color: #94a3b8;
+    font-family: var(--cds-font-sans);
+    border: 1px solid var(--sim-border);
+    background: var(--sim-card);
+    color: var(--sim-muted);
     cursor: pointer;
     white-space: nowrap;
     transition: all 0.15s ease;
   }
   .infra2d-dot-btn:hover {
-    background: #334155;
-    color: #f1f5f9;
+    background: var(--sim-card-alt);
+    color: var(--sim-ink);
   }
   .infra2d-dot-btn.active {
-    background: #4f46e5;
-    border-color: #6366f1;
-    color: #ffffff;
-    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+    background: var(--cds-clay);
+    border-color: var(--accent-strong);
+    color: #faf9f5;
+    box-shadow: 0 3px 10px var(--sim-clay-soft);
   }
   .infra2d-grid {
     display: grid;
@@ -3161,8 +3212,8 @@
   }
   .infra2d-col-left,
   .infra2d-col-right {
-    background: #0f172a;
-    border: 1px solid #1e293b;
+    background: var(--sim-card);
+    border: 1px solid var(--sim-border);
     border-radius: 12px;
     padding: 16px;
     display: flex;
@@ -3182,29 +3233,32 @@
     font-weight: 800;
     padding: 3px 10px;
     border-radius: 999px;
-    background: rgba(99, 102, 241, 0.2);
-    color: #a5b4fc;
-    border: 1px solid rgba(99, 102, 241, 0.35);
+    background: var(--sim-clay-soft);
+    color: var(--sim-clay);
+    border: 1px solid var(--sim-clay-border);
+    font-family: var(--cds-font-mono);
   }
   .infra2d-pill-analogy {
     font-size: 11.5px;
     font-weight: 700;
     padding: 3px 10px;
     border-radius: 999px;
-    background: rgba(245, 158, 11, 0.15);
-    color: #fcd34d;
-    border: 1px solid rgba(245, 158, 11, 0.35);
+    background: var(--sim-warn-soft);
+    color: var(--sim-warn);
+    border: 1px solid color-mix(in oklab, var(--sim-warn) 35%, transparent);
+    font-family: var(--cds-font-sans);
   }
   .infra2d-slide-h3 {
+    font-family: var(--cds-font-serif) !important;
     font-size: 18px !important;
-    font-weight: 800 !important;
-    color: #ffffff !important;
+    font-weight: 700 !important;
+    color: var(--sim-ink) !important;
     margin: 0 0 12px 0 !important;
     line-height: 1.35 !important;
   }
   .infra2d-story-box {
-    background: rgba(30, 41, 59, 0.75);
-    border: 1px solid #334155;
+    background: var(--sim-canvas);
+    border: 1px solid var(--sim-border);
     border-radius: 10px;
     padding: 12px;
     margin-bottom: 12px;
@@ -3216,10 +3270,10 @@
     width: 36px;
     height: 36px;
     border-radius: 999px;
-    background: rgba(245, 158, 11, 0.2);
-    border: 1px solid rgba(251, 191, 36, 0.45);
-    color: #fcd34d;
-    font-family: var(--font-mono);
+    background: var(--sim-clay-soft);
+    border: 1px solid var(--sim-clay-border);
+    color: var(--sim-clay);
+    font-family: var(--cds-font-mono);
     font-size: 11px;
     font-weight: 800;
     display: flex;
@@ -3230,13 +3284,13 @@
   .infra2d-story-title {
     font-size: 12.5px;
     font-weight: 700;
-    color: #fbbf24;
+    color: var(--sim-clay);
     display: block;
     margin-bottom: 3px;
   }
   .infra2d-story-text {
     font-size: 13px;
-    color: #cbd5e1;
+    color: var(--sim-sub);
     font-style: italic;
     margin: 0 !important;
     line-height: 1.45;
@@ -3250,8 +3304,8 @@
   .infra2d-kp-item {
     padding: 10px 12px;
     border-radius: 10px;
-    background: rgba(30, 41, 59, 0.45);
-    border: 1px solid #1e293b;
+    background: var(--sim-canvas);
+    border: 1px solid var(--sim-border);
     display: flex;
     gap: 10px;
     align-items: flex-start;
@@ -3260,10 +3314,10 @@
     width: 26px;
     height: 26px;
     border-radius: 6px;
-    background: #1e293b;
-    border: 1px solid #334155;
-    color: #38bdf8;
-    font-family: var(--font-mono);
+    background: var(--sim-card);
+    border: 1px solid var(--sim-border);
+    color: var(--sim-clay);
+    font-family: var(--cds-font-mono);
     font-size: 11px;
     font-weight: 800;
     display: flex;
@@ -3275,22 +3329,23 @@
   .infra2d-kp-title {
     font-size: 13px;
     font-weight: 700;
-    color: #f8fafc;
+    color: var(--sim-ink);
     margin: 0 0 2px 0;
+    display: block;
   }
   .infra2d-kp-desc {
     font-size: 12.5px;
-    color: #cbd5e1;
+    color: var(--sim-sub);
     margin: 0 !important;
     line-height: 1.45;
   }
   .infra2d-verdict {
     padding: 10px 12px;
     border-radius: 10px;
-    background: rgba(99, 102, 241, 0.12);
-    border: 1px solid rgba(99, 102, 241, 0.3);
+    background: var(--sim-clay-soft);
+    border: 1px solid var(--sim-clay-border);
     font-size: 12.5px;
-    color: #c7d2fe;
+    color: var(--sim-ink);
     line-height: 1.45;
   }
   .infra2d-sim-top {
@@ -3301,7 +3356,7 @@
     gap: 8px;
     padding-bottom: 10px;
     margin-bottom: 12px;
-    border-bottom: 1px solid #1e293b;
+    border-bottom: 1px solid var(--sim-border);
   }
   .infra2d-sim-live {
     display: flex;
@@ -3311,20 +3366,21 @@
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: #94a3b8;
+    color: var(--sim-muted);
+    font-family: var(--cds-font-sans);
   }
   .infra2d-sim-dot {
     width: 9px;
     height: 9px;
     border-radius: 999px;
-    background: #10b981;
-    box-shadow: 0 0 8px #10b981;
+    background: var(--sim-ok);
+    box-shadow: 0 0 8px var(--sim-ok);
   }
   .infra2d-sim-hint {
     font-size: 11.5px;
-    color: #67e8f9;
-    background: rgba(6, 182, 212, 0.12);
-    border: 1px solid rgba(6, 182, 212, 0.32);
+    color: var(--sim-flow);
+    background: var(--sim-flow-soft);
+    border: 1px solid color-mix(in oklab, var(--sim-flow) 32%, transparent);
     padding: 3px 10px;
     border-radius: 7px;
     font-weight: 600;
@@ -3336,8 +3392,8 @@
     align-items: center;
     justify-content: center;
     border-radius: 10px;
-    background: #020617;
-    border: 1px solid #1e293b;
+    background: var(--sim-canvas);
+    border: 1px solid var(--sim-border);
     padding: 14px;
     position: relative;
     overflow: hidden;
@@ -3346,10 +3402,10 @@
     margin-top: 12px;
     padding: 10px 12px;
     border-radius: 10px;
-    background: #1e293b;
-    border: 1px solid #334155;
+    background: var(--sim-canvas);
+    border: 1px solid var(--sim-border);
     font-size: 12.5px;
-    color: #e2e8f0;
+    color: var(--sim-ink);
     line-height: 1.45;
   }
   .infra2d-controls {
@@ -3363,56 +3419,61 @@
     border-radius: 9px;
     font-size: 12px;
     font-weight: 700;
+    font-family: var(--cds-font-sans);
     cursor: pointer;
-    border: 1px solid #334155;
-    background: #1e293b;
-    color: #e2e8f0;
+    border: 1px solid var(--sim-border);
+    background: var(--sim-canvas);
+    color: var(--sim-ink);
     transition: all 0.15s ease;
   }
   .infra2d-btn:hover {
-    background: #334155;
-    color: #ffffff;
+    background: var(--sim-card-alt);
+    color: var(--sim-ink);
   }
   .infra2d-btn-primary {
-    background: #4f46e5;
-    border-color: #6366f1;
-    color: #ffffff;
+    background: var(--cds-clay);
+    border-color: var(--accent-strong);
+    color: #faf9f5;
   }
   .infra2d-btn-primary:hover {
-    background: #6366f1;
+    background: var(--accent-strong);
+    color: #faf9f5;
   }
   .infra2d-btn-danger {
-    background: #e11d48;
-    border-color: #f43f5e;
-    color: #ffffff;
+    background: var(--sim-danger);
+    border-color: var(--sim-danger);
+    color: #faf9f5;
   }
   .infra2d-btn-danger:hover {
-    background: #f43f5e;
+    filter: brightness(1.08);
+    color: #faf9f5;
   }
   .infra2d-btn-emerald {
-    background: #059669;
-    border-color: #10b981;
-    color: #ffffff;
+    background: var(--sim-ok);
+    border-color: var(--sim-ok);
+    color: #faf9f5;
   }
   .infra2d-btn-emerald:hover {
-    background: #10b981;
+    filter: brightness(1.08);
+    color: #faf9f5;
   }
   .infra2d-btn-amber {
-    background: #f59e0b;
-    border-color: #fbbf24;
-    color: #0b0f19;
+    background: var(--sim-warn);
+    border-color: var(--sim-warn);
+    color: #faf9f5;
   }
   .infra2d-btn-amber:hover {
-    background: #fbbf24;
-    color: #0b0f19;
+    filter: brightness(1.08);
+    color: #faf9f5;
   }
   .infra2d-btn-cyan {
-    background: #0891b2;
-    border-color: #06b6d4;
-    color: #ffffff;
+    background: var(--sim-flow);
+    border-color: var(--sim-flow);
+    color: #faf9f5;
   }
   .infra2d-btn-cyan:hover {
-    background: #06b6d4;
+    filter: brightness(1.08);
+    color: #faf9f5;
   }
   .infra2d-footer {
     display: flex;
@@ -3420,8 +3481,8 @@
     justify-content: space-between;
     gap: 12px;
     padding: 12px 16px;
-    background: #0f172a;
-    border-top: 1px solid #1e293b;
+    background: var(--sim-header-bg);
+    border-top: 1px solid var(--sim-border);
   }
   .infra2d-progress-wrap {
     flex: 1;
@@ -3434,21 +3495,21 @@
   .infra2d-progress-track {
     width: 100%;
     height: 7px;
-    background: #1e293b;
+    background: var(--sim-card-alt);
     border-radius: 999px;
     overflow: hidden;
   }
   .infra2d-progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, #6366f1, #06b6d4, #10b981);
+    background: linear-gradient(90deg, var(--cds-clay), var(--sim-flow), var(--sim-ok));
     transition: width 0.25s ease;
   }
   @keyframes ingFlowDash {
     to { stroke-dashoffset: -24; }
   }
   @keyframes ingPulseNode {
-    0%, 100% { filter: drop-shadow(0 0 3px rgba(56, 189, 248, 0.35)); }
-    50% { filter: drop-shadow(0 0 9px rgba(56, 189, 248, 0.85)); }
+    0%, 100% { filter: drop-shadow(0 0 3px color-mix(in oklab, var(--sim-flow) 35%, transparent)); }
+    50% { filter: drop-shadow(0 0 9px color-mix(in oklab, var(--sim-flow) 85%, transparent)); }
   }
   .ing2d-flow-active {
     stroke-dasharray: 6 6;
@@ -3460,7 +3521,9 @@
     max-height: 310px;
     display: block;
     border-radius: 8px;
-    background: radial-gradient(circle at 50% 25%, #0f172a 0%, #020617 100%);
+    font-family: var(--cds-font-sans);
+    background: radial-gradient(circle at 50% 25%, var(--sim-card) 0%, var(--sim-canvas) 100%);
+    border: 1px solid var(--sim-border);
   }
   .ing2d-metrics-strip {
     width: 100%;
@@ -3470,8 +3533,8 @@
     margin-top: 8px;
   }
   .ing2d-metric-chip {
-    background: #0f172a;
-    border: 1px solid #1e293b;
+    background: var(--sim-card);
+    border: 1px solid var(--sim-border);
     border-radius: 7px;
     padding: 5px 8px;
     display: flex;
@@ -3482,14 +3545,15 @@
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: #94a3b8;
+    color: var(--sim-muted);
     font-weight: 700;
+    font-family: var(--cds-font-sans);
   }
   .ing2d-metric-val {
     font-size: 12px;
     font-weight: 800;
-    color: #f8fafc;
-    font-family: var(--font-mono);
+    color: var(--sim-ink);
+    font-family: var(--cds-font-mono);
   }
   .infra2d-card-grid2 {
     display: grid;
@@ -3504,8 +3568,9 @@
     width: 100%;
   }
   .infra2d-box {
-    border: 1.5px solid #334155;
-    background: #0f172a;
+    border: 1.5px solid var(--sim-border);
+    background: var(--sim-card);
+    color: var(--sim-ink);
     border-radius: 10px;
     padding: 10px;
     text-align: center;
@@ -3513,13 +3578,13 @@
   }
   .infra2d-float { animation: infraFloatSlow 3.2s ease-in-out infinite; }
   .infra2d-shake { animation: infraShakeBuilding 0.45s ease-in-out infinite; }
-  .infra2d-glow-danger { animation: infraPulseDanger 1.5s infinite; border-color: #f43f5e !important; }
-  .infra2d-glow-success { animation: infraPulseSuccess 2s infinite; border-color: #10b981 !important; }
+  .infra2d-glow-danger { animation: infraPulseDanger 1.5s infinite; border-color: var(--sim-danger) !important; }
+  .infra2d-glow-success { animation: infraPulseSuccess 2s infinite; border-color: var(--sim-ok) !important; }
   .infra2d-pipe {
     height: 9px;
     width: 100%;
     border-radius: 999px;
-    background: linear-gradient(90deg, #1e293b 25%, #38bdf8 50%, #1e293b 75%);
+    background: linear-gradient(90deg, var(--sim-card-alt) 25%, var(--sim-flow) 50%, var(--sim-card-alt) 75%);
     background-size: 200% 100%;
     animation: infraDataFlow 1.8s linear infinite;
     margin: 8px 0;
@@ -11728,11 +11793,11 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
       if (!infra2dState.sliced) {
         statusText.innerHTML = "<strong>[TRẠNG THÁI]:</strong> Đây là <strong>1 Máy chủ vật lý khổng lồ (64 CPU, 256GB RAM)</strong>. Hãy bấm nút cắt máy bằng Hypervisor!";
         stage.innerHTML = `
-          <div class="infra2d-box infra2d-float" style="max-width:420px;width:100%;border-color:#6366f1;padding:18px;">
-            <div style="font-size:11px;font-weight:800;color:#818cf8;letter-spacing:0.06em;">MÁY CHỦ VẬT LÝ NGUYÊN KHỐI (BARE METAL HOST)</div>
-            <div style="font-size:18px;font-weight:800;color:#ffffff;margin:8px 0 4px;">64 CPU • 256 GB RAM</div>
-            <p style="font-size:12px;color:#94a3b8;margin:0 0 12px !important;">Quá to cho 1 tiệm bánh nhỏ! Nếu chỉ chạy 1 web sẽ lãng phí 95% sức mạnh.</p>
-            <div style="padding:8px 10px;border-radius:8px;background:#020617;border:1px solid #334155;font-size:12px;color:#fcd34d;">
+          <div class="infra2d-box infra2d-float" style="max-width:420px;width:100%;border-color:var(--sim-clay);padding:18px;">
+            <div style="font-size:11px;font-weight:800;color:var(--sim-clay);letter-spacing:0.06em;">MÁY CHỦ VẬT LÝ NGUYÊN KHỐI (BARE METAL HOST)</div>
+            <div style="font-size:18px;font-weight:800;color:var(--sim-ink);margin:8px 0 4px;">64 CPU • 256 GB RAM</div>
+            <p style="font-size:12px;color:var(--sim-muted);margin:0 0 12px !important;">Quá to cho 1 tiệm bánh nhỏ! Nếu chỉ chạy 1 web sẽ lãng phí 95% sức mạnh.</p>
+            <div style="padding:8px 10px;border-radius:8px;background:var(--sim-canvas);border:1px solid var(--sim-border);font-size:12px;color:var(--sim-warn);">
               [CHƯA ẢO HÓA] Chưa cài phần mềm <strong>Hypervisor</strong>
             </div>
           </div>
@@ -11740,17 +11805,17 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
       } else {
         let badgeLabel = "CÔNG NGHỆ GỐC: MÁY ẢO (VIRTUAL MACHINE - VM)";
         let subNote = "<strong>[KẾT QUẢ]:</strong> Mỗi ô là 1 <strong>Virtual Machine (VM)</strong> có Hệ điều hành riêng, tưởng mình là máy thật!";
-        let borderCol = "#06b6d4";
+        let borderCol = "var(--sim-flow)";
         let tagName = "Máy Ảo VM";
         if (infra2dState.productMode === "vps") {
           badgeLabel = "SẢN PHẨM 2: ĐÓNG GÓI THÀNH \"VPS\" CHO THUÊ THEO THÁNG";
           subNote = "<strong>[VPS]:</strong> Nhà mạng gắn IP Internet vào từng chiếc VM trên cỗ máy đơn lẻ này rồi bán lẻ cho Minh thuê = <strong>VPS</strong>!";
-          borderCol = "#6366f1";
+          borderCol = "var(--sim-clay)";
           tagName = "Gói VPS";
         } else if (infra2dState.productMode === "cloud") {
           badgeLabel = "SẢN PHẨM 3: ĐÓNG GÓI THÀNH \"CLOUD VM\" TRÊN ĐÁM MÂY";
           subNote = "<strong>[CLOUD VM]:</strong> Vẫn là chiếc VM đó, nhưng đặt trên hệ thống hàng trăm máy chủ liên kết tự phục hồi = <strong>Cloud VM</strong>!";
-          borderCol = "#10b981";
+          borderCol = "var(--sim-ok)";
           tagName = "Cloud VM";
         }
         statusText.innerHTML = subNote;
@@ -11762,17 +11827,17 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
             <div class="infra2d-box" style="padding:12px;">
               <div class="infra2d-card-grid2" style="margin-bottom:10px;">
                 ${[1, 2, 3, 4].map(n => `
-                  <div class="infra2d-box" style="border-color:${borderCol};background:rgba(15,23,42,0.9);">
-                    <div style="font-size:12.5px;font-weight:800;color:#ffffff;">${tagName} #${n}</div>
-                    <div style="font-size:11px;color:#cbd5e1;margin:2px 0;">16 CPU • 64GB RAM</div>
-                    <span style="display:inline-block;font-size:10.5px;padding:2px 6px;border-radius:4px;background:#1e293b;color:#6ee7b7;">HĐH Ubuntu Riêng</span>
+                  <div class="infra2d-box" style="border-color:${borderCol};background:var(--sim-card);">
+                    <div style="font-size:12.5px;font-weight:800;color:var(--sim-ink);">${tagName} #${n}</div>
+                    <div style="font-size:11px;color:var(--sim-sub);margin:2px 0;">16 CPU • 64GB RAM</div>
+                    <span style="display:inline-block;font-size:10.5px;padding:2px 6px;border-radius:4px;background:var(--sim-card-alt);color:var(--sim-ok);">HĐH Ubuntu Riêng</span>
                   </div>
                 `).join("")}
               </div>
-              <div style="padding:6px;border-radius:6px;background:linear-gradient(90deg,#e11d48,#f59e0b,#e11d48);color:#0b0f19;font-weight:800;font-size:11.5px;text-align:center;">
+              <div style="padding:6px;border-radius:6px;background:linear-gradient(90deg,var(--sim-danger),var(--sim-warn),var(--sim-danger));color:#faf9f5;font-weight:800;font-size:11.5px;text-align:center;">
                 LỚP CẮT ẢO HÓA HYPERVISOR (KVM / VMware ESXi)
               </div>
-              <div style="margin-top:6px;font-size:11px;color:#94a3b8;text-align:center;">
+              <div style="margin-top:6px;font-size:11px;color:var(--sim-muted);text-align:center;">
                 Phần cứng máy chủ vật lý bên dưới (64 CPU • 256 GB RAM)
               </div>
             </div>
@@ -11799,38 +11864,38 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
         <div style="width:100%;max-width:480px;">
           <div class="infra2d-box" style="margin-bottom:10px;text-align:left;">
             <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:6px;">
-              <span style="color:#7dd3fc;">Ống nước Tài nguyên Dùng chung (CPU &amp; RAM chung)</span>
-              <span style="color:${noisy ? '#fb7185' : '#34d399'};">${noisy ? '99% CẠN KIỆT!' : '35% Ổn định'}</span>
+              <span style="color:var(--sim-flow);">Ống nước Tài nguyên Dùng chung (CPU &amp; RAM chung)</span>
+              <span style="color:${noisy ? 'var(--sim-danger)' : 'var(--sim-ok)'};">${noisy ? '99% CẠN KIỆT!' : '35% Ổn định'}</span>
             </div>
-            <div style="width:100%;height:12px;background:#1e293b;border-radius:999px;overflow:hidden;display:flex;">
-              <div style="height:100%;background:#fbbf24;width:${noisy ? '4%' : '15%'};transition:width 0.4s;"></div>
-              <div style="height:100%;background:${noisy ? '#f43f5e' : '#0ea5e9'};width:${noisy ? '95%' : '20%'};transition:width 0.4s;"></div>
+            <div style="width:100%;height:12px;background:var(--sim-card-alt);border-radius:999px;overflow:hidden;display:flex;">
+              <div style="height:100%;background:var(--sim-warn);width:${noisy ? '4%' : '15%'};transition:width 0.4s;"></div>
+              <div style="height:100%;background:${noisy ? 'var(--sim-danger)' : 'var(--sim-flow)'};width:${noisy ? '95%' : '20%'};transition:width 0.4s;"></div>
             </div>
           </div>
           <div class="infra2d-box ${noisy ? 'infra2d-glow-danger' : ''}" style="padding:12px;">
-            <div style="font-size:11.5px;font-weight:700;color:#94a3b8;margin-bottom:8px;">
+            <div style="font-size:11.5px;font-weight:700;color:var(--sim-muted);margin-bottom:8px;">
               PHÒNG KÝ TÚC XÁ SHARED HOSTING (Không có vách ngăn tài nguyên)
             </div>
             <div class="infra2d-card-grid2">
-              <div class="infra2d-box" style="border-color:${noisy ? '#f43f5e' : '#f59e0b'};background:${noisy ? 'rgba(136,19,55,0.35)' : 'rgba(245,158,11,0.1)'};">
-                <div style="font-size:12px;font-weight:800;color:#fcd34d;">Giường 1: Tiệm Bánh Minh</div>
-                <div style="font-size:11px;font-weight:700;margin-top:4px;color:${noisy ? '#fb7185' : '#34d399'};">
+              <div class="infra2d-box" style="border-color:${noisy ? 'var(--sim-danger)' : 'var(--sim-warn)'};background:${noisy ? 'var(--sim-danger-soft)' : 'var(--sim-warn-soft)'};">
+                <div style="font-size:12px;font-weight:800;color:var(--sim-warn);">Giường 1: Tiệm Bánh Minh</div>
+                <div style="font-size:11px;font-weight:700;margin-top:4px;color:${noisy ? 'var(--sim-danger)' : 'var(--sim-ok)'};">
                   ${noisy ? '[LỖI 503] Mất nước oan!' : '[ONLINE] Đang mở cửa (20 khách)'}
                 </div>
               </div>
-              <div class="infra2d-box ${noisy ? 'infra2d-shake' : ''}" style="border-color:${noisy ? '#fb7185' : '#334155'};background:${noisy ? 'rgba(225,29,72,0.28)' : '#1e293b'};">
-                <div style="font-size:12px;font-weight:800;color:#ffffff;">Giường 2: Web Hàng Xóm</div>
-                <div style="font-size:11px;font-weight:700;margin-top:4px;color:${noisy ? '#fda4af' : '#94a3b8'};">
+              <div class="infra2d-box ${noisy ? 'infra2d-shake' : ''}" style="border-color:${noisy ? 'var(--sim-danger)' : 'var(--sim-border)'};background:${noisy ? 'var(--sim-danger-soft)' : 'var(--sim-border)'};">
+                <div style="font-size:12px;font-weight:800;color:var(--sim-ink);">Giường 2: Web Hàng Xóm</div>
+                <div style="font-size:11px;font-weight:700;margin-top:4px;color:${noisy ? 'var(--sim-danger)' : 'var(--sim-muted)'};">
                   ${noisy ? '[DDoS] Hút cạn 95% RAM!' : '[ONLINE] Bình thường'}
                 </div>
               </div>
               <div class="infra2d-box" style="padding:8px;">
-                <div style="font-size:11.5px;font-weight:700;color:#cbd5e1;">Giường 3: Blog Cá Nhân</div>
-                <div style="font-size:10.5px;color:${noisy ? '#fb7185' : '#94a3b8'};">${noisy ? '[503] Treo theo' : '[OK] Bình thường'}</div>
+                <div style="font-size:11.5px;font-weight:700;color:var(--sim-sub);">Giường 3: Blog Cá Nhân</div>
+                <div style="font-size:10.5px;color:${noisy ? 'var(--sim-danger)' : 'var(--sim-muted)'};">${noisy ? '[503] Treo theo' : '[OK] Bình thường'}</div>
               </div>
               <div class="infra2d-box" style="padding:8px;">
-                <div style="font-size:11.5px;font-weight:700;color:#cbd5e1;">Giường 4: Web Áo Quần</div>
-                <div style="font-size:10.5px;color:${noisy ? '#fb7185' : '#94a3b8'};">${noisy ? '[503] Treo theo' : '[OK] Bình thường'}</div>
+                <div style="font-size:11.5px;font-weight:700;color:var(--sim-sub);">Giường 4: Web Áo Quần</div>
+                <div style="font-size:10.5px;color:${noisy ? 'var(--sim-danger)' : 'var(--sim-muted)'};">${noisy ? '[503] Treo theo' : '[OK] Bình thường'}</div>
               </div>
             </div>
           </div>
@@ -11856,28 +11921,28 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
       }
       stage.innerHTML = `
         <div style="width:100%;max-width:480px;">
-          <div class="infra2d-box ${crashed ? 'infra2d-glow-danger infra2d-shake' : ''}" style="padding:14px;border-color:${crashed ? '#f43f5e' : '#6366f1'};">
+          <div class="infra2d-box ${crashed ? 'infra2d-glow-danger infra2d-shake' : ''}" style="padding:14px;border-color:${crashed ? 'var(--sim-danger)' : 'var(--sim-clay)'};">
             <div style="display:flex;justify-content:space-between;font-size:11.5px;font-weight:700;margin-bottom:10px;">
-              <span style="color:#a5b4fc;">TÒA NHÀ MÁY CHỦ VẬT LÝ ĐƠN LẺ (Single Physical Server)</span>
-              <span style="color:${crashed ? '#fb7185' : '#34d399'};">${crashed ? '[SPOF: HỎNG PHẦN CỨNG]' : '[ONLINE]'}</span>
+              <span style="color:var(--sim-clay);">TÒA NHÀ MÁY CHỦ VẬT LÝ ĐƠN LẺ (Single Physical Server)</span>
+              <span style="color:${crashed ? 'var(--sim-danger)' : 'var(--sim-ok)'};">${crashed ? '[SPOF: HỎNG PHẦN CỨNG]' : '[ONLINE]'}</span>
             </div>
             <div class="infra2d-card-grid2">
-              <div class="infra2d-box" style="border-color:${crashed ? '#f43f5e' : '#10b981'};background:${crashed ? 'rgba(136,19,55,0.45)' : 'rgba(6,78,59,0.25)'};">
-                <div style="font-size:12px;font-weight:800;color:#ffffff;">Căn hộ VPS Của Minh [ROOT]</div>
-                <div style="font-size:11px;color:#cbd5e1;margin-top:2px;">Cam kết riêng: 4 CPU • 8GB RAM</div>
-                <div style="margin-top:8px;padding:4px 6px;border-radius:6px;background:#020617;font-size:11px;font-weight:700;color:${crashed ? '#fb7185' : '#34d399'};">
+              <div class="infra2d-box" style="border-color:${crashed ? 'var(--sim-danger)' : 'var(--sim-ok)'};background:${crashed ? 'var(--sim-danger-soft)' : 'var(--sim-ok-soft)'};">
+                <div style="font-size:12px;font-weight:800;color:var(--sim-ink);">Căn hộ VPS Của Minh [ROOT]</div>
+                <div style="font-size:11px;color:var(--sim-sub);margin-top:2px;">Cam kết riêng: 4 CPU • 8GB RAM</div>
+                <div style="margin-top:8px;padding:4px 6px;border-radius:6px;background:var(--sim-canvas);font-size:11px;font-weight:700;color:${crashed ? 'var(--sim-danger)' : 'var(--sim-ok)'};">
                   ${crashed ? '[OFFLINE] SẬP WEB (Mất móng nhà!)' : '[ONLINE] Chạy mượt (CPU: 25%)'}
                 </div>
               </div>
-              <div class="infra2d-box" style="border-color:${crashed ? '#f43f5e' : neighborHot ? '#f59e0b' : '#475569'};background:${crashed ? 'rgba(136,19,55,0.45)' : neighborHot ? 'rgba(120,53,15,0.4)' : '#1e293b'};">
-                <div style="font-size:12px;font-weight:800;color:#ffffff;">Căn hộ VPS Hàng Xóm</div>
-                <div style="font-size:11px;color:#cbd5e1;margin-top:2px;">Cam kết riêng: 4 CPU • 8GB RAM</div>
-                <div style="margin-top:8px;padding:4px 6px;border-radius:6px;background:#020617;font-size:11px;font-weight:700;color:${crashed ? '#fb7185' : neighborHot ? '#fbbf24' : '#cbd5e1'};">
+              <div class="infra2d-box" style="border-color:${crashed ? 'var(--sim-danger)' : neighborHot ? 'var(--sim-warn)' : 'var(--sim-border-muted)'};background:${crashed ? 'var(--sim-danger-soft)' : neighborHot ? 'var(--sim-warn-soft)' : 'var(--sim-border)'};">
+                <div style="font-size:12px;font-weight:800;color:var(--sim-ink);">Căn hộ VPS Hàng Xóm</div>
+                <div style="font-size:11px;color:var(--sim-sub);margin-top:2px;">Cam kết riêng: 4 CPU • 8GB RAM</div>
+                <div style="margin-top:8px;padding:4px 6px;border-radius:6px;background:var(--sim-canvas);font-size:11px;font-weight:700;color:${crashed ? 'var(--sim-danger)' : neighborHot ? 'var(--sim-warn)' : 'var(--sim-sub)'};">
                   ${crashed ? '[OFFLINE] SẬP WEB' : neighborHot ? '[100% CPU] Quá tải riêng họ!' : '[ONLINE] Bình thường (CPU: 30%)'}
                 </div>
               </div>
             </div>
-            <div style="margin-top:10px;padding:8px;border-radius:8px;border:1px solid ${crashed ? '#fb7185' : '#1e293b'};background:${crashed ? '#e11d48' : '#020617'};color:${crashed ? '#ffffff' : '#cbd5e1'};font-size:11.5px;font-weight:700;text-align:center;">
+            <div style="margin-top:10px;padding:8px;border-radius:8px;border:1px solid ${crashed ? 'var(--sim-danger)' : 'var(--sim-border)'};background:${crashed ? 'var(--sim-danger)' : 'var(--sim-canvas)'};color:${crashed ? '#faf9f5' : 'var(--sim-sub)'};font-size:11.5px;font-weight:700;text-align:center;">
               ${crashed ? 'MÓNG TÒA NHÀ: CHÁY Ổ CỨNG VẬT LÝ / HỎNG NGUỒN!' : 'Móng tòa nhà: 1 Ổ cứng & Bo mạch vật lý duy nhất'}
             </div>
           </div>
@@ -11907,41 +11972,41 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
       stage.innerHTML = `
         <div style="width:100%;max-width:520px;">
           <div class="infra2d-card-grid3">
-            <div class="infra2d-box ${!nodeAFailed ? 'infra2d-glow-success' : ''}" style="border-color:${nodeAFailed ? '#f43f5e' : '#10b981'};opacity:${nodeAFailed ? '0.75' : '1'};">
-              <div style="font-size:11px;font-weight:700;color:#94a3b8;">Tòa Nhà Cloud #1</div>
-              <div style="font-size:12px;font-weight:800;margin:6px 0;color:${nodeAFailed ? '#fb7185' : '#6ee7b7'};">
+            <div class="infra2d-box ${!nodeAFailed ? 'infra2d-glow-success' : ''}" style="border-color:${nodeAFailed ? 'var(--sim-danger)' : 'var(--sim-ok)'};opacity:${nodeAFailed ? '0.75' : '1'};">
+              <div style="font-size:11px;font-weight:700;color:var(--sim-muted);">Tòa Nhà Cloud #1</div>
+              <div style="font-size:12px;font-weight:800;margin:6px 0;color:${nodeAFailed ? 'var(--sim-danger)' : 'var(--sim-ok)'};">
                 ${nodeAFailed ? '[MẤT ĐIỆN]' : 'Cloud VM Của Minh'}
               </div>
-              <div style="font-size:10.5px;color:#cbd5e1;">
+              <div style="font-size:10.5px;color:var(--sim-sub);">
                 ${nodeAFailed ? 'Đã sơ tán sang #2 →' : scaled ? '16 CPU (Đã nâng!)' : '4 CPU • 8GB RAM'}
               </div>
             </div>
-            <div class="infra2d-box ${nodeAFailed ? 'infra2d-glow-success' : ''}" style="border-color:${nodeAFailed ? '#10b981' : scaled ? '#06b6d4' : '#334155'};">
-              <div style="font-size:11px;font-weight:700;color:#94a3b8;">Tòa Nhà Cloud #2</div>
-              <div style="font-size:12px;font-weight:800;margin:6px 0;color:${nodeAFailed ? '#6ee7b7' : scaled ? '#67e8f9' : '#94a3b8'};">
+            <div class="infra2d-box ${nodeAFailed ? 'infra2d-glow-success' : ''}" style="border-color:${nodeAFailed ? 'var(--sim-ok)' : scaled ? 'var(--sim-flow)' : 'var(--sim-border)'};">
+              <div style="font-size:11px;font-weight:700;color:var(--sim-muted);">Tòa Nhà Cloud #2</div>
+              <div style="font-size:12px;font-weight:800;margin:6px 0;color:${nodeAFailed ? 'var(--sim-ok)' : scaled ? 'var(--sim-flow)' : 'var(--sim-muted)'};">
                 ${nodeAFailed ? 'Minh đã bay sang đây!' : scaled ? 'Bản sao Auto-Scale' : 'Dự phòng sẵn sàng'}
               </div>
-              <div style="font-size:10.5px;color:#34d399;">
+              <div style="font-size:10.5px;color:var(--sim-ok);">
                 ${nodeAFailed ? '[HA] Web chạy 100%!' : scaled ? '[ACTIVE] Đón phụ 5.000 khách' : 'Chờ tiếp ứng'}
               </div>
             </div>
-            <div class="infra2d-box" style="border-color:${scaled ? '#06b6d4' : '#334155'};">
-              <div style="font-size:11px;font-weight:700;color:#94a3b8;">Tòa Nhà Cloud #3</div>
-              <div style="font-size:12px;font-weight:800;margin:6px 0;color:${scaled ? '#67e8f9' : '#94a3b8'};">
+            <div class="infra2d-box" style="border-color:${scaled ? 'var(--sim-flow)' : 'var(--sim-border)'};">
+              <div style="font-size:11px;font-weight:700;color:var(--sim-muted);">Tòa Nhà Cloud #3</div>
+              <div style="font-size:12px;font-weight:800;margin:6px 0;color:${scaled ? 'var(--sim-flow)' : 'var(--sim-muted)'};">
                 ${scaled ? 'Bản sao Auto-Scale' : 'Dự phòng sẵn sàng'}
               </div>
-              <div style="font-size:10.5px;color:#34d399;">
+              <div style="font-size:10.5px;color:var(--sim-ok);">
                 ${scaled ? '[ACTIVE] Đón phụ 5.000 khách' : 'Chờ tiếp ứng'}
               </div>
             </div>
           </div>
           <div class="infra2d-pipe"></div>
-          <div class="infra2d-box" style="border-color:#6366f1;background:rgba(49,46,129,0.28);display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;">
+          <div class="infra2d-box" style="border-color:var(--sim-clay);background:var(--sim-clay-soft);display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;">
             <div>
-              <div style="font-size:12px;font-weight:800;color:#c7d2fe;">Hầm Dữ Liệu Phân Tán Độc Lập (Cloud SAN / Ceph Storage)</div>
-              <div style="font-size:11px;color:#cbd5e1;">Dữ liệu bánh &amp; đơn hàng được nhân làm 3 bản an toàn tuyệt đối (Tòa #1 cháy cũng không mất file!)</div>
+              <div style="font-size:12px;font-weight:800;color:var(--sim-clay);">Hầm Dữ Liệu Phân Tán Độc Lập (Cloud SAN / Ceph Storage)</div>
+              <div style="font-size:11px;color:var(--sim-sub);">Dữ liệu bánh &amp; đơn hàng được nhân làm 3 bản an toàn tuyệt đối (Tòa #1 cháy cũng không mất file!)</div>
             </div>
-            <span style="padding:4px 8px;border-radius:6px;background:rgba(16,185,129,0.2);color:#6ee7b7;font-size:11px;font-weight:800;white-space:nowrap;">3 Bản Sao</span>
+            <span style="padding:4px 8px;border-radius:6px;background:var(--sim-ok-soft);color:var(--sim-ok);font-size:11px;font-weight:800;white-space:nowrap;">3 Bản Sao</span>
           </div>
         </div>
       `;
@@ -11967,22 +12032,22 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
         statusText.innerHTML = "<strong>[BARE METAL / DEDICATED]:</strong> Nguyên một căn biệt thự máy chủ vật lý thuộc độc quyền của công ty Minh, không có bất kỳ hàng xóm nào.";
       }
       stage.innerHTML = `
-        <div class="infra2d-box" style="max-width:440px;width:100%;border-color:#f59e0b;padding:16px;">
+        <div class="infra2d-box" style="max-width:440px;width:100%;border-color:var(--sim-warn);padding:16px;">
           <span class="infra2d-pill-analogy" style="display:inline-block;margin-bottom:8px;">BIỆT THỰ ĐỘC QUYỀN (BARE METAL SERVER)</span>
-          <div style="font-size:16px;font-weight:800;color:#ffffff;">Dedicated Server Của Tập Đoàn Minh</div>
-          <p style="font-size:11.5px;color:#cbd5e1;margin:4px 0 12px !important;">Không chia sẻ • Không lớp cắt Hypervisor • Bảo mật vật lý</p>
-          <div style="background:#020617;border:1px solid #1e293b;border-radius:8px;padding:10px;text-align:left;font-size:12px;">
+          <div style="font-size:16px;font-weight:800;color:var(--sim-ink);">Dedicated Server Của Tập Đoàn Minh</div>
+          <p style="font-size:11.5px;color:var(--sim-sub);margin:4px 0 12px !important;">Không chia sẻ • Không lớp cắt Hypervisor • Bảo mật vật lý</p>
+          <div style="background:var(--sim-canvas);border:1px solid var(--sim-border);border-radius:8px;padding:10px;text-align:left;font-size:12px;">
             <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-              <span style="color:#94a3b8;">Hao hụt ảo hóa (Hypervisor Tax):</span>
-              <span style="font-weight:700;color:#34d399;">0% (Chạy thẳng trên phần cứng)</span>
+              <span style="color:var(--sim-muted);">Hao hụt ảo hóa (Hypervisor Tax):</span>
+              <span style="font-weight:700;color:var(--sim-ok);">0% (Chạy thẳng trên phần cứng)</span>
             </div>
             <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-              <span style="color:#94a3b8;">Hàng xóm dùng chung:</span>
-              <span style="font-weight:700;color:#34d399;">0 người (Độc quyền 100%)</span>
+              <span style="color:var(--sim-muted);">Hàng xóm dùng chung:</span>
+              <span style="font-weight:700;color:var(--sim-ok);">0 người (Độc quyền 100%)</span>
             </div>
             <div style="display:flex;justify-content:space-between;">
-              <span style="color:#94a3b8;">Trạng thái hiện tại:</span>
-              <span style="font-weight:700;color:${upgrading ? '#fbbf24' : '#38bdf8'};">
+              <span style="color:var(--sim-muted);">Trạng thái hiện tại:</span>
+              <span style="font-weight:700;color:${upgrading ? 'var(--sim-warn)' : 'var(--sim-flow)'};">
                 ${upgrading ? '[DOWNTIME] Tắt máy chờ lắp thêm thanh RAM thật...' : turbo ? '[MAX PERF] Full 100% Công Suất Vật Lý!' : '[READY] Sẵn sàng'}
               </span>
             </div>
@@ -12007,41 +12072,41 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
           <div class="infra2d-box" style="text-align:left;display:flex;flex-direction:column;justify-content:space-between;">
             <div>
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                <span style="font-size:12px;font-weight:800;color:#fbbf24;">Cách Cũ: 3 Máy Ảo (VM)</span>
-                <span style="font-size:10.5px;padding:2px 6px;border-radius:4px;background:rgba(244,63,94,0.2);color:#fda4af;">${started ? '60 giây' : 'Nặng nề'}</span>
+                <span style="font-size:12px;font-weight:800;color:var(--sim-warn);">Cách Cũ: 3 Máy Ảo (VM)</span>
+                <span style="font-size:10.5px;padding:2px 6px;border-radius:4px;background:var(--sim-danger-soft);color:var(--sim-danger);">${started ? '60 giây' : 'Nặng nề'}</span>
               </div>
               ${[1, 2, 3].map(i => `
-                <div style="padding:6px 8px;border-radius:6px;background:#020617;border:1px solid #1e293b;margin-bottom:6px;font-size:11px;">
-                  <div style="font-weight:700;color:#ffffff;">App Bánh #${i}</div>
-                  <div style="margin-top:3px;padding:2px 6px;border-radius:4px;background:rgba(136,19,55,0.5);color:#fda4af;font-weight:600;">
+                <div style="padding:6px 8px;border-radius:6px;background:var(--sim-canvas);border:1px solid var(--sim-border);margin-bottom:6px;font-size:11px;">
+                  <div style="font-weight:700;color:var(--sim-ink);">App Bánh #${i}</div>
+                  <div style="margin-top:3px;padding:2px 6px;border-radius:4px;background:var(--sim-danger-soft);color:var(--sim-danger);font-weight:600;">
                     Cõng HĐH Guest OS riêng (4GB RAM)
                   </div>
                 </div>
               `).join("")}
             </div>
-            <div style="padding-top:6px;border-top:1px solid #1e293b;font-size:11px;color:#94a3b8;text-align:center;">
+            <div style="padding-top:6px;border-top:1px solid var(--sim-border);font-size:11px;color:var(--sim-muted);text-align:center;">
               Ngốn mất <strong>12 GB RAM</strong> chỉ để nuôi 3 Hệ điều hành!
             </div>
           </div>
-          <div class="infra2d-box ${started ? 'infra2d-glow-success' : ''}" style="border-color:#06b6d4;display:flex;flex-direction:column;justify-content:space-between;">
+          <div class="infra2d-box ${started ? 'infra2d-glow-success' : ''}" style="border-color:var(--sim-flow);display:flex;flex-direction:column;justify-content:space-between;">
             <div>
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                <span style="font-size:12px;font-weight:800;color:#67e8f9;">Hiện Đại: 6 Container</span>
-                <span style="font-size:10.5px;padding:2px 6px;border-radius:4px;background:rgba(16,185,129,0.2);color:#6ee7b7;font-weight:700;">${started ? '1 GIÂY XONG!' : 'Siêu nhẹ'}</span>
+                <span style="font-size:12px;font-weight:800;color:var(--sim-flow);">Hiện Đại: 6 Container</span>
+                <span style="font-size:10.5px;padding:2px 6px;border-radius:4px;background:var(--sim-ok-soft);color:var(--sim-ok);font-weight:700;">${started ? '1 GIÂY XONG!' : 'Siêu nhẹ'}</span>
               </div>
               <div class="infra2d-card-grid2" style="gap:6px;">
                 ${[1, 2, 3, 4, 5, 6].map(i => `
-                  <div style="padding:6px;border-radius:6px;background:rgba(8,145,178,0.18);border:1px solid rgba(6,182,212,0.4);">
-                    <div style="font-size:11px;font-weight:700;color:#ffffff;">Container #${i}</div>
-                    <div style="font-size:10px;color:#6ee7b7;">${started ? '[RUNNING] 1s!' : 'Chỉ 100MB'}</div>
+                  <div style="padding:6px;border-radius:6px;background:var(--sim-flow-soft);border:1px solid color-mix(in oklab, var(--sim-flow) 38%, transparent);">
+                    <div style="font-size:11px;font-weight:700;color:var(--sim-ink);">Container #${i}</div>
+                    <div style="font-size:10px;color:var(--sim-ok);">${started ? '[RUNNING] 1s!' : 'Chỉ 100MB'}</div>
                   </div>
                 `).join("")}
               </div>
-              <div style="margin-top:8px;padding:5px;border-radius:6px;background:rgba(8,145,178,0.22);border:1px solid rgba(6,182,212,0.4);font-size:11px;font-weight:700;color:#a5f3fc;">
+              <div style="margin-top:8px;padding:5px;border-radius:6px;background:var(--sim-flow-soft);border:1px solid color-mix(in oklab, var(--sim-flow) 38%, transparent);font-size:11px;font-weight:700;color:var(--sim-flow);">
                 Docker Engine + Dùng chung 1 Nhân HĐH Máy Chủ
               </div>
             </div>
-            <div style="padding-top:6px;border-top:1px solid #1e293b;font-size:11px;color:#6ee7b7;font-weight:600;">
+            <div style="padding-top:6px;border-top:1px solid var(--sim-border);font-size:11px;color:var(--sim-ok);font-weight:600;">
               Chạy gấp đôi số tiệm bánh mà chỉ tốn <strong>0.6 GB RAM</strong>!
             </div>
           </div>
@@ -12065,31 +12130,31 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
         statusText.innerHTML = "<strong>[FLASH SALE 1.000 KHÁCH]:</strong> Serverless lập tức triệu hồi 1.000 đầu bếp Robot chạy song song mà Minh không cần đụng tay vào bất kỳ máy chủ nào!";
       }
       stage.innerHTML = `
-        <div class="infra2d-box ${mode === 'flash' ? 'infra2d-glow-success' : ''}" style="max-width:480px;width:100%;border-color:${mode === 'flash' ? '#fbbf24' : mode === 'one' ? '#10b981' : '#334155'};padding:14px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1e293b;padding-bottom:8px;margin-bottom:10px;font-size:11.5px;font-weight:700;">
-            <span style="color:#fb7185;">KHU BẾP SERVERLESS (AWS Lambda / Cloud Run / Vercel)</span>
-            <span style="padding:3px 8px;border-radius:999px;background:rgba(16,185,129,0.2);color:#6ee7b7;">
+        <div class="infra2d-box ${mode === 'flash' ? 'infra2d-glow-success' : ''}" style="max-width:480px;width:100%;border-color:${mode === 'flash' ? 'var(--sim-warn)' : mode === 'one' ? 'var(--sim-ok)' : 'var(--sim-border)'};padding:14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--sim-border);padding-bottom:8px;margin-bottom:10px;font-size:11.5px;font-weight:700;">
+            <span style="color:var(--sim-danger);">KHU BẾP SERVERLESS (AWS Lambda / Cloud Run / Vercel)</span>
+            <span style="padding:3px 8px;border-radius:999px;background:var(--sim-ok-soft);color:var(--sim-ok);">
               Chi phí: ${mode === 'idle' ? '0 VNĐ / giờ' : mode === 'one' ? '2 VNĐ / đơn' : 'Tính đúng 1.000 đơn'}
             </span>
           </div>
-          <div style="min-height:130px;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px;padding:12px;border-radius:8px;background:#020617;border:1px solid #1e293b;">
+          <div style="min-height:130px;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px;padding:12px;border-radius:8px;background:var(--sim-canvas);border:1px solid var(--sim-border);">
             ${mode === "idle" ? `
-              <div style="color:#94a3b8;font-size:12px;">
-                <div style="font-weight:800;color:#e2e8f0;margin-bottom:4px;">[SCALE-TO-ZERO] Chỉ có bản Công thức bánh (Code) đang nằm chờ</div>
+              <div style="color:var(--sim-muted);font-size:12px;">
+                <div style="font-weight:800;color:var(--sim-sub);margin-bottom:4px;">[SCALE-TO-ZERO] Chỉ có bản Công thức bánh (Code) đang nằm chờ</div>
                 <div>Không tốn 1 xu tiền thuê mặt bằng khi vắng khách!</div>
               </div>
             ` : mode === "one" ? `
-              <div class="infra2d-box" style="border-color:#10b981;background:rgba(6,78,59,0.35);">
-                <div style="font-size:12.5px;font-weight:800;color:#6ee7b7;">Đầu Bếp Serverless #1</div>
-                <div style="font-size:11px;color:#cbd5e1;margin-top:4px;">Nướng xong trong 200ms → Tự biến mất!</div>
+              <div class="infra2d-box" style="border-color:var(--sim-ok);background:var(--sim-ok-soft);">
+                <div style="font-size:12.5px;font-weight:800;color:var(--sim-ok);">Đầu Bếp Serverless #1</div>
+                <div style="font-size:11px;color:var(--sim-sub);margin-top:4px;">Nướng xong trong 200ms → Tự biến mất!</div>
               </div>
             ` : `
               ${[1, 2, 3, 4, 5, 6, 7, 8].map(n => `
-                <div style="padding:6px 10px;border-radius:8px;background:rgba(245,158,11,0.16);border:1px solid rgba(251,191,36,0.5);font-size:11px;font-weight:700;color:#fcd34d;">
+                <div style="padding:6px 10px;border-radius:8px;background:var(--sim-warn-soft);border:1px solid color-mix(in oklab, var(--sim-warn) 42%, transparent);font-size:11px;font-weight:700;color:var(--sim-warn);">
                   Bếp #${n} [ACTIVE]
                 </div>
               `).join("")}
-              <div style="width:100%;font-size:11.5px;font-weight:700;color:#34d399;margin-top:6px;">
+              <div style="width:100%;font-size:11.5px;font-weight:700;color:var(--sim-ok);margin-top:6px;">
                 + Tự động nhân bản 1.000 hàm xử lý song song rồi tự giải tán về 0đ!
               </div>
             `}
@@ -12113,7 +12178,7 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
           btn: "1. Làm Blog / Web giới thiệu nhỏ",
           pick: "Shared Hosting (hoặc PaaS tĩnh miễn phí)",
           badge: "[HOSTING / STATIC PAAS]",
-          color: "#0ea5e9",
+          color: "var(--sim-flow)",
           why: "Ngân sách chỉ vài chục nghìn/tháng, không cần biết quản trị Linux, có sẵn cPanel để cài WordPress trong 5 phút.",
           avoid: "Chưa cần thuê Dedicated hay Cloud VM phức tạp gây lãng phí."
         },
@@ -12121,7 +12186,7 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
           btn: "2. Lập trình viên cần máy riêng giá rẻ",
           pick: "VPS + Cài Docker Container bên trong",
           badge: "[VPS + DOCKER ENGINE]",
-          color: "#6366f1",
+          color: "var(--sim-clay)",
           why: "Chi phí cố định hàng tháng rất rẻ (100k - 300k), có toàn quyền Root để vọc Linux và chạy nhiều dự án nhỏ bằng Docker.",
           avoid: "Nhớ tự sao lưu dữ liệu (Backup) định kỳ đề phòng ổ cứng máy mẹ hỏng (SPOF)."
         },
@@ -12129,7 +12194,7 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
           btn: "3. Sàn TMĐT / Hệ thống công ty cấm sập",
           pick: "Cloud VM + Kubernetes (AWS / GCP / Viettel / VNG Cloud)",
           badge: "[CLOUD VM + K8S HA]",
-          color: "#10b981",
+          color: "var(--sim-ok)",
           why: "Tự động chuyển đổi dự phòng (Failover) khi lỗi phần cứng, dễ dàng nâng/hạ cấu hình theo mùa cao điểm mà không gián đoạn.",
           avoid: "Nhớ cài cảnh báo ngân sách (Billing Alert) để kiểm soát chi phí."
         },
@@ -12137,7 +12202,7 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
           btn: "4. Startup muốn ra mắt App thần tốc, ít người",
           pick: "PaaS / Serverless (Vercel, Cloud Run, Render)",
           badge: "[SERVERLESS SCALE-TO-ZERO]",
-          color: "#f59e0b",
+          color: "var(--sim-warn)",
           why: "Đội ngũ chỉ việc viết Code và đẩy lên Git. Không tốn tiền thuê kỹ sư trực máy chủ, vắng khách chi phí gần như bằng 0.",
           avoid: "Rất tuyệt vời cho giai đoạn tăng trưởng nhanh."
         }
@@ -12147,10 +12212,10 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
       stage.innerHTML = `
         <div class="infra2d-box" style="max-width:480px;width:100%;border-color:${cur.color};padding:16px;">
           <div style="font-size:11.5px;font-weight:800;color:${cur.color};margin-bottom:4px;">${cur.badge} — GIẢI PHÁP KHUYÊN DÙNG</div>
-          <div style="font-size:17px;font-weight:800;color:#ffffff;margin-bottom:10px;">${cur.pick}</div>
-          <div style="background:#020617;border:1px solid #1e293b;border-radius:8px;padding:12px;text-align:left;font-size:12px;">
-            <p style="color:#6ee7b7;margin:0 0 6px !important;"><strong>[TẠI SAO PHÙ HỢP]:</strong> ${cur.why}</p>
-            <p style="color:#fcd34d;margin:0 !important;"><strong>[LƯU Ý THỰC CHIẾN]:</strong> ${cur.avoid}</p>
+          <div style="font-size:17px;font-weight:800;color:var(--sim-ink);margin-bottom:10px;">${cur.pick}</div>
+          <div style="background:var(--sim-canvas);border:1px solid var(--sim-border);border-radius:8px;padding:12px;text-align:left;font-size:12px;">
+            <p style="color:var(--sim-ok);margin:0 0 6px !important;"><strong>[TẠI SAO PHÙ HỢP]:</strong> ${cur.why}</p>
+            <p style="color:var(--sim-warn);margin:0 !important;"><strong>[LƯU Ý THỰC CHIẾN]:</strong> ${cur.avoid}</p>
           </div>
         </div>
       `;
@@ -12180,8 +12245,8 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
           <button type="button" class="infra2d-btn" onclick="toggleInfra2DSummaryModal()">Bảng So Sánh Nhanh</button>
         </div>
 
-        <div id="infra2dSummaryDrawer" style="display:none;padding:14px 16px;background:#020617;border-bottom:1px solid #1e293b;">
-          <div style="padding:10px 12px;border-radius:8px;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.35);font-size:12.5px;color:#c7d2fe;margin-bottom:10px;">
+        <div id="infra2dSummaryDrawer" style="display:none;padding:14px 16px;background:var(--sim-canvas);border-bottom:1px solid var(--sim-border);">
+          <div style="padding:10px 12px;border-radius:8px;background:var(--sim-clay-soft);border:1px solid var(--sim-clay-border);font-size:12.5px;color:var(--sim-clay);margin-bottom:10px;">
             <strong>Quy tắc vàng:</strong> <strong>VM (Virtual Machine)</strong> là <em>công nghệ chia cắt máy tính bằng Hypervisor</em>. Còn <strong>VPS</strong> và <strong>Cloud VM</strong> là <em>gói sản phẩm thương mại</em> ứng dụng công nghệ VM đó để cho bạn thuê!
           </div>
           <div class="table-wrap" style="margin:0;">
@@ -12280,7 +12345,7 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
             <div class="infra2d-progress-track">
               <div class="infra2d-progress-fill" id="infra2dProgressFill" style="width:12.5%;"></div>
             </div>
-            <span style="font-size:11px;color:#94a3b8;">Bấm chọn từng Slide (1–8) hoặc nút điều khiển bên phải để tương tác trực tiếp</span>
+            <span style="font-size:11px;color:var(--sim-muted);">Bấm chọn từng Slide (1–8) hoặc nút điều khiển bên phải để tương tác trực tiếp</span>
           </div>
           <button type="button" class="infra2d-btn infra2d-btn-primary" id="infra2dBtnNext" onclick="changeInfra2DSlide(1)">Slide Tiếp Theo →</button>
         </div>
@@ -12416,8 +12481,8 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
           <button type="button" class="infra2d-btn" onclick="toggleIngestion2DSummaryModal()">Bảng Tóm Tắt Thông Số</button>
         </div>
 
-        <div id="ing2dSummaryDrawer" style="display:none;padding:14px 16px;background:#020617;border-bottom:1px solid #1e293b;">
-          <div style="padding:10px 12px;border-radius:8px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);font-size:12.5px;color:#bae6fd;margin-bottom:10px;">
+        <div id="ing2dSummaryDrawer" style="display:none;padding:14px 16px;background:var(--sim-canvas);border-bottom:1px solid var(--sim-border);">
+          <div style="padding:10px 12px;border-radius:8px;background:var(--sim-flow-soft);border:1px solid color-mix(in oklab, var(--sim-flow) 35%, transparent);font-size:12.5px;color:var(--sim-flow);margin-bottom:10px;">
             <strong>Chuẩn kiến trúc D01 (Ingestion Layer):</strong> Kết hợp <strong>Debezium Log-Based CDC</strong> (đọc tuần tự <code>pg_wal</code>/<code>binlog</code>) với trục sự kiện phân tán <strong>Apache Kafka (KRaft, RF=3, min.insync.replicas=2, acks=all)</strong> để đạt độ trễ mili-giây và 0% mất mát dữ liệu.
           </div>
           <div class="table-wrap" style="margin:0;">
@@ -12504,7 +12569,7 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
             <div class="infra2d-progress-track">
               <div class="infra2d-progress-fill" id="ing2dProgressFill" style="width:16.6%;"></div>
             </div>
-            <span style="font-size:11px;color:#94a3b8;">Chọn 1 trong 6 lát cắt kiến trúc (1–6) hoặc kích hoạt kịch bản lỗi ở bảng điều khiển</span>
+            <span style="font-size:11px;color:var(--sim-muted);">Chọn 1 trong 6 lát cắt kiến trúc (1–6) hoặc kích hoạt kịch bản lỗi ở bảng điều khiển</span>
           </div>
           <button type="button" class="infra2d-btn infra2d-btn-primary" id="ing2dBtnNext" onclick="changeIngestion2DSlide(1)">Mô Phỏng Tiếp Theo →</button>
         </div>
@@ -12593,91 +12658,91 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
       stage.innerHTML = `
         <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <marker id="ingArrCyan" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><polygon points="0 0, 7 3.5, 0 7" fill="#38bdf8"/></marker>
-            <marker id="ingArrAmber" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><polygon points="0 0, 7 3.5, 0 7" fill="#fbbf24"/></marker>
-            <marker id="ingArrRose" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><polygon points="0 0, 7 3.5, 0 7" fill="#f43f5e"/></marker>
-            <marker id="ingArrEmerald" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><polygon points="0 0, 7 3.5, 0 7" fill="#34d399"/></marker>
+            <marker id="ingArrCyan" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><polygon points="0 0, 7 3.5, 0 7" fill="var(--sim-flow)"/></marker>
+            <marker id="ingArrAmber" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><polygon points="0 0, 7 3.5, 0 7" fill="var(--sim-warn)"/></marker>
+            <marker id="ingArrRose" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><polygon points="0 0, 7 3.5, 0 7" fill="var(--sim-danger)"/></marker>
+            <marker id="ingArrEmerald" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><polygon points="0 0, 7 3.5, 0 7" fill="var(--sim-ok)"/></marker>
           </defs>
 
           <!-- Outer Source DBMS Cross-Section Frame -->
-          <rect x="12" y="10" width="335" height="230" rx="8" fill="#090d16" stroke="#334155" stroke-width="1.5"/>
-          <text x="22" y="27" fill="#94a3b8" font-size="10" font-weight="700" font-family="monospace">CẮT LỚP NỘI TẠNG POSTGRESQL (SOURCE OLTP)</text>
+          <rect x="12" y="10" width="335" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="22" y="27" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">CẮT LỚP NỘI TẠNG POSTGRESQL (SOURCE OLTP)</text>
 
           <!-- Layer 1: SQL Query Parser & Executor -->
-          <rect x="24" y="36" width="310" height="40" rx="6" fill="${pollActive ? 'rgba(244,63,94,0.16)' : '#0f172a'}" stroke="${pollActive ? '#f43f5e' : '#1e293b'}" stroke-width="1.5"/>
-          <text x="34" y="53" fill="#f8fafc" font-size="11" font-weight="700">[Tầng 1] SQL Parser &amp; Query Executor</text>
-          <text x="34" y="68" fill="#94a3b8" font-size="9.5" font-family="monospace">${isDel ? 'DELETE FROM orders WHERE id = 8888;' : 'INSERT / UPDATE orders (#8888, 450.000đ)'}</text>
+          <rect x="24" y="36" width="310" height="40" rx="6" fill="${pollActive ? 'var(--sim-danger-soft)' : 'var(--sim-card)'}" stroke="${pollActive ? 'var(--sim-danger)' : 'var(--sim-border)'}" stroke-width="1.5"/>
+          <text x="34" y="53" fill="var(--sim-ink)" font-size="11" font-weight="700">[Tầng 1] SQL Parser &amp; Query Executor</text>
+          <text x="34" y="68" fill="var(--sim-muted)" font-size="9.5" font-family="var(--cds-font-mono)">${isDel ? 'DELETE FROM orders WHERE id = 8888;' : 'INSERT / UPDATE orders (#8888, 450.000đ)'}</text>
 
           <!-- Layer 2: Trigger Engine -->
-          <rect x="24" y="86" width="310" height="42" rx="6" fill="${trigActive ? 'rgba(245,158,11,0.16)' : '#0f172a'}" stroke="${trigActive ? '#fbbf24' : '#1e293b'}" stroke-width="1.5"/>
-          <text x="34" y="103" fill="#f8fafc" font-size="11" font-weight="700">[Tầng 2] Synchronous Trigger Engine</text>
-          <text x="34" y="118" fill="${trigActive ? '#fde68a' : '#64748b'}" font-size="9.5" font-family="monospace">${trigActive ? 'AFTER INS/UPD/DEL → Ghi thêm vào shadow_table (Chậm x2!)' : 'Không gắn Trigger (0ms Overhead)'}</text>
+          <rect x="24" y="86" width="310" height="42" rx="6" fill="${trigActive ? 'var(--sim-warn-soft)' : 'var(--sim-card)'}" stroke="${trigActive ? 'var(--sim-warn)' : 'var(--sim-border)'}" stroke-width="1.5"/>
+          <text x="34" y="103" fill="var(--sim-ink)" font-size="11" font-weight="700">[Tầng 2] Synchronous Trigger Engine</text>
+          <text x="34" y="118" fill="${trigActive ? 'var(--sim-warn)' : 'var(--sim-muted)'}" font-size="9.5" font-family="var(--cds-font-mono)">${trigActive ? 'AFTER INS/UPD/DEL → Ghi thêm vào shadow_table (Chậm x2!)' : 'Không gắn Trigger (0ms Overhead)'}</text>
 
           <!-- Layer 3: 8KB Heap Pages & B-Tree -->
-          <rect x="24" y="138" width="310" height="42" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
-          <text x="34" y="155" fill="#f8fafc" font-size="11" font-weight="700">[Tầng 3] 8KB Slotted Heap Pages &amp; B-Tree</text>
-          <text x="34" y="170" fill="${isDel ? '#fda4af' : '#94a3b8'}" font-size="9.5" font-family="monospace">${isDel ? 'Dòng #8888 đã bị xóa vật lý khỏi trang đĩa!' : 'Lưu dòng #8888 (last_modified = 12:00:05)'}</text>
+          <rect x="24" y="138" width="310" height="42" rx="6" fill="var(--sim-card)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="34" y="155" fill="var(--sim-ink)" font-size="11" font-weight="700">[Tầng 3] 8KB Slotted Heap Pages &amp; B-Tree</text>
+          <text x="34" y="170" fill="${isDel ? 'var(--sim-danger)' : 'var(--sim-muted)'}" font-size="9.5" font-family="var(--cds-font-mono)">${isDel ? 'Dòng #8888 đã bị xóa vật lý khỏi trang đĩa!' : 'Lưu dòng #8888 (last_modified = 12:00:05)'}</text>
 
           <!-- Layer 4: Append-Only Transaction Log (pg_wal) -->
-          <rect x="24" y="190" width="310" height="42" rx="6" fill="${walActive ? 'rgba(16,185,129,0.16)' : '#0f172a'}" stroke="${walActive ? '#10b981' : '#1e293b'}" stroke-width="1.5"/>
-          <text x="34" y="207" fill="#f8fafc" font-size="11" font-weight="700">[Tầng 4] Transaction Log (pg_wal / binlog)</text>
-          <text x="34" y="222" fill="#34d399" font-size="9.5" font-family="monospace">LSN=0/16B3748 | op=${isDel ? "'d' (before=#8888)" : "'u' (before/after)"}</text>
+          <rect x="24" y="190" width="310" height="42" rx="6" fill="${walActive ? 'var(--sim-ok-soft)' : 'var(--sim-card)'}" stroke="${walActive ? 'var(--sim-ok)' : 'var(--sim-border)'}" stroke-width="1.5"/>
+          <text x="34" y="207" fill="var(--sim-ink)" font-size="11" font-weight="700">[Tầng 4] Transaction Log (pg_wal / binlog)</text>
+          <text x="34" y="222" fill="var(--sim-ok)" font-size="9.5" font-family="var(--cds-font-mono)">LSN=0/16B3748 | op=${isDel ? "'d' (before=#8888)" : "'u' (before/after)"}</text>
 
           <!-- Right Side: CDC Collector & Kafka Topic -->
-          <rect x="382" y="36" width="166" height="86" rx="8" fill="#0f172a" stroke="${pollActive ? '#f43f5e' : (trigActive ? '#fbbf24' : '#10b981')}" stroke-width="1.8"/>
-          <text x="394" y="56" fill="#f8fafc" font-size="11" font-weight="800">${pollActive ? '1. Polling CronJob' : (trigActive ? '2. Shadow Table Reader' : '3. Debezium Engine')}</text>
-          <text x="394" y="74" fill="#cbd5e1" font-size="9.5">${pollActive ? 'SELECT * WHERE updated > T' : (trigActive ? 'Đọc bảng orders_audit_log' : 'Đọc khe nhân bản pgoutput')}</text>
-          <text x="394" y="92" fill="${(pollActive && isDel) ? '#fda4af' : '#34d399'}" font-size="9.5" font-weight="700" font-family="monospace">${(pollActive && isDel) ? '[x] 0 rows (Bỏ lỡ DELETE!)' : '[+] Bắt trọn sự kiện #8888'}</text>
-          <text x="394" y="109" fill="#94a3b8" font-size="9" font-family="monospace">CPU Nguồn: ${pollActive ? '78%' : (trigActive ? '46%' : '2%')}</text>
+          <rect x="382" y="36" width="166" height="86" rx="8" fill="var(--sim-card)" stroke="${pollActive ? 'var(--sim-danger)' : (trigActive ? 'var(--sim-warn)' : 'var(--sim-ok)')}" stroke-width="1.8"/>
+          <text x="394" y="56" fill="var(--sim-ink)" font-size="11" font-weight="800">${pollActive ? '1. Polling CronJob' : (trigActive ? '2. Shadow Table Reader' : '3. Debezium Engine')}</text>
+          <text x="394" y="74" fill="var(--sim-sub)" font-size="9.5">${pollActive ? 'SELECT * WHERE updated > T' : (trigActive ? 'Đọc bảng orders_audit_log' : 'Đọc khe nhân bản pgoutput')}</text>
+          <text x="394" y="92" fill="${(pollActive && isDel) ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${(pollActive && isDel) ? '[x] 0 rows (Bỏ lỡ DELETE!)' : '[+] Bắt trọn sự kiện #8888'}</text>
+          <text x="394" y="109" fill="var(--sim-muted)" font-size="9" font-family="var(--cds-font-mono)">CPU Nguồn: ${pollActive ? '78%' : (trigActive ? '46%' : '2%')}</text>
 
-          <rect x="382" y="154" width="166" height="78" rx="8" fill="#090d16" stroke="#38bdf8" stroke-width="1.5"/>
-          <text x="394" y="174" fill="#38bdf8" font-size="10.5" font-weight="800" font-family="monospace">KAFKA TOPIC: prod.orders</text>
-          <text x="394" y="193" fill="#e2e8f0" font-size="9.5" font-family="monospace">${(pollActive && isDel) ? '[!] Dữ liệu đích bị lệch!' : 'Offset 42: Key=ORD-8888'}</text>
-          <text x="394" y="209" fill="#94a3b8" font-size="9" font-family="monospace">${(pollActive && isDel) ? 'Đơn đã xóa vẫn còn ở Đích' : (isDel ? 'Payload: op="d", after=null' : 'Payload: op="u", amt=450000')}</text>
+          <rect x="382" y="154" width="166" height="78" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-flow)" stroke-width="1.5"/>
+          <text x="394" y="174" fill="var(--sim-flow)" font-size="10.5" font-weight="800" font-family="var(--cds-font-mono)">KAFKA TOPIC: prod.orders</text>
+          <text x="394" y="193" fill="var(--sim-sub)" font-size="9.5" font-family="var(--cds-font-mono)">${(pollActive && isDel) ? '[!] Dữ liệu đích bị lệch!' : 'Offset 42: Key=ORD-8888'}</text>
+          <text x="394" y="209" fill="var(--sim-muted)" font-size="9" font-family="var(--cds-font-mono)">${(pollActive && isDel) ? 'Đơn đã xóa vẫn còn ở Đích' : (isDel ? 'Payload: op="d", after=null' : 'Payload: op="u", amt=450000')}</text>
 
           <!-- Internal DB Write Flow (L1 -> L2 -> L3 -> L4) -->
-          <path d="M 175 76 L 175 190" stroke="#475569" stroke-width="1.5" stroke-dasharray="3 3"/>
+          <path d="M 175 76 L 175 190" stroke="var(--sim-border-muted)" stroke-width="1.5" stroke-dasharray="3 3"/>
 
           <!-- Active CDC Probe Path + Animated Packet -->
           ${pollActive ? `
-            <path id="cdcProbePath" d="M 334 56 L 382 56" stroke="#f43f5e" stroke-width="2.5" class="ing2d-flow-active" marker-end="url(#ingArrRose)"/>
-            <path d="M 334 158 C 360 158, 355 75, 382 75" stroke="#f43f5e" stroke-width="1.8" stroke-dasharray="4 4"/>
+            <path id="cdcProbePath" d="M 334 56 L 382 56" stroke="var(--sim-danger)" stroke-width="2.5" class="ing2d-flow-active" marker-end="url(#ingArrRose)"/>
+            <path d="M 334 158 C 360 158, 355 75, 382 75" stroke="var(--sim-danger)" stroke-width="1.8" stroke-dasharray="4 4"/>
             ${!isDel ? `
-              <path id="cdcOutPath" d="M 465 122 L 465 154" stroke="#f43f5e" stroke-width="2.2" class="ing2d-flow-active" marker-end="url(#ingArrRose)"/>
-              <circle r="5" fill="#f43f5e"><animateMotion dur="1.4s" repeatCount="indefinite" path="M 334 56 L 382 56 L 465 122 L 465 154"/></circle>
+              <path id="cdcOutPath" d="M 465 122 L 465 154" stroke="var(--sim-danger)" stroke-width="2.2" class="ing2d-flow-active" marker-end="url(#ingArrRose)"/>
+              <circle r="5" fill="var(--sim-danger)"><animateMotion dur="1.4s" repeatCount="indefinite" path="M 334 56 L 382 56 L 465 122 L 465 154"/></circle>
             ` : `
-              <text x="405" y="143" fill="#f43f5e" font-size="10" font-weight="800">✗ ĐỨT LUỒNG (MÙ DELETE)</text>
+              <text x="405" y="143" fill="var(--sim-danger)" font-size="10" font-weight="800">✗ ĐỨT LUỒNG (MÙ DELETE)</text>
             `}
           ` : ""}
 
           ${trigActive ? `
-            <path id="cdcProbePath" d="M 334 107 L 382 80" stroke="#fbbf24" stroke-width="2.5" class="ing2d-flow-active" marker-end="url(#ingArrAmber)"/>
-            <path id="cdcOutPath" d="M 465 122 L 465 154" stroke="#fbbf24" stroke-width="2.2" class="ing2d-flow-active" marker-end="url(#ingArrAmber)"/>
-            <circle r="5" fill="#fbbf24"><animateMotion dur="1.5s" repeatCount="indefinite" path="M 334 107 L 382 80 L 465 122 L 465 154"/></circle>
+            <path id="cdcProbePath" d="M 334 107 L 382 80" stroke="var(--sim-warn)" stroke-width="2.5" class="ing2d-flow-active" marker-end="url(#ingArrAmber)"/>
+            <path id="cdcOutPath" d="M 465 122 L 465 154" stroke="var(--sim-warn)" stroke-width="2.2" class="ing2d-flow-active" marker-end="url(#ingArrAmber)"/>
+            <circle r="5" fill="var(--sim-warn)"><animateMotion dur="1.5s" repeatCount="indefinite" path="M 334 107 L 382 80 L 465 122 L 465 154"/></circle>
           ` : ""}
 
           ${walActive ? `
-            <path id="cdcProbePath" d="M 334 211 C 362 211, 354 82, 382 82" stroke="#10b981" stroke-width="2.6" class="ing2d-flow-active" marker-end="url(#ingArrEmerald)"/>
-            <path id="cdcOutPath" d="M 465 122 L 465 154" stroke="#38bdf8" stroke-width="2.4" class="ing2d-flow-active" marker-end="url(#ingArrCyan)"/>
-            <circle r="5.5" fill="#34d399"><animateMotion dur="1.2s" repeatCount="indefinite" path="M 334 211 C 362 211, 354 82, 382 82 L 465 122 L 465 154"/></circle>
+            <path id="cdcProbePath" d="M 334 211 C 362 211, 354 82, 382 82" stroke="var(--sim-ok)" stroke-width="2.6" class="ing2d-flow-active" marker-end="url(#ingArrEmerald)"/>
+            <path id="cdcOutPath" d="M 465 122 L 465 154" stroke="var(--sim-flow)" stroke-width="2.4" class="ing2d-flow-active" marker-end="url(#ingArrCyan)"/>
+            <circle r="5.5" fill="var(--sim-ok)"><animateMotion dur="1.2s" repeatCount="indefinite" path="M 334 211 C 362 211, 354 82, 382 82 L 465 122 L 465 154"/></circle>
           ` : ""}
         </svg>
         <div class="ing2d-metrics-strip">
-          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Tải CPU Nguồn</span><span class="ing2d-metric-val" style="color:${pollActive ? '#fda4af' : (trigActive ? '#fde68a' : '#6ee7b7')}">${cpuVal}</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Tải CPU Nguồn</span><span class="ing2d-metric-val" style="color:${pollActive ? 'var(--sim-danger)' : (trigActive ? 'var(--sim-warn)' : 'var(--sim-ok)')}">${cpuVal}</span></div>
           <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Độ Trễ Giao Dịch</span><span class="ing2d-metric-val">${latVal}</span></div>
-          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Trạng Thái DELETE</span><span class="ing2d-metric-val" style="color:${(pollActive && isDel) ? '#fda4af' : '#6ee7b7'}">${delStatus}</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Trạng Thái DELETE</span><span class="ing2d-metric-val" style="color:${(pollActive && isDel) ? 'var(--sim-danger)' : 'var(--sim-ok)'}">${delStatus}</span></div>
           <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Xâm Phạm Schema</span><span class="ing2d-metric-val">${schemaMod}</span></div>
         </div>
       `;
 
       if (pollActive && isDel) {
-        status.innerHTML = `<strong style="color:#fda4af;">[CẢNH BÁO MẤT DỮ LIỆU]:</strong> Khi chạy lệnh vật lý <code>DELETE FROM orders WHERE id=8888</code>, bản ghi biến mất khỏi B-Tree/Heap. Truy vấn <code>SELECT WHERE last_modified &gt; T</code> trả về 0 dòng — kho dữ liệu đích giữ mãi đơn hàng ảo!`;
+        status.innerHTML = `<strong style="color:var(--sim-danger);">[CẢNH BÁO MẤT DỮ LIỆU]:</strong> Khi chạy lệnh vật lý <code>DELETE FROM orders WHERE id=8888</code>, bản ghi biến mất khỏi B-Tree/Heap. Truy vấn <code>SELECT WHERE last_modified &gt; T</code> trả về 0 dòng — kho dữ liệu đích giữ mãi đơn hàng ảo!`;
       } else if (pollActive) {
-        status.innerHTML = `<strong style="color:#fda4af;">[Thế hệ 1 — Timestamp Polling]:</strong> Đặt đầu dò tại Tầng 1 (SQL Executor). Cứ mỗi chu kỳ lại quét bảng làm CPU vọt lên 78% và có nguy cơ bỏ sót giao dịch treo (Uncommitted Transaction Skew).`;
+        status.innerHTML = `<strong style="color:var(--sim-danger);">[Thế hệ 1 — Timestamp Polling]:</strong> Đặt đầu dò tại Tầng 1 (SQL Executor). Cứ mỗi chu kỳ lại quét bảng làm CPU vọt lên 78% và có nguy cơ bỏ sót giao dịch treo (Uncommitted Transaction Skew).`;
       } else if (trigActive) {
-        status.innerHTML = `<strong style="color:#fde68a;">[Thế hệ 2 — Trigger-Based CDC]:</strong> Đặt đầu dò tại Tầng 2 (Trigger Engine). Bắt được cả lệnh <code>DELETE</code> nhờ biến <code>OLD.*</code>, nhưng bắt khách hàng chờ ghi xong cả Bảng Chính lẫn <code>shadow_table</code> (độ trễ tăng gấp đôi 12ms → 26ms).`;
+        status.innerHTML = `<strong style="color:var(--sim-warn);">[Thế hệ 2 — Trigger-Based CDC]:</strong> Đặt đầu dò tại Tầng 2 (Trigger Engine). Bắt được cả lệnh <code>DELETE</code> nhờ biến <code>OLD.*</code>, nhưng bắt khách hàng chờ ghi xong cả Bảng Chính lẫn <code>shadow_table</code> (độ trễ tăng gấp đôi 12ms → 26ms).`;
       } else {
-        status.innerHTML = `<strong style="color:#6ee7b7;">[Thế hệ 3 — Log-Based CDC (Debezium)]:</strong> Đặt đầu dò tại Tầng 4 (<code>pg_wal</code> LSN=0/16B3748). Không chạm vào SQL Engine hay Bảng Chính, tiêu tốn chỉ ~2% CPU và bắt trọn vẹn mọi thao tác <code>INSERT/UPDATE/DELETE</code> theo thời gian thực!`;
+        status.innerHTML = `<strong style="color:var(--sim-ok);">[Thế hệ 3 — Log-Based CDC (Debezium)]:</strong> Đặt đầu dò tại Tầng 4 (<code>pg_wal</code> LSN=0/16B3748). Không chạm vào SQL Engine hay Bảng Chính, tiêu tốn chỉ ~2% CPU và bắt trọn vẹn mọi thao tác <code>INSERT/UPDATE/DELETE</code> theo thời gian thực!`;
       }
 
       ctrls.innerHTML = `
@@ -12691,68 +12756,68 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
       stage.innerHTML = `
         <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
           <!-- Producer Internal Pipeline (Left) -->
-          <rect x="12" y="12" width="235" height="226" rx="8" fill="#090d16" stroke="#334155" stroke-width="1.5"/>
-          <text x="22" y="29" fill="#94a3b8" font-size="10" font-weight="700" font-family="monospace">CẮT LỚP KAFKA PRODUCER CLIENT</text>
+          <rect x="12" y="12" width="235" height="226" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="22" y="29" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">CẮT LỚP KAFKA PRODUCER CLIENT</text>
 
-          <rect x="24" y="38" width="210" height="38" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="1.3"/>
-          <text x="32" y="54" fill="#f8fafc" font-size="10.5" font-weight="700">[1] Avro Serializer (Schema ID)</text>
-          <text x="32" y="68" fill="#38bdf8" font-size="9" font-family="monospace">${isKeyed ? 'Key="USR-104" | #8888 (E1→E2→E3)' : 'Key=null | #8888 (E1→E2→E3)'}</text>
+          <rect x="24" y="38" width="210" height="38" rx="6" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.3"/>
+          <text x="32" y="54" fill="var(--sim-ink)" font-size="10.5" font-weight="700">[1] Avro Serializer (Schema ID)</text>
+          <text x="32" y="68" fill="var(--sim-flow)" font-size="9" font-family="var(--cds-font-mono)">${isKeyed ? 'Key="USR-104" | #8888 (E1→E2→E3)' : 'Key=null | #8888 (E1→E2→E3)'}</text>
 
-          <rect x="24" y="88" width="210" height="44" rx="6" fill="${isKeyed ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)'}" stroke="${isKeyed ? '#10b981' : '#fbbf24'}" stroke-width="1.5"/>
-          <text x="32" y="105" fill="#f8fafc" font-size="10.5" font-weight="700">[2] Partitioner Router</text>
-          <text x="32" y="121" fill="${isKeyed ? '#6ee7b7' : '#fde68a'}" font-size="9" font-family="monospace">${isKeyed ? 'murmur2("USR-104") % 3 == Partition 1' : 'Round-Robin / Sticky → Rải P0, P1, P2'}</text>
+          <rect x="24" y="88" width="210" height="44" rx="6" fill="${isKeyed ? 'var(--sim-ok-soft)' : 'var(--sim-warn-soft)'}" stroke="${isKeyed ? 'var(--sim-ok)' : 'var(--sim-warn)'}" stroke-width="1.5"/>
+          <text x="32" y="105" fill="var(--sim-ink)" font-size="10.5" font-weight="700">[2] Partitioner Router</text>
+          <text x="32" y="121" fill="${isKeyed ? 'var(--sim-ok)' : 'var(--sim-warn)'}" font-size="9" font-family="var(--cds-font-mono)">${isKeyed ? 'murmur2("USR-104") % 3 == Partition 1' : 'Round-Robin / Sticky → Rải P0, P1, P2'}</text>
 
-          <rect x="24" y="144" width="210" height="42" rx="6" fill="#0f172a" stroke="#6366f1" stroke-width="1.3"/>
-          <text x="32" y="160" fill="#f8fafc" font-size="10.5" font-weight="700">[3] RecordAccumulator (RAM Batch)</text>
-          <text x="32" y="175" fill="#a5b4fc" font-size="9" font-family="monospace">batch.size=64KB | linger.ms=10ms | LZ4</text>
+          <rect x="24" y="144" width="210" height="42" rx="6" fill="var(--sim-card)" stroke="var(--sim-clay)" stroke-width="1.3"/>
+          <text x="32" y="160" fill="var(--sim-ink)" font-size="10.5" font-weight="700">[3] RecordAccumulator (RAM Batch)</text>
+          <text x="32" y="175" fill="var(--sim-clay)" font-size="9" font-family="var(--cds-font-mono)">batch.size=64KB | linger.ms=10ms | LZ4</text>
 
-          <rect x="24" y="196" width="210" height="32" rx="6" fill="#0f172a" stroke="#334155" stroke-width="1.3"/>
-          <text x="32" y="216" fill="#e2e8f0" font-size="10" font-weight="700">[4] Sender I/O Thread (Async Push)</text>
+          <rect x="24" y="196" width="210" height="32" rx="6" fill="var(--sim-card)" stroke="var(--sim-border)" stroke-width="1.3"/>
+          <text x="32" y="216" fill="var(--sim-sub)" font-size="10" font-weight="700">[4] Sender I/O Thread (Async Push)</text>
 
           <!-- Right Side: Kafka Topic Partitions 0, 1, 2 -->
-          <rect x="305" y="12" width="243" height="226" rx="8" fill="#090d16" stroke="#334155" stroke-width="1.5"/>
-          <text x="315" y="29" fill="#94a3b8" font-size="10" font-weight="700" font-family="monospace">TOPIC: prod.orders (3 PARTITIONS)</text>
+          <rect x="305" y="12" width="243" height="226" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="315" y="29" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">TOPIC: prod.orders (3 PARTITIONS)</text>
 
           <!-- Partition 0 -->
-          <rect x="317" y="40" width="218" height="54" rx="6" fill="#0f172a" stroke="${!isKeyed ? '#fbbf24' : '#1e293b'}" stroke-width="1.5"/>
-          <text x="327" y="57" fill="#f8fafc" font-size="10.5" font-weight="700">Partition 0 (Broker 1)</text>
-          <text x="327" y="76" fill="${!isKeyed ? '#fde68a' : '#64748b'}" font-size="9.5" font-family="monospace">${!isKeyed ? '[Off 0: E1 CREATED #8888]' : '[Trống — Dành cho Key khác]'}</text>
+          <rect x="317" y="40" width="218" height="54" rx="6" fill="var(--sim-card)" stroke="${!isKeyed ? 'var(--sim-warn)' : 'var(--sim-border)'}" stroke-width="1.5"/>
+          <text x="327" y="57" fill="var(--sim-ink)" font-size="10.5" font-weight="700">Partition 0 (Broker 1)</text>
+          <text x="327" y="76" fill="${!isKeyed ? 'var(--sim-warn)' : 'var(--sim-muted)'}" font-size="9.5" font-family="var(--cds-font-mono)">${!isKeyed ? '[Off 0: E1 CREATED #8888]' : '[Trống — Dành cho Key khác]'}</text>
 
           <!-- Partition 1 -->
-          <rect x="317" y="106" width="218" height="58" rx="6" fill="${isKeyed ? 'rgba(16,185,129,0.14)' : '#0f172a'}" stroke="${isKeyed ? '#10b981' : '#fbbf24'}" stroke-width="1.8"/>
-          <text x="327" y="123" fill="#f8fafc" font-size="10.5" font-weight="700">Partition 1 (Broker 2)</text>
-          <text x="327" y="141" fill="${isKeyed ? '#6ee7b7' : '#fde68a'}" font-size="9.2" font-family="monospace">${isKeyed ? '[Off 10: E1 CREATED] → [Off 11: E2 PAID]' : '[Off 0: E2 PAID #8888]'}</text>
-          <text x="327" y="155" fill="${isKeyed ? '#6ee7b7' : '#94a3b8'}" font-size="9.2" font-family="monospace">${isKeyed ? '→ [Off 12: E3 SHIPPED] (Đúng thứ tự 100%!)' : '(Chỉ nhận 1/3 sự kiện)'}</text>
+          <rect x="317" y="106" width="218" height="58" rx="6" fill="${isKeyed ? 'var(--sim-ok-soft)' : 'var(--sim-card)'}" stroke="${isKeyed ? 'var(--sim-ok)' : 'var(--sim-warn)'}" stroke-width="1.8"/>
+          <text x="327" y="123" fill="var(--sim-ink)" font-size="10.5" font-weight="700">Partition 1 (Broker 2)</text>
+          <text x="327" y="141" fill="${isKeyed ? 'var(--sim-ok)' : 'var(--sim-warn)'}" font-size="9.2" font-family="var(--cds-font-mono)">${isKeyed ? '[Off 10: E1 CREATED] → [Off 11: E2 PAID]' : '[Off 0: E2 PAID #8888]'}</text>
+          <text x="327" y="155" fill="${isKeyed ? 'var(--sim-ok)' : 'var(--sim-muted)'}" font-size="9.2" font-family="var(--cds-font-mono)">${isKeyed ? '→ [Off 12: E3 SHIPPED] (Đúng thứ tự 100%!)' : '(Chỉ nhận 1/3 sự kiện)'}</text>
 
           <!-- Partition 2 -->
-          <rect x="317" y="176" width="218" height="52" rx="6" fill="#0f172a" stroke="${!isKeyed ? '#fbbf24' : '#1e293b'}" stroke-width="1.5"/>
-          <text x="327" y="193" fill="#f8fafc" font-size="10.5" font-weight="700">Partition 2 (Broker 3)</text>
-          <text x="327" y="212" fill="${!isKeyed ? '#fda4af' : '#64748b'}" font-size="9.5" font-family="monospace">${!isKeyed ? '[Off 0: E3 SHIPPED] (Đọc trước cả E1!)' : '[Trống — Dành cho Key khác]'}</text>
+          <rect x="317" y="176" width="218" height="52" rx="6" fill="var(--sim-card)" stroke="${!isKeyed ? 'var(--sim-warn)' : 'var(--sim-border)'}" stroke-width="1.5"/>
+          <text x="327" y="193" fill="var(--sim-ink)" font-size="10.5" font-weight="700">Partition 2 (Broker 3)</text>
+          <text x="327" y="212" fill="${!isKeyed ? 'var(--sim-danger)' : 'var(--sim-muted)'}" font-size="9.5" font-family="var(--cds-font-mono)">${!isKeyed ? '[Off 0: E3 SHIPPED] (Đọc trước cả E1!)' : '[Trống — Dành cho Key khác]'}</text>
 
           <!-- Animated Routing Wires -->
           ${isKeyed ? `
-            <path d="M 234 110 C 275 110, 275 135, 317 135" stroke="#10b981" stroke-width="2.8" class="ing2d-flow-active"/>
-            <circle r="5.5" fill="#34d399"><animateMotion dur="1.1s" repeatCount="indefinite" path="M 234 110 C 275 110, 275 135, 317 135"/></circle>
+            <path d="M 234 110 C 275 110, 275 135, 317 135" stroke="var(--sim-ok)" stroke-width="2.8" class="ing2d-flow-active"/>
+            <circle r="5.5" fill="var(--sim-ok)"><animateMotion dur="1.1s" repeatCount="indefinite" path="M 234 110 C 275 110, 275 135, 317 135"/></circle>
           ` : `
-            <path d="M 234 110 C 270 110, 275 67, 317 67" stroke="#fbbf24" stroke-width="2" class="ing2d-flow-active"/>
-            <path d="M 234 110 C 270 110, 275 135, 317 135" stroke="#fbbf24" stroke-width="2" class="ing2d-flow-active"/>
-            <path d="M 234 110 C 270 110, 275 202, 317 202" stroke="#f43f5e" stroke-width="2" class="ing2d-flow-active"/>
-            <circle r="4.5" fill="#fbbf24"><animateMotion dur="1.2s" repeatCount="indefinite" path="M 234 110 C 270 110, 275 67, 317 67"/></circle>
-            <circle r="4.5" fill="#38bdf8"><animateMotion dur="1.4s" repeatCount="indefinite" path="M 234 110 C 270 110, 275 135, 317 135"/></circle>
-            <circle r="4.5" fill="#f43f5e"><animateMotion dur="1.0s" repeatCount="indefinite" path="M 234 110 C 270 110, 275 202, 317 202"/></circle>
+            <path d="M 234 110 C 270 110, 275 67, 317 67" stroke="var(--sim-warn)" stroke-width="2" class="ing2d-flow-active"/>
+            <path d="M 234 110 C 270 110, 275 135, 317 135" stroke="var(--sim-warn)" stroke-width="2" class="ing2d-flow-active"/>
+            <path d="M 234 110 C 270 110, 275 202, 317 202" stroke="var(--sim-danger)" stroke-width="2" class="ing2d-flow-active"/>
+            <circle r="4.5" fill="var(--sim-warn)"><animateMotion dur="1.2s" repeatCount="indefinite" path="M 234 110 C 270 110, 275 67, 317 67"/></circle>
+            <circle r="4.5" fill="var(--sim-flow)"><animateMotion dur="1.4s" repeatCount="indefinite" path="M 234 110 C 270 110, 275 135, 317 135"/></circle>
+            <circle r="4.5" fill="var(--sim-danger)"><animateMotion dur="1.0s" repeatCount="indefinite" path="M 234 110 C 270 110, 275 202, 317 202"/></circle>
           `}
         </svg>
         <div class="ing2d-metrics-strip">
           <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Thuật Toán Chọn</span><span class="ing2d-metric-val">${isKeyed ? 'murmur2(key) % 3' : 'Sticky / Round-Robin'}</span></div>
-          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Partition Đích</span><span class="ing2d-metric-val" style="color:${isKeyed ? '#6ee7b7' : '#fde68a'}">${isKeyed ? '100% vào Partition 1' : 'Rải đều P0, P1, P2'}</span></div>
-          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Bảo Toàn Thứ Tự</span><span class="ing2d-metric-val" style="color:${isKeyed ? '#6ee7b7' : '#fda4af'}">${isKeyed ? 'Đảm bảo 100% (E1→E2→E3)' : 'MẤT THỨ TỰ (Race!)'}</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Partition Đích</span><span class="ing2d-metric-val" style="color:${isKeyed ? 'var(--sim-ok)' : 'var(--sim-warn)'}">${isKeyed ? '100% vào Partition 1' : 'Rải đều P0, P1, P2'}</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Bảo Toàn Thứ Tự</span><span class="ing2d-metric-val" style="color:${isKeyed ? 'var(--sim-ok)' : 'var(--sim-danger)'}">${isKeyed ? 'Đảm bảo 100% (E1→E2→E3)' : 'MẤT THỨ TỰ (Race!)'}</span></div>
           <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Nén Lô RAM</span><span class="ing2d-metric-val">64KB / LZ4</span></div>
         </div>
       `;
 
       status.innerHTML = isKeyed
-        ? `<strong style="color:#6ee7b7;">[Chế độ Có Khóa — With Key = "USR-104"]:</strong> Hàm băm <code>murmur2("USR-104") % 3</code> luôn trả về <code>Partition 1</code>. Cả 3 sự kiện <code>CREATED → PAID → SHIPPED</code> của đơn #8888 nằm nối đuôi nhau trên cùng một Partition, bảo toàn 100% thứ tự nhân quả!`
-        : `<strong style="color:#fda4af;">[Chế độ Không Khóa — Without Key = null]:</strong> Các sự kiện của đơn #8888 bị rải ra 3 Partition khác nhau (<code>P0</code>, <code>P1</code>, <code>P2</code>). Nếu Consumer đọc <code>P2</code> chạy nhanh hơn <code>P0</code>, hệ thống đích sẽ nhận lệnh <code>SHIPPED</code> trước cả khi đơn hàng được <code>CREATED</code>!`;
+        ? `<strong style="color:var(--sim-ok);">[Chế độ Có Khóa — With Key = "USR-104"]:</strong> Hàm băm <code>murmur2("USR-104") % 3</code> luôn trả về <code>Partition 1</code>. Cả 3 sự kiện <code>CREATED → PAID → SHIPPED</code> của đơn #8888 nằm nối đuôi nhau trên cùng một Partition, bảo toàn 100% thứ tự nhân quả!`
+        : `<strong style="color:var(--sim-danger);">[Chế độ Không Khóa — Without Key = null]:</strong> Các sự kiện của đơn #8888 bị rải ra 3 Partition khác nhau (<code>P0</code>, <code>P1</code>, <code>P2</code>). Nếu Consumer đọc <code>P2</code> chạy nhanh hơn <code>P0</code>, hệ thống đích sẽ nhận lệnh <code>SHIPPED</code> trước cả khi đơn hàng được <code>CREATED</code>!`;
 
       ctrls.innerHTML = `
         <button type="button" class="infra2d-btn ${isKeyed ? 'infra2d-btn-emerald' : ''}" onclick="ing2dState.prodMode='keyed';renderIngestion2DInteractiveStage('producer')">1. Có Khóa: key="USR-104" (murmur2 → P1)</button>
@@ -12776,8 +12841,8 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
         const y2 = cY[targetC];
         const pathStr = `M 212 ${y1} C 265 ${y1}, 275 ${y2}, 330 ${y2}`;
         wiresSvg += `
-          <path d="${pathStr}" stroke="#38bdf8" stroke-width="2.4" class="ing2d-flow-active"/>
-          <circle r="4.8" fill="#34d399"><animateMotion dur="${1.1 + p * 0.2}s" repeatCount="indefinite" path="${pathStr}"/></circle>
+          <path d="${pathStr}" stroke="var(--sim-flow)" stroke-width="2.4" class="ing2d-flow-active"/>
+          <circle r="4.8" fill="var(--sim-ok)"><animateMotion dur="${1.1 + p * 0.2}s" repeatCount="indefinite" path="${pathStr}"/></circle>
         `;
       }
 
@@ -12788,31 +12853,31 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
         const assignedParts = [];
         for (let p = 0; p < 3; p++) if (pMap[p] === c + 1) assignedParts.push(`P${p}`);
         consBoxesSvg += `
-          <rect x="330" y="${cy}" width="212" height="40" rx="6" fill="${isIdle ? 'rgba(244,63,94,0.16)' : '#0f172a'}" stroke="${isIdle ? '#f43f5e' : '#34d399'}" stroke-width="1.6"/>
-          <text x="340" y="${cy + 16}" fill="#f8fafc" font-size="10.5" font-weight="700">Consumer ${c + 1} ${isIdle ? '[IDLE — NHÀN RỖI!]' : '[Active]'}</text>
-          <text x="340" y="${cy + 31}" fill="${isIdle ? '#fda4af' : '#6ee7b7'}" font-size="9.2" font-family="monospace">${isIdle ? '0 Partition (Do P=3 < C=4!)' : 'Độc quyền đọc: ' + assignedParts.join(', ')}</text>
+          <rect x="330" y="${cy}" width="212" height="40" rx="6" fill="${isIdle ? 'var(--sim-danger-soft)' : 'var(--sim-card)'}" stroke="${isIdle ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.6"/>
+          <text x="340" y="${cy + 16}" fill="var(--sim-ink)" font-size="10.5" font-weight="700">Consumer ${c + 1} ${isIdle ? '[IDLE — NHÀN RỖI!]' : '[Active]'}</text>
+          <text x="340" y="${cy + 31}" fill="${isIdle ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9.2" font-family="var(--cds-font-mono)">${isIdle ? '0 Partition (Do P=3 < C=4!)' : 'Độc quyền đọc: ' + assignedParts.join(', ')}</text>
         `;
       }
 
       stage.innerHTML = `
         <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="12" y="12" width="200" height="226" rx="8" fill="#090d16" stroke="#334155" stroke-width="1.5"/>
-          <text x="22" y="29" fill="#94a3b8" font-size="10" font-weight="700" font-family="monospace">TOPIC: prod.orders (P=3)</text>
+          <rect x="12" y="12" width="200" height="226" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="22" y="29" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">TOPIC: prod.orders (P=3)</text>
 
-          <rect x="24" y="40" width="176" height="44" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="1.4"/>
-          <text x="34" y="58" fill="#f8fafc" font-size="10.5" font-weight="700">Partition 0</text>
-          <text x="34" y="74" fill="#94a3b8" font-size="9" font-family="monospace">Off 0..42 (10 MB/s)</text>
+          <rect x="24" y="40" width="176" height="44" rx="6" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.4"/>
+          <text x="34" y="58" fill="var(--sim-ink)" font-size="10.5" font-weight="700">Partition 0</text>
+          <text x="34" y="74" fill="var(--sim-muted)" font-size="9" font-family="var(--cds-font-mono)">Off 0..42 (10 MB/s)</text>
 
-          <rect x="24" y="103" width="176" height="44" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="1.4"/>
-          <text x="34" y="121" fill="#f8fafc" font-size="10.5" font-weight="700">Partition 1 (#8888)</text>
-          <text x="34" y="137" fill="#38bdf8" font-size="9" font-family="monospace">Off 0..58 (10 MB/s)</text>
+          <rect x="24" y="103" width="176" height="44" rx="6" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.4"/>
+          <text x="34" y="121" fill="var(--sim-ink)" font-size="10.5" font-weight="700">Partition 1 (#8888)</text>
+          <text x="34" y="137" fill="var(--sim-flow)" font-size="9" font-family="var(--cds-font-mono)">Off 0..58 (10 MB/s)</text>
 
-          <rect x="24" y="166" width="176" height="44" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="1.4"/>
-          <text x="34" y="184" fill="#f8fafc" font-size="10.5" font-weight="700">Partition 2</text>
-          <text x="34" y="200" fill="#94a3b8" font-size="9" font-family="monospace">Off 0..39 (10 MB/s)</text>
+          <rect x="24" y="166" width="176" height="44" rx="6" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.4"/>
+          <text x="34" y="184" fill="var(--sim-ink)" font-size="10.5" font-weight="700">Partition 2</text>
+          <text x="34" y="200" fill="var(--sim-muted)" font-size="9" font-family="var(--cds-font-mono)">Off 0..39 (10 MB/s)</text>
 
-          <rect x="318" y="12" width="230" height="226" rx="8" fill="#090d16" stroke="#334155" stroke-width="1.5"/>
-          <text x="328" y="29" fill="#94a3b8" font-size="10" font-weight="700" font-family="monospace">CONSUMER GROUP: fraud-detector</text>
+          <rect x="318" y="12" width="230" height="226" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="328" y="29" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">CONSUMER GROUP: fraud-detector</text>
 
           ${wiresSvg}
           ${consBoxesSvg}
@@ -12820,19 +12885,19 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
         <div class="ing2d-metrics-strip">
           <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Số Partition (P)</span><span class="ing2d-metric-val">3 Partitions</span></div>
           <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Số Consumer (C)</span><span class="ing2d-metric-val">${cCount} Consumers</span></div>
-          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Tổng Thông Lượng</span><span class="ing2d-metric-val" style="color:${cCount >= 3 ? '#6ee7b7' : '#fde68a'}">${Math.min(3, cCount) * 10} MB/s</span></div>
-          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Consumer Dư Thừa</span><span class="ing2d-metric-val" style="color:${cCount > 3 ? '#fda4af' : '#6ee7b7'}">${cCount > 3 ? '1 IDLE (C4 ngồi chơi!)' : '0 IDLE (100% bận)'}</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Tổng Thông Lượng</span><span class="ing2d-metric-val" style="color:${cCount >= 3 ? 'var(--sim-ok)' : 'var(--sim-warn)'}">${Math.min(3, cCount) * 10} MB/s</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Consumer Dư Thừa</span><span class="ing2d-metric-val" style="color:${cCount > 3 ? 'var(--sim-danger)' : 'var(--sim-ok)'}">${cCount > 3 ? '1 IDLE (C4 ngồi chơi!)' : '0 IDLE (100% bận)'}</span></div>
         </div>
       `;
 
       if (cCount === 1) {
-        status.innerHTML = `<strong style="color:#fde68a;">[1 Consumer đọc cả 3 Partitions]:</strong> Một mình Consumer 1 phải gánh toàn bộ P0, P1, P2. Thông lượng bị kẹt ở mức 10 MB/s và <code>Consumer Lag</code> tăng nhanh.`;
+        status.innerHTML = `<strong style="color:var(--sim-warn);">[1 Consumer đọc cả 3 Partitions]:</strong> Một mình Consumer 1 phải gánh toàn bộ P0, P1, P2. Thông lượng bị kẹt ở mức 10 MB/s và <code>Consumer Lag</code> tăng nhanh.`;
       } else if (cCount === 2) {
-        status.innerHTML = `<strong style="color:#bae6fd;">[2 Consumers chia tải lệch (2 + 1)]:</strong> Group Coordinator gán <code>P0, P1 → Consumer 1</code> và <code>P2 → Consumer 2</code>. Consumer 1 vẫn chịu tải gấp đôi Consumer 2.`;
+        status.innerHTML = `<strong style="color:var(--sim-flow);">[2 Consumers chia tải lệch (2 + 1)]:</strong> Group Coordinator gán <code>P0, P1 → Consumer 1</code> và <code>P2 → Consumer 2</code>. Consumer 1 vẫn chịu tải gấp đôi Consumer 2.`;
       } else if (cCount === 3) {
-        status.innerHTML = `<strong style="color:#6ee7b7;">[3 Consumers — Điểm Cân Bằng Vàng 1:1]:</strong> Mỗi Partition được độc quyền bởi đúng 1 Consumer (<code>P0→C1, P1→C2, P2→C3</code>). Thông lượng đạt đỉnh 30 MB/s và <code>Consumer Lag = 0</code>!`;
+        status.innerHTML = `<strong style="color:var(--sim-ok);">[3 Consumers — Điểm Cân Bằng Vàng 1:1]:</strong> Mỗi Partition được độc quyền bởi đúng 1 Consumer (<code>P0→C1, P1→C2, P2→C3</code>). Thông lượng đạt đỉnh 30 MB/s và <code>Consumer Lag = 0</code>!`;
       } else {
-        status.innerHTML = `<strong style="color:#fda4af;">[4 Consumers > 3 Partitions — Cảnh báo IDLE!]:</strong> Do quy tắc bất biến <em>"Trong cùng 1 Consumer Group, mỗi Partition chỉ được đọc bởi tối đa 1 Consumer"</em>, <strong>Consumer 4 không được cấp Partition nào và phải ngồi chơi (IDLE)</strong>! Muốn 4 Consumers cùng chạy, bắt buộc phải tăng số Partition của Topic lên &ge; 4.`;
+        status.innerHTML = `<strong style="color:var(--sim-danger);">[4 Consumers > 3 Partitions — Cảnh báo IDLE!]:</strong> Do quy tắc bất biến <em>"Trong cùng 1 Consumer Group, mỗi Partition chỉ được đọc bởi tối đa 1 Consumer"</em>, <strong>Consumer 4 không được cấp Partition nào và phải ngồi chơi (IDLE)</strong>! Muốn 4 Consumers cùng chạy, bắt buộc phải tăng số Partition của Topic lên &ge; 4.`;
       }
 
       ctrls.innerHTML = `
@@ -12850,54 +12915,54 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
       stage.innerHTML = `
         <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
           <!-- Producer Box -->
-          <rect x="14" y="88" width="136" height="74" rx="8" fill="#0f172a" stroke="${isAcks1Crash ? '#f43f5e' : '#38bdf8'}" stroke-width="1.6"/>
-          <text x="24" y="108" fill="#f8fafc" font-size="10.5" font-weight="800">Kafka Producer</text>
-          <text x="24" y="125" fill="#38bdf8" font-size="9.2" font-family="monospace">Order #8888 (Off 42)</text>
-          <text x="24" y="142" fill="${isAcks1Crash ? '#fda4af' : '#6ee7b7'}" font-size="9.2" font-weight="700" font-family="monospace">acks = ${isAcks1Crash ? '1 (Nguy hiểm!)' : 'all (An toàn)'}</text>
+          <rect x="14" y="88" width="136" height="74" rx="8" fill="var(--sim-card)" stroke="${isAcks1Crash ? 'var(--sim-danger)' : 'var(--sim-flow)'}" stroke-width="1.6"/>
+          <text x="24" y="108" fill="var(--sim-ink)" font-size="10.5" font-weight="800">Kafka Producer</text>
+          <text x="24" y="125" fill="var(--sim-flow)" font-size="9.2" font-family="var(--cds-font-mono)">Order #8888 (Off 42)</text>
+          <text x="24" y="142" fill="${isAcks1Crash ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9.2" font-weight="700" font-family="var(--cds-font-mono)">acks = ${isAcks1Crash ? '1 (Nguy hiểm!)' : 'all (An toàn)'}</text>
 
           <!-- Kafka Cluster 3 Brokers -->
-          <rect x="188" y="10" width="358" height="230" rx="8" fill="#090d16" stroke="#334155" stroke-width="1.5"/>
-          <text x="200" y="27" fill="#94a3b8" font-size="10" font-weight="700" font-family="monospace">KAFKA CLUSTER (REPLICATION FACTOR = 3, MIN.INSYNC = 2)</text>
+          <rect x="188" y="10" width="358" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="200" y="27" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">KAFKA CLUSTER (REPLICATION FACTOR = 3, MIN.INSYNC = 2)</text>
 
           <!-- Broker 1 -->
-          <rect x="202" y="38" width="330" height="56" rx="6" fill="${isNormal ? 'rgba(16,185,129,0.14)' : 'rgba(244,63,94,0.18)'}" stroke="${isNormal ? '#10b981' : '#f43f5e'}" stroke-width="1.7"/>
-          <text x="214" y="57" fill="#f8fafc" font-size="11" font-weight="800">Broker 1 — ${isNormal ? 'LEADER REPLICA (Active)' : '✗ SẬP NGUỒN ĐỘT NGỘT (CRASHED!)'}</text>
-          <text x="214" y="76" fill="${isNormal ? '#6ee7b7' : '#fda4af'}" font-size="9.5" font-family="monospace">${isNormal ? 'Log: [Off 40][Off 41][Off 42: #8888] (LEO=43)' : (isAcks1Crash ? 'Đã nhận #8888 & trả ACK=1 nhưng CHẾT trước khi B2/B3 kịp kéo!' : 'Sập sau khi B2 & B3 đã đồng bộ xong #8888!')}</text>
+          <rect x="202" y="38" width="330" height="56" rx="6" fill="${isNormal ? 'var(--sim-ok-soft)' : 'var(--sim-danger-soft)'}" stroke="${isNormal ? 'var(--sim-ok)' : 'var(--sim-danger)'}" stroke-width="1.7"/>
+          <text x="214" y="57" fill="var(--sim-ink)" font-size="11" font-weight="800">Broker 1 — ${isNormal ? 'LEADER REPLICA (Active)' : '✗ SẬP NGUỒN ĐỘT NGỘT (CRASHED!)'}</text>
+          <text x="214" y="76" fill="${isNormal ? 'var(--sim-ok)' : 'var(--sim-danger)'}" font-size="9.5" font-family="var(--cds-font-mono)">${isNormal ? 'Log: [Off 40][Off 41][Off 42: #8888] (LEO=43)' : (isAcks1Crash ? 'Đã nhận #8888 & trả ACK=1 nhưng CHẾT trước khi B2/B3 kịp kéo!' : 'Sập sau khi B2 & B3 đã đồng bộ xong #8888!')}</text>
 
           <!-- Broker 2 -->
-          <rect x="202" y="106" width="330" height="58" rx="6" fill="${!isNormal ? 'rgba(56,189,248,0.16)' : '#0f172a'}" stroke="${!isNormal ? '#38bdf8' : '#334155'}" stroke-width="1.7"/>
-          <text x="214" y="125" fill="#f8fafc" font-size="11" font-weight="800">Broker 2 — ${isNormal ? 'Follower Replica (Trong tập ISR)' : '★ TỰ ĐỘNG THĂNG CẤP LÀM LEADER MỚI!'}</text>
-          <text x="214" y="144" fill="${isAcks1Crash ? '#fda4af' : '#6ee7b7'}" font-size="9.5" font-family="monospace">${isAcks1Crash ? 'Log: [Off 40][Off 41] → MẤT VĨNH VIỄN Off 42 (#8888)!' : 'Log: [Off 40][Off 41][Off 42: #8888] (Bảo toàn 100%!)'}</text>
+          <rect x="202" y="106" width="330" height="58" rx="6" fill="${!isNormal ? 'var(--sim-flow-soft)' : 'var(--sim-card)'}" stroke="${!isNormal ? 'var(--sim-flow)' : 'var(--sim-border)'}" stroke-width="1.7"/>
+          <text x="214" y="125" fill="var(--sim-ink)" font-size="11" font-weight="800">Broker 2 — ${isNormal ? 'Follower Replica (Trong tập ISR)' : '★ TỰ ĐỘNG THĂNG CẤP LÀM LEADER MỚI!'}</text>
+          <text x="214" y="144" fill="${isAcks1Crash ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9.5" font-family="var(--cds-font-mono)">${isAcks1Crash ? 'Log: [Off 40][Off 41] → MẤT VĨNH VIỄN Off 42 (#8888)!' : 'Log: [Off 40][Off 41][Off 42: #8888] (Bảo toàn 100%!)'}</text>
 
           <!-- Broker 3 -->
-          <rect x="202" y="176" width="330" height="52" rx="6" fill="#0f172a" stroke="#334155" stroke-width="1.5"/>
-          <text x="214" y="195" fill="#f8fafc" font-size="11" font-weight="700">Broker 3 — Follower Replica (Trong tập ISR)</text>
-          <text x="214" y="213" fill="${isAcks1Crash ? '#fda4af' : '#6ee7b7'}" font-size="9.5" font-family="monospace">${isAcks1Crash ? 'Log: [Off 40][Off 41] (Chưa kịp kéo Off 42)' : 'Log: [Off 40][Off 41][Off 42: #8888] (In-Sync)'}</text>
+          <rect x="202" y="176" width="330" height="52" rx="6" fill="var(--sim-card)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="214" y="195" fill="var(--sim-ink)" font-size="11" font-weight="700">Broker 3 — Follower Replica (Trong tập ISR)</text>
+          <text x="214" y="213" fill="${isAcks1Crash ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9.5" font-family="var(--cds-font-mono)">${isAcks1Crash ? 'Log: [Off 40][Off 41] (Chưa kịp kéo Off 42)' : 'Log: [Off 40][Off 41][Off 42: #8888] (In-Sync)'}</text>
 
           ${isNormal ? `
-            <path d="M 150 118 C 175 118, 175 66, 202 66" stroke="#10b981" stroke-width="2.5" class="ing2d-flow-active"/>
-            <path d="M 365 94 L 365 106" stroke="#38bdf8" stroke-width="2" class="ing2d-flow-active"/>
-            <path d="M 365 164 L 365 176" stroke="#38bdf8" stroke-width="2" class="ing2d-flow-active"/>
-            <circle r="5" fill="#34d399"><animateMotion dur="1.1s" repeatCount="indefinite" path="M 150 118 C 175 118, 175 66, 202 66"/></circle>
+            <path d="M 150 118 C 175 118, 175 66, 202 66" stroke="var(--sim-ok)" stroke-width="2.5" class="ing2d-flow-active"/>
+            <path d="M 365 94 L 365 106" stroke="var(--sim-flow)" stroke-width="2" class="ing2d-flow-active"/>
+            <path d="M 365 164 L 365 176" stroke="var(--sim-flow)" stroke-width="2" class="ing2d-flow-active"/>
+            <circle r="5" fill="var(--sim-ok)"><animateMotion dur="1.1s" repeatCount="indefinite" path="M 150 118 C 175 118, 175 66, 202 66"/></circle>
           ` : `
-            <path d="M 150 132 L 202 132" stroke="${isAcks1Crash ? '#f43f5e' : '#38bdf8'}" stroke-width="2.5" class="ing2d-flow-active"/>
-            <circle r="5" fill="${isAcks1Crash ? '#f43f5e' : '#38bdf8'}"><animateMotion dur="1.1s" repeatCount="indefinite" path="M 150 132 L 202 132"/></circle>
+            <path d="M 150 132 L 202 132" stroke="${isAcks1Crash ? 'var(--sim-danger)' : 'var(--sim-flow)'}" stroke-width="2.5" class="ing2d-flow-active"/>
+            <circle r="5" fill="${isAcks1Crash ? 'var(--sim-danger)' : 'var(--sim-flow)'}"><animateMotion dur="1.1s" repeatCount="indefinite" path="M 150 132 L 202 132"/></circle>
           `}
         </svg>
         <div class="ing2d-metrics-strip">
           <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Leader Hiện Tại</span><span class="ing2d-metric-val">${isNormal ? 'Broker 1' : 'Broker 2 (Failover)'}</span></div>
           <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Tập Hợp ISR</span><span class="ing2d-metric-val">${isNormal ? '{B1, B2, B3}' : '{B2, B3}'}</span></div>
           <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Cấu Hình Producer</span><span class="ing2d-metric-val">${isAcks1Crash ? 'acks = 1' : 'acks = all'}</span></div>
-          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Số Phận Đơn #8888</span><span class="ing2d-metric-val" style="color:${isAcks1Crash ? '#fda4af' : '#6ee7b7'}">${isAcks1Crash ? 'MẤT DỮ LIỆU (Data Loss!)' : 'An toàn tuyệt đối (0% Loss)'}</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Số Phận Đơn #8888</span><span class="ing2d-metric-val" style="color:${isAcks1Crash ? 'var(--sim-danger)' : 'var(--sim-ok)'}">${isAcks1Crash ? 'MẤT DỮ LIỆU (Data Loss!)' : 'An toàn tuyệt đối (0% Loss)'}</span></div>
         </div>
       `;
 
       if (isNormal) {
-        status.innerHTML = `<strong style="color:#6ee7b7;">[Trạng thái Bình thường — RF=3, ISR={B1, B2, B3}]:</strong> Producer ghi đơn #8888 vào <code>Broker 1 (Leader)</code>. Hai máy <code>Broker 2</code> và <code>Broker 3</code> liên tục kéo bản sao về để giữ trạng thái đồng bộ trong tập <code>ISR</code>.`;
+        status.innerHTML = `<strong style="color:var(--sim-ok);">[Trạng thái Bình thường — RF=3, ISR={B1, B2, B3}]:</strong> Producer ghi đơn #8888 vào <code>Broker 1 (Leader)</code>. Hai máy <code>Broker 2</code> và <code>Broker 3</code> liên tục kéo bản sao về để giữ trạng thái đồng bộ trong tập <code>ISR</code>.`;
       } else if (isAcks1Crash) {
-        status.innerHTML = `<strong style="color:#fda4af;">[Cạm bẫy Mất Dữ liệu của acks=1 (Slide 39)]:</strong> Producer nhận báo thành công ngay khi <code>Broker 1</code> vừa ghi xong đĩa cục bộ. Đúng tích tắc đó <code>Broker 1</code> cháy nguồn trước khi <code>Broker 2 &amp; 3</code> kịp chép #8888 về! Khi <code>Broker 2</code> lên làm Leader mới, đơn #8888 biến mất vĩnh viễn!`;
+        status.innerHTML = `<strong style="color:var(--sim-danger);">[Cạm bẫy Mất Dữ liệu của acks=1 (Slide 39)]:</strong> Producer nhận báo thành công ngay khi <code>Broker 1</code> vừa ghi xong đĩa cục bộ. Đúng tích tắc đó <code>Broker 1</code> cháy nguồn trước khi <code>Broker 2 &amp; 3</code> kịp chép #8888 về! Khi <code>Broker 2</code> lên làm Leader mới, đơn #8888 biến mất vĩnh viễn!`;
       } else {
-        status.innerHTML = `<strong style="color:#6ee7b7;">[Chốt chặn Bất tử: acks=all + min.insync.replicas=2]:</strong> <code>Broker 1</code> chỉ được phép trả ACK cho Producer sau khi các Follower trong <code>ISR</code> đã chép xong #8888. Khi <code>Broker 1</code> sập, <code>Broker 2</code> tự động thăng cấp làm Leader mới trong vài mili-giây với 0% mất mát dữ liệu!`;
+        status.innerHTML = `<strong style="color:var(--sim-ok);">[Chốt chặn Bất tử: acks=all + min.insync.replicas=2]:</strong> <code>Broker 1</code> chỉ được phép trả ACK cho Producer sau khi các Follower trong <code>ISR</code> đã chép xong #8888. Khi <code>Broker 1</code> sập, <code>Broker 2</code> tự động thăng cấp làm Leader mới trong vài mili-giây với 0% mất mát dữ liệu!`;
       }
 
       ctrls.innerHTML = `
@@ -12909,67 +12974,67 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
       const cm = ing2dState.compMode; // 'dirty' | 'compacted' | 'tombstone'
       stage.innerHTML = `
         <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="12" y="10" width="536" height="230" rx="8" fill="#090d16" stroke="#334155" stroke-width="1.5"/>
-          <text x="24" y="28" fill="#94a3b8" font-size="10" font-weight="700" font-family="monospace">CẮT LỚP THƯ MỤC ĐĨA VẬT LÝ: /var/lib/kafka/data/prod.orders-1/ (SLIDE 40)</text>
+          <rect x="12" y="10" width="536" height="230" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="24" y="28" fill="var(--sim-muted)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">CẮT LỚP THƯ MỤC ĐĨA VẬT LÝ: /var/lib/kafka/data/prod.orders-1/ (SLIDE 40)</text>
 
           <!-- Top Row: Segment Files on Disk -->
-          <rect x="24" y="38" width="160" height="46" rx="6" fill="#0f172a" stroke="#475569" stroke-width="1.3"/>
-          <text x="32" y="55" fill="#cbd5e1" font-size="10" font-weight="700">000000000000.log</text>
-          <text x="32" y="71" fill="#64748b" font-size="9" font-family="monospace">Closed Segment (&gt;7d → unlink O(1))</text>
+          <rect x="24" y="38" width="160" height="46" rx="6" fill="var(--sim-card)" stroke="var(--sim-border-muted)" stroke-width="1.3"/>
+          <text x="32" y="55" fill="var(--sim-sub)" font-size="10" font-weight="700">000000000000.log</text>
+          <text x="32" y="71" fill="var(--sim-muted)" font-size="9" font-family="var(--cds-font-mono)">Closed Segment (&gt;7d → unlink O(1))</text>
 
-          <rect x="198" y="38" width="164" height="46" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="1.4"/>
-          <text x="206" y="55" fill="#f8fafc" font-size="10" font-weight="700">000000000010.log</text>
-          <text x="206" y="71" fill="#38bdf8" font-size="9" font-family="monospace">Clean Head + .index + .timeindex</text>
+          <rect x="198" y="38" width="164" height="46" rx="6" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.4"/>
+          <text x="206" y="55" fill="var(--sim-ink)" font-size="10" font-weight="700">000000000010.log</text>
+          <text x="206" y="71" fill="var(--sim-flow)" font-size="9" font-family="var(--cds-font-mono)">Clean Head + .index + .timeindex</text>
 
-          <rect x="376" y="38" width="160" height="46" rx="6" fill="#0f172a" stroke="#10b981" stroke-width="1.4"/>
-          <text x="384" y="55" fill="#f8fafc" font-size="10" font-weight="700">000000000050.log</text>
-          <text x="384" y="71" fill="#34d399" font-size="9" font-family="monospace">Active Segment (Append-only)</text>
+          <rect x="376" y="38" width="160" height="46" rx="6" fill="var(--sim-card)" stroke="var(--sim-ok)" stroke-width="1.4"/>
+          <text x="384" y="55" fill="var(--sim-ink)" font-size="10" font-weight="700">000000000050.log</text>
+          <text x="384" y="71" fill="var(--sim-ok)" font-size="9" font-family="var(--cds-font-mono)">Active Segment (Append-only)</text>
 
           <!-- Bottom Area: Log Compaction Cells -->
-          <text x="24" y="108" fill="#e2e8f0" font-size="10.5" font-weight="700">Cơ chế Nén Nhật ký Theo Khóa (cleanup.policy = compact — Keep latest value per Key):</text>
+          <text x="24" y="108" fill="var(--sim-sub)" font-size="10.5" font-weight="700">Cơ chế Nén Nhật ký Theo Khóa (cleanup.policy = compact — Keep latest value per Key):</text>
 
           <!-- Offset 10 -->
-          <rect x="24" y="120" width="118" height="92" rx="6" fill="${cm === 'dirty' ? '#0f172a' : 'rgba(244,63,94,0.1)'}" stroke="${cm === 'dirty' ? '#38bdf8' : '#475569'}" stroke-dasharray="${cm === 'dirty' ? '0' : '4 4'}" stroke-width="1.5"/>
-          <text x="32" y="139" fill="#94a3b8" font-size="9.5" font-family="monospace">Offset 10</text>
-          <text x="32" y="157" fill="#f8fafc" font-size="10" font-weight="700" font-family="monospace">Key: ORD-8888</text>
-          <text x="32" y="175" fill="#cbd5e1" font-size="9.5" font-family="monospace">status: PENDING</text>
-          <text x="32" y="197" fill="${cm === 'dirty' ? '#fde68a' : '#f43f5e'}" font-size="9" font-weight="700">${cm === 'dirty' ? 'Bản cũ #1' : '✗ Đã dọn (Superseded)'}</text>
+          <rect x="24" y="120" width="118" height="92" rx="6" fill="${cm === 'dirty' ? 'var(--sim-card)' : 'var(--sim-danger-soft)'}" stroke="${cm === 'dirty' ? 'var(--sim-flow)' : 'var(--sim-border-muted)'}" stroke-dasharray="${cm === 'dirty' ? '0' : '4 4'}" stroke-width="1.5"/>
+          <text x="32" y="139" fill="var(--sim-muted)" font-size="9.5" font-family="var(--cds-font-mono)">Offset 10</text>
+          <text x="32" y="157" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">Key: ORD-8888</text>
+          <text x="32" y="175" fill="var(--sim-sub)" font-size="9.5" font-family="var(--cds-font-mono)">status: PENDING</text>
+          <text x="32" y="197" fill="${cm === 'dirty' ? 'var(--sim-warn)' : 'var(--sim-danger)'}" font-size="9" font-weight="700">${cm === 'dirty' ? 'Bản cũ #1' : '✗ Đã dọn (Superseded)'}</text>
 
           <!-- Offset 11 (Other order) -->
-          <rect x="154" y="120" width="118" height="92" rx="6" fill="rgba(16,185,129,0.12)" stroke="#10b981" stroke-width="1.6"/>
-          <text x="162" y="139" fill="#94a3b8" font-size="9.5" font-family="monospace">Offset 11</text>
-          <text x="162" y="157" fill="#f8fafc" font-size="10" font-weight="700" font-family="monospace">Key: ORD-9999</text>
-          <text x="162" y="175" fill="#6ee7b7" font-size="9.5" font-family="monospace">status: PAID</text>
-          <text x="162" y="197" fill="#34d399" font-size="9" font-weight="700">✓ Giữ nguyên (Khóa khác)</text>
+          <rect x="154" y="120" width="118" height="92" rx="6" fill="var(--sim-ok-soft)" stroke="var(--sim-ok)" stroke-width="1.6"/>
+          <text x="162" y="139" fill="var(--sim-muted)" font-size="9.5" font-family="var(--cds-font-mono)">Offset 11</text>
+          <text x="162" y="157" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">Key: ORD-9999</text>
+          <text x="162" y="175" fill="var(--sim-ok)" font-size="9.5" font-family="var(--cds-font-mono)">status: PAID</text>
+          <text x="162" y="197" fill="var(--sim-ok)" font-size="9" font-weight="700">✓ Giữ nguyên (Khóa khác)</text>
 
           <!-- Offset 12 -->
-          <rect x="284" y="120" width="118" height="92" rx="6" fill="${cm === 'dirty' ? '#0f172a' : 'rgba(244,63,94,0.1)'}" stroke="${cm === 'dirty' ? '#38bdf8' : '#475569'}" stroke-dasharray="${cm === 'dirty' ? '0' : '4 4'}" stroke-width="1.5"/>
-          <text x="292" y="139" fill="#94a3b8" font-size="9.5" font-family="monospace">Offset 12</text>
-          <text x="292" y="157" fill="#f8fafc" font-size="10" font-weight="700" font-family="monospace">Key: ORD-8888</text>
-          <text x="292" y="175" fill="#cbd5e1" font-size="9.5" font-family="monospace">status: PAID</text>
-          <text x="292" y="197" fill="${cm === 'dirty' ? '#fde68a' : '#f43f5e'}" font-size="9" font-weight="700">${cm === 'dirty' ? 'Bản cũ #2' : '✗ Đã dọn (Superseded)'}</text>
+          <rect x="284" y="120" width="118" height="92" rx="6" fill="${cm === 'dirty' ? 'var(--sim-card)' : 'var(--sim-danger-soft)'}" stroke="${cm === 'dirty' ? 'var(--sim-flow)' : 'var(--sim-border-muted)'}" stroke-dasharray="${cm === 'dirty' ? '0' : '4 4'}" stroke-width="1.5"/>
+          <text x="292" y="139" fill="var(--sim-muted)" font-size="9.5" font-family="var(--cds-font-mono)">Offset 12</text>
+          <text x="292" y="157" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">Key: ORD-8888</text>
+          <text x="292" y="175" fill="var(--sim-sub)" font-size="9.5" font-family="var(--cds-font-mono)">status: PAID</text>
+          <text x="292" y="197" fill="${cm === 'dirty' ? 'var(--sim-warn)' : 'var(--sim-danger)'}" font-size="9" font-weight="700">${cm === 'dirty' ? 'Bản cũ #2' : '✗ Đã dọn (Superseded)'}</text>
 
           <!-- Offset 13 (Latest or Tombstone) -->
-          <rect x="414" y="120" width="122" height="92" rx="6" fill="${cm === 'tombstone' ? 'rgba(244,63,94,0.18)' : 'rgba(56,189,248,0.16)'}" stroke="${cm === 'tombstone' ? '#f43f5e' : '#38bdf8'}" stroke-width="1.8"/>
-          <text x="422" y="139" fill="#94a3b8" font-size="9.5" font-family="monospace">${cm === 'tombstone' ? 'Offset 14 (Tombstone)' : 'Offset 13 (Mới nhất)'}</text>
-          <text x="422" y="157" fill="#f8fafc" font-size="10" font-weight="700" font-family="monospace">Key: ORD-8888</text>
-          <text x="422" y="175" fill="${cm === 'tombstone' ? '#fda4af' : '#38bdf8'}" font-size="9.5" font-weight="700" font-family="monospace">${cm === 'tombstone' ? 'value: null' : 'status: SHIPPED'}</text>
-          <text x="422" y="197" fill="${cm === 'tombstone' ? '#fda4af' : '#34d399'}" font-size="9" font-weight="700">${cm === 'tombstone' ? '[DEL] Bia mộ xóa khóa!' : '★ Bản ghi giữ lại!'}</text>
+          <rect x="414" y="120" width="122" height="92" rx="6" fill="${cm === 'tombstone' ? 'var(--sim-danger-soft)' : 'var(--sim-flow-soft)'}" stroke="${cm === 'tombstone' ? 'var(--sim-danger)' : 'var(--sim-flow)'}" stroke-width="1.8"/>
+          <text x="422" y="139" fill="var(--sim-muted)" font-size="9.5" font-family="var(--cds-font-mono)">${cm === 'tombstone' ? 'Offset 14 (Tombstone)' : 'Offset 13 (Mới nhất)'}</text>
+          <text x="422" y="157" fill="var(--sim-ink)" font-size="10" font-weight="700" font-family="var(--cds-font-mono)">Key: ORD-8888</text>
+          <text x="422" y="175" fill="${cm === 'tombstone' ? 'var(--sim-danger)' : 'var(--sim-flow)'}" font-size="9.5" font-weight="700" font-family="var(--cds-font-mono)">${cm === 'tombstone' ? 'value: null' : 'status: SHIPPED'}</text>
+          <text x="422" y="197" fill="${cm === 'tombstone' ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9" font-weight="700">${cm === 'tombstone' ? '[DEL] Bia mộ xóa khóa!' : '★ Bản ghi giữ lại!'}</text>
         </svg>
         <div class="ing2d-metrics-strip">
           <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Time/Size Retention</span><span class="ing2d-metric-val">7 days / 1 GB</span></div>
           <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Log Compaction</span><span class="ing2d-metric-val">${cm === 'dirty' ? 'Chưa chạy (4 bản ghi)' : (cm === 'compacted' ? 'Đã nén (Còn 2 bản ghi)' : 'Tombstone (Xóa #8888)')}</span></div>
-          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Trạng Thái #8888</span><span class="ing2d-metric-val" style="color:${cm === 'tombstone' ? '#fda4af' : '#6ee7b7'}">${cm === 'tombstone' ? 'value = null (Purge)' : 'SHIPPED (Off 13)'}</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Trạng Thái #8888</span><span class="ing2d-metric-val" style="color:${cm === 'tombstone' ? 'var(--sim-danger)' : 'var(--sim-ok)'}">${cm === 'tombstone' ? 'value = null (Purge)' : 'SHIPPED (Off 13)'}</span></div>
           <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Chi Phí Xóa Đĩa</span><span class="ing2d-metric-val">O(1) Sequential I/O</span></div>
         </div>
       `;
 
       if (cm === "dirty") {
-        status.innerHTML = `<strong style="color:#bae6fd;">[1. Vùng Dirty Tail trước khi nén]:</strong> Mọi thay đổi của <code>ORD-8888</code> (<code>Off 10: PENDING</code>, <code>Off 12: PAID</code>, <code>Off 13: SHIPPED</code>) được ghi nối đuôi tuần tự vào tệp <code>.log</code> đang mở.`;
+        status.innerHTML = `<strong style="color:var(--sim-flow);">[1. Vùng Dirty Tail trước khi nén]:</strong> Mọi thay đổi của <code>ORD-8888</code> (<code>Off 10: PENDING</code>, <code>Off 12: PAID</code>, <code>Off 13: SHIPPED</code>) được ghi nối đuôi tuần tự vào tệp <code>.log</code> đang mở.`;
       } else if (cm === "compacted") {
-        status.innerHTML = `<strong style="color:#6ee7b7;">[2. Sau khi Log Cleaner thực thi Log Compaction]:</strong> Luồng nền của Broker quét gộp các Segment, tự động loại bỏ <code>Offset 10</code> và <code>Offset 12</code> đã lỗi thời, chỉ giữ lại trạng thái cuối cùng <code>Offset 13 (SHIPPED)</code> cho khóa <code>ORD-8888</code>!`;
+        status.innerHTML = `<strong style="color:var(--sim-ok);">[2. Sau khi Log Cleaner thực thi Log Compaction]:</strong> Luồng nền của Broker quét gộp các Segment, tự động loại bỏ <code>Offset 10</code> và <code>Offset 12</code> đã lỗi thời, chỉ giữ lại trạng thái cuối cùng <code>Offset 13 (SHIPPED)</code> cho khóa <code>ORD-8888</code>!`;
       } else {
-        status.innerHTML = `<strong style="color:#fda4af;">[3. Bản ghi Bia mộ Tombstone (key="ORD-8888", value=null)]:</strong> Khi đơn hàng bị xóa vật lý, Debezium bắn một bản ghi có <code>value = null</code>. Các Consumer nhận tín hiệu xóa khỏi bảng đích, và sau thời gian <code>delete.retention.ms</code>, Log Cleaner thu hồi vĩnh viễn khóa <code>ORD-8888</code> khỏi đĩa!`;
+        status.innerHTML = `<strong style="color:var(--sim-danger);">[3. Bản ghi Bia mộ Tombstone (key="ORD-8888", value=null)]:</strong> Khi đơn hàng bị xóa vật lý, Debezium bắn một bản ghi có <code>value = null</code>. Các Consumer nhận tín hiệu xóa khỏi bảng đích, và sau thời gian <code>delete.retention.ms</code>, Log Cleaner thu hồi vĩnh viễn khóa <code>ORD-8888</code> khỏi đĩa!`;
       }
 
       ctrls.innerHTML = `
@@ -12988,70 +13053,70 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
       stage.innerHTML = `
         <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
           <!-- Box 1: Source PostgreSQL + Outbox + WAL -->
-          <rect x="12" y="14" width="175" height="222" rx="8" fill="#090d16" stroke="${isBloat ? '#f43f5e' : '#10b981'}" stroke-width="1.6"/>
-          <text x="22" y="32" fill="#f8fafc" font-size="10" font-weight="800" font-family="monospace">1. POSTGRESQL SOURCE</text>
+          <rect x="12" y="14" width="175" height="222" rx="8" fill="var(--sim-canvas)" stroke="${isBloat ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.6"/>
+          <text x="22" y="32" fill="var(--sim-ink)" font-size="10" font-weight="800" font-family="var(--cds-font-mono)">1. POSTGRESQL SOURCE</text>
 
-          <rect x="22" y="42" width="155" height="52" rx="6" fill="#0f172a" stroke="${isOutbox ? '#38bdf8' : '#334155'}" stroke-width="1.4"/>
-          <text x="30" y="58" fill="#f8fafc" font-size="10" font-weight="700">${isOutbox ? 'ACID: orders + outbox' : 'Bảng: shop.orders'}</text>
-          <text x="30" y="74" fill="${isOutbox ? '#38bdf8' : '#94a3b8'}" font-size="8.8" font-family="monospace">${isOutbox ? 'Chống lỗi Dual-Write 100%' : 'Ghi giao dịch #8888'}</text>
+          <rect x="22" y="42" width="155" height="52" rx="6" fill="var(--sim-card)" stroke="${isOutbox ? 'var(--sim-flow)' : 'var(--sim-border)'}" stroke-width="1.4"/>
+          <text x="30" y="58" fill="var(--sim-ink)" font-size="10" font-weight="700">${isOutbox ? 'ACID: orders + outbox' : 'Bảng: shop.orders'}</text>
+          <text x="30" y="74" fill="${isOutbox ? 'var(--sim-flow)' : 'var(--sim-muted)'}" font-size="8.8" font-family="var(--cds-font-mono)">${isOutbox ? 'Chống lỗi Dual-Write 100%' : 'Ghi giao dịch #8888'}</text>
 
-          <rect x="22" y="106" width="155" height="62" rx="6" fill="${isBloat ? 'rgba(244,63,94,0.2)' : 'rgba(16,185,129,0.14)'}" stroke="${isBloat ? '#f43f5e' : '#10b981'}" stroke-width="1.6"/>
-          <text x="30" y="123" fill="#f8fafc" font-size="10" font-weight="700">pg_wal &amp; Replication Slot</text>
-          <text x="30" y="140" fill="${isBloat ? '#fda4af' : '#6ee7b7'}" font-size="9" font-weight="700" font-family="monospace">${isBloat ? '[!] DISK: 96% (WAL BLOAT!)' : '✓ DISK: 14% (Đã xả WAL)'}</text>
-          <text x="30" y="156" fill="#cbd5e1" font-size="8.5" font-family="monospace">${isBloat ? 'confirmed_flush_lsn ĐỨNG IM' : 'heartbeat.interval.ms=10s'}</text>
+          <rect x="22" y="106" width="155" height="62" rx="6" fill="${isBloat ? 'var(--sim-danger-soft)' : 'var(--sim-ok-soft)'}" stroke="${isBloat ? 'var(--sim-danger)' : 'var(--sim-ok)'}" stroke-width="1.6"/>
+          <text x="30" y="123" fill="var(--sim-ink)" font-size="10" font-weight="700">pg_wal &amp; Replication Slot</text>
+          <text x="30" y="140" fill="${isBloat ? 'var(--sim-danger)' : 'var(--sim-ok)'}" font-size="9" font-weight="700" font-family="var(--cds-font-mono)">${isBloat ? '[!] DISK: 96% (WAL BLOAT!)' : '✓ DISK: 14% (Đã xả WAL)'}</text>
+          <text x="30" y="156" fill="var(--sim-sub)" font-size="8.5" font-family="var(--cds-font-mono)">${isBloat ? 'confirmed_flush_lsn ĐỨNG IM' : 'heartbeat.interval.ms=10s'}</text>
 
-          <rect x="22" y="178" width="155" height="46" rx="6" fill="#0f172a" stroke="#334155" stroke-width="1.2"/>
-          <text x="30" y="195" fill="#cbd5e1" font-size="9.5" font-weight="700">Chốt trần an toàn DB:</text>
-          <text x="30" y="211" fill="#38bdf8" font-size="8.5" font-family="monospace">max_slot_wal_keep_size=10GB</text>
+          <rect x="22" y="178" width="155" height="46" rx="6" fill="var(--sim-card)" stroke="var(--sim-border)" stroke-width="1.2"/>
+          <text x="30" y="195" fill="var(--sim-sub)" font-size="9.5" font-weight="700">Chốt trần an toàn DB:</text>
+          <text x="30" y="211" fill="var(--sim-flow)" font-size="8.5" font-family="var(--cds-font-mono)">max_slot_wal_keep_size=10GB</text>
 
           <!-- Box 2: Debezium + Kafka + Schema Registry -->
-          <rect x="208" y="14" width="160" height="222" rx="8" fill="#090d16" stroke="#38bdf8" stroke-width="1.5"/>
-          <text x="218" y="32" fill="#f8fafc" font-size="10" font-weight="800" font-family="monospace">2. DEBEZIUM &amp; KAFKA</text>
+          <rect x="208" y="14" width="160" height="222" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-flow)" stroke-width="1.5"/>
+          <text x="218" y="32" fill="var(--sim-ink)" font-size="10" font-weight="800" font-family="var(--cds-font-mono)">2. DEBEZIUM &amp; KAFKA</text>
 
-          <rect x="218" y="42" width="140" height="52" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="1.3"/>
-          <text x="226" y="58" fill="#f8fafc" font-size="10" font-weight="700">Debezium Connector</text>
-          <text x="226" y="74" fill="#38bdf8" font-size="8.8" font-family="monospace">plugin.name = pgoutput</text>
+          <rect x="218" y="42" width="140" height="52" rx="6" fill="var(--sim-card)" stroke="var(--sim-flow)" stroke-width="1.3"/>
+          <text x="226" y="58" fill="var(--sim-ink)" font-size="10" font-weight="700">Debezium Connector</text>
+          <text x="226" y="74" fill="var(--sim-flow)" font-size="8.8" font-family="var(--cds-font-mono)">plugin.name = pgoutput</text>
 
-          <rect x="218" y="106" width="140" height="58" rx="6" fill="#0f172a" stroke="#6366f1" stroke-width="1.4"/>
-          <text x="226" y="123" fill="#f8fafc" font-size="10" font-weight="700">Schema Registry</text>
-          <text x="226" y="140" fill="#a5b4fc" font-size="8.8" font-family="monospace">Avro BACKWARD / FULL</text>
-          <text x="226" y="154" fill="#94a3b8" font-size="8.5" font-family="monospace">Chặn Schema Drift từ gốc</text>
+          <rect x="218" y="106" width="140" height="58" rx="6" fill="var(--sim-card)" stroke="var(--sim-clay)" stroke-width="1.4"/>
+          <text x="226" y="123" fill="var(--sim-ink)" font-size="10" font-weight="700">Schema Registry</text>
+          <text x="226" y="140" fill="var(--sim-clay)" font-size="8.8" font-family="var(--cds-font-mono)">Avro BACKWARD / FULL</text>
+          <text x="226" y="154" fill="var(--sim-muted)" font-size="8.5" font-family="var(--cds-font-mono)">Chặn Schema Drift từ gốc</text>
 
-          <rect x="218" y="176" width="140" height="48" rx="6" fill="#0f172a" stroke="#334155" stroke-width="1.2"/>
-          <text x="226" y="194" fill="#f8fafc" font-size="9.5" font-weight="700">Kafka Connect Offsets</text>
-          <text x="226" y="210" fill="#6ee7b7" font-size="8.5" font-family="monospace">connect-offsets (Compact)</text>
+          <rect x="218" y="176" width="140" height="48" rx="6" fill="var(--sim-card)" stroke="var(--sim-border)" stroke-width="1.2"/>
+          <text x="226" y="194" fill="var(--sim-ink)" font-size="9.5" font-weight="700">Kafka Connect Offsets</text>
+          <text x="226" y="210" fill="var(--sim-ok)" font-size="8.5" font-family="var(--cds-font-mono)">connect-offsets (Compact)</text>
 
           <!-- Box 3: Sink Connector + Lakehouse + DLQ -->
-          <rect x="390" y="14" width="158" height="222" rx="8" fill="#090d16" stroke="#334155" stroke-width="1.5"/>
-          <text x="400" y="32" fill="#f8fafc" font-size="10" font-weight="800" font-family="monospace">3. MULTI-SINK &amp; DLQ</text>
+          <rect x="390" y="14" width="158" height="222" rx="8" fill="var(--sim-canvas)" stroke="var(--sim-border)" stroke-width="1.5"/>
+          <text x="400" y="32" fill="var(--sim-ink)" font-size="10" font-weight="800" font-family="var(--cds-font-mono)">3. MULTI-SINK &amp; DLQ</text>
 
-          <rect x="400" y="42" width="138" height="72" rx="6" fill="rgba(16,185,129,0.12)" stroke="#10b981" stroke-width="1.5"/>
-          <text x="408" y="60" fill="#f8fafc" font-size="10" font-weight="700">Data Lakehouse (D02)</text>
-          <text x="408" y="77" fill="#6ee7b7" font-size="8.8" font-family="monospace">+ Elastic + Redis + Flink</text>
-          <text x="408" y="95" fill="#cbd5e1" font-size="8.5" font-family="monospace">Nhận dòng sạch #8888</text>
+          <rect x="400" y="42" width="138" height="72" rx="6" fill="var(--sim-ok-soft)" stroke="var(--sim-ok)" stroke-width="1.5"/>
+          <text x="408" y="60" fill="var(--sim-ink)" font-size="10" font-weight="700">Data Lakehouse (D02)</text>
+          <text x="408" y="77" fill="var(--sim-ok)" font-size="8.8" font-family="var(--cds-font-mono)">+ Elastic + Redis + Flink</text>
+          <text x="408" y="95" fill="var(--sim-sub)" font-size="8.5" font-family="var(--cds-font-mono)">Nhận dòng sạch #8888</text>
 
-          <rect x="400" y="132" width="138" height="92" rx="6" fill="${isDlq ? 'rgba(245,158,11,0.18)' : '#0f172a'}" stroke="${isDlq ? '#fbbf24' : '#475569'}" stroke-width="1.6"/>
-          <text x="408" y="151" fill="#fde68a" font-size="10" font-weight="800">Dead Letter Queue (DLQ)</text>
-          <text x="408" y="168" fill="#cbd5e1" font-size="8.8" font-family="monospace">errors.tolerance = all</text>
-          <text x="408" y="185" fill="${isDlq ? '#fda4af' : '#94a3b8'}" font-size="8.8" font-family="monospace">${isDlq ? 'Đã cách ly 1 Poison Pill!' : 'Kênh cách ly bản ghi lỗi'}</text>
-          <text x="408" y="203" fill="#6ee7b7" font-size="8.5" font-family="monospace">Đường ống chính KHÔNG SẬP</text>
+          <rect x="400" y="132" width="138" height="92" rx="6" fill="${isDlq ? 'var(--sim-warn-soft)' : 'var(--sim-card)'}" stroke="${isDlq ? 'var(--sim-warn)' : 'var(--sim-border-muted)'}" stroke-width="1.6"/>
+          <text x="408" y="151" fill="var(--sim-warn)" font-size="10" font-weight="800">Dead Letter Queue (DLQ)</text>
+          <text x="408" y="168" fill="var(--sim-sub)" font-size="8.8" font-family="var(--cds-font-mono)">errors.tolerance = all</text>
+          <text x="408" y="185" fill="${isDlq ? 'var(--sim-danger)' : 'var(--sim-muted)'}" font-size="8.8" font-family="var(--cds-font-mono)">${isDlq ? 'Đã cách ly 1 Poison Pill!' : 'Kênh cách ly bản ghi lỗi'}</text>
+          <text x="408" y="203" fill="var(--sim-ok)" font-size="8.5" font-family="var(--cds-font-mono)">Đường ống chính KHÔNG SẬP</text>
 
           <!-- Animated Connectors -->
           ${!isBloat ? `
-            <path d="M 177 135 L 218 68" stroke="#10b981" stroke-width="2.4" class="ing2d-flow-active"/>
-            <circle r="5" fill="#34d399"><animateMotion dur="1.1s" repeatCount="indefinite" path="M 177 135 L 218 68"/></circle>
+            <path d="M 177 135 L 218 68" stroke="var(--sim-ok)" stroke-width="2.4" class="ing2d-flow-active"/>
+            <circle r="5" fill="var(--sim-ok)"><animateMotion dur="1.1s" repeatCount="indefinite" path="M 177 135 L 218 68"/></circle>
           ` : `
-            <line x1="177" y1="135" x2="218" y2="68" stroke="#f43f5e" stroke-width="2.2" stroke-dasharray="3 3"/>
+            <line x1="177" y1="135" x2="218" y2="68" stroke="var(--sim-danger)" stroke-width="2.2" stroke-dasharray="3 3"/>
           `}
-          <path d="M 358 68 L 400 68" stroke="#38bdf8" stroke-width="2.4" class="ing2d-flow-active"/>
-          <circle r="4.8" fill="#38bdf8"><animateMotion dur="1.0s" repeatCount="indefinite" path="M 358 68 L 400 68"/></circle>
+          <path d="M 358 68 L 400 68" stroke="var(--sim-flow)" stroke-width="2.4" class="ing2d-flow-active"/>
+          <circle r="4.8" fill="var(--sim-flow)"><animateMotion dur="1.0s" repeatCount="indefinite" path="M 358 68 L 400 68"/></circle>
           ${isDlq ? `
-            <path d="M 358 135 L 400 175" stroke="#fbbf24" stroke-width="2.4" class="ing2d-flow-active"/>
-            <circle r="5" fill="#fbbf24"><animateMotion dur="1.1s" repeatCount="indefinite" path="M 358 135 L 400 175"/></circle>
+            <path d="M 358 135 L 400 175" stroke="var(--sim-warn)" stroke-width="2.4" class="ing2d-flow-active"/>
+            <circle r="5" fill="var(--sim-warn)"><animateMotion dur="1.1s" repeatCount="indefinite" path="M 358 135 L 400 175"/></circle>
           ` : ""}
         </svg>
         <div class="ing2d-metrics-strip">
-          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Ổ Cứng pg_wal</span><span class="ing2d-metric-val" style="color:${isBloat ? '#fda4af' : '#6ee7b7'}">${isBloat ? '96% (Báo động đỏ!)' : '14% (An toàn)'}</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Ổ Cứng pg_wal</span><span class="ing2d-metric-val" style="color:${isBloat ? 'var(--sim-danger)' : 'var(--sim-ok)'}">${isBloat ? '96% (Báo động đỏ!)' : '14% (An toàn)'}</span></div>
           <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Heartbeat LSN</span><span class="ing2d-metric-val">${isBloat ? 'Tắt (Kẹt LSN)' : '10.000 ms (Active)'}</span></div>
           <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Xử Lý Poison Pill</span><span class="ing2d-metric-val">${isDlq ? 'Cách ly vào DLQ' : 'Schema Registry + DLQ'}</span></div>
           <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Tính Nguyên Tử</span><span class="ing2d-metric-val">${isOutbox ? 'Transactional Outbox' : 'Log-Based CDC'}</span></div>
@@ -13059,13 +13124,13 @@ COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùn
       `;
 
       if (isBloat) {
-        status.innerHTML = `<strong style="color:#fda4af;">[Sự cố #1 — Đầy ổ cứng PostgreSQL do kẹt Replication Slot (WAL Bloat)]:</strong> Khi Debezium ngắt kết nối hoặc bảng <code>orders</code> ít ghi trong khi các bảng khác ghi ồ ạt, con trỏ <code>confirmed_flush_lsn</code> không nhích lên được. PostgreSQL giữ lại toàn bộ tệp <code>pg_wal</code> làm đầy 96% ổ đĩa!`;
+        status.innerHTML = `<strong style="color:var(--sim-danger);">[Sự cố #1 — Đầy ổ cứng PostgreSQL do kẹt Replication Slot (WAL Bloat)]:</strong> Khi Debezium ngắt kết nối hoặc bảng <code>orders</code> ít ghi trong khi các bảng khác ghi ồ ạt, con trỏ <code>confirmed_flush_lsn</code> không nhích lên được. PostgreSQL giữ lại toàn bộ tệp <code>pg_wal</code> làm đầy 96% ổ đĩa!`;
       } else if (isHb) {
-        status.innerHTML = `<strong style="color:#6ee7b7;">[Phác đồ Giải cứu WAL Bloat]:</strong> Bật <code>heartbeat.interval.ms = 10000</code> kèm <code>heartbeat.action.query</code> để Debezium chủ động đẩy con trỏ <code>confirmed_flush_lsn</code> định kỳ, đồng thời khóa trần <code>max_slot_wal_keep_size = 10GB</code> trong <code>postgresql.conf</code>!`;
+        status.innerHTML = `<strong style="color:var(--sim-ok);">[Phác đồ Giải cứu WAL Bloat]:</strong> Bật <code>heartbeat.interval.ms = 10000</code> kèm <code>heartbeat.action.query</code> để Debezium chủ động đẩy con trỏ <code>confirmed_flush_lsn</code> định kỳ, đồng thời khóa trần <code>max_slot_wal_keep_size = 10GB</code> trong <code>postgresql.conf</code>!`;
       } else if (isDlq) {
-        status.innerHTML = `<strong style="color:#fde68a;">[Phác đồ Chống Tin Nhắn Độc (Poison Pill) &amp; Schema Drift]:</strong> Khi gặp một bản ghi hỏng định dạng, Kafka Connect Sink cấu hình <code>errors.tolerance = all</code> sẽ tự động bẻ lái bản ghi lỗi kèm Stacktrace vào kênh cách ly <strong>Dead Letter Queue (DLQ)</strong>, giúp luồng dữ liệu chính chạy xuyên suốt 24/7!`;
+        status.innerHTML = `<strong style="color:var(--sim-warn);">[Phác đồ Chống Tin Nhắn Độc (Poison Pill) &amp; Schema Drift]:</strong> Khi gặp một bản ghi hỏng định dạng, Kafka Connect Sink cấu hình <code>errors.tolerance = all</code> sẽ tự động bẻ lái bản ghi lỗi kèm Stacktrace vào kênh cách ly <strong>Dead Letter Queue (DLQ)</strong>, giúp luồng dữ liệu chính chạy xuyên suốt 24/7!`;
       } else {
-        status.innerHTML = `<strong style="color:#bae6fd;">[Phác đồ Chống Ghi Kép (Dual-Write) bằng Transactional Outbox Pattern]:</strong> Thay vì vừa <code>COMMIT</code> vào DB vừa gọi <code>producer.send()</code> trên code dễ gây lệch trạng thái khi sập mạng, ứng dụng ghi đồng thời vào bảng <code>orders</code> và bảng <code>outbox_events</code> trong cùng 1 ACID Transaction cục bộ!`;
+        status.innerHTML = `<strong style="color:var(--sim-flow);">[Phác đồ Chống Ghi Kép (Dual-Write) bằng Transactional Outbox Pattern]:</strong> Thay vì vừa <code>COMMIT</code> vào DB vừa gọi <code>producer.send()</code> trên code dễ gây lệch trạng thái khi sập mạng, ứng dụng ghi đồng thời vào bảng <code>orders</code> và bảng <code>outbox_events</code> trong cùng 1 ACID Transaction cục bộ!`;
       }
 
       ctrls.innerHTML = `

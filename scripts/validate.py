@@ -373,6 +373,10 @@ def main():
         "Chặng này đang chờ nạp nội dung chi tiết",
         'data-vmode="both"',
         ">Song song<",
+        "#0b0f19",
+        "#0f172a",
+        "#020617",
+        "#090d16",
     ]
     for tok in forbidden_tokens:
         if tok in html:
@@ -393,6 +397,11 @@ def main():
         "--font-sans",
         "--font-mono",
         "--glossary-surface",
+        "--sim-canvas",
+        "--sim-card",
+        "--sim-ink",
+        "--sim-clay",
+        "--sim-flow",
         "glossaryPopover",
         "bindGlossaryTerms",
         "openGlossaryPopover",

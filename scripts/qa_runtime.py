@@ -322,6 +322,48 @@ def run_qa(
             failures.append(f"Phase 4 a11y: prefers-reduced-motion did not disable .ac-flow animation (got {anim_name_reduced})")
         page.emulate_media(reduced_motion="no-preference")
 
+        # Verify 2D Interactive Simulators (F06 & D01) adapt to Light/Dark Mode and 6 Accent Palettes
+        page.evaluate("() => selectTopic('D01', 1)")
+        page.wait_for_timeout(80)
+        sim_theme_qa = page.evaluate(
+            """() => {
+                const htmlEl = document.documentElement;
+                const stageEl = document.getElementById('ing2dSimStage');
+                const brandIcon = document.querySelector('#ing2dWidgetRoot .infra2d-brand-icon');
+                if (!stageEl || !brandIcon) return { ok: false, reason: 'missing #ing2dSimStage or .infra2d-brand-icon' };
+                const wasDark = htmlEl.classList.contains('dark');
+                const prevAccent = htmlEl.getAttribute('data-accent') || 'clay';
+
+                htmlEl.classList.remove('dark');
+                htmlEl.setAttribute('data-mode', 'light');
+                htmlEl.setAttribute('data-accent', 'clay');
+                const lightStageBg = window.getComputedStyle(stageEl).backgroundColor;
+                const clayIconBg = window.getComputedStyle(brandIcon).backgroundColor;
+
+                htmlEl.classList.add('dark');
+                htmlEl.setAttribute('data-mode', 'dark');
+                htmlEl.setAttribute('data-accent', 'cobalt');
+                const darkStageBg = window.getComputedStyle(stageEl).backgroundColor;
+                const cobaltIconBg = window.getComputedStyle(brandIcon).backgroundColor;
+
+                if (!wasDark) {
+                    htmlEl.classList.remove('dark');
+                    htmlEl.setAttribute('data-mode', 'light');
+                }
+                htmlEl.setAttribute('data-accent', prevAccent);
+
+                return {
+                    ok: (lightStageBg !== darkStageBg) && (clayIconBg !== cobaltIconBg),
+                    lightStageBg,
+                    darkStageBg,
+                    clayIconBg,
+                    cobaltIconBg
+                };
+            }"""
+        )
+        if not sim_theme_qa.get("ok"):
+            failures.append(f"2D Simulator CDS Theme Parity QA failed on D01: {sim_theme_qa}")
+
         # Verify Catalog View (#/catalog)
         page.evaluate("() => openCatalogView()")
         page.wait_for_timeout(80)
