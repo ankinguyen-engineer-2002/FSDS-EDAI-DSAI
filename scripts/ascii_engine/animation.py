@@ -21,6 +21,12 @@ FLAGSHIP_ANIMATED_DIAGRAMS: Set[str] = {
     "container:2.1",
     "container:3.2",
     "container:4.2",
+    # D01 Ingestion Layer
+    "ingestion:0.1",
+    "ingestion:2.4",
+    "ingestion:3.3",
+    "ingestion:4.1",
+    "ingestion:5.2",
     # D02 Storage & Data Platform
     "storage:0.1",
     "storage:1.1",

@@ -1,0 +1,335 @@
+      <div class="prose">
+        <x-spine id="ingestion-3-spine" badge="CHẶNG 3 · APACHE KAFKA ARCHITECTURE" title="Chặng 3: Hệ Sinh Thái Apache Kafka &amp; Kiến Trúc Lưu Trữ Sự Kiện Phân Tán" subtitle="Trạm 3.1 → 3.4">Giải cứu hệ thống thương mại điện tử khỏi mạng nhện kết nối điểm – điểm $O(N \times M)$ bằng trục xương sống sự kiện <strong>Apache Kafka</strong>: từ kiến trúc Broker/KRaft, hệ sinh thái Connect/MirrorMaker 2, chiến lược thiết kế Topic, định cỡ Partition đến cơ chế Zero-Copy và con trỏ Offset.</x-spine>
+
+        <section class="lesson-section" id="ingestion-3-1">
+          <h2 id="ingestion-3-1-h2" tabindex="-1">Trạm 3.1: Nỗi đau Mạng nhện Điểm – Điểm $O(N \times M)$ &amp; Sự ra đời của Nền tảng Event Streaming Apache Kafka</h2>
+
+          <p><strong>Apache Kafka</strong> là nền tảng truyền tải và lưu trữ luồng sự kiện phân tán (<strong>Distributed Event Streaming Platform</strong>) được thiết kế để xuất bản (Publish), lưu trữ bền vững (Store) và xử lý (Process) các dòng bản ghi theo thời gian thực, thay thế hoàn toàn mô hình tích hợp điểm – điểm (Point-to-Point) vốn làm sập cơ sở dữ liệu giao dịch khi quy mô doanh nghiệp mở rộng. Như bài toán thực tế trên hệ thống thương mại điện tử (Slides 20–21): cơ sở dữ liệu Production ban đầu chỉ phục vụ ứng dụng mua sắm, nhưng khi đội <strong>Analytics</strong> kéo dữ liệu làm báo cáo, đội <strong>Marketing</strong> quét hành vi khách hàng theo thời gian thực và hệ thống <strong>Fraud Detection</strong> liên tục truy vấn kiểm tra gian lận, việc nhiều hệ thống hạ nguồn trực tiếp rút dữ liệu từ cùng một nguồn khiến Production Database quá tải I/O và tê liệt. Vấn đề cốt lõi không nằm ở bản thân dữ liệu, mà nằm ở <em>cách dữ liệu di chuyển giữa các hệ thống</em> (<em>The problem isn't the data — it's the way data moves between systems</em>).</p>
+
+          <p>Trong kiến trúc tích hợp trực tiếp giữa $N$ nguồn phát sinh dữ liệu và $M$ hệ thống tiêu thụ, số lượng đường ống kết nối tăng theo cấp số nhân $O(N \times M)$, kéo theo sự phụ thuộc chặt (Tight Coupling) về giao thức mạng, định dạng dữ liệu và tốc độ xử lý. <strong>Apache Kafka</strong> giải quyết triệt để nút thắt này bằng cách đặt một cụm máy chủ trung gian (<strong>Kafka Cluster</strong> gồm nhiều <strong>Brokers</strong>) làm trục xương sống sự kiện duy nhất, hạ độ phức tạp kết nối xuống $O(N + M)$: các hệ thống nguồn (<strong>Producers</strong>) chỉ cần đẩy (Push) sự kiện vào các <strong>Topic</strong> được chia thành nhiều <strong>Partition</strong> rải trên các <strong>Broker 1, 2, 3</strong>, trong khi các hệ thống đích (<strong>Consumers</strong>) chủ động kéo (Pull) dữ liệu theo tốc độ riêng mà không bao giờ chạm trực tiếp vào cơ sở dữ liệu giao dịch gốc (Slides 22–23).</p>
+
+          <x-figure id="ingestion-3-1-fig" key="3.1" title="Sơ đồ 3.1 — Từ Mạng nhện Kết nối Điểm – Điểm O(N×M) Đến Trục Xương sống Sự kiện Phân tán Apache Kafka">Tách rời hoàn toàn hệ thống phát sinh giao dịch (Producers) và các hệ thống tiêu thụ (Consumers) thông qua cụm Kafka Brokers.</x-figure>
+
+          <h3>Đối sánh Hàng đợi Thông điệp Truyền thống (RabbitMQ / ActiveMQ) vs. Nhật ký Cam kết Nối đuôi Phân tán (Apache Kafka)</h3>
+          <p>Theo <em>Kafka: The Definitive Guide</em> (Ch. 1), sự khác biệt bản chất giúp Kafka đạt thông lượng hàng triệu sự kiện mỗi giây nằm ở cấu trúc lưu trữ <strong>Distributed Append-Only Commit Log</strong> thay vì hàng đợi bộ nhớ (In-Memory Queue) truyền thống:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Kiến trúc</th>
+                  <th>Mạng nhện Điểm – Điểm $O(N \times M)$</th>
+                  <th>Message Broker Truyền thống (RabbitMQ / ActiveMQ)</th>
+                  <th>Event Streaming Platform (Apache Kafka)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Cấu trúc lưu trữ cốt lõi</strong></td>
+                  <td>Truy vấn trực tiếp qua bảng quan hệ (<code>SELECT</code> polling) hoặc gọi RPC/REST đồng bộ.</td>
+                  <td>Hàng đợi thông điệp (Message Queue) ưu tiên giữ trên RAM, theo dõi trạng thái từng thông điệp.</td>
+                  <td><strong>Distributed Append-Only Commit Log:</strong> Nhật ký chỉ ghi nối đuôi bất biến trên đĩa tuần tự.</td>
+                </tr>
+                <tr>
+                  <td><strong>Vòng đời bản ghi sau khi đọc</strong></td>
+                  <td>Phụ thuộc vào bảng nguồn; xóa hoặc ghi đè (<code>UPDATE</code>/<code>DELETE</code>) làm mất lịch sử sự kiện.</td>
+                  <td><strong>Xóa ngay khi tiêu thụ:</strong> Khi Consumer gửi xác nhận <code>ACK</code>, Broker xóa bản ghi khỏi hàng đợi.</td>
+                  <td><strong>Lưu trữ bền vững theo chính sách (Retention Policy):</strong> Bản ghi vẫn nằm trên đĩa (theo <code>retention.ms</code> hoặc <code>retention.bytes</code>) bất kể đã được đọc hay chưa.</td>
+                </tr>
+                <tr>
+                  <td><strong>Đa hệ thống tiêu thụ độc lập (Multi-Consumer)</strong></td>
+                  <td>Mỗi hệ thống mới (Analytics, Marketing, Fraud) tạo thêm tải đọc trực tiếp lên Production DB.</td>
+                  <td>Phải nhân bản thông điệp sang nhiều Queue riêng biệt (Fan-out Exchange), tốn bộ nhớ theo số lượng Consumer.</td>
+                  <td>Hàng chục Consumer Group (Fraud Detection thời gian thực, Spark Batch ETL, Marketing) cùng đọc một Topic ở các vị trí khác nhau mà không nhân bản dữ liệu.</td>
+                </tr>
+                <tr>
+                  <td><strong>Khả năng tua lại lịch sử (Replayability)</strong></td>
+                  <td>Không thể tua lại các trạng thái trung gian đã bị ghi đè.</td>
+                  <td><strong>Không hỗ trợ:</strong> Thông điệp đã <code>ACK</code> bị xóa vĩnh viễn; nếu code Consumer có lỗi logic thì mất dữ liệu.</td>
+                  <td><strong>Tua lại tức thì (Offset Rewind):</strong> Chỉ cần đặt lại con trỏ Offset về mốc cũ để chạy lại (Reprocess) toàn bộ lịch sử sự kiện.</td>
+                </tr>
+                <tr>
+                  <td><strong>Cơ chế điều tiết tải (Backpressure)</strong></td>
+                  <td>Đích chậm hoặc nguồn tăng đột biến gây nghẽn dây chuyền (Cascading Failure).</td>
+                  <td>Mô hình <strong>Push-based</strong>: Broker đẩy thông điệp xuống Consumer, dễ làm tràn bộ nhớ Consumer khi lưu lượng tăng vọt.</td>
+                  <td>Mô hình <strong>Pull-based</strong>: Consumer chủ động kéo (<code>poll()</code>) theo đúng năng lực xử lý của mình; Kafka đóng vai trò bộ đệm hấp thụ xung lực (Shock Absorber).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Nhờ tách rời hoàn toàn bên phát và bên nhận qua nhật ký cam kết bất biến, hệ thống thương mại điện tử có thể cắm thêm bất kỳ ứng dụng tiêu thụ mới nào mà tải trên cơ sở dữ liệu Production vẫn giữ nguyên bằng không. Nhưng ai là nhạc trưởng đứng sau điều phối hàng chục máy chủ Broker này, và làm sao để kết nối Kafka với cơ sở dữ liệu bên ngoài mà không phải viết code thủ công? Chúng ta bước sang <strong>Trạm 3.2</strong>.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="ingestion-3-2">
+          <h2 id="ingestion-3-2-h2" tabindex="-1">Trạm 3.2: Bộ máy Điều phối Cụm (ZooKeeper → KRaft Consensus) &amp; Hệ sinh thái Mở rộng (Connect, Streams, MirrorMaker 2)</h2>
+
+          <p>Một cụm Apache Kafka hoàn chỉnh được cấu thành từ hai lớp kiến trúc: <strong>Kafka Core</strong> (Producers, Brokers, Consumers cùng bộ máy điều phối siêu dữ liệu cụm) và <strong>Kafka Extended API</strong> (hệ sinh thái kết nối, xử lý luồng và nhân bản liên cụm). Trên tầng điều phối cụm (Slide 24), kể từ phiên bản 3.3+ và hoàn tất loại bỏ hoàn toàn ở phiên bản 4.0, Kafka đã thay thế hệ thống phụ thuộc bên ngoài <strong>Apache ZooKeeper</strong> bằng giao thức đồng thuận nội tại <strong>KRaft (Kafka Raft Metadata Mode)</strong>. Trên tầng mở rộng (Slide 25), Kafka cung cấp <strong>Kafka Connect Source/Sink</strong> để tích hợp dữ liệu không cần viết code, <strong>Kafka Streams / Apache Flink</strong> để xử lý luồng trạng thái và <strong>MirrorMaker 2</strong> để đồng bộ dữ liệu sang cụm thứ hai (<code>Kafka Cluster 1</code> → <code>Kafka Cluster 2</code>).</p>
+
+          <x-figure id="ingestion-3-2-fig" key="3.2" title="Sơ đồ 3.2 — Hệ sinh thái Kafka Mở rộng (Connect, Streams/Flink, MirrorMaker 2) &amp; Bước ngoặt Điều phối ZooKeeper → KRaft">Kiến trúc kết nối không cần viết code (Kafka Connect Source/Sink), sao lưu liên cụm (MirrorMaker 2) và bộ điều khiển đồng thuận KRaft.</x-figure>
+
+          <h3>Bước ngoặt Kiến trúc Điều phối: Tại sao Kafka khai tử ZooKeeper để chuyển sang KRaft?</h3>
+          <p>Trong kiến trúc lịch sử (<em>Kafka: The Definitive Guide</em> Ch. 5), các Kafka Broker phải phụ thuộc vào một cụm <strong>Apache ZooKeeper</strong> riêng biệt để lưu trữ siêu dữ liệu (danh sách Brokers, cấu hình Topics, vị trí Leader/Follower của từng Partition) và bầu chọn ra một <strong>Active Controller</strong>. Khi quy mô cụm vượt ngưỡng hàng trăm nghìn Partitions, mô hình hai hệ thống tách biệt này bộc lộ 3 nút thắt chí mạng:</p>
+          <ul>
+            <li><strong>Bất đồng bộ trạng thái (Split-Brain Metadata):</strong> Active Controller giữ bản sao siêu dữ liệu trên RAM nhưng đồng bộ xuống ZooKeeper qua mạng và phát tán tới các Broker qua các gói tin RPC (<code>UpdateMetadataRequest</code>, <code>LeaderAndIsrRequest</code>). Khi mạng chập chờn, trạng thái giữa ZooKeeper, Controller và các Broker bị lệch nhau, dẫn tới hiện tượng Partition vô chủ hoặc hai Broker cùng tưởng mình là Leader.</li>
+            <li><strong>Thời gian phục hồi thảm họa (Controller Failover) kéo dài hàng chục giây:</strong> Khi Active Controller bị sập, nút Controller mới đắc cử phải đọc tuần tự toàn bộ hàng trăm nghìn nút <code>ZNode</code> từ đĩa ZooKeeper lên RAM rồi mới gửi lệnh cập nhật cho từng Broker. Ở cụm có <code>200,000+</code> Partitions, quá trình dừng hình (Metadata Freeze) này kéo dài từ 30 giây đến vài phút.</li>
+            <li><strong>Gánh nặng vận hành kép:</strong> Kỹ sư phải duy trì, bảo mật, giám sát và nâng cấp hai hệ thống phân tán hoàn toàn khác nhau về cấu hình và hành vi (Kafka + ZooKeeper).</li>
+          </ul>
+
+          <p><strong>KRaft (Kafka Raft Metadata Mode)</strong> giải quyết tận gốc bằng cách nhúng trực tiếp thuật toán đồng thuận <strong>Raft Consensus</strong> vào bên trong Kafka: một nhóm gồm 3 hoặc 5 nút được cấu hình làm <strong>KRaft Controller Quorum</strong> (<code>process.roles=controller</code>). Mọi thay đổi siêu dữ liệu của cụm được ghi thành chuỗi sự kiện bất biến vào một Topic nội bộ duy nhất mang tên <code>__cluster_metadata</code>. Trong đó, <strong>Active Controller</strong> đóng vai trò là Leader của <code>__cluster_metadata</code>, còn các <strong>Standby Controllers</strong> liên tục kéo (Pull) và áp dụng nhật ký này vào bộ nhớ RAM của chúng (Event-sourced Metadata Cache). Ngay khoảnh khắc Active Controller gặp sự cố, một Standby Controller đã có sẵn 100% trạng thái mới nhất trong RAM sẽ tiếp quản quyền điều khiển chỉ trong <strong>vài chục mili-giây</strong> mà không cần đọc lại từ đầu.</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Đối sánh</th>
+                  <th>ZooKeeper Mode (Legacy — Trước Kafka 4.0)</th>
+                  <th>KRaft Mode (Chuẩn Hiện đại — Kafka 3.3+ &amp; 4.0+)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Nơi lưu trữ Siêu dữ liệu (Metadata Store)</strong></td>
+                  <td>Cây thư mục phân cấp <code>ZNodes</code> trên cụm Apache ZooKeeper tách rời.</td>
+                  <td>Topic nhật ký sự kiện nội bộ <code>__cluster_metadata</code> ngay trong cụm Kafka.</td>
+                </tr>
+                <tr>
+                  <td><strong>Giao thức Đồng thuận (Consensus)</strong></td>
+                  <td>ZAB (ZooKeeper Atomic Broadcast) chạy trên tiến trình ngoài.</td>
+                  <td><strong>KRaft (Kafka Raft)</strong> tích hợp sẵn trong mã nguồn Kafka (Quorum 3 hoặc 5 Controllers).</td>
+                </tr>
+                <tr>
+                  <td><strong>Cơ chế đồng bộ Metadata tới Brokers</strong></td>
+                  <td><strong>Push-based RPC:</strong> Controller đẩy <code>LeaderAndIsrRequest</code> tới từng Broker; dễ nghẽn cổ chai khi cụm lớn.</td>
+                  <td><strong>Pull-based Log Replication:</strong> Các Brokers và Standby Controllers chủ động kéo luồng sự kiện từ <code>__cluster_metadata</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Thời gian Failover khi sập Controller</strong></td>
+                  <td><strong>Chậm (15 giây → vài phút):</strong> Controller mới phải nạp lại toàn bộ trạng thái từ ZooKeeper.</td>
+                  <td><strong>Tức thì (Vài mili-giây):</strong> Standby Controller đã nạp sẵn trạng thái trong bộ nhớ (Hot Standby).</td>
+                </tr>
+                <tr>
+                  <td><strong>Trần quy mô số lượng Partitions</strong></td>
+                  <td>Chạm ngưỡng cứng khoảng <code>200,000</code> Partitions mỗi cụm.</td>
+                  <td>Mở rộng lên tới <strong>hàng triệu Partitions</strong> trên một cụm duy nhất.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Hệ sinh thái Kafka Mở rộng: Connect, Schema Registry, Streams/Flink &amp; Kiến trúc Đa cụm MirrorMaker 2</h3>
+          <p>Để biến trục xương sống Kafka thành đường ống dữ liệu đầu – cuối (Slide 25 &amp; <em>Kafka: The Definitive Guide</em> Ch. 7, 8), hệ sinh thái mở rộng cung cấp 4 mảnh ghép chuyên biệt:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Thành phần Hệ sinh thái</th>
+                  <th>Vai trò Cơ học trong Đường ống</th>
+                  <th>Cơ chế Vận hành &amp; Ứng dụng Thực tế</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Kafka Connect (Source &amp; Sink)</strong></td>
+                  <td>Khung tích hợp dữ liệu khai báo (Declarative Integration Framework) giữa Kafka và các hệ thống lưu trữ ngoài.</td>
+                  <td>Chạy dưới dạng cụm <strong>Connect Workers</strong> độc lập, chỉ cần khai báo file cấu hình JSON/REST mà không cần viết code: <strong>Connect Source</strong> (như Debezium CDC) hút thay đổi từ PostgreSQL/MySQL vào Kafka; <strong>Connect Sink</strong> xả dữ liệu từ Kafka xuống S3, Iceberg, Elasticsearch, BigQuery.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Schema Registry</strong></td>
+                  <td>Kho quản lý lược đồ tập trung và kiểm soát tiến hóa cấu trúc dữ liệu (Schema Evolution).</td>
+                  <td>Vì Kafka Broker chỉ coi thông điệp là mảng byte thô (Opaque byte array), Producer gửi kèm <code>Schema ID</code> (4 bytes đầu tiên) tham chiếu tới định nghĩa <strong>Avro / Protobuf / JSON Schema</strong> trên Schema Registry, ngăn chặn dữ liệu sai định dạng làm gãy Consumer hạ nguồn.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Kafka Streams &amp; Apache Flink</strong></td>
+                  <td>Động cơ xử lý luồng trạng thái (Stateful Stream Processing) theo thời gian thực.</td>
+                  <td>Đọc dữ liệu từ các Topic đầu vào, thực hiện lọc, gộp theo cửa sổ thời gian (Windowed Aggregations), nối luồng (Stream-Stream Joins) với trạng thái lưu trên RocksDB cục bộ, rồi ghi kết quả ra Topic đầu ra.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. MirrorMaker 2 (MM2)</strong></td>
+                  <td>Công cụ nhân bản dữ liệu liên cụm (Cross-Cluster Replication) xây dựng trên nền tảng Kafka Connect.</td>
+                  <td>Đồng bộ dữ liệu, cấu hình Topic, ACL và tự động dịch vị trí <strong>Consumer Group Offsets</strong> từ <code>Kafka Cluster 1</code> sang <code>Kafka Cluster 2</code> phục vụ phòng chống thảm họa (DR) và gom dữ liệu đa vùng địa lý.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Trong thực tế triển khai doanh nghiệp (<em>Kafka: The Definitive Guide</em> Ch. 8), <strong>MirrorMaker 2</strong> giải quyết 3 mẫu kiến trúc đa cụm (Multi-Cluster Topologies) cốt lõi:</p>
+          <ul>
+            <li><strong>Hub-and-Spokes (Gom dữ liệu từ biên về trung tâm):</strong> Nhiều cụm Kafka nhỏ đặt tại các chi nhánh hoặc trung tâm dữ liệu vùng (Spokes) thu thập dữ liệu cục bộ, sau đó MirrorMaker 2 gom toàn bộ về một cụm Kafka trung tâm (Hub) để chạy phân tích tổng hợp toàn cầu.</li>
+            <li><strong>Active-Standby (Phòng chống thảm họa — Disaster Recovery):</strong> Cụm chính (<code>Kafka Cluster 1</code>) phục vụ toàn bộ lưu lượng đọc/ghi, MirrorMaker 2 sao chép bất đồng bộ sang cụm dự phòng (<code>Kafka Cluster 2</code>) kèm theo các bản ghi ánh xạ Offset. Khi cụm chính sập, ứng dụng chuyển hướng sang cụm dự phòng và tiếp tục đọc từ đúng vị trí Offset tương ứng.</li>
+            <li><strong>Active-Active (Đồng bộ hai chiều đa vùng địa lý):</strong> Cả hai cụm ở hai châu lục cùng nhận lưu lượng đọc/ghi và nhân bản chéo cho nhau. Để ngăn chặn <strong>vòng lặp nhân bản vô tận (Infinite Replication Loop)</strong> khi bản ghi từ cụm A sang cụm B lại bị B chép ngược về A, MirrorMaker 2 tự động gắn tiền tố tên cụm nguồn vào tên Topic (<strong>Remote Topic Prefixing</strong>, ví dụ Topic <code>orders</code> ở vùng <code>us-east</code> khi sang cụm <code>eu-west</code> sẽ mang tên <code>us-east.orders</code>).</li>
+          </ul>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="ingestion-3-3">
+          <h2 id="ingestion-3-3-h2" tabindex="-1">Trạm 3.3: Sáu Viên gạch Nền tảng, Chiến lược Thiết kế Topic &amp; Toán học Định cỡ Partition (Unit of Parallelism)</h2>
+
+          <p>Để thiết kế và vận hành cụm Kafka đạt thông lượng hàng gigabyte mỗi giây mà không làm nghẽn bộ điều khiển cụm, kỹ sư dữ liệu phải nắm vững <strong>6 viên gạch nền tảng (Core Building Blocks)</strong>, <strong>3 chiến lược phân hoạch Topic</strong> và <strong>bài toán định cỡ Partition (Unit of Parallelism)</strong> kết hợp cơ chế truyền tải <strong>Zero-Copy (<code>sendfile</code>)</strong> dưới nhân hệ điều hành (Slides 26–33).</p>
+
+          <x-figure id="ingestion-3-3-fig" key="3.3" title="Sơ đồ 3.3 — Giải phẫu Topic, Mở rộng Ngang với Partition, Công thức Định cỡ &amp; Đường truyền Zero-Copy (sendfile)">Cách Kafka chia nhỏ Topic thành các Partition độc lập rải đều qua nhiều Broker và truyền dữ liệu thẳng từ OS Page Cache ra Card mạng.</x-figure>
+
+          <h3>Sáu Viên gạch Nền tảng (6 Core Concepts) &amp; Ba Chiến lược Thiết kế Topic</h3>
+          <p>Toàn bộ kiến trúc lưu trữ và vận chuyển của Kafka xoay quanh 6 thực thể cơ bản (Slides 26–27):</p>
+          <ul>
+            <li><strong>1. Topic (Chủ đề dữ liệu):</strong> Luồng phân loại logic (Named logical channel/category) dùng để nhóm các sự kiện cùng bản chất nghiệp vụ (ví dụ: <code>orders</code>, <code>payments</code>, <code>user-clicks</code>), tương tự như một bảng trong cơ sở dữ liệu nhưng chỉ ghi nối đuôi.</li>
+            <li><strong>2. Partition (Phân vùng — Đơn vị song song hóa):</strong> Mỗi Topic được cắt nhỏ thành một hoặc nhiều Partition; mỗi Partition là một tệp nhật ký nối đuôi có thứ tự (Ordered, immutable append-only log) có thể đặt trên các ổ đĩa và máy chủ Broker khác nhau.</li>
+            <li><strong>3. Offset (Con trỏ vị trí bản ghi):</strong> Số nguyên tăng dần duy nhất (<code>0, 1, 2, 3...</code>) gắn cố định cho từng thông điệp bên trong phạm vi một Partition.</li>
+            <li><strong>4. Producer (Bên xuất bản):</strong> Ứng dụng khởi tạo và đẩy các bản ghi sự kiện vào các Topic của Kafka.</li>
+            <li><strong>5. Consumer (Bên tiêu thụ):</strong> Ứng dụng đăng ký đọc (Subscribe) các Topic, chủ động kéo bản ghi về xử lý và theo dõi tiến độ qua Offset.</li>
+            <li><strong>6. Broker (Máy chủ lưu trữ):</strong> Một nút máy chủ vật lý hoặc ảo trong cụm Kafka chịu trách nhiệm nhận bản ghi từ Producer, gán Offset, lưu xuống đĩa và phục vụ yêu cầu đọc của Consumer.</li>
+          </ul>
+
+          <p>Khi quy hoạch tên và ranh giới cho các <strong>Topic</strong> trong doanh nghiệp (Slide 28), có 3 chiến lược thiết kế chuẩn mực kèm đánh đổi rõ ràng:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chiến lược Thiết kế Topic</th>
+                  <th>Nguyên tắc Phân chia &amp; Quy ước Đặt tên</th>
+                  <th>Ví dụ Thực tế (Slide 28)</th>
+                  <th>Ưu điểm &amp; Ràng buộc Kỹ thuật</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Event-based (Theo loại sự kiện đơn lẻ)</strong></td>
+                  <td>Mỗi hành động hoặc loại sự kiện cụ thể được tách thành một Topic riêng biệt.</td>
+                  <td><code>order-created</code>, <code>order-paid</code>, <code>order-shipped</code></td>
+                  <td>Lược đồ (Schema) trong mỗi Topic cực kỳ đồng nhất; các Consumer chỉ cần đọc đúng loại sự kiện mình quan tâm. Nhược điểm: khó đảm bảo thứ tự nhân – quả giữa các sự kiện của cùng một đơn hàng khi chúng nằm ở các Topic khác nhau.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Domain-based (Theo thực thể / miền nghiệp vụ)</strong></td>
+                  <td>Gom toàn bộ vòng đời sự kiện của cùng một thực thể nghiệp vụ vào một Topic duy nhất.</td>
+                  <td><code>orders</code>, <code>payments</code>, <code>users</code></td>
+                  <td>Khi phân vùng theo khóa thực thể (<code>order_id</code>), toàn bộ chuỗi sự kiện tạo đơn → thanh toán → giao hàng của cùng một đơn nằm chung một Partition, <strong>bảo toàn 100% thứ tự thời gian</strong>. Đổi lại, Consumer phải xử lý lược đồ đa hình (Union/OneOf Schema).</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Environment-based (Tách biệt theo môi trường)</strong></td>
+                  <td>Gắn tiền tố môi trường vận hành vào tên Topic hoặc tách cụm vật lý.</td>
+                  <td><code>dev.orders</code>, <code>test.orders</code>, <code>prod.orders</code></td>
+                  <td>Ngăn chặn tuyệt đối rủi ro dữ liệu thử nghiệm (<code>dev</code>/<code>test</code>) làm bẩn luồng dữ liệu Production khi dùng chung cụm hoặc khi đồng bộ về Data Lake trung tâm.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Tại sao Partition là Đơn vị Song song hóa (Unit of Parallelism) &amp; Toán học Định cỡ Partition</h3>
+          <p>Nếu một Topic chỉ là một hàng đợi đơn lẻ nằm trên một máy chủ duy nhất (Slides 29–32), dung lượng lưu trữ của Topic sẽ bị khóa cứng bởi ổ cứng của máy đó, và thông lượng đọc/ghi bị chặn đứng bởi một luồng tuần tự (Single Slow Queue). Bằng cách chia nhỏ <code>Topic A</code> thành nhiều <strong>Partitions</strong> (<code>Partition 0</code> trên <code>Machine 1</code>, <code>Partition 1</code> trên <code>Machine 2</code>), Kafka đạt được hai đột phá cơ học: (1) <strong>Mở rộng ngang dung lượng và băng thông ghi</strong> qua nhiều ổ đĩa trên nhiều Broker; (2) <strong>Song song hóa tốc độ đọc</strong> vì nhiều Consumer trong cùng một nhóm có thể đọc đồng thời từ các Partition khác nhau. Lưu ý bất biến: Kafka chỉ đảm bảo thứ tự nghiêm ngặt (Strict Ordering) <strong>bên trong từng Partition riêng lẻ</strong>, không đảm bảo thứ tự toàn cục giữa các Partition khác nhau của cùng một Topic.</p>
+
+          <p>Vậy một Topic cần bao nhiêu Partition là tối ưu (Slide 33 &amp; <em>Kafka: The Definitive Guide</em> Ch. 2)? Số lượng Partition được quyết định bởi 3 biến số kỹ thuật:</p>
+          <ul>
+            <li><strong>1. Yêu cầu Thông lượng (Throughput Requirements):</strong> Một Partition đơn lẻ thường xử lý tốt khoảng <code>5–10 MB/s</code> chiều ghi và đọc (tùy thuộc cấu hình đĩa, mạng và mức xác nhận <code>acks</code>). Nếu mục tiêu thông lượng tổng của Topic là $T_{\text{target}}$, thông lượng ghi tối đa trên 1 Partition là $T_{\text{producer\_per\_part}}$ và thông lượng đọc xử lý của 1 luồng Consumer trên 1 Partition là $T_{\text{consumer\_per\_part}}$, công thức toán học xác định số lượng Partition tối thiểu là:</li>
+          </ul>
+
+          $$N_{\text{partitions}} = \max\left(\left\lceil \frac{T_{\text{target}}}{T_{\text{producer\_per\_part}}} \right\rceil,\; \left\lceil \frac{T_{\text{target}}}{T_{\text{consumer\_per\_part}}} \right\rceil\right)$$
+
+          <ul>
+            <li><strong>2. Độ song song của Consumer (Consumer Parallelism):</strong> Vì mỗi Partition chỉ được gán cho <strong>tối đa 1 Consumer</strong> bên trong cùng một Consumer Group tại một thời điểm, số lượng Partition chính là trần song song tối đa của Consumer Group. Nếu bạn triển khai <code>16</code> tiến trình Consumer để tăng tốc xử lý thì Topic bắt buộc phải có <strong>ít nhất <code>16</code> Partitions</strong> ($N_{\text{partitions}} \ge N_{\text{consumers}}$); mọi Consumer thừa ra sẽ nằm chờ nhàn rỗi (Idle).</li>
+            <li><strong>3. Chi phí Quản trị trên Broker (Broker Overhead &amp; Limits):</strong> Không được tạo hàng chục nghìn Partition một cách mù quáng cho một Topic nhỏ. Mỗi Partition tạo thêm các tệp nhật ký vật lý (<code>.log</code>, <code>.index</code>, <code>.timeindex</code>) làm tiêu tốn <strong>File Descriptors</strong> của hệ điều hành, làm phân mảnh bộ nhớ đệm của Producer/Broker, tăng tải nhân bản giữa các Broker và kéo dài thời gian bầu chọn Leader khi Broker khởi động lại.</li>
+          </ul>
+
+          <p><strong>Ví dụ tính toán thực tế:</strong> Giả sử Topic <code>orders</code> cần đạt thông lượng đỉnh $T_{\text{target}} = 80\text{ MB/s}$. Mỗi Partition chịu được tốc độ ghi $T_{\text{producer\_per\_part}} = 10\text{ MB/s}$, nhưng mỗi tiến trình Consumer do phải gọi mô hình chấm điểm gian lận nên chỉ đọc được $T_{\text{consumer\_per\_part}} = 5\text{ MB/s}$. Áp dụng công thức:</p>
+
+          $$N_{\text{partitions}} = \max\left(\left\lceil \frac{80}{10} \right\rceil,\; \left\lceil \frac{80}{5} \right\rceil\right) = \max(8,\; 16) = 16\text{ Partitions}$$
+
+          <h3>Cơ học Hệ điều hành: Tại sao Kafka đạt tốc độ tiệm cận đường truyền mạng nhờ OS Page Cache &amp; Zero-Copy (<code>sendfile</code>)?</h3>
+          <p>Một câu hỏi kinh điển trong phỏng vấn Kiến trúc Dữ liệu: <em>"Tại sao Kafka lưu mọi thứ xuống đĩa cứng mà lại nhanh hơn nhiều hệ thống giữ hàng đợi trên RAM?"</em> Câu trả lời nằm ở hai tối ưu hóa mức nhân Linux (<em>Kafka: The Definitive Guide</em> Ch. 5):</p>
+          <ul>
+            <li><strong>Tận dụng triệt để OS Page Cache thay vì JVM Heap:</strong> Kafka không tự lưu đệm bản ghi thành các đối tượng Java (<code>Object</code>) trong bộ nhớ JVM Heap (vốn làm phình kích thước gấp đôi do Object Header và gây dừng hình <code>Stop-the-World Garbage Collection</code>). Thay vào đó, mọi lượt ghi nối đuôi được đẩy thẳng xuống hệ thống tệp để nhân Linux lưu trong <strong>OS Page Cache</strong> (vùng RAM trống được quản lý bởi Kernel). Khi Consumer đọc các bản ghi vừa mới sản sinh (Hot Data), dữ liệu được phục vụ trực tiếp từ OS Page Cache với tốc độ RAM mà không hề phát sinh đọc đĩa vật lý.</li>
+            <li><strong>Đường truyền Zero-Copy qua lời gọi hệ thống <code>sendfile(2)</code>:</strong> Trong một ứng dụng đọc tệp truyền thống gửi qua mạng, dữ liệu phải đi qua <strong>4 lần sao chép bộ nhớ</strong> và <strong>4 lần chuyển ngữ cảnh (Context Switches)</strong> giữa Kernel Space và User Space: <code>(1) Đĩa → OS Page Cache</code> → <code>(2) Chép lên JVM User Buffer</code> → <code>(3) Chép xuống Socket Buffer trong Kernel</code> → <code>(4) Chép ra bộ đệm Card mạng (NIC Buffer)</code>. Ngược lại, khi Kafka Broker gửi dữ liệu cho Consumer, nó gọi hàm <code>FileChannel.transferTo()</code> ánh xạ thẳng xuống syscall <strong><code>sendfile(2)</code></strong> của nhân Linux: bộ điều khiển <strong>DMA (Direct Memory Access)</strong> truyền thẳng byte từ <strong>OS Page Cache sang thẳng NIC Buffer</strong>, loại bỏ hoàn toàn bước số (2) và (3), giúp CPU và bộ nhớ JVM gần như bằng 0 ngay cả khi hàng chục Consumer cùng kéo dữ liệu đồng thời.</li>
+          </ul>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="ingestion-3-4">
+          <h2 id="ingestion-3-4-h2" tabindex="-1">Trạm 3.4: Giải phẫu Con trỏ Offset, Control Records &amp; Bài toán Độ trễ Tiêu thụ (Consumer Lag)</h2>
+
+          <p>Bên trong mỗi Partition, từng bản ghi được đóng dấu một số nguyên định danh tuần tự, bất biến gọi là <strong>Offset</strong> (<code>0, 1, 2, 3, 4...</code> — Slide 34). Khác với các Message Broker truyền thống nơi máy chủ phải giữ bảng trạng thái phức tạp để nhớ xem từng thông điệp đã gửi cho ai, Kafka chuyển toàn bộ trách nhiệm theo dõi vị trí đọc thành một con trỏ số nguyên siêu nhẹ: Consumer dùng Offset để đánh dấu tiến độ đọc hiện tại, tự động phục hồi (Resume) đúng vị trí sau khi sập nguồn, hoặc chủ động lùi con trỏ về quá khứ để chạy lại dữ liệu.</p>
+
+          <x-figure id="ingestion-3-4-fig" key="3.4" title="Sơ đồ 3.4 — Giải phẫu Mảng Nhật ký Partition: Current Offset, Control Records, End Offset &amp; Độ trễ Consumer Lag">Cơ chế đánh số thứ tự bất biến trong từng Partition, vạch ranh giới High Watermark và khoảng cách trễ Consumer Lag.</x-figure>
+
+          <h3>Giải phẫu 4 Mốc Vị trí trên Mảng Nhật ký Partition &amp; Bản ghi Điều khiển (Control Records)</h3>
+          <p>Khi quan sát mặt cắt dọc của một tệp nhật ký Partition trên Leader Broker (Slide 34 &amp; <em>Kafka: The Definitive Guide</em> Ch. 4, 10), có 4 mốc vị trí và loại bản ghi đặc biệt mà kỹ sư vận hành bắt buộc phải phân biệt chính xác:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Thuật ngữ / Mốc Vị trí</th>
+                  <th>Định nghĩa Cơ học trên Partition Log</th>
+                  <th>Ý nghĩa Vận hành &amp; Lưu ý Kỹ thuật</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Current / Committed Offset</strong></td>
+                  <td>Vị trí Offset mà Consumer đã đọc, xử lý thành công và gửi xác nhận (Commit) lưu vào Topic nội bộ <code>__consumer_offsets</code>.</td>
+                  <td>Trong các phiên bản Kafka hiện đại, Committed Offset không còn lưu trên ZooKeeper mà được ghi vào Topic nén khóa (Compacted Topic) <code>__consumer_offsets</code> ngay trên các Broker để chịu tải hàng triệu lượt commit mỗi giây.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. High Watermark (HW)</strong></td>
+                  <td>Offset của bản ghi cuối cùng đã được <strong>sao chép thành công sang toàn bộ các bản sao đồng bộ (In-Sync Replicas — ISR)</strong>.</td>
+                  <td>Consumer <strong>chỉ được phép đọc tối đa tới vạch High Watermark</strong> (không được đọc vượt quá HW) để đảm bảo không bao giờ đọc phải dữ liệu chưa nhân bản xong mà có nguy cơ bị mất nếu Leader Broker sập đột ngột.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Control Records (Bản ghi Điều khiển ở cuối Partition)</strong></td>
+                  <td>Các bản ghi hệ thống đặc biệt (Transactional Markers: <code>COMMIT</code> hoặc <code>ABORT</code>) do Kafka Broker tự chèn vào nhật ký khi sử dụng giao dịch <strong>Exactly-Once Semantics (EOS)</strong>.</td>
+                  <td>Như minh họa trên Slide 34 (<em>Control messages at the end of partition</em>): các bản ghi điều khiển này <strong>vẫn chiếm một số thứ tự Offset bình thường</strong> trên Partition nhưng bị ẩn đối với code ứng dụng của Consumer; đó chính là lý do tại sao Consumer đôi khi thấy Offset nhảy cách qua vị trí cuối cùng hoặc chênh lệch 1 đơn vị so với <code>end_offset</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Log End Offset (LEO / <code>end_offset</code>)</strong></td>
+                  <td>Vị trí Offset kế tiếp sẽ được gán cho thông điệp mới nhất chuẩn bị ghi vào đuôi Partition trên Leader Broker.</td>
+                  <td>Phản ánh tổng số vị trí Offset đã được cấp phát trên Partition đó tính tới thời điểm hiện tại.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Chỉ số Sống còn trong Vận hành Thời gian thực: Độ trễ Tiêu thụ (Consumer Lag)</h3>
+          <p>Khoảng cách giữa tốc độ ghi của Producer và tốc độ đọc của Consumer trên từng Partition được định lượng bằng công thức chuẩn (Slide 34):</p>
+
+          $$\text{Consumer Lag} = \text{End Offset} - \text{Current Consumer Offset}$$
+
+          <p>Trong mọi hệ thống Streaming Production (<em>Kafka: The Definitive Guide</em> Ch. 10), <strong>Consumer Lag</strong> là chỉ số đo lường chất lượng dịch vụ (SLI — Service Level Indicator) quan trọng số 1 vì hai lý do sinh tử:</p>
+          <ul>
+            <li><strong>Cảnh báo sớm nghẽn cổ chai hạ nguồn (Downstream Bottleneck):</strong> Nếu <code>Consumer Lag</code> tăng liên tục theo đường dốc đứng, điều đó chứng tỏ tốc độ tiêu thụ của Consumer Group đang thấp hơn tốc độ đẩy vào của Producer ($T_{\text{consumer}} &lt; T_{\text{producer}}$). Các báo cáo thời gian thực hoặc hệ thống phát hiện gian lận sẽ bị trễ (Stale Data).</li>
+            <li><strong>Nguy cơ mất dữ liệu do hết hạn lưu trữ (Retention Data Loss):</strong> Nếu <code>Consumer Lag</code> phình quá lớn và Consumer bị kẹt lâu hơn thời gian lưu trữ của Topic (mặc định <code>retention.ms = 604800000</code> tức 7 ngày), Kafka Broker sẽ tự động xóa các phân đoạn tệp nhật ký cũ (Log Segments) trước khi Consumer kịp đọc tới, gây <strong>mất dữ liệu vĩnh viễn</strong> ở phía hạ nguồn. Giải pháp chuẩn khi thấy Consumer Lag tăng cao là mở rộng thêm số lượng Consumer instances (tối đa bằng số Partition của Topic) hoặc tăng số lượng Partition kết hợp tối ưu hóa thời gian xử lý mỗi mẻ <code>poll()</code>.</li>
+          </ul>
+
+          <pre><code># 1. Tạo Topic 'orders' với 16 Partitions và hệ số nhân bản Replication Factor = 3 trên cụm Kafka (KRaft Mode)
+kafka-topics.sh --bootstrap-server broker1:9092 \
+  --create --topic orders \
+  --partitions 16 \
+  --replication-factor 3 \
+  --config retention.ms=604800000
+
+# 2. Kiểm tra trực tiếp Current Offset, Log-End-Offset (LEO) và Độ trễ Consumer Lag của nhóm 'fraud-detector-group'
+kafka-consumer-groups.sh --bootstrap-server broker1:9092 \
+  --describe --group fraud-detector-group
+
+# Kết quả xuất ra trên Terminal:
+# GROUP                 TOPIC   PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG   CONSUMER-ID
+# fraud-detector-group  orders  0          15420           15425           5     consumer-1-8f9a...
+# fraud-detector-group  orders  1          14890           18900           4010  consumer-2-3b1c...  &lt;-- Cảnh báo Partition 1 bị trễ (Lag = 4010)!</code></pre>
+        </section>
+
+        <section class="summary-section" id="ingestion-3-summary">
+          <h2 id="ingestion-3-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 3 &amp; Checklist 5 câu hỏi bản chất</h2>
+          <p><strong>Checklist tự kiểm tra Chặng 3 (5 Câu hỏi Bản chất):</strong></p>
+          <ol>
+            <li><strong>Tại sao việc các đội Analytics, Marketing và Fraud Detection cùng kết nối trực tiếp vào Production Database lại làm sập hệ thống, và cấu trúc Distributed Append-Only Commit Log của Kafka giải quyết bài toán này khác với RabbitMQ như thế nào?</strong><br>Kết nối trực tiếp tạo ra mạng nhện $O(N \times M)$ và dồn tải I/O đọc ngẫu nhiên lên cơ sở dữ liệu giao dịch. Khác với RabbitMQ xóa thông điệp ngay sau khi Consumer xác nhận <code>ACK</code>, Kafka lưu trữ sự kiện bền vững trong nhật ký nối đuôi bất biến trên đĩa theo chính sách lưu giữ (Retention Policy), cho phép hàng chục Consumer Group đọc độc lập ở tốc độ riêng và tua lại lịch sử (Replay) bất kỳ lúc nào mà không chạm vào DB nguồn.</li>
+            <li><strong>Tại sao Apache Kafka loại bỏ ZooKeeper để chuyển sang KRaft (Kafka Raft Metadata Mode) từ phiên bản 3.3+ / 4.0?</strong><br>Mô hình ZooKeeper cũ gây ra trạng thái lệch siêu dữ liệu (Split-Brain) giữa Controller và ZooKeeper, đồng thời khiến quá trình phục hồi khi sập Controller (Failover) mất hàng chục giây vì phải đọc lại hàng trăm nghìn <code>ZNodes</code>. KRaft nhúng trực tiếp đồng thuận Raft vào nhóm Controller Quorum quản lý nhật ký sự kiện <code>__cluster_metadata</code>, giúp các Standby Controller luôn có sẵn trạng thái mới nhất trên RAM và rút ngắn thời gian Failover xuống vài mili-giây.</li>
+            <li><strong>Trong kiến trúc đa cụm dùng MirrorMaker 2 (Active-Active), tại sao cơ chế gắn tiền tố tên cụm (như <code>us-east.orders</code>) lại bắt buộc phải có?</strong><br>Khi hai cụm Kafka ở hai vùng địa lý nhân bản hai chiều cho nhau, nếu giữ nguyên tên Topic <code>orders</code>, bản ghi vừa được chép từ cụm A sang cụm B sẽ bị MirrorMaker 2 ở cụm B tưởng là bản ghi mới và chép ngược lại cụm A, tạo ra vòng lặp nhân bản vô tận (Infinite Replication Loop). Tiền tố tên cụm giúp tách biệt nguồn gốc sự kiện và chặn đứng vòng lặp này.</li>
+            <li><strong>Một Topic cần đạt thông lượng $100\text{ MB/s}$, mỗi Partition ghi được $10\text{ MB/s}$ và mỗi luồng Consumer đọc xử lý được $4\text{ MB/s}$. Bạn cần cấu hình tối thiểu bao nhiêu Partition và tại sao không nên tạo sẵn 10,000 Partition cho Topic đó?</strong><br>Áp dụng công thức $N_{\text{partitions}} = \max(\lceil 100/10 \rceil, \lceil 100/4 \rceil) = \max(10, 25) = 25$ Partitions (đi kèm tối đa 25 Consumers trong một Consumer Group). Không được tạo 10,000 Partition vì mỗi Partition mở thêm nhiều File Descriptors trên hệ điều hành, làm phân mảnh bộ nhớ đệm và làm tăng vọt thời gian bầu chọn Leader khi Broker gặp sự cố.</li>
+            <li><strong>Tại sao Consumer đôi khi nhìn thấy khoảng trống ở cuối Partition dù đã đọc hết toàn bộ thông điệp nghiệp vụ, và điều gì xảy ra nếu <code>Consumer Lag = end_offset - current_consumer_offset</code> vượt quá ngưỡng <code>retention.ms</code>?</strong><br>Các vị trí Offset ở cuối Partition có thể là các <strong>Control Records</strong> (Transactional Markers <code>COMMIT</code>/<code>ABORT</code>) do Broker tự ghi để quản lý giao dịch; chúng vẫn chiếm số thứ tự Offset nhưng ẩn với ứng dụng. Nếu <code>Consumer Lag</code> kéo dài vượt quá thời gian giữ dữ liệu <code>retention.ms</code>, Kafka sẽ xóa các tệp nhật ký cũ trước khi Consumer kịp đọc tới, gây mất dữ liệu ở phía tiêu thụ.</li>
+          </ol>
+          <p style="margin-top:14px;"><a href="#/D01/4" onclick="selectStorageStage(4);return false;">Sang Chặng 4: Cơ Học Vận Hành Kafka (Producer, Consumer Group, Replication, Delivery Guarantees &amp; Log Model) →</a></p>
+        </section>
+      </div>

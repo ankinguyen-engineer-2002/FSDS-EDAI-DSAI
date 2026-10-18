@@ -231,6 +231,1005 @@ def build_container_ascii_diagrams() -> dict:
     return diagrams
 
 
+def build_ingestion_ascii_diagrams() -> dict:
+    from ascii_diagram import make_box as _raw_make_box, display_width
+    def wrap_line(line: str, limit: int) -> list[str]:
+        if display_width(line) <= limit:
+            return [line]
+        if any(c in line for c in "┐┘") or line.rstrip().endswith("│") or "[Tables]   [BI Dashboard]" in line:
+            return [line]
+        import re as _re
+        m = _re.match(r"^(\s*(?:[├└]──\s+|\│\s+|\•\s+)?)", line)
+        prefix = m.group(1) if m else ""
+        cont_indent = prefix.replace("├──", "│  ").replace("└──", "   ").replace("•", " ")
+        if len(cont_indent) > 12:
+            cont_indent = "  "
+        words = line.split(" ")
+        out = []
+        cur = ""
+        for w in words:
+            cand = w if not cur else cur + " " + w
+            if display_width(cand) <= limit:
+                cur = cand
+            else:
+                if cur:
+                    out.append(cur)
+                cur = cont_indent + w
+        if cur:
+            out.append(cur)
+        return out
+
+    def make_box(lines, inner_width=None, header=None, context="make_box"):
+        if inner_width:
+            wrapped = []
+            for l in lines:
+                wrapped.extend(wrap_line(l, inner_width))
+            lines = wrapped
+        req_w = max((display_width(l) for l in lines), default=0)
+        w = max(inner_width or 0, req_w)
+        return _raw_make_box(lines, inner_width=w, header=header, context=context)
+
+    def banner(title: str, subtitle: str = "", width: int = 136) -> list[str]:
+        bar = "=" * width
+        out = [bar, pad_center(title, width).rstrip()]
+        if subtitle:
+            out.append(pad_center(subtitle, width).rstrip())
+        out.append(bar)
+        return out
+
+    def v_arrow(label: str = "", width: int = 136) -> list[str]:
+        mid = width // 2
+        if label:
+            lbl = f"│  {label}"
+            start = min(mid, max(2, width - display_width(lbl)))
+            return [
+                (" " * mid) + "│",
+                (" " * start) + lbl,
+                (" " * mid) + "▼",
+            ]
+        return [
+            (" " * mid) + "│",
+            (" " * mid) + "▼",
+        ]
+    W = 136
+    INNER_FULL = W - 4   # 136
+    INNER_HALF = 62      # box width = 68 -> 68 + 4 + 68 = 140
+    INNER_THIRD = 38     # box width = 44 -> 44 + 4 + 44 + 4 + 44 = 140
+
+    diagrams = {}
+
+    # -------------------------------------------------------------------------
+    # 0.1: Mental Map 5 Chặng — Cắt lớp Kiến trúc Toàn khóa D01
+    # -------------------------------------------------------------------------
+    s01_c1 = make_box([
+        "[CHẶNG 1: SOURCE SYSTEMS & STORAGE LAYOUTS (TRẠM 1.1 -> 1.3)]",
+        "├── Nguồn phát sinh : PostgreSQL OLTP (Order #8888, 450.000đ)",
+        "├── Ràng buộc vật lý: Định luật GIGO, khóa dòng & quá tải CPU",
+        "├── Phân loại & Mẫu : Structured/Semi/Unstructured | Push/Pull/Poll",
+        "└── Bố cục lưu trữ  : Row (CSV) vs Column (ORC) vs Hybrid (Parquet)",
+    ], inner_width=INNER_HALF)
+    s01_c2 = make_box([
+        "[CHẶNG 2: BA THẾ HỆ CHANGE DATA CAPTURE (TRẠM 2.1 -> 2.4)]",
+        "├── Thế hệ 1 (Polling): Quét cột updated_at -> Mù lệnh Hard DELETE",
+        "├── Thế hệ 2 (Trigger): Ghi đồng bộ shadow_table -> Nhân đôi I/O",
+        "├── Thế hệ 3 (Log CDC): Đọc tuần tự tệp nhị phân pg_wal / binlog",
+        "└── Kết quả cho #8888 : Bắt sự kiện tại LSN=0/16B3748 với <2% CPU",
+    ], inner_width=INNER_HALF)
+    row_01_top = join_horizontal([s01_c1, s01_c2], ["    "], {3: [" ──►"]})
+
+    s01_c3 = make_box([
+        "[CHẶNG 3: HỆ SINH THÁI & KIẾN TRÚC APACHE KAFKA (TRẠM 3.1 -> 3.4)]",
+        "├── Phá vỡ mạng nhện điểm-điểm O(N x M) bằng Event Backbone O(N+M)",
+        "├── Điều phối cụm : Từ Apache ZooKeeper sang KRaft Consensus (4.0)",
+        "├── Hệ sinh thái  : Kafka Connect, Schema Registry, MirrorMaker 2",
+        "└── Vật lý & Độ trễ: Định cỡ Partition, Zero-Copy sendfile(), Lag",
+    ], inner_width=INNER_HALF)
+    s01_c4 = make_box([
+        "[CHẶNG 4: CƠ HỌC VẬN HÀNH & ĐỘ TIN CẬY KAFKA (TRẠM 4.1 -> 4.5)]",
+        "├── Producer : Băm khóa murmur2(user_id) % P & RecordAccumulator",
+        "├── Consumer : Quy tắc 1 Partition - 1 Consumer/Group & Rebalance",
+        "├── Chịu lỗi : Leader/Follower Replicas, Tập hợp ISR & High Watermark",
+        "└── Cam kết  : At-most / At-least / Exactly-Once (EOS) & Compaction",
+    ], inner_width=INNER_HALF)
+    row_01_mid = join_horizontal([s01_c3, s01_c4], ["    "], {3: [" ──►"]})
+
+    s01_c5 = make_box([
+        "[CHẶNG 5: ĐƯỜNG ỐNG DEBEZIUM CDC THỜI GIAN THỰC & VẬN HÀNH THỰC CHIẾN (TRẠM 5.1 -> 5.3)]",
+        "├── [Lớp 1 - Capture] : Chuyển tiếp không khe hở Initial Consistent Snapshot (op='r') -> Streaming pgoutput WAL (op='c/u/d')",
+        "├── [Lớp 2 - Routing] : Kafka Connect Distributed Workers + Schema Registry (Avro/Protobuf) + Single Message Transforms (SMT)",
+        "├── [Lớp 3 - Sinks]   : Cấp dữ liệu đồng thời cho Data Lakehouse (D02 Bronze), Fraud Detection (<50ms), Redis Cache, Elastic",
+        "└── [Lớp 4 - Defense] : Chống nổ đĩa WAL Bloat (Heartbeat/max_slot_wal_keep_size), Dead Letter Queue (DLQ) & Outbox Pattern",
+    ], inner_width=INNER_FULL)
+
+    diagrams["0.1"] = {
+        "ascii": "\n".join(
+            banner("BẢN ĐỒ TƯ DUY TOÀN KHÓA D01: HÀNH TRÌNH SỰ KIỆN ORDER #8888 QUA TẦNG INGESTION",
+                   "(Từ Nhật ký Giao dịch PostgreSQL pg_wal [LSN=0/16B3748] -> Debezium CDC -> Cụm Apache Kafka -> Data Lakehouse)")
+            + [""]
+            + row_01_top
+            + v_arrow("Bước chuyển 1: Đóng gói biến động từ tệp WAL thành dòng sự kiện phân tán (Event Stream)")
+            + row_01_mid
+            + v_arrow("Bước chuyển 2: Tự động hóa kết nối Đa Đích (Multi-Sink) & Phòng vệ Sự cố Sản xuất")
+            + s01_c5
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 1.1: Cắt lớp 5 Tầng Kiến trúc Dữ liệu, Data Governance & Nút thắt GIGO
+    # -------------------------------------------------------------------------
+    s11_p1 = make_box([
+        "[TẦNG 1: DATA SOURCES]",
+        "• PostgreSQL OLTP (#8888)",
+        "• REST APIs / Webhooks",
+        "• CSV/JSON Files, Raw Logs",
+        "• IoT Sensors / Third-party",
+        "[!] Nhạy cảm CPU & I/O Lock!",
+    ], inner_width=INNER_THIRD)
+    s11_p2 = make_box([
+        "[TẦNG 2: INGESTION & STAGING]",
+        "• Hút dữ liệu thô (Batch/CDC)",
+        "• Cách ly tải khỏi DB nguồn",
+        "• Staging Area: Kiểm tra Schema",
+        "  Validation & lọc rác GIGO",
+        "[+] Chốt chặn biên giới #1",
+    ], inner_width=INNER_THIRD)
+    s11_p3 = make_box([
+        "[TẦNG 3-5: WAREHOUSE -> MARTS]",
+        "• Warehouse / Lakehouse (SSoT):",
+        "  Raw + Summary + Metadata",
+        "• Data Marts: Sales, Inventory,",
+        "  Purchasing (Tối ưu theo miền)",
+        "• Users: BI, Reporting, Mining",
+    ], inner_width=INNER_THIRD)
+    row_11_arch = join_horizontal([s11_p1, s11_p2, s11_p3], ["    ", "    "], {3: [" ──►", " ──►"]})
+
+    s11_gov = make_box([
+        "[LỚP NỀN CẮT NGANG TOÀN HỆ THỐNG: DATA GOVERNANCE LAYER (5 TRỤ CỘT QUẢN TRỊ - SLIDE 4)]",
+        "├── [1] Data Quality        : Kiểm định tính chính xác (Accuracy), đầy đủ (Completeness) và nhất quán (Consistency)",
+        "├── [2] Data Security       : Mã hóa kênh truyền (TLS/mTLS), ẩn danh hóa thông tin định danh cá nhân (PII Masking/Hashing)",
+        "├── [3] Data Lineage        : Truy vết toàn bộ phả hệ nguồn gốc và biến đổi của Order #8888 từ bảng OLTP đến báo cáo BI",
+        "├── [4] Metadata Management : Quản lý danh mục bảng, định nghĩa nghiệp vụ và hợp đồng lược đồ (Schema Contracts)",
+        "└── [5] Access Control      : Phân quyền truy cập theo vai trò (RBAC) và nguyên tắc đặc quyền tối thiểu (PoLP)",
+    ], inner_width=INNER_FULL)
+
+    s11_gigo = make_box([
+        "[CẮT LỚP RỦI RO TẠI NGUỒN: ĐỊNH LUẬT GIGO, QUÁ TẢI TÀI NGUỒN & TRÔI DẠT LƯỢC ĐỒ (SLIDE 7 + CHƯƠNG 7 JOE REIS)]",
+        "• [x] GIGO Principle (Garbage In = Garbage Out): Dữ liệu nguồn bị khuyết (Null), trùng lặp hoặc sai múi giờ -> Phá hỏng toàn bộ ML/BI",
+        "• [x] Resource Contention (Tranh chấp tài nguyên): Chạy SELECT quét bảng lớn trên DB nguồn làm vọt 100% CPU, treo giỏ hàng của khách",
+        "• [!] Upstream Schema Drift (Trôi lược đồ): Đội Backend chạy ALTER TABLE đổi kiểu/xóa cột -> Cần Data Contract + Staging Quarantine",
+    ], inner_width=INNER_FULL)
+
+    diagrams["1.1"] = {
+        "ascii": "\n".join(
+            banner("CẮT LỚP KIẾN TRÚC 5 TẦNG DỮ LIỆU, DATA GOVERNANCE & ĐỊNH LUẬT GIGO (SLIDE 4-7)")
+            + [""]
+            + row_11_arch
+            + v_arrow("Lớp quản trị Data Governance áp dụng xuyên suốt mọi tầng từ Source đến Users")
+            + s11_gov
+            + [""]
+            + s11_gigo
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 1.2: Tam giác Cấu trúc Dữ liệu (Structured/Semi/Unstructured) & Push-Pull-Poll
+    # -------------------------------------------------------------------------
+    s12_t1 = make_box([
+        "[A. STRUCTURED DATA (SLIDE 10)]",
+        "• Bố cục bảng Hàng & Cột cố định",
+        "  (PostgreSQL, MySQL, Oracle)",
+        "• Kiểm tra Schema-on-Write",
+        "• [+] Dễ dàng truy vấn SQL tức thì",
+        "• [x] Kém linh hoạt khi đổi cấu trúc",
+    ], inner_width=INNER_THIRD)
+    s12_t2 = make_box([
+        "[B. SEMI-STRUCTURED DATA]",
+        "• Tổ chức phân cấp Key-Value/Tag",
+        "  (JSON, XML, Avro, Log Events)",
+        "• Kèm Metadata tự mô tả trong tệp",
+        "• [+] Linh hoạt mở rộng trường mới",
+        "• [!] Cần bước giải mã (Parsing)",
+    ], inner_width=INNER_THIRD)
+    s12_t3 = make_box([
+        "[C. UNSTRUCTURED DATA]",
+        "• Không có lược đồ định sẵn",
+        "  (Ảnh, Video, Audio, PDF, Text)",
+        "• Lưu trữ dạng File/Object (S3)",
+        "• [+] Chiếm >80% dữ liệu doanh nghiệp",
+        "• [x] Bắt buộc bóc tách (OCR/Vector)",
+    ], inner_width=INNER_THIRD)
+    row_12_types = join_horizontal([s12_t1, s12_t2, s12_t3], ["    ", "    "])
+
+    s12_m1 = make_box([
+        "[CƠ HỌC MẪU PUSH vs. PULL vs. POLL (CHƯƠNG 7 JOE REIS)]",
+        "├── [1] PUSH : [Source App] ──(HTTP POST / SDK)──► [Collector]",
+        "│       • Độ trễ mili-giây; rủi ro làm ngập đích (Cần Queue đệm)",
+        "├── [2] PULL : [Source S3/FTP] ◄──(GET / Copy)──── [Ingestion Worker]",
+        "│       • Đích chủ động nhịp độ đọc, không cần mở cổng Firewall nguồn",
+        "└── [3] POLL : [Source DB] ◄──(SELECT định kỳ)──── [Scheduler Cron]",
+        "        • Dò tìm thay đổi theo chu kỳ; quét rỗng gây lãng phí I/O",
+    ], inner_width=INNER_HALF)
+    s12_m2 = make_box([
+        "[CƠ HỌC FILE INGESTION: BATCH vs. MICRO-BATCH (SLIDE 9)]",
+        "├── [A] Scheduled Batch Ingestion (Theo lô hàng giờ / hàng ngày):",
+        "│       • Hệ thống nguồn gom dữ liệu xuất thành tệp lớn (CSV/Parquet)",
+        "│       • Job định kỳ đọc toàn bộ tệp nạp vào Data Lake / Warehouse",
+        "└── [B] Micro-Batching (Lô nhỏ tần suất cao - Mỗi 1-5 phút):",
+        "        • Chia thành các tệp nhỏ xử lý liên tục để giảm độ trễ",
+        "        • [!] Cạm bẫy: Dễ gây bệnh 'Small Files Problem' trên S3/HDFS!",
+    ], inner_width=INNER_HALF)
+    row_12_modes = join_horizontal([s12_m1, s12_m2], ["    "])
+
+    diagrams["1.2"] = {
+        "ascii": "\n".join(
+            banner("BA CẤP ĐỘ CẤU TRÚC DỮ LIỆU (SLIDE 9-10) & CƠ HỌC THU THẬP PUSH - PULL - POLL")
+            + [""]
+            + row_12_types
+            + v_arrow("Ánh xạ sang chiến lược vận chuyển dữ liệu (Push / Pull / Poll) và nhịp độ xử lý (Batch / Micro-batch)")
+            + row_12_modes
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 1.3: OLTP vs OLAP, Bố cục Lưu trữ (Row / Column / Hybrid), EtLT & Logs
+    # -------------------------------------------------------------------------
+    s13_oltp = make_box([
+        "[LUỒNG HỆ THỐNG GIAO DỊCH: OLTP (SLIDE 15 & 18)]",
+        "  [User/App] ──► [API Layer] ──► [OLTP DB (Orders/Users)]",
+        "                                         │",
+        "                                  [Transaction WAL]",
+        "                                         │",
+        "                                         ▼",
+        "                                [CDC -> Kafka Layer]",
+        "• Mục đích : Xử lý giao dịch thời gian thực (Đặt hàng #8888)",
+        "• Thao tác : INSERT, UPDATE, DELETE (Độ trễ: Milliseconds)",
+    ], inner_width=INNER_HALF)
+    s13_olap = make_box([
+        "[LUỒNG HỆ THỐNG PHÂN TÍCH: OLAP (SLIDE 16 & 18)]",
+        "  [Source/Kafka] ──► [ETL/EtLT] ──► [Data Warehouse]",
+        "                                          │",
+        "                            ┌─────────────┼─────────────┐",
+        "                            ▼             ▼             ▼",
+        "                        [Tables]   [BI Dashboard]  [ML Models]",
+        "• Mục đích : Phân tích dữ liệu lịch sử quy mô lớn (Insights)",
+        "• Thao tác : SELECT tổng hợp phức tạp (Seconds - Hours)",
+    ], inner_width=INNER_HALF)
+    row_13_sys = join_horizontal([s13_oltp, s13_olap], ["    "], {3: [" ──►"]})
+
+    s13_layouts = make_box([
+        "[CẮT LỚP BỐ CỤC BYTE TRÊN ĐĨA: ROW-BASED vs. COLUMN-BASED vs. HYBRID ROW-GROUP (SLIDE 17)]",
+        "├── [1] ROW-BASED (CSV, Postgres Heap)  : [a | 1 | 2020-01] ──► [b | 2 | 2020-02] ──► [c | 3 | 2020-03]",
+        "│       └── Lưu liền kề từng dòng; tối ưu cho OLTP & mệnh đề WHERE (Predicate), nhưng phải đọc thừa toàn bộ cột khi tính tổng",
+        "├── [2] COLUMN-BASED (ORC)              : [a | b | c (String)] ──► [1 | 2 | 3 (Int)] ──► [2020-01 | 2020-02 | 2020-03 (Date)]",
+        "│       └── Lưu liền kề từng cột; tối ưu cho OLAP & mệnh đề SELECT (Projection), nén cực tốt nhưng tái tạo 1 dòng rất tốn kém",
+        "└── [3] HYBRID ROW-GROUP (Parquet)      : Cắt ngang thành từng lô hàng (Row Group Size = 2), bên trong mỗi lô lưu theo cột:",
+        "        └── Row Group 1: [a | b] [1 | 2] [2020-01 | 2020-02]   ||   Row Group 2 (Final): [c] [3] [2020-03]",
+        "        └── [+] Kết hợp hoàn hảo: Vừa lọc bỏ cả cụm hàng qua Min/Max Statistics, vừa chỉ đọc đúng các cột được SELECT!",
+    ], inner_width=INNER_FULL)
+
+    s13_logs = make_box([
+        "[THU THẬP NHẬT KÝ HỆ THỐNG (LOGS - SLIDE 19) & MÔ HÌNH BIẾN ĐỔI TRÊN ĐƯỜNG BAY EtLT (CHƯƠNG 3 DENSMORE)]",
+        "• 3 Nguồn phát sinh Logs : [Docker Containers] + [Physical/Cloud Servers] + [IoT Devices & Gateways]",
+        "• 6 Phân loại Logs       : System Logs | Application Logs | Error/Debug Logs | Audit Logs | Security Logs | Network Logs",
+        "• Tiến hóa ETL/ELT/EtLT  : Extract ──► [t: Light Transform (Ẩn PII, Chuẩn hóa Múi giờ, Khử trùng)] ──► Load ──► Transform (DBT/Spark)",
+    ], inner_width=INNER_FULL)
+
+    diagrams["1.3"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU OLTP vs. OLAP, BỐ CỤC ROW / COLUMN / HYBRID PARQUET & LOGS (SLIDE 15-19)")
+            + [""]
+            + row_13_sys
+            + v_arrow("Sự khác biệt truy cập (Giao dịch theo dòng vs. Tổng hợp theo cột) quyết định cấu trúc lưu trữ vật lý")
+            + s13_layouts
+            + [""]
+            + s13_logs
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 2.1: Toàn cảnh 3 Thế hệ CDC — Cắt lớp vị trí can thiệp trong DBMS
+    # -------------------------------------------------------------------------
+    s21_top = make_box([
+        "[CẮT LỚP NỘI TẠNG HỆ QUẢN TRỊ CƠ SỞ DỮ LIỆU NGUỒN (POSTGRESQL / MYSQL) & 3 ĐIỂM ĐẶT ĐẦU DÒ CDC (SLIDE 11)]",
+        "  [Ứng dụng Giao dịch] ──(INSERT / UPDATE / DELETE Order #8888)──► [1. SQL Query Parser & Executor]",
+        "                                                                          │                     ▲",
+        "                                                                          ▼                     └── (Điểm dò #1: TIMESTAMP POLLING",
+        "                                                                   [2. Trigger Engine] ───────────►  Quét SELECT định kỳ gây tốn CPU)",
+        "                                                                     │             │",
+        "                                       (Ghi bảng chính)              │             └──► (Điểm dò #2: TRIGGER-BASED CDC",
+        "                                             ▼                       ▼                  Ghi đồng bộ vào Shadow Table -> Chậm x2!)",
+        "                                    [3. Heap Pages / B-Tree]   [4. Transaction Log (WAL / binlog)]",
+        "                                                                          │",
+        "                                                                          └──► (Điểm dò #3: LOG-BASED CDC / DEBEZIUM",
+        "                                                                               Đọc luồng byte bất đồng bộ -> 0% tải SQL!)",
+    ], inner_width=INNER_FULL)
+
+    s21_g1 = make_box([
+        "[1. TIMESTAMP-BASED POLLING]",
+        "• Truy vấn: WHERE last_modified > T",
+        "• [+] Dễ cài đặt bằng SQL thuần",
+        "• [x] Mù lệnh xóa cứng (Hard DELETE)",
+        "• [x] Gây tải quét bảng lên DB nguồn",
+    ], inner_width=INNER_THIRD)
+    s21_g2 = make_box([
+        "[2. TRIGGER-BASED CDC]",
+        "• Thực thi Trigger sau INSERT/UPD/DEL",
+        "• [+] Bắt đủ mọi thao tác kể cả DELETE",
+        "• [x] Ghi thêm vào audit_log làm tăng",
+        "  gấp đôi độ trễ giao dịch chính!",
+    ], inner_width=INNER_THIRD)
+    s21_g3 = make_box([
+        "[3. LOG-BASED CDC (CHUẨN HIỆN ĐẠI)]",
+        "• Đọc trực tiếp từ WAL / binlog",
+        "• [+] Không chạm vào bảng, 0% tải SQL",
+        "• [+] Không cần sửa Schema bảng gốc",
+        "• [!] Cần bộ giải mã nhị phân (Debezium)",
+    ], inner_width=INNER_THIRD)
+    row_21 = join_horizontal([s21_g1, s21_g2, s21_g3], ["    ", "    "], {2: [" ──►", " ──►"]})
+
+    diagrams["2.1"] = {
+        "ascii": "\n".join(
+            banner("CẮT LỚP NỘI TẠNG DATABASE & BA PHƯƠNG PHÁP CHANGE DATA CAPTURE (SLIDE 11)")
+            + [""]
+            + s21_top
+            + v_arrow("So sánh 3 phương pháp thu thập biến động dữ liệu đổ về Elasticsearch, Redis và Snowflake/Lakehouse")
+            + row_21
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 2.2: Giải phẫu Timestamp-Based Polling CDC & 2 Lỗ hổng Cơ học
+    # -------------------------------------------------------------------------
+    s22_tbl = make_box([
+        "[CẤU TRÚC BẢNG NGUỒN TRONG TIMESTAMP-BASED CDC: BẮT BUỘC THÊM CỘT last_modified & is_deleted (SLIDE 12)]",
+        "┌─────────────┬──────────┬───────────────┬───────────────┬────────────────────────────┬──────────────────────────┐",
+        "│ is_deleted  │ ID       │ First Name    │ Last Name     │ Email                      │ Last Modified (Watermark)│",
+        "├─────────────┼──────────┼───────────────┼───────────────┼────────────────────────────┼──────────────────────────┤",
+        "│ false       │ 1122     │ Michael       │ Jackson       │ Michael1122@gmail.com      │ 2022-10-31-T12:11:07     │",
+        "│ true        │ 1122     │ George        │ Clooney       │ George.Clooney@gmail.com   │ 2023-10-13-T02:17:08     │",
+        "└─────────────┴──────────┴───────────────┴───────────────┴────────────────────────────┴──────────────────────────┘",
+    ], inner_width=INNER_FULL)
+
+    s22_f1 = make_box([
+        "[LỖ HỔNG 1: MÙ XÓA CỨNG (HARD DELETE BLINDNESS)]",
+        "• Khi chạy lệnh vật lý: DELETE FROM users WHERE id = 1122;",
+        "• Bản ghi bị xóa khỏi B-Tree & đánh dấu Dead Tuple trên trang đĩa.",
+        "• Khi Job Polling chạy: SELECT * FROM users WHERE last_modified > T",
+        "  ──► Không tìm thấy dòng 1122 (Vì dòng đó đã biến mất!).",
+        "• [x] Hậu quả: Bắt buộc cấm lệnh DELETE vật lý, phải sửa toàn bộ",
+        "  code ứng dụng sang Xóa mềm (UPDATE SET is_deleted = true).",
+    ], inner_width=INNER_HALF)
+    s22_f2 = make_box([
+        "[LỖ HỔNG 2: TRANH CHẤP MỐC THỜI GIAN (WATERMARK RACE)]",
+        "• T1 (12:00:01): Giao dịch A bắt đầu, gán last_modified = 12:00:01",
+        "• T2 (12:00:03): Giao dịch B bắt đầu & COMMIT ngay (12:00:03)",
+        "• T3 (12:00:04): Job Polling quét, nâng mốc Watermark = 12:00:03",
+        "• T4 (12:00:05): Giao dịch A hoàn tất kiểm tra và COMMIT xuống đĩa!",
+        "• [x] Hậu quả: Chu kỳ quét kế tiếp tìm last_modified > 12:00:03",
+        "  ──► Bỏ sót vĩnh viễn Giao dịch A (do 12:00:01 < 12:00:03)!",
+    ], inner_width=INNER_HALF)
+    row_22 = join_horizontal([s22_f1, s22_f2], ["    "])
+
+    diagrams["2.2"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU TIMESTAMP-BASED POLLING CDC: SOFT DELETE & LỖ HỔNG WATERMARK (SLIDE 12)")
+            + [""]
+            + s22_tbl
+            + v_arrow("Hai điểm mù vật lý khiến Timestamp Polling không thể dùng cho hệ thống tài chính/đơn hàng khắt khe")
+            + row_22
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 2.3: Giải phẫu Trigger-Based CDC: Shadow Table & Nhân đôi I/O Giao dịch
+    # -------------------------------------------------------------------------
+    s23_flow = make_box([
+        "[CẮT LỚP LUỒNG THỰC THI ĐỒNG BỘ CỦA TRIGGER-BASED CDC TRÊN MAIN SOURCE DATABASE (SLIDE 13)]",
+        "  [Khách hàng bấm Thanh toán #8888] ──► BEGIN TRANSACTION;",
+        "                                          ├── [Bước 1] Ghi vào Bảng Chính (Main Table: orders)",
+        "                                          │            │",
+        "                                          │            ▼ (Kích hoạt Trigger: AFTER INSERT OR UPDATE OR DELETE)",
+        "                                          ├── [Bước 2] Ghi đồng bộ vào Bảng Bóng (Shadow Table / audit_log):",
+        "                                          │            ┌────┬────────┬────────┬───────────┬───────────┐",
+        "                                          │            │ ID │ Name   │ Amount │ Timestamp │ Operation │",
+        "                                          │            ├────┼────────┼────────┼───────────┼───────────┤",
+        "                                          │            │ 1  │ Vinnie │ 101    │ 12:10am   │ Insert    │",
+        "                                          │            │ 2  │ Vinnie │ 127    │ 12:15am   │ Update    │",
+        "                                          │            │ 3  │ Vinnie │ 142    │ 12:17am   │ Delete    │",
+        "                                          │            └────┴────────┴────────┴───────────┴───────────┘",
+        "                                          └── [Bước 3] COMMIT; (Chỉ thành công khi CẢ Bảng Chính và Bảng Bóng ghi xong!)",
+    ], inner_width=INNER_FULL)
+
+    s23_pros = make_box([
+        "[ƯU ĐIỂM CỦA TRIGGER-BASED CDC]",
+        "• [+] Bắt được toàn bộ 3 loại biến động: INSERT, UPDATE",
+        "  và cả lệnh xóa vật lý DELETE (nhờ OLD.* trong Trigger).",
+        "• [+] Được hỗ trợ sẵn trên hầu hết mọi RDBMS truyền thống.",
+    ], inner_width=INNER_HALF)
+    s23_cons = make_box([
+        "[NHƯỢC ĐIỂM CHÍ MẠNG TRÊN MÔI TRƯỜNG PRODUCTION]",
+        "• [x] Nhân đôi tải ghi (Write Amplification) ngay trên luồng",
+        "  giao dịch của khách hàng -> Làm chậm trực tiếp API bán hàng!",
+        "• [x] Cực kỳ khó bảo trì và gỡ lỗi khi có Cascading Triggers.",
+    ], inner_width=INNER_HALF)
+    row_23 = join_horizontal([s23_pros, s23_cons], ["    "])
+
+    diagrams["2.3"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU TRIGGER-BASED CDC: BẢNG BÓNG SHADOW TABLE & WRITE AMPLIFICATION (SLIDE 13)")
+            + [""]
+            + s23_flow
+            + [""]
+            + row_23
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 2.4: Giải phẫu Log-Based CDC: Đọc Bất đồng bộ từ Transaction Log
+    # -------------------------------------------------------------------------
+    s24_arch = make_box([
+        "[KIẾN TRÚC TÁCH RỜI ĐỌC - GHI CỦA LOG-BASED CHANGE DATA CAPTURE (SLIDE 14)]",
+        "",
+        "  [Inserts] ──┐      ┌──────────────────┐     (Ghi tuần tự)     ┌─────────────────┐     (Đọc luồng byte)    ┌────────────────┐",
+        "  [Updates] ──┼─────►│  Source Database │ ────────────────────► │ Transaction Log │ ──────────────────────► │   CDC Engine   │",
+        "  [Deletes] ──┘      │ (PostgreSQL/MySQL│                       │  00101110 (WAL/ │  (Không chạm vào bảng,  │  (Debezium /   │",
+        "                     │  Không Trigger!) │                       │  01100100 binlog│   không sửa Schema!)    │  Kafka Connect)│",
+        "                     └──────────────────┘                       └─────────────────┘                         └───────┬────────┘",
+        "                                                                                                                    │",
+        "                                                                                                                    ▼",
+        "                                                                                                        ┌────────────────────────┐",
+        "                                                                                                        │ Store to Change Stream │",
+        "                                                                                                        │ (Kafka Topic / Target) │",
+        "                                                                                                        └────────────────────────┘",
+    ], inner_width=INNER_FULL)
+
+    s24_left = make_box([
+        "[TẠI SAO LOG-BASED CDC LÀ TIÊU CHUẨN VÀNG?]",
+        "• [+] Tác động tối thiểu (Minimal Impact): Chỉ đọc tuần tự",
+        "  từ tệp Transaction Log có sẵn, không viết thêm bất cứ gì",
+        "  vào Database nguồn -> 0% tranh chấp khóa trên bảng chính!",
+        "• [+] Không xâm phạm Schema: Bắt đủ INSERT/UPDATE/DELETE mà",
+        "  không cần thêm cột last_modified hay cờ is_deleted.",
+    ], inner_width=INNER_HALF)
+    s24_right = make_box([
+        "[HAI THÁCH THỨC KỸ THUẬT CẦN VƯỢT QUA (SLIDE 14)]",
+        "• [!] Định dạng nhị phân độc quyền theo từng hãng:",
+        "  PostgreSQL dùng WAL (pgoutput LSN), MySQL dùng binlog (ROW),",
+        "  Oracle dùng Redo Log -> Không có trình đọc chung đơn giản.",
+        "• [!] Xử lý giao dịch bị hủy (Rolled-back Transactions):",
+        "  CDC Engine phải đợi cờ COMMIT trong log trước khi phát sự kiện.",
+    ], inner_width=INNER_HALF)
+    row_24 = join_horizontal([s24_left, s24_right], ["    "])
+
+    diagrams["2.4"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU LOG-BASED CDC: ĐỌC TUẦN TỰ TRANSACTION LOG VỚI 0% TẢI BẢNG NGUỒN (SLIDE 14)")
+            + [""]
+            + s24_arch
+            + [""]
+            + row_24
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 3.1: Từ Mạng nhện O(N x M) đến Kiến trúc Cụm Apache Kafka (Slide 21-23)
+    # -------------------------------------------------------------------------
+    s31_spaghetti = make_box([
+        "[TRƯỚC KAFKA: NỖI ĐAU TÍCH HỢP ĐIỂM - ĐIỂM (SLIDE 21)]",
+        "  [E-Commerce Order DB] ──┬──► [Daily Analytics Exports]",
+        "  [Payment Service    ] ──┼──► [Marketing Campaign Engine]",
+        "  [User Clickstream   ] ──┼──► [Real-time Fraud Detection]",
+        "  [Inventory Service  ] ──┴──► [Search & Redis Cache]",
+        "• [x] Khi lưu lượng tăng, các truy vấn trích xuất làm chậm",
+        "  trực tiếp giao dịch mua hàng sống (Live Transactions)!",
+        "• [x] Vấn đề không nằm ở bản thân dữ liệu, mà nằm ở CÁCH",
+        "  dữ liệu di chuyển hỗn loạn giữa các hệ thống (O(N x M)).",
+    ], inner_width=INNER_HALF)
+    s31_kafka = make_box([
+        "[SAU KAFKA: KIẾN TRÚC PHÂN TÁN APACHE KAFKA (SLIDE 23)]",
+        "                              ┌─────────────────────────────┐",
+        "  [Producer 1..3] ──(Push)──► │ [KAFKA CLUSTER: 3 BROKERS]  │",
+        "  (Nguồn đẩy dữ liệu)         │ • Broker 1: Topic A (P0, P1)│",
+        "                              │ • Broker 2: Topic B (P0, P1)│",
+        "  [Consumer 1..3] ◄──(Pull)── │ • Broker 3: Topic C (P0, P1)│",
+        "  (Đích tự kéo khi sẵn sàng)  └─────────────────────────────┘",
+        "• [+] Multiple Brokers: Nếu 1 máy chủ sập, các Broker còn lại",
+        "  tiếp tục chạy bình thường -> Kafka không làm mất dữ liệu!",
+    ], inner_width=INNER_HALF)
+    row_31 = join_horizontal([s31_spaghetti, s31_kafka], ["    "], {4: [" ──►"]})
+
+    diagrams["3.1"] = {
+        "ascii": "\n".join(
+            banner("TỪ MẠNG NHỆN ĐIỂM - ĐIỂM ĐẾN KIẾN TRÚC PHÂN TÁN APACHE KAFKA (SLIDE 21-23)")
+            + [""]
+            + row_31
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 3.2: Hệ sinh thái Kafka Mở rộng & Bước ngoặt Điều phối ZooKeeper -> KRaft
+    # -------------------------------------------------------------------------
+    s32_eco = make_box([
+        "[CẮT LỚP LUỒNG DỮ LIỆU TRONG HỆ SINH THÁI KAFKA MỞ RỘNG (KAFKA EXTENDED API - SLIDE 25)]",
+        "                                          ┌───────────────────────────┐",
+        "                                          │   Kafka Streams / Flink   │ (Thư viện/Engine biến đổi luồng thời gian thực)",
+        "                                          └─────────────▲─────────────┘",
+        "                                                        │",
+        "  [Source System] ──► [Kafka Connect Source] ──► [ KAFKA CLUSTER 1 ] ──► [Kafka Connect Sink] ──► [Target System]",
+        "  (DB / App / Log)    (Nạp dữ liệu vào Kafka)    (Cụm chính lưu trữ) │   (Đẩy ra DB/Warehouse)    (Lakehouse / BI)",
+        "                                                                     │",
+        "                                                   [MirrorMaker 2] ◄─┘ (Sao chép liên cụm phục vụ Backup / Multi-Region)",
+        "                                                          │",
+        "                                                          ▼",
+        "                                                 [ KAFKA CLUSTER 2 ] (Cụm thứ cấp dự phòng thảm họa / Disaster Recovery)",
+    ], inner_width=INNER_FULL)
+
+    s32_zk = make_box([
+        "[ĐIỀU PHỐI THẾ HỆ CŨ: APACHE ZOOKEEPER (SLIDE 24)]",
+        "• Dịch vụ điều phối bên ngoài dùng trong các bản Kafka cũ",
+        "  để quản lý Metadata cụm và bầu chọn Broker Controller.",
+        "• [x] Gánh nặng vận hành 2 hệ thống phân tán khác nhau.",
+        "• [x] Cổ chai Metadata khi cụm vượt > 200.000 Partitions.",
+    ], inner_width=INNER_HALF)
+    s32_kraft = make_box([
+        "[ĐIỀU PHỐI THẾ HỆ MỚI: KRAFT CONSENSUS (KAFKA 3.3+ / 4.0)]",
+        "• Bộ điều phối đồng thuận Raft tích hợp sẵn bên trong Kafka",
+        "  (Loại bỏ hoàn toàn sự phụ thuộc vào ZooKeeper từ bản 4.0!).",
+        "• [+] Lưu Metadata dưới dạng Event Log (__cluster_metadata).",
+        "• [+] Mở rộng hàng triệu Partitions, Failover trong vài ms.",
+    ], inner_width=INNER_HALF)
+    row_32 = join_horizontal([s32_zk, s32_kraft], ["    "], {2: [" ──►"]})
+
+    diagrams["3.2"] = {
+        "ascii": "\n".join(
+            banner("HỆ SINH THÁI KAFKA MỞ RỘNG & BƯỚC NGOẶT ZOOKEEPER -> KRAFT (SLIDE 24-25)")
+            + [""]
+            + s32_eco
+            + v_arrow("Tiến hóa tầng điều phối Metadata của Cụm Kafka (Cluster Coordination)")
+            + row_32
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 3.3: Topic, Partition (Unit of Parallelism), Định cỡ & Zero-Copy
+    # -------------------------------------------------------------------------
+    s33_p1 = make_box([
+        "[1. CHIẾN LƯỢC THIẾT KẾ TOPIC (SLIDE 28)]",
+        "• Event-based : 1 Topic / loại sự kiện",
+        "  (VD: user_created, order_paid)",
+        "• Domain-based: 1 Topic / thực thể",
+        "  nghiệp vụ (VD: orders, payments)",
+        "• Env-based   : Tách biệt môi trường",
+        "  (dev.orders, test.orders, prod.orders)",
+    ], inner_width=INNER_THIRD)
+    s33_p2 = make_box([
+        "[2. PARTITION & SONG SONG HÓA (SLIDE 30-32)]",
+        "• Single Queue: [M][M][M] -> 1 Reader chờ",
+        "• Multi-Partition (Đọc song song):",
+        "  ├── Partition 0 ──► Consumer A (Reader 0)",
+        "  ├── Partition 1 ──► Consumer B (Reader 1)",
+        "  └── Partition 2 ──► Consumer C (Reader 2)",
+        "• Scale-out: Rải P0..P3 (M1), P4..P7 (M2)",
+    ], inner_width=INNER_THIRD)
+    s33_p3 = make_box([
+        "[3. TOÁN HỌC ĐỊNH CỠ PARTITION (SLIDE 33)]",
+        "• 1 Partition xử lý ~ 5 - 10 MB/s",
+        "• Muốn 16 Consumers chạy song song",
+        "  trong 1 Group -> Cần >= 16 Partitions!",
+        "• Công thức định cỡ:",
+        "  N = max(T_muc_tieu/T_p, T_muc_tieu/T_c)",
+        "• [!] Quá nhiều Partition gây nặng Controller",
+    ], inner_width=INNER_THIRD)
+    row_33 = join_horizontal([s33_p1, s33_p2, s33_p3], ["    ", "    "])
+
+    s33_zc = make_box([
+        "[CẮT LỚP ĐƯỜNG TRUYỀN KERNEL ZERO-COPY sendfile(2): TẠI SAO KAFKA ĐẠT BĂNG THÔNG HÀNG GB/S? (CHƯƠNG 5 KAFKA GUIDE)]",
+        "├── Luồng truyền thống (4 lần chép + 4 lần chuyển ngữ cảnh): [NVMe Disk] ──► [OS Page Cache] ──► [JVM Heap] ──► [Socket Buffer] ──► [NIC]",
+        "└── Luồng Kafka Zero-Copy (syscall sendfile / DMA):          [NVMe Disk] ──► [OS Page Cache] ════════(Truyền thẳng DMA)══════════► [NIC]",
+    ], inner_width=INNER_FULL)
+
+    diagrams["3.3"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU TOPIC, PARTITION (ĐƠN VỊ SONG SONG HÓA) & ZERO-COPY (SLIDE 27-33)")
+            + [""]
+            + row_33
+            + [""]
+            + s33_zc
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 3.4: Giải phẫu Con trỏ Offset, Control Records & Độ trễ Consumer Lag
+    # -------------------------------------------------------------------------
+    s34_tape = make_box([
+        "[CẮT LỚP MẢNG NHẬT KÝ PARTITION 0 & KHOẢNG CÁCH TRỄ CONSUMER LAG (SLIDE 34)]",
+        "",
+        "   |<───────────── Dữ liệu đã đọc (Data Consumed) ─────────────>| |<────── Độ trễ (CONSUMER LAG = 3) ──────>| (Control)",
+        "   ┌────────────┬────────────┬────────────┬────────────┬──────────┬────────────┬────────────┬────────────┬──────────┐",
+        "   │  Offset 0  │  Offset 1  │  Offset 2  │  Offset 3  │ Offset 4 │  Offset 5  │  Offset 6  │  Offset 7  │ Offset 8 │",
+        "   │   #8884    │   #8885    │   #8886    │   #8887    │  #8888   │   #8889    │   #8890    │  [COMMIT]  │ (Trống)  │",
+        "   └────────────┴────────────┴────────────┴────────────┴────▲─────┴────────────┴────────────┴─────▲──────┴────▲─────┘",
+        "                                                            │                                     │           │",
+        "                                             [Consumer Position = Offset 4]            [Control Message]  [End Offset = 8]",
+        "                                             (Lưu tại __consumer_offsets)              (Chốt Giao dịch)   (Vị trí mới nhất)",
+    ], inner_width=INNER_FULL)
+
+    s34_roles = make_box([
+        "[CƠ CHẾ HOẠT ĐỘNG CỦA CON TRỎ OFFSET & CÔNG THỨC GIÁM SÁT CONSUMER LAG (SLIDE 34 + CHƯƠNG 4 & 10 KAFKA GUIDE)]",
+        "├── [1] Định danh bất biến: Mỗi bản ghi vào Partition được gán 1 số nguyên tăng dần duy nhất (0, 1, 2, 3...) không bao giờ đổi",
+        "├── [2] Ba công dụng cốt lõi: Theo dõi tiến độ đọc (Track progress) | Đọc tiếp sau khi sập (Resume) | Tua lại lịch sử (Reprocess)",
+        "└── [3] Công thức Consumer Lag = End Offset - Current Consumer Offset: Chỉ số số 1 để phát hiện Consumer bị nghẽn và kích hoạt Scale-out!",
+    ], inner_width=INNER_FULL)
+
+    diagrams["3.4"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU CON TRỎ OFFSET, CONTROL MESSAGES & ĐỘ TRỄ CONSUMER LAG (SLIDE 34)")
+            + [""]
+            + s34_tape
+            + [""]
+            + s34_roles
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 4.1: Producer Fundamentals — Keyed murmur2 Hash vs Keyless & RecordAccumulator
+    # -------------------------------------------------------------------------
+    s41_pipe = make_box([
+        "[CẮT LỚP ĐƯỜNG ỐNG NỘI BỘ KAFKA PRODUCER CLIENT (CHƯƠNG 3 KAFKA: THE DEFINITIVE GUIDE)]",
+        "  [ProducerRecord] ──► [1. Serializer (Avro/Schema ID)] ──► [2. Partitioner] ──► [3. RecordAccumulator (Deque Batch)] ──► [4. Sender Thread]",
+        "  (Topic,Key,Val)      (Chuyển thành mảng Byte chuẩn)       (Tính mã Partition)   (Gom lô batch.size=64KB, linger.ms=10ms)  (Gửi tới Broker)",
+    ], inner_width=INNER_FULL)
+
+    s41_keyed = make_box([
+        "[NHÁNH A: GỬI CÓ KHÓA (WITH KEY = 'USR-104' - SLIDE 35)]",
+        "• Công thức băm: Partition = murmur2(key) % numPartitions",
+        "• Mọi sự kiện của cùng Key 'USR-104' luôn vào CÙNG 1 Partition:",
+        "  [Producer] ──(Key='USR-104': Đặt hàng #8888)──► [Partition 1]",
+        "  [Producer] ──(Key='USR-104': Thanh toán    )──► [Partition 1]",
+        "  [Producer] ──(Key='USR-104': Giao hàng     )──► [Partition 1]",
+        "• [+] Bảo toàn thứ tự nhân quả 100% cho từng khách hàng/đơn hàng!",
+    ], inner_width=INNER_HALF)
+    s41_keyless = make_box([
+        "[NHÁNH B: GỬI KHÔNG KHÓA (WITHOUT KEY = null - SLIDE 35)]",
+        "• Thuật toán: Sticky Partitioner / Round-Robin phân bổ đều",
+        "• Các bản ghi được rải sang tất cả các Partition để cân bằng tải:",
+        "  [Producer] ──(Message A: Key=null)────────────► [Partition 0]",
+        "  [Producer] ──(Message B: Key=null)────────────► [Partition 1]",
+        "  [Producer] ──(Message C: Key=null)────────────► [Partition 2]",
+        "• [+] Tối ưu thông lượng, nhưng mất thứ tự giữa các Message A, B, C!",
+    ], inner_width=INNER_HALF)
+    row_41 = join_horizontal([s41_keyed, s41_keyless], ["    "])
+
+    diagrams["4.1"] = {
+        "ascii": "\n".join(
+            banner("PRODUCER FUNDAMENTALS: ĐƯỜNG ỐNG NỘI BỘ & CHIẾN LƯỢC CHỌN PARTITION (SLIDE 35)")
+            + [""]
+            + s41_pipe
+            + v_arrow("Hai chế độ định tuyến Partition tại tầng Partitioner")
+            + row_41
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 4.2: Consumer Groups, Parallelism, Idle Consumer & Cooperative Rebalance
+    # -------------------------------------------------------------------------
+    s42_left = make_box([
+        "[QUY TẮC VÀNG TRONG CÙNG 1 CONSUMER GROUP (SLIDE 36)]",
+        "  ┌─────────────────────┐      ┌────────────────────────┐",
+        "  │ [  Topic: orders  ] │      │ [  Consumer Group 1  ] │",
+        "  │ • Partition 0       ├─────►│ • Consumer 1 (Active)  │",
+        "  │ • Partition 1       ├─────►│ • Consumer 2 (Active)  │",
+        "  │ • Partition 2       ├─────►│ • Consumer 3 (Active)  │",
+        "  └─────────────────────┘      │ • Consumer 4 [ IDLE! ] │",
+        "                               └────────────────────────┘",
+        "• Mỗi Partition chỉ được đọc bởi TỐI ĐA 1 Consumer trong Group!",
+    ], inner_width=INNER_HALF)
+    s42_right = make_box([
+        "[PHÁT SÓNG ĐA NHÓM (FAN-OUT) & TÁI CÂN BẰNG (REBALANCE)]",
+        "• Nhiều Consumer Group khác nhau cùng đọc 1 Topic độc lập:",
+        "  ├── Group 1 (Fraud Detection): Đọc 100% sự kiện ở độ trễ <50ms",
+        "  ├── Group 2 (Inventory Sync ): Đọc 100% sự kiện để trừ tồn kho",
+        "  └── Group 3 (Lakehouse Sink ): Gom lô ghi Parquet xuống S3",
+        "• Khi Consumer 3 sập hoặc xử lý lố max.poll.interval.ms:",
+        "  ──► Group Coordinator chạy CooperativeStickyAssignor chuyển",
+        "      riêng Partition 2 sang cho Consumer 1 mà không dừng cả cụm!",
+    ], inner_width=INNER_HALF)
+    row_42 = join_horizontal([s42_left, s42_right], ["    "])
+
+    diagrams["4.2"] = {
+        "ascii": "\n".join(
+            banner("CONSUMER GROUPS: QUY TẮC ĐỘC QUYỀN PARTITION, FAN-OUT & REBALANCE (SLIDE 36)")
+            + [""]
+            + row_42
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 4.3: Replication & Fault Tolerance — Leader, Follower, ISR & Failover
+    # -------------------------------------------------------------------------
+    s43_norm = make_box([
+        "[TRẠNG THÁI 1: HOẠT ĐỘNG BÌNH THƯỜNG (REPLICATION FACTOR = 3)]",
+        "  • Broker 1: [Partition 0 - LEADER  ] ◄══ (Mọi Đọc/Ghi đi qua Leader)",
+        "  • Broker 2: [Partition 0 - Follower] (Nằm trong tập ISR - Đã đồng bộ)",
+        "  • Broker 3: [Partition 0 - Follower] (Nằm trong tập ISR - Đã đồng bộ)",
+        "  • Broker 4: [Partition 2 - LEADER  ] (Phân bổ đều Leader qua các máy)",
+    ], inner_width=INNER_HALF)
+    s43_fail = make_box([
+        "[TRẠNG THÁI 2: KHI BROKER 1 SẬP (AUTOMATIC LEADER ELECTION)]",
+        "  • Broker 1: [x] SẬP NGUỒN / ĐỨT MẠNG (Mất toàn bộ Leader trên B1!)",
+        "  • Broker 2: [+] TỰ ĐỘNG THĂNG CẤP LÀM LEADER MỚI CHO PARTITION 0!",
+        "  • Broker 3: [Partition 0 - Follower] (Tiếp tục đồng bộ từ Broker 2)",
+        "  • Kết quả : Hệ thống chạy liên tục với 0% mất mát dữ liệu (Slide 37)!",
+    ], inner_width=INNER_HALF)
+    row_43 = join_horizontal([s43_norm, s43_fail], ["    "], {2: [" ──►"]})
+
+    s43_isr = make_box([
+        "[CƠ HỌC TẬP HỢP ISR (IN-SYNC REPLICAS), HIGH WATERMARK & CẤU HÌNH BẤT BIẾN PRODUCTION (CHƯƠNG 6 KAFKA GUIDE)]",
+        "├── [1] ISR (In-Sync Replicas)      : Tập các Replica bám sát Leader trong ngưỡng thời gian replica.lag.time.max.ms (Đủ tư cách lên ngôi)",
+        "├── [2] High Watermark (HW)         : Offset cao nhất đã được chép thành công sang TOÀN BỘ các Replica trong ISR (Consumer chỉ thấy tới HW)",
+        "└── [3] Cấu hình Chống Mất Dữ Liệu : replication.factor = 3  |  min.insync.replicas = 2  |  unclean.leader.election.enable = false",
+    ], inner_width=INNER_FULL)
+
+    diagrams["4.3"] = {
+        "ascii": "\n".join(
+            banner("REPLICATION & FAULT TOLERANCE: LEADER, FOLLOWER & BẦU CHỌN TỪ TẬP ISR (SLIDE 37)")
+            + [""]
+            + row_43
+            + [""]
+            + s43_isr
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 4.4: Kafka Message Delivery Guarantees (Slide 38-39)
+    # -------------------------------------------------------------------------
+    s44_m1 = make_box([
+        "[1. AT-MOST-ONCE (TỐI ĐA 1 LẦN)]",
+        "• Producer : acks = 0 (Bắn & quên)",
+        "• Consumer : enable.auto.commit = true",
+        "  (Commit Offset TRƯỚC khi xử lý)",
+        "• Luồng    : Có thể mất bản ghi trên",
+        "  đường truyền hoặc khi Consumer sập",
+        "• Dùng cho : Telemetry/Log chấp nhận rơi",
+    ], inner_width=INNER_THIRD)
+    s44_m2 = make_box([
+        "[2. AT-LEAST-ONCE (TỐI THIỂU 1 LẦN)]",
+        "• Producer : acks = 1 hoặc acks = all",
+        "• Consumer : enable.auto.commit = false",
+        "  (Xử lý xong MỚI Commit Offset)",
+        "• Luồng    : Nếu Consumer sập trước khi",
+        "  Commit, khởi động lại sẽ ĐỌC LẠI",
+        "  ──► Có thể sinh bản ghi TRÙNG LẶP!",
+    ], inner_width=INNER_THIRD)
+    s44_m3 = make_box([
+        "[3. EXACTLY-ONCE (ĐÚNG 1 LẦN - EOS)]",
+        "• Producer : acks = all &",
+        "  enable.idempotence = true (PID + Seq)",
+        "• Consumer : isolation.level =",
+        "  read_committed + Transactional API",
+        "• Luồng    : Giao nhận & xử lý đúng 1",
+        "  lần duy nhất ngay cả khi sập mạng!",
+    ], inner_width=INNER_THIRD)
+    row_44 = join_horizontal([s44_m1, s44_m2, s44_m3], ["    ", "    "])
+
+    s44_acks1 = make_box([
+        "[PHẪU THUẬT CẢNH BÁO ĐÁY SLIDE 39: TẠI SAO CẤU HÌNH acks=1 KHÔNG ĐẢM BẢO CHỐNG MẤT DỮ LIỆU?]",
+        "  [Bước 1] Producer gửi Order #8888 (acks=1) ──► [Broker 1 (Leader)] ghi vào đĩa cục bộ & lập tức trả ACK thành công cho Producer",
+        "  [Bước 2] [x] Đúng khoảnh khắc đó, Broker 1 bị sập nguồn TRƯỚC KHI Broker 2 & Broker 3 (Followers) kịp kéo bản ghi #8888 về!",
+        "  [Bước 3] Broker 2 được bầu làm Leader mới nhưng không có #8888 ──► Giao dịch #8888 bị MẤT VĨNH VIỄN dù Producer đã nhận báo OK!",
+        "  [Chốt chặn]: Để đạt Zero Data Loss, bắt buộc phải đặt acks=all kết hợp min.insync.replicas=2 trên Broker!",
+    ], inner_width=INNER_FULL)
+
+    diagrams["4.4"] = {
+        "ascii": "\n".join(
+            banner("BA CẤP ĐỘ ĐẢM BẢO GIAO NHẬN & CẢNH BÁO MẤT DỮ LIỆU CỦA ACKS=1 (SLIDE 38-39)")
+            + [""]
+            + row_44
+            + [""]
+            + s44_acks1
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 4.5: Retention & Log Model trên Đĩa (Time, Size & Log Compaction)
+    # -------------------------------------------------------------------------
+    s45_left = make_box([
+        "[1. XÓA THEO THỜI GIAN & DUNG LƯỢNG (SLIDE 40)]",
+        "• Cấu trúc thư mục Partition trên đĩa (/orders-0/):",
+        "  ├── 00000000000000000000.log (Closed - 8 ngày trước)",
+        "  ├── 00000000000000541020.log (Closed - 3 ngày trước)",
+        "  └── 00000000000000982100.log (Active Segment đang ghi)",
+        "• Time-based (7 days) / Size-based (1 GB per partition):",
+        "  ──► Chỉ việc gọi syscall unlink() xóa trọn tệp Segment cũ",
+        "      với chi phí O(1), không gây phân mảnh đĩa cứng!",
+    ], inner_width=INNER_HALF)
+    s45_right = make_box([
+        "[2. NÉN NHẬT KÝ THEO KHÓA (LOG COMPACTION - SLIDE 40)]",
+        "• Chính sách: cleanup.policy = compact (Keep latest per key)",
+        "• Trước khi nén (Vùng Dirty Tail đang ghi):",
+        "  [Off 10: K=#8888, V=PENDING] -> [Off 11: K=#99, V=OK]",
+        "  -> [Off 12: K=#8888, V=PAID] -> [Off 13: K=#8888, V=SHIPPED]",
+        "• Sau khi Log Cleaner nén (Vùng Clean Head):",
+        "  ──► Chỉ giữ lại: [Off 11: K=#99, V=OK] [Off 13: K=#8888, V=SHIPPED]",
+        "• Xóa khóa: Bắn bản ghi bia mộ Tombstone [K=#8888, V=null]!",
+    ], inner_width=INNER_HALF)
+    row_45 = join_horizontal([s45_left, s45_right], ["    "])
+
+    diagrams["4.5"] = {
+        "ascii": "\n".join(
+            banner("RETENTION & LOG MODEL: TIME/SIZE SEGMENT DELETION vs. LOG COMPACTION (SLIDE 40)")
+            + [""]
+            + row_45
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 5.1: Giải phẫu Debezium Log-Based CDC & Gói tin before/after/op
+    # -------------------------------------------------------------------------
+    s51_p1 = make_box([
+        "[PHA 1: INITIAL CONSISTENT SNAPSHOT (KHỞI TẠO KHÔNG KHÓA BẢNG)]",
+        "• [1] Mở giao dịch REPEATABLE READ, ghi nhận tọa độ LSN_0 = 0/16B3700",
+        "• [2] Quét các dòng hiện có trong bảng orders, phát sự kiện op = 'r'",
+        "• [3] Hoàn tất chụp ảnh mà không làm chặn các giao dịch ghi mới!",
+    ], inner_width=INNER_HALF)
+    s51_p2 = make_box([
+        "[PHA 2: CONTINUOUS WAL STREAMING (CHUYỂN TIẾP KHÔNG KHE HỞ)]",
+        "• [4] Móc vào khe nhân bản logic PostgreSQL (pgoutput Replication Slot)",
+        "• [5] Đọc nối tiếp tệp WAL từ đúng vị trí LSN_0 = 0/16B3700 trở đi!",
+        "• [6] Chuyển đổi mọi lệnh INSERT/UPDATE/DELETE thành sự kiện chuẩn.",
+    ], inner_width=INNER_HALF)
+    row_51 = join_horizontal([s51_p1, s51_p2], ["    "], {2: [" ──►"]})
+
+    s51_env = make_box([
+        "[CẮT LỚP PHONG BÌ SỰ KIỆN DEBEZIUM (DATABASE-AGNOSTIC EVENT ENVELOPE CHO ORDER #8888 - SLIDE 42)]",
+        "  { \"op\": \"u\",                                   // Loại biến động: 'c' (INSERT), 'u' (UPDATE), 'd' (DELETE), 'r' (READ)",
+        "    \"before\": { \"order_id\": \"ORD-8888\", \"user_id\": \"USR-104\", \"status\": \"PENDING\", \"amount\": 450000 }, // Trước khi sửa",
+        "    \"after\" : { \"order_id\": \"ORD-8888\", \"user_id\": \"USR-104\", \"status\": \"PAID\",    \"amount\": 450000 }, // Sau khi sửa",
+        "    \"source\": { \"connector\": \"postgresql\", \"db\": \"shop\", \"table\": \"orders\", \"lsn\": 23803720, \"ts_ms\": 1760785200000 } }",
+    ], inner_width=INNER_FULL)
+
+    diagrams["5.1"] = {
+        "ascii": "\n".join(
+            banner("GIẢI PHẪU DEBEZIUM CDC: SNAPSHOT -> WAL STREAMING & PHONG BÌ SỰ KIỆN (SLIDE 42)")
+            + [""]
+            + row_51
+            + v_arrow("Biến đổi dòng byte nhị phân độc quyền của từng hãng DB thành cấu trúc JSON/Avro thống nhất")
+            + s51_env
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 5.2: Đường ống End-to-End Debezium Sources & Sinks (Slide 43)
+    # -------------------------------------------------------------------------
+    s52_b1 = make_box([
+        "1. Source Database",
+        "• Postgres / MySQL",
+        "• MongoDB / Oracle",
+        "• SQLServer/Spanner",
+    ], inner_width=19)
+    s52_b2 = make_box([
+        "2. Debezium Source",
+        "• Đọc WAL / binlog",
+        "• Gói before/after",
+        "• Lưu tọa độ LSN",
+    ], inner_width=19)
+    s52_b3 = make_box([
+        "3. Apache Kafka",
+        "• Event Topic",
+        "  prod.orders",
+        "• Schema Registry",
+    ], inner_width=17)
+    s52_b4 = make_box([
+        "4. Sink Connector",
+        "• Kafka Connect",
+        "• SMT Transform",
+        "• Batch / Stream",
+    ], inner_width=17)
+    s52_b5 = make_box([
+        "5. Multi-Sinks",
+        "• Data Lakehouse",
+        "• Elastic / Redis",
+        "• Snowflake/Flink",
+    ], inner_width=17)
+    s52_inner_row = join_horizontal(
+        [s52_b1, s52_b2, s52_b3, s52_b4, s52_b5],
+        ["   ", "   ", "   ", "   "],
+        {2: ["──►", "──►", "──►", "──►"]},
+    )
+    s52_pipe = make_box(
+        ["[KIẾN TRÚC ĐƯỜNG ỐNG 4 CHẶNG: DEBEZIUM SOURCES AND SINKS (SLIDE 43)]", ""] + s52_inner_row,
+        inner_width=INNER_FULL,
+    )
+
+    s52_internal = make_box([
+        "[CẮT LỚP NỘI TẠI CỤM KAFKA CONNECT DISTRIBUTED CLUSTER (CHƯƠNG 7 KAFKA GUIDE)]",
+        "├── [1] connect-offsets (Compacted Topic) : Lưu vị trí LSN / binlog file+pos để khi Connector khởi động lại đọc tiếp chính xác 100%",
+        "├── [2] connect-configs & connect-status  : Đồng bộ cấu hình JSON và trạng thái sống còn của các Connector Tasks qua toàn bộ Workers",
+        "└── [3] Single Message Transforms (SMTs)  : Biến đổi nhẹ trên đường bay (ExtractNewRecordState bóc phẳng after, MaskField ẩn số thẻ/SĐT)",
+    ], inner_width=INNER_FULL)
+
+    diagrams["5.2"] = {
+        "ascii": "\n".join(
+            banner("KIẾN TRÚC ĐƯỜNG ỐNG END-TO-END: SOURCE DB -> DEBEZIUM -> KAFKA -> SINKS (SLIDE 43)")
+            + [""]
+            + s52_pipe
+            + [""]
+            + s52_internal
+        ),
+        "kind": "boxes",
+    }
+
+    # -------------------------------------------------------------------------
+    # 5.3: Bốn Thách thức Vận hành Thực chiến (WAL Bloat, Schema Drift, Outbox)
+    # -------------------------------------------------------------------------
+    s53_c1 = make_box([
+        "[1. NỔ ĐĨA DB NGUỒN DO KẸT REPLICATION SLOT (WAL BLOAT)]",
+        "• Cơ chế gãy : Debezium chết HOẶC bảng orders ít ghi trong khi",
+        "  bảng audit khác ghi liên tục -> Con trỏ confirmed_flush_lsn",
+        "  bị đứng im -> PostgreSQL giữ lại toàn bộ tệp pg_wal gây sập DB!",
+        "• Hóa giải   : Bật heartbeat.interval.ms + heartbeat.action.query",
+        "  kết hợp khóa trần max_slot_wal_keep_size trong postgresql.conf!",
+    ], inner_width=INNER_HALF)
+    s53_c2 = make_box([
+        "[2. TRÔI LƯỢC ĐỒ (SCHEMA DRIFT) & TIN NHẮN ĐỘC (POISON PILL)]",
+        "• Cơ chế gãy : Nguồn đổi kiểu cột hoặc bắn bản ghi hỏng làm",
+        "  Sink Connector văng ngoại lệ Deserialization và chết lặp lại!",
+        "• Hóa giải   : Áp dụng Confluent Schema Registry (Kiểm tra tương",
+        "  thích BACKWARD/FULL) + cấu hình errors.tolerance = all để tự",
+        "  động đẩy bản ghi lỗi sang kênh cách ly Dead Letter Queue (DLQ).",
+    ], inner_width=INNER_HALF)
+    row_53_top = join_horizontal([s53_c1, s53_c2], ["    "])
+
+    s53_c3 = make_box([
+        "[3. LỆCH TẢI PHÂN VÙNG (HOT PARTITION) & GIÁM SÁT]",
+        "• Cơ chế gãy : 1 khách hàng doanh nghiệp lớn chiếm 50% tổng",
+        "  lượng đơn -> Băm cùng Key làm nghẽn cứng 1 Partition duy nhất!",
+        "• Hóa giải   : Gắn hậu tố Salting Key (Key#1..N) và canh 3 chỉ số",
+        "  vàng: UnderReplicatedPartitions=0, ActiveController=1, Lag.",
+    ], inner_width=INNER_HALF)
+    s53_c4 = make_box([
+        "[4. BÀI TOÁN GHI KÉP (DUAL-WRITE) & OUTBOX PATTERN]",
+        "• Cơ chế gãy : Microservice vừa COMMIT vào DB vừa gọi hàm",
+        "  producer.send() -> Nếu sập giữa 2 lệnh sẽ gây lệch dữ liệu!",
+        "• Hóa giải   : Ghi vào bảng orders VÀ bảng outbox_events trong",
+        "  CÙNG 1 ACID Transaction local, rồi để Debezium đọc bảng Outbox!",
+    ], inner_width=INNER_HALF)
+    row_53_bot = join_horizontal([s53_c3, s53_c4], ["    "])
+
+    diagrams["5.3"] = {
+        "ascii": "\n".join(
+            banner("BỐN THÁCH THỨC VẬN HÀNH THỰC CHIẾN & PHÁC ĐỒ HÓA GIẢI (PRODUCTION CHALLENGES)")
+            + [""]
+            + row_53_top
+            + [""]
+            + row_53_bot
+        ),
+        "kind": "boxes",
+    }
+
+    for k, meta in diagrams.items():
+        errs = verify_diagram(meta["ascii"], f"ING-{k}", kind=meta["kind"])
+        if errs:
+            raise SystemExit(f"ASCII verification failed for ING-{k} ({meta['kind']}): {errs}")
+    return diagrams
 
 
 import html as _html_mod
@@ -256,6 +1255,11 @@ _LESSON_FUNC_SPECS = [
     ("renderContainerChang2", "F06", 2, "container_diagrams"),
     ("renderContainerChang3", "F06", 3, "container_diagrams"),
     ("renderContainerChang4", "F06", 4, "container_diagrams"),
+    ("renderIngestionChang1", "D01", 1, "ingestion_diagrams"),
+    ("renderIngestionChang2", "D01", 2, "ingestion_diagrams"),
+    ("renderIngestionChang3", "D01", 3, "ingestion_diagrams"),
+    ("renderIngestionChang4", "D01", 4, "ingestion_diagrams"),
+    ("renderIngestionChang5", "D01", 5, "ingestion_diagrams"),
 ]
 
 _X_SPINE_RE = _re_mod.compile(
@@ -267,6 +1271,7 @@ _X_FIGURE_RE = _re_mod.compile(
     _re_mod.DOTALL,
 )
 _X_INFRA2D_RE = _re_mod.compile(r"<x-infra2d></x-infra2d>")
+_X_INGESTION2D_RE = _re_mod.compile(r"<x-ingestion2d>\s*</x-ingestion2d>")
 
 
 def _js_str_escape(s: str) -> str:
@@ -316,6 +1321,7 @@ def _compile_lesson_html_to_js(html_content: str) -> str:
     out = _X_SPINE_RE.sub(repl_x_spine, out)
     out = _X_FIGURE_RE.sub(repl_x_figure, out)
     out = _X_INFRA2D_RE.sub("${buildInfra2DSimulatorHtml()}", out)
+    out = _X_INGESTION2D_RE.sub("${buildIngestion2DSimulatorHtml()}", out)
     return out
 
 
@@ -362,6 +1368,13 @@ def compile_lesson_templates_js() -> str:
       2: renderContainerChang2,
       3: renderContainerChang3,
       4: renderContainerChang4
+    },
+    D01: {
+      1: renderIngestionChang1,
+      2: renderIngestionChang2,
+      3: renderIngestionChang3,
+      4: renderIngestionChang4,
+      5: renderIngestionChang5
     }
   };"""
     )
@@ -3666,6 +4679,54 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     background: linear-gradient(90deg, #6366f1, #06b6d4, #10b981);
     transition: width 0.25s ease;
   }
+  @keyframes ingFlowDash {
+    to { stroke-dashoffset: -24; }
+  }
+  @keyframes ingPulseNode {
+    0%, 100% { filter: drop-shadow(0 0 3px rgba(56, 189, 248, 0.35)); }
+    50% { filter: drop-shadow(0 0 9px rgba(56, 189, 248, 0.85)); }
+  }
+  .ing2d-flow-active {
+    stroke-dasharray: 6 6;
+    animation: ingFlowDash 0.85s linear infinite;
+  }
+  .ing2d-svg-stage {
+    width: 100%;
+    height: auto;
+    max-height: 310px;
+    display: block;
+    border-radius: 8px;
+    background: radial-gradient(circle at 50% 25%, #0f172a 0%, #020617 100%);
+  }
+  .ing2d-metrics-strip {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .ing2d-metric-chip {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 7px;
+    padding: 5px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .ing2d-metric-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #94a3b8;
+    font-weight: 700;
+  }
+  .ing2d-metric-val {
+    font-size: 12px;
+    font-weight: 800;
+    color: #f8fafc;
+    font-family: var(--font-mono);
+  }
   .infra2d-card-grid2 {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -3986,6 +5047,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
           title: "Ingestion Layer",
           slide: "07-ingestion-layer.pdf",
           pages: 45,
+          hasContent: true,
+          contentNote: "Chặng 1–5",
           slideToc: [
             "01/ Introduction & Data Architectures",
             "02/ Source Systems",
@@ -4447,10 +5510,69 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     return [];
   }
 
+  const INGESTION_STAGES = [
+    { id: 1, shortTitle: "Hệ thống Nguồn, GIGO, Push/Pull/Poll & Bố cục Lưu trữ", title: "Chặng 1: Bản Đồ Thu Thập Dữ Liệu & Giải Phẫu Hệ Thống Nguồn (Source Systems)" },
+    { id: 2, shortTitle: "Ba Thế Hệ CDC (Timestamp Polling, Trigger & Log-Based WAL)", title: "Chặng 2: Ba Thế Hệ Change Data Capture — Từ Timestamp Polling, Trigger Đến Log-Based CDC" },
+    { id: 3, shortTitle: "Hệ Sinh Thái Apache Kafka, KRaft, Partition & Zero-Copy", title: "Chặng 3: Hệ Sinh Thái Apache Kafka & Kiến Trúc Lưu Trữ Sự Kiện Phân Tán" },
+    { id: 4, shortTitle: "Producer murmur2, Consumer Group, ISR, EOS & Log Compaction", title: "Chặng 4: Cơ Học Vận Hành Kafka — Producer, Consumer Group, Replication, Delivery Guarantees & Log Model" },
+    { id: 5, shortTitle: "Đường Ống Debezium CDC & 4 Thách Thức Vận Hành Thực Chiến", title: "Chặng 5: Đường Ống CDC Thời Gian Thực Với Debezium & Giải Quyết Thách Thức Vận Hành Thực Chiến" }
+  ];
+
+  const INGESTION_CHANG1_STATIONS = [
+    { id: "ingestion-0-map", code: "0.0", title: "Nhân vật chính Order #8888 & Bản đồ 5 Chặng", fullTitle: "Trạm 0.0: Nhân vật chính Order #8888 & Bản đồ Kiến trúc 5 Chặng Ingestion Layer" },
+    { id: "ingestion-1-0-sim", code: "2D", title: "Mô phỏng 2D (6 Slide): Cắt lớp CDC, Kafka, ISR & WAL Bloat", fullTitle: "Trạm 1.0 (Mô phỏng 2D): Phòng Thí Nghiệm Dòng Chảy CDC, Kafka Partition, ISR Failover & WAL Bloat" },
+    { id: "ingestion-1-1", code: "1.1", title: "Kiến trúc 5 Tầng Dữ liệu, Data Governance & Định luật GIGO", fullTitle: "Trạm 1.1: Kiến trúc 5 Tầng Dữ liệu, Lớp Quản trị Data Governance & Định luật GIGO tại Hệ thống Nguồn" },
+    { id: "ingestion-1-2", code: "1.2", title: "File Ingestion, Structured/Semi/Unstructured & Push-Pull-Poll", fullTitle: "Trạm 1.2: Giải phẫu File Ingestion, Ba Cấp độ Cấu trúc Dữ liệu & Mô hình Push – Pull – Poll" },
+    { id: "ingestion-1-3", code: "1.3", title: "OLTP vs OLAP, Bố cục Row/Column/Hybrid, EtLT & Thu thập Logs", fullTitle: "Trạm 1.3: Đối chiếu OLTP vs. OLAP, Bố cục Lưu trữ (Row / Column / Hybrid), Mô hình EtLT & Thu thập Logs" },
+    { id: "ingestion-1-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 1", fullTitle: "Tóm tắt bỏ túi Chặng 1 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const INGESTION_CHANG2_STATIONS = [
+    { id: "ingestion-2-1", code: "2.1", title: "Bài toán Đồng bộ Biến động (CDC) & Sự sụp đổ của Full-Table Dump", fullTitle: "Trạm 2.1: Bài toán Đồng bộ Biến động (CDC) & Sự Sụp đổ của Full-Table Dump Định kỳ" },
+    { id: "ingestion-2-2", code: "2.2", title: "Timestamp-Based Polling CDC, High-Watermark & Bẫy Soft Delete", fullTitle: "Trạm 2.2: Timestamp-Based Polling CDC — Cửa sổ High-Watermark, Cạm bẫy Soft Delete & Chi phí Quét Bảng" },
+    { id: "ingestion-2-3", code: "2.3", title: "Trigger-Based CDC, Bảng Bóng Shadow Table & Nhân đôi I/O", fullTitle: "Trạm 2.3: Trigger-Based CDC — Bảng Bóng (Shadow Table), Nhân đôi Ghi I/O & Ác mộng Cascading Triggers" },
+    { id: "ingestion-2-4", code: "2.4", title: "Log-Based CDC (WAL / binlog) & Ma trận Đối chiếu 7 Chiều", fullTitle: "Trạm 2.4: Log-Based CDC — Đọc Tuần tự Nhật ký Nhị phân (WAL / binlog) & Đánh đổi Độ phức tạp Giải mã" },
+    { id: "ingestion-2-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 2", fullTitle: "Tóm tắt bỏ túi Chặng 2 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const INGESTION_CHANG3_STATIONS = [
+    { id: "ingestion-3-1", code: "3.1", title: "Mạng nhện Điểm – Điểm O(N×M) & Trục Sự kiện Apache Kafka", fullTitle: "Trạm 3.1: Nỗi đau Mạng nhện Điểm – Điểm O(N × M) & Sự ra đời của Nền tảng Event Streaming Apache Kafka" },
+    { id: "ingestion-3-2", code: "3.2", title: "Điều phối Cụm (ZooKeeper → KRaft) & Hệ sinh thái Connect/MM2", fullTitle: "Trạm 3.2: Bộ máy Điều phối Cụm (ZooKeeper → KRaft Consensus) & Hệ sinh thái Mở rộng (Connect, Streams, MirrorMaker 2)" },
+    { id: "ingestion-3-3", code: "3.3", title: "Thiết kế Topic, Toán học Định cỡ Partition & Zero-Copy sendfile(2)", fullTitle: "Trạm 3.3: Sáu Viên gạch Nền tảng, Chiến lược Thiết kế Topic & Toán học Định cỡ Partition (Unit of Parallelism)" },
+    { id: "ingestion-3-4", code: "3.4", title: "Con trỏ Offset, Control Records & Độ trễ Consumer Lag", fullTitle: "Trạm 3.4: Giải phẫu Con trỏ Offset, Control Records & Bài toán Độ trễ Tiêu thụ (Consumer Lag)" },
+    { id: "ingestion-3-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 3", fullTitle: "Tóm tắt bỏ túi Chặng 3 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const INGESTION_CHANG4_STATIONS = [
+    { id: "ingestion-4-1", code: "4.1", title: "Producer Internals: Băm Khóa murmur2 vs Sticky & RecordAccumulator", fullTitle: "Trạm 4.1: Producer Internals — Chiến lược Chọn Partition (Keyed murmur2 Hash vs. Keyless Sticky) & Bộ đệm Gom lô" },
+    { id: "ingestion-4-2", code: "4.2", title: "Consumer Groups: Quy tắc 1:1, Fan-out & Cooperative Rebalance", fullTitle: "Trạm 4.2: Consumer Groups — Quy tắc Độc quyền Partition, Đa Nhóm Fan-out & Tái cân bằng (Rebalance)" },
+    { id: "ingestion-4-3", code: "4.3", title: "Replication Leader/Follower, Tập hợp ISR & Bầu chọn Tự động", fullTitle: "Trạm 4.3: Replication & Fault Tolerance — Leader/Follower Replicas, Tập hợp ISR & Bầu chọn Tự động khi Sập Broker" },
+    { id: "ingestion-4-4", code: "4.4", title: "Ba Cấp độ Giao nhận (At-most/At-least/Exactly-once) & Bẫy acks=1", fullTitle: "Trạm 4.4: Ba Cấp Độ Đảm Bảo Giao Nhận (At-most-once, At-least-once, Exactly-once) & Cạm bẫy Mất Dữ liệu của acks=1" },
+    { id: "ingestion-4-5", code: "4.5", title: "Log Segment trên Đĩa (.log/.index) & Nén Nhật ký Log Compaction", fullTitle: "Trạm 4.5: Mô hình Lưu trữ Log Segment trên Đĩa & Ba Chính sách Dọn dẹp (Time, Size & Log Compaction)" },
+    { id: "ingestion-4-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 4", fullTitle: "Tóm tắt bỏ túi Chặng 4 & Checklist 5 câu hỏi bản chất" }
+  ];
+
+  const INGESTION_CHANG5_STATIONS = [
+    { id: "ingestion-5-1", code: "5.1", title: "Giải phẫu Debezium: Snapshot → WAL Streaming & Gói tin before/after/op", fullTitle: "Trạm 5.1: Giải phẫu Debezium Log-Based CDC — Chu trình Snapshot sang Streaming WAL & Cấu trúc Gói tin before/after/op" },
+    { id: "ingestion-5-2", code: "5.2", title: "Đường ống End-to-End: Đa Nguồn → Debezium → Kafka Connect → Đa Đích", fullTitle: "Trạm 5.2: Kiến trúc Đường ống End-to-End — Từ Đa Hệ quản trị Nguồn qua Debezium & Kafka Connect Đến Đa Đích (Multi-Sink)" },
+    { id: "ingestion-5-3", code: "5.3", title: "Bốn Sự cố Thực chiến: Nổ Đĩa WAL Bloat, Schema Drift, Hot Key & Outbox", fullTitle: "Trạm 5.3: Bốn Thách thức Vận hành Thực chiến (Kafka & Debezium Challenges) — WAL Bloat, Schema Drift, Hot Partition & Outbox Pattern" },
+    { id: "ingestion-5-summary", code: "Kết", title: "Tóm tắt bỏ túi Chặng 5 (Khép kín D01)", fullTitle: "Tóm tắt bỏ túi Chặng 5 & Khép kín Toàn bộ Học phần D01 · Ingestion Layer" }
+  ];
+
+  function getIngestionStations(stageId = activeStorageStage) {
+    if (stageId === 1) return INGESTION_CHANG1_STATIONS;
+    if (stageId === 2) return INGESTION_CHANG2_STATIONS;
+    if (stageId === 3) return INGESTION_CHANG3_STATIONS;
+    if (stageId === 4) return INGESTION_CHANG4_STATIONS;
+    if (stageId === 5) return INGESTION_CHANG5_STATIONS;
+    return [];
+  }
+
   function getTopicStages(topic = activeTopic) {
     if (topic === "F01") return LINUX_STAGES;
     if (topic === "F03") return DB_STAGES;
     if (topic === "F06") return CONTAINER_STAGES;
+    if (topic === "D01") return INGESTION_STAGES;
     if (topic === "D02") return STORAGE_STAGES;
     return [];
   }
@@ -4459,6 +5581,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     if (topic === "F01") return getLinuxStations(stageId);
     if (topic === "F03") return getDbStations(stageId);
     if (topic === "F06") return getContainerStations(stageId);
+    if (topic === "D01") return getIngestionStations(stageId);
     if (topic === "D02") return getStorageStations(stageId);
     return [];
   }
@@ -5478,6 +6601,795 @@ __LESSON_TEMPLATES_JS__
     `;
   }
 
+
+  /* ==========================================================================
+     CLAUDE / ANTHROPIC-STYLE 2D ANIMATED PACKET FLOW & ARCHITECTURAL LAB (D01)
+     ========================================================================== */
+  const ING2D_SLIDES = [
+    {
+      id: 1,
+      chapter: "Chặng 2 · 3 Thế Hệ CDC",
+      analogy: "Cắt Lớp 4 Tầng Nội Tạng PostgreSQL",
+      title: "1. Phẫu Thuật 3 Thế Hệ CDC: Polling vs. Trigger vs. Log-Based WAL",
+      leadTitle: "Đặt đầu dò ở tầng nào của Database để bắt Order #8888 mà không làm sập CPU?",
+      leadStory: "Giao dịch #8888 (450.000đ) vừa đi qua 4 tầng nội tạng của PostgreSQL: (L1) SQL Parser/Executor → (L2) Trigger Engine → (L3) 8KB Heap Pages → (L4) Nhật ký nhị phân pg_wal. Hãy chuyển đổi giữa 3 thế hệ CDC và bấm nút [Thử lệnh Hard DELETE #8888] để quan sát đường đi của gói tin và tải phần cứng!",
+      keypoints: [
+        { b: "1", t: "Timestamp Polling (Đầu dò tại L1 — SQL Executor)", d: "Cứ 5 phút bắn SELECT WHERE last_modified > Watermark. Quét bảng gây vọt 78% CPU, trễ hàng phút và MÙ HOÀN TOÀN trước lệnh xóa vật lý Hard DELETE." },
+        { b: "2", t: "Trigger-Based CDC (Đầu dò tại L2 — Trigger Engine)", d: "Chặn ngay trong giao dịch của khách để ghi thêm 1 bản vào shadow_table. Bắt được DELETE nhưng nhân đôi I/O và kéo độ trễ Checkout từ 12ms lên 26ms!" },
+        { b: "3", t: "Log-Based CDC / Debezium (Đầu dò tại L4 — pg_wal)", d: "Đọc tuần tự luồng byte nhị phân tại LSN=0/16B3748 thông qua khe pgoutput. 0% tải truy vấn bảng chính, độ trễ < 15ms và bắt trọn cả Hard DELETE." }
+      ],
+      verdict: "Chốt thiết kế: Luôn ưu tiên Log-Based CDC (Debezium đọc WAL/binlog) cho các bảng giao dịch cốt lõi để tách rời 100% tải phân tích khỏi luồng OLTP.",
+      simMode: "cdc"
+    },
+    {
+      id: 2,
+      chapter: "Chặng 4 · Producer Internals",
+      analogy: "Cắt Lớp 4 Tầng Kafka Producer & Partitioner",
+      title: "2. Đường Ống Producer: Băm Khóa murmur2(Key) vs. Chia Tải Keyless",
+      leadTitle: "Làm sao giữ đúng thứ tự nhân quả: Đặt hàng (#1) → Thanh toán (#2) → Giao hàng (#3)?",
+      leadStory: "Một đơn hàng #8888 của khách USR-104 phát sinh liên tiếp 3 sự kiện trạng thái. Bên trong Kafka Producer, bản ghi đi qua: [1. Avro Serializer] → [2. Partitioner] → [3. RecordAccumulator Batch 64KB] → [4. Sender Thread]. Hãy thử so sánh chế độ Có Khóa (With Key) và Không Khóa (Without Key)!",
+      keypoints: [
+        { b: "A", t: "With Key (key = 'USR-104' → murmur2(key) % 3 = Partition 1)", d: "Hàm băm tất định ép toàn bộ sự kiện của USR-104 đi vào duy nhất Partition 1 theo đúng thứ tự: Offset 10 (CREATED) → Offset 11 (PAID) → Offset 12 (SHIPPED)." },
+        { b: "B", t: "Without Key (key = null → Sticky / Round-Robin P0, P1, P2)", d: "Các bản ghi được rải đều sang Partition 0, 1, 2 để cân bằng tải tối đa, nhưng Consumer đọc P2 có thể xử lý trạng thái SHIPPED trước cả khi P0 xử lý CREATED!" },
+        { b: "C", t: "RecordAccumulator & Nén Lô (batch.size = 64KB, linger.ms = 10ms)", d: "Thay vì gửi lẻ từng gói qua mạng, Producer gom nhiều bản ghi cùng Partition vào bộ đệm RAM và nén LZ4/ZSTD trước khi đẩy sang Broker." }
+      ],
+      verdict: "Quy tắc định tuyến: Bắt buộc truyền khóa định danh thực thể (order_id hoặc user_id) khi nghiệp vụ đòi hỏi bảo toàn thứ tự trạng thái.",
+      simMode: "producer"
+    },
+    {
+      id: 3,
+      chapter: "Chặng 4 · Consumer Group",
+      analogy: "Cắt Lớp Ánh Xạ Partition ↔ Consumer & Fan-out",
+      title: "3. Cơ Học Consumer Group: Quy Tắc Độc Quyền Partition & Trạng Thái IDLE",
+      leadTitle: "Tại saoTopic có 3 Partitions mà tăng lên 4 Consumers thì máy thứ 4 lại ngồi chơi?",
+      leadStory: "Trong cùng một Consumer Group, Kafka khóa cứng quy tắc: 1 Partition chỉ được gán cho TỐI ĐA 1 Consumer tại một thời điểm để tránh đọc trùng và giữ thứ tự. Hãy bấm tăng số lượng Consumer từ 1 → 4 hoặc giả lập sập Consumer 2 để xem Group Coordinator vẽ lại sơ đồ dây nối!",
+      keypoints: [
+        { b: "1:3", t: "1 Consumer đọc 3 Partitions (Nghẽn cổ chai)", d: "Một tiến trình phải kéo dữ liệu từ cả P0, P1, P2. Thông lượng chỉ đạt 10 MB/s, độ trễ Consumer Lag tăng vọt khi có Flash Sale." },
+        { b: "3:3", t: "3 Consumers đọc 3 Partitions (Ánh xạ vàng 1:1)", d: "Mỗi Consumer độc quyền 1 Partition (C1←P0, C2←P1, C3←P2). Thông lượng nhân 3 (30 MB/s), Consumer Lag giảm về 0." },
+        { b: "4:3", t: "4 Consumers trên 3 Partitions (Dư thừa → Consumer 4 IDLE!)", d: "Không được phép để 2 Consumer cùng đọc 1 Partition trong cùng Group! Do đó Consumer 4 hoàn toàn nhàn rỗi (IDLE), chỉ đứng chờ làm dự phòng." }
+      ],
+      verdict: "Định luật song song hóa: Số lượng Partition của Topic chính là trần song song tối đa (Max Parallelism) của một Consumer Group.",
+      simMode: "consumer"
+    },
+    {
+      id: 4,
+      chapter: "Chặng 4 · Replication & EOS",
+      analogy: "Cắt Lớp Cụm 3 Brokers, Tập Hợp ISR & High Watermark",
+      title: "4. Chịu Lỗi Replication (RF=3), Tập Hợp ISR & Cạm Bẫy Mất Dữ Liệu acks=1",
+      leadTitle: "Tại sao Slide 39 cảnh báo cấu hình acks=1 VẪN LÀM MẤT DỮ LIỆU khi Leader sập?",
+      leadStory: "Topic prod.orders có replication.factor = 3: Broker 1 giữ bản chính (Leader), còn Broker 2 và Broker 3 giữ bản sao (Followers trong tập ISR). Hãy bắn thử Order #8888 rồi cho sập nguồn Broker 1 ở hai chế độ acks=1 và acks=all để tận mắt thấy sự khác biệt sinh tử!",
+      keypoints: [
+        { b: "ISR", t: "Leader & In-Sync Replicas (ISR = {B1, B2, B3})", d: "Mọi thao tác Đọc/Ghi của Client đi qua Leader (B1). Các Followers (B2, B3) liên tục gửi FetchRequest kéo dữ liệu mới về để bám sát High Watermark." },
+        { b: "!", t: "Thảm kịch acks=1: Leader trả ACK xong rồi sập trước khi Follower kịp chép!", d: "Với acks=1, Broker 1 vừa ghi xong đĩa cục bộ đã báo OK cho Producer. Nếu B1 cháy nguồn đúng mili-giây đó, B2 lên làm Leader mới nhưng KHÔNG HỀ CÓ #8888 → Mất đơn!" },
+        { b: "+", t: "Tam giác vàng: acks=all + min.insync.replicas=2 + idempotence=true", d: "Leader chỉ trả ACK khi ít nhất 2 bản sao trong ISR đã ghi bền vững. Kể cả Broker 1 nổ tung, Broker 2 lên ngôi vẫn giữ nguyên vẹn 100% đơn #8888." }
+      ],
+      verdict: "Chuẩn Production cho dữ liệu tài chính/CDC: replication.factor=3, min.insync.replicas=2, unclean.leader.election.enable=false và acks=all.",
+      simMode: "replication"
+    },
+    {
+      id: 5,
+      chapter: "Chặng 4 · On-Disk Log Model",
+      analogy: "Cắt Lớp Thư Mục /orders-0/ (.log, .index) & Log Cleaner",
+      title: "5. Vật Lý Đĩa Cứng: Xóa Segment O(1) vs. Nén Nhật Ký Theo Khóa (Log Compaction)",
+      leadTitle: "Kafka lưu trữ hàng Terabyte trên đĩa và tự động gộp lịch sử cập nhật của #8888 như thế nào?",
+      leadStory: "Trên ổ cứng NVMe, mỗi Partition thực chất là một thư mục (orders-0/) được chia thành các tệp phân đoạn (Log Segments: .log, .index, .timeindex). Hãy thử kích hoạt tiến trình Log Cleaner (cleanup.policy=compact) và bắn bản ghi bia mộ Tombstone trên luồng cập nhật của Order #8888!",
+      keypoints: [
+        { b: "SEG", t: "Phân đoạn Tệp (.log + .index) & Xóa theo Thời gian/Dung lượng (7 days / 1GB)", d: "Thay vì xóa từng dòng gây phân mảnh đĩa, Kafka đóng tệp Segment cũ và gọi syscall unlink() xóa trọn file hết hạn trong O(1) mili-giây." },
+        { b: "CMP", t: "Log Compaction (Dirty Tail → Clean Head theo Khóa)", d: "Đơn #8888 trải qua 3 lần sửa: Off 10 (PENDING) → Off 12 (PAID) → Off 13 (SHIPPED). Log Cleaner quét nền và chỉ giữ lại bản ghi mới nhất (Off 13: SHIPPED)!" },
+        { b: "DEL", t: "Bản ghi Bia mộ Tombstone (key='ORD-8888', value=null)", d: "Để xóa hẳn một khóa khỏi Topic nén, Producer bắn một bản ghi có value=null (Tombstone) báo hiệu cho các Consumer và Log Cleaner thu hồi khóa." }
+      ],
+      verdict: "Chọn chính sách lưu trữ: Dùng cleanup.policy=delete (7 ngày) cho luồng sự kiện phân tích, và cleanup.policy=compact cho bảng trạng thái CDC / __consumer_offsets.",
+      simMode: "compaction"
+    },
+    {
+      id: 6,
+      chapter: "Chặng 5 · Production Challenges",
+      analogy: "Cắt Lớp Đường Ống End-to-End & 4 Chốt Chặn Sinh Tử",
+      title: "6. Giải Cứu Sự Cố Thực Chiến: Nổ Đĩa WAL Bloat, DLQ & Transactional Outbox",
+      leadTitle: "Tại sao cắm Debezium vào PostgreSQL mà quên cấu hình Heartbeat lại làm sập cứng Database nguồn?",
+      leadStory: "Trong thực tế vận hành, đường ống Debezium → Kafka Connect đối mặt 4 tai nạn kinh điển: (1) Kẹt Replication Slot làm nổ ổ cứng pg_wal, (2) Tin nhắn độc Poison Pill làm chết Sink Connector, (3) Hot Partition Skew và (4) Dual-Write mất đồng bộ. Hãy bấm từng phác đồ để kích hoạt cơ chế phòng vệ!",
+      keypoints: [
+        { b: "WAL", t: "Phòng chống Nổ đĩa pg_wal (Replication Slot Bloat)", d: "Nếu bảng theo dõi ít phát sinh giao dịch hoặc Connector chết, con trỏ confirmed_flush_lsn đứng im khiến Postgres giữ lại toàn bộ WAL. Phải bật heartbeat.interval.ms + max_slot_wal_keep_size!" },
+        { b: "DLQ", t: "Confluent Schema Registry & Kênh Cách Ly Dead Letter Queue (DLQ)", d: "Kiểm tra tương thích lược đồ (BACKWARD/FULL) tại cửa ngõ và cấu hình errors.tolerance=all để tự động đẩy bản ghi lỗi sang topic DLQ thay vì làm sập cả đường ống." },
+        { b: "BOX", t: "Mẫu Transactional Outbox Pattern xóa sổ lỗi Ghi Kép (Dual-Write)", d: "Microservice ghi đồng thời vào bảng orders và bảng outbox_events trong CÙNG 1 ACID Transaction cục bộ, sau đó Debezium đọc bảng Outbox đẩy lên Kafka." }
+      ],
+      verdict: "Kỷ luật SRE: Không bao giờ đưa Debezium lên Production nếu chưa cài đặt cảnh báo dung lượng pg_wal, max_slot_wal_keep_size và kênh cách ly Dead Letter Queue.",
+      simMode: "challenges"
+    }
+  ];
+
+  let ing2dCurrentSlide = 0;
+  let ing2dState = {
+    cdcMode: "wal",
+    cdcHardDelete: false,
+    prodMode: "keyed",
+    prodSeqStep: 3,
+    consCount: 3,
+    consCrash2: false,
+    repScenario: "normal",
+    compMode: "dirty",
+    chalMode: "bloat"
+  };
+
+  function buildIngestion2DSimulatorHtml() {
+    return `
+      <div class="infra2d-wrap" id="ing2dWidgetRoot">
+        <div class="infra2d-header">
+          <div class="infra2d-brand">
+            <div class="infra2d-brand-icon">2D</div>
+            <div>
+              <div class="infra2d-brand-badges">
+                <span class="infra2d-tag">Cắt Lớp Kiến Trúc &amp; Luồng Gói Tin 2D</span>
+                <span class="infra2d-chapter" id="ing2dChapterBadge">Chặng 2 · 3 Thế Hệ CDC</span>
+              </div>
+              <h4 class="infra2d-title-bar">Phòng Thí Nghiệm Tương Tác D01: Hành Trình Sự Kiện Order #8888 Qua Tầng Ingestion</h4>
+            </div>
+          </div>
+          <div class="infra2d-dots" id="ing2dDots"></div>
+          <button type="button" class="infra2d-btn" onclick="toggleIngestion2DSummaryModal()">Bảng Tóm Tắt Thông Số</button>
+        </div>
+
+        <div id="ing2dSummaryDrawer" style="display:none;padding:14px 16px;background:#020617;border-bottom:1px solid #1e293b;">
+          <div style="padding:10px 12px;border-radius:8px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);font-size:12.5px;color:#bae6fd;margin-bottom:10px;">
+            <strong>Chuẩn kiến trúc D01 (Ingestion Layer):</strong> Kết hợp <strong>Debezium Log-Based CDC</strong> (đọc tuần tự <code>pg_wal</code>/<code>binlog</code>) với trục sự kiện phân tán <strong>Apache Kafka (KRaft, RF=3, min.insync.replicas=2, acks=all)</strong> để đạt độ trễ mili-giây và 0% mất mát dữ liệu.
+          </div>
+          <div class="table-wrap" style="margin:0;">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tầng Cắt Lớp</th>
+                  <th>Cơ Chế Cốt Lõi</th>
+                  <th>Thông Số Chuẩn Production</th>
+                  <th>Rủi Ro Sinh Tử Cần Chặn</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Source CDC</strong></td>
+                  <td>Đọc nhật ký nhị phân <code>pg_wal</code> (<code>pgoutput</code>) / <code>binlog</code> (<code>ROW</code>)</td>
+                  <td><code>wal_level = logical</code>, <code>heartbeat.interval.ms = 10000</code></td>
+                  <td>Kẹt Replication Slot làm nổ ổ cứng DB nguồn (<code>WAL Bloat</code>)</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Kafka Producer</strong></td>
+                  <td>Băm khóa <code>murmur2(key) % P</code> + Gom lô <code>RecordAccumulator</code></td>
+                  <td><code>acks = all</code>, <code>enable.idempotence = true</code>, <code>linger.ms = 10</code></td>
+                  <td>Mất thứ tự khi <code>key = null</code> hoặc lệch tải <code>Hot Partition</code></td>
+                </tr>
+                <tr>
+                  <td><strong>3. Kafka Broker &amp; ISR</strong></td>
+                  <td>Sao chép Leader → Followers trong tập <code>ISR</code> + Zero-Copy <code>sendfile(2)</code></td>
+                  <td><code>replication.factor = 3</code>, <code>min.insync.replicas = 2</code></td>
+                  <td>Đặt <code>acks = 1</code> làm mất bản ghi khi Leader sập trước khi đồng bộ</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Consumer &amp; Sink</strong></td>
+                  <td>Mỗi Partition tối đa 1 Consumer/Group + <code>CooperativeStickyAssignor</code></td>
+                  <td><code>enable.auto.commit = false</code>, <code>errors.tolerance = all</code> (+ DLQ)</td>
+                  <td>Dư Consumer ngồi chơi (<code>IDLE</code>) hoặc chết lặp do <code>Poison Pill</code></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="infra2d-grid">
+          <div class="infra2d-col-left">
+            <div>
+              <div class="infra2d-pills">
+                <span class="infra2d-pill-num" id="ing2dSlideNumPill">SLIDE 1 / 6</span>
+                <span class="infra2d-pill-analogy" id="ing2dAnalogyPill">Cắt Lớp Kiến Trúc</span>
+              </div>
+              <h3 class="infra2d-slide-h3" id="ing2dSlideTitle"></h3>
+              <div class="infra2d-story-box">
+                <div class="infra2d-avatar" title="Sự kiện Giao dịch Order #8888">#8888</div>
+                <div>
+                  <span class="infra2d-story-title" id="ing2dLeadTitle"></span>
+                  <p class="infra2d-story-text" id="ing2dLeadStory"></p>
+                </div>
+              </div>
+              <div class="infra2d-keypoints" id="ing2dKeypoints"></div>
+            </div>
+            <div class="infra2d-verdict" id="ing2dVerdictBox"></div>
+          </div>
+
+          <div class="infra2d-col-right">
+            <div>
+              <div class="infra2d-sim-top">
+                <div class="infra2d-sim-live">
+                  <span class="infra2d-sim-dot"></span>
+                  <span>Sơ Đồ Cắt Lớp &amp; Luồng Gói Tin Chuyển Động (Animated SVG)</span>
+                </div>
+                <span class="infra2d-sim-hint">Bấm các nút kịch bản bên dưới để đổi luồng!</span>
+              </div>
+              <div class="infra2d-stage" id="ing2dSimStage" style="padding:10px;"></div>
+            </div>
+            <div>
+              <div class="infra2d-status" id="ing2dSimStatusText">Sẵn sàng mô phỏng.</div>
+              <div class="infra2d-controls" id="ing2dSimControls"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="infra2d-footer">
+          <button type="button" class="infra2d-btn" id="ing2dBtnPrev" onclick="changeIngestion2DSlide(-1)">← Mô Phỏng Trước</button>
+          <div class="infra2d-progress-wrap">
+            <div class="infra2d-progress-track">
+              <div class="infra2d-progress-fill" id="ing2dProgressFill" style="width:16.6%;"></div>
+            </div>
+            <span style="font-size:11px;color:#94a3b8;">Chọn 1 trong 6 lát cắt kiến trúc (1–6) hoặc kích hoạt kịch bản lỗi ở bảng điều khiển</span>
+          </div>
+          <button type="button" class="infra2d-btn infra2d-btn-primary" id="ing2dBtnNext" onclick="changeIngestion2DSlide(1)">Mô Phỏng Tiếp Theo →</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function toggleIngestion2DSummaryModal() {
+    const d = document.getElementById("ing2dSummaryDrawer");
+    if (!d) return;
+    d.style.display = (d.style.display === "none" || !d.style.display) ? "block" : "none";
+  }
+
+  function changeIngestion2DSlide(delta) {
+    const next = ing2dCurrentSlide + delta;
+    if (next < 0 || next >= ING2D_SLIDES.length) return;
+    ing2dCurrentSlide = next;
+    renderIngestion2DSlide();
+  }
+
+  function jumpIngestion2DSlide(idx) {
+    if (idx < 0 || idx >= ING2D_SLIDES.length) return;
+    ing2dCurrentSlide = idx;
+    renderIngestion2DSlide();
+  }
+
+  function renderIngestion2DSlide() {
+    const root = document.getElementById("ing2dWidgetRoot");
+    if (!root) return;
+    const slide = ING2D_SLIDES[ing2dCurrentSlide] || ING2D_SLIDES[0];
+
+    document.getElementById("ing2dChapterBadge").textContent = slide.chapter;
+    document.getElementById("ing2dSlideNumPill").textContent = `SLIDE ${slide.id} / ${ING2D_SLIDES.length}`;
+    document.getElementById("ing2dAnalogyPill").textContent = slide.analogy;
+    document.getElementById("ing2dSlideTitle").textContent = slide.title;
+    document.getElementById("ing2dLeadTitle").textContent = slide.leadTitle;
+    document.getElementById("ing2dLeadStory").textContent = slide.leadStory;
+
+    const kpEl = document.getElementById("ing2dKeypoints");
+    kpEl.innerHTML = slide.keypoints.map(kp => `
+      <div class="infra2d-kp-item">
+        <div class="infra2d-kp-badge">${escapeHtml(kp.b)}</div>
+        <div>
+          <span class="infra2d-kp-title">${escapeHtml(kp.t)}</span>
+          <p class="infra2d-kp-desc">${escapeHtml(kp.d)}</p>
+        </div>
+      </div>
+    `).join("");
+
+    document.getElementById("ing2dVerdictBox").textContent = slide.verdict;
+
+    const dotsEl = document.getElementById("ing2dDots");
+    dotsEl.innerHTML = ING2D_SLIDES.map((s, idx) => `
+      <button type="button" class="infra2d-dot-btn ${idx === ing2dCurrentSlide ? 'active' : ''}" onclick="jumpIngestion2DSlide(${idx})">${s.id}</button>
+    `).join("");
+
+    const prevBtn = document.getElementById("ing2dBtnPrev");
+    const nextBtn = document.getElementById("ing2dBtnNext");
+    if (prevBtn) prevBtn.disabled = (ing2dCurrentSlide === 0);
+    if (nextBtn) nextBtn.disabled = (ing2dCurrentSlide === ING2D_SLIDES.length - 1);
+
+    const fillEl = document.getElementById("ing2dProgressFill");
+    if (fillEl) fillEl.style.width = `${((ing2dCurrentSlide + 1) / ING2D_SLIDES.length) * 100}%`;
+
+    renderIngestion2DInteractiveStage(slide.simMode);
+  }
+
+  function renderIngestion2DInteractiveStage(mode) {
+    const stage = document.getElementById("ing2dSimStage");
+    const status = document.getElementById("ing2dSimStatusText");
+    const ctrls = document.getElementById("ing2dSimControls");
+    if (!stage || !status || !ctrls) return;
+
+    if (mode === "cdc") {
+      const m = ing2dState.cdcMode;
+      const isDel = ing2dState.cdcHardDelete;
+      const cpuVal = m === "poll" ? "78% (Quét SeqScan)" : (m === "trig" ? "46% (Ghi kép x2)" : "2% (Đọc tuần tự WAL)");
+      const latVal = m === "poll" ? "5 phút (Batch)" : (m === "trig" ? "26 ms (+14ms khóa)" : "12 ms (Real-time)");
+      const delStatus = (m === "poll" && isDel) ? "MẤT DẤU (Blind!)" : (isDel ? "Bắt được op='d'" : "Bắt được op='c'/'u'");
+      const schemaMod = m === "poll" ? "Phải thêm is_deleted" : (m === "trig" ? "Phải tạo shadow_table" : "0 sửa bảng gốc");
+
+      const pollActive = m === "poll";
+      const trigActive = m === "trig";
+      const walActive = m === "wal";
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="ingArrCyan" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><polygon points="0 0, 7 3.5, 0 7" fill="#38bdf8"/></marker>
+            <marker id="ingArrAmber" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><polygon points="0 0, 7 3.5, 0 7" fill="#fbbf24"/></marker>
+            <marker id="ingArrRose" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><polygon points="0 0, 7 3.5, 0 7" fill="#f43f5e"/></marker>
+            <marker id="ingArrEmerald" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><polygon points="0 0, 7 3.5, 0 7" fill="#34d399"/></marker>
+          </defs>
+
+          <!-- Outer Source DBMS Cross-Section Frame -->
+          <rect x="12" y="10" width="335" height="230" rx="8" fill="#090d16" stroke="#334155" stroke-width="1.5"/>
+          <text x="22" y="27" fill="#94a3b8" font-size="10" font-weight="700" font-family="monospace">CẮT LỚP NỘI TẠNG POSTGRESQL (SOURCE OLTP)</text>
+
+          <!-- Layer 1: SQL Query Parser & Executor -->
+          <rect x="24" y="36" width="310" height="40" rx="6" fill="${pollActive ? 'rgba(244,63,94,0.16)' : '#0f172a'}" stroke="${pollActive ? '#f43f5e' : '#1e293b'}" stroke-width="1.5"/>
+          <text x="34" y="53" fill="#f8fafc" font-size="11" font-weight="700">[Tầng 1] SQL Parser &amp; Query Executor</text>
+          <text x="34" y="68" fill="#94a3b8" font-size="9.5" font-family="monospace">${isDel ? 'DELETE FROM orders WHERE id = 8888;' : 'INSERT / UPDATE orders (#8888, 450.000đ)'}</text>
+
+          <!-- Layer 2: Trigger Engine -->
+          <rect x="24" y="86" width="310" height="42" rx="6" fill="${trigActive ? 'rgba(245,158,11,0.16)' : '#0f172a'}" stroke="${trigActive ? '#fbbf24' : '#1e293b'}" stroke-width="1.5"/>
+          <text x="34" y="103" fill="#f8fafc" font-size="11" font-weight="700">[Tầng 2] Synchronous Trigger Engine</text>
+          <text x="34" y="118" fill="${trigActive ? '#fde68a' : '#64748b'}" font-size="9.5" font-family="monospace">${trigActive ? 'AFTER INS/UPD/DEL → Ghi thêm vào shadow_table (Chậm x2!)' : 'Không gắn Trigger (0ms Overhead)'}</text>
+
+          <!-- Layer 3: 8KB Heap Pages & B-Tree -->
+          <rect x="24" y="138" width="310" height="42" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
+          <text x="34" y="155" fill="#f8fafc" font-size="11" font-weight="700">[Tầng 3] 8KB Slotted Heap Pages &amp; B-Tree</text>
+          <text x="34" y="170" fill="${isDel ? '#fda4af' : '#94a3b8'}" font-size="9.5" font-family="monospace">${isDel ? 'Dòng #8888 đã bị xóa vật lý khỏi trang đĩa!' : 'Lưu dòng #8888 (last_modified = 12:00:05)'}</text>
+
+          <!-- Layer 4: Append-Only Transaction Log (pg_wal) -->
+          <rect x="24" y="190" width="310" height="42" rx="6" fill="${walActive ? 'rgba(16,185,129,0.16)' : '#0f172a'}" stroke="${walActive ? '#10b981' : '#1e293b'}" stroke-width="1.5"/>
+          <text x="34" y="207" fill="#f8fafc" font-size="11" font-weight="700">[Tầng 4] Transaction Log (pg_wal / binlog)</text>
+          <text x="34" y="222" fill="#34d399" font-size="9.5" font-family="monospace">LSN=0/16B3748 | op=${isDel ? "'d' (before=#8888)" : "'u' (before/after)"}</text>
+
+          <!-- Right Side: CDC Collector & Kafka Topic -->
+          <rect x="382" y="36" width="166" height="86" rx="8" fill="#0f172a" stroke="${pollActive ? '#f43f5e' : (trigActive ? '#fbbf24' : '#10b981')}" stroke-width="1.8"/>
+          <text x="394" y="56" fill="#f8fafc" font-size="11" font-weight="800">${pollActive ? '1. Polling CronJob' : (trigActive ? '2. Shadow Table Reader' : '3. Debezium Engine')}</text>
+          <text x="394" y="74" fill="#cbd5e1" font-size="9.5">${pollActive ? 'SELECT * WHERE updated > T' : (trigActive ? 'Đọc bảng orders_audit_log' : 'Đọc khe nhân bản pgoutput')}</text>
+          <text x="394" y="92" fill="${(pollActive && isDel) ? '#fda4af' : '#34d399'}" font-size="9.5" font-weight="700" font-family="monospace">${(pollActive && isDel) ? '[x] 0 rows (Bỏ lỡ DELETE!)' : '[+] Bắt trọn sự kiện #8888'}</text>
+          <text x="394" y="109" fill="#94a3b8" font-size="9" font-family="monospace">CPU Nguồn: ${pollActive ? '78%' : (trigActive ? '46%' : '2%')}</text>
+
+          <rect x="382" y="154" width="166" height="78" rx="8" fill="#090d16" stroke="#38bdf8" stroke-width="1.5"/>
+          <text x="394" y="174" fill="#38bdf8" font-size="10.5" font-weight="800" font-family="monospace">KAFKA TOPIC: prod.orders</text>
+          <text x="394" y="193" fill="#e2e8f0" font-size="9.5" font-family="monospace">${(pollActive && isDel) ? '[!] Dữ liệu đích bị lệch!' : 'Offset 42: Key=ORD-8888'}</text>
+          <text x="394" y="209" fill="#94a3b8" font-size="9" font-family="monospace">${(pollActive && isDel) ? 'Đơn đã xóa vẫn còn ở Đích' : (isDel ? 'Payload: op="d", after=null' : 'Payload: op="u", amt=450000')}</text>
+
+          <!-- Internal DB Write Flow (L1 -> L2 -> L3 -> L4) -->
+          <path d="M 175 76 L 175 190" stroke="#475569" stroke-width="1.5" stroke-dasharray="3 3"/>
+
+          <!-- Active CDC Probe Path + Animated Packet -->
+          ${pollActive ? `
+            <path id="cdcProbePath" d="M 334 56 L 382 56" stroke="#f43f5e" stroke-width="2.5" class="ing2d-flow-active" marker-end="url(#ingArrRose)"/>
+            <path d="M 334 158 C 360 158, 355 75, 382 75" stroke="#f43f5e" stroke-width="1.8" stroke-dasharray="4 4"/>
+            ${!isDel ? `
+              <path id="cdcOutPath" d="M 465 122 L 465 154" stroke="#f43f5e" stroke-width="2.2" class="ing2d-flow-active" marker-end="url(#ingArrRose)"/>
+              <circle r="5" fill="#f43f5e"><animateMotion dur="1.4s" repeatCount="indefinite" path="M 334 56 L 382 56 L 465 122 L 465 154"/></circle>
+            ` : `
+              <text x="405" y="143" fill="#f43f5e" font-size="10" font-weight="800">✗ ĐỨT LUỒNG (MÙ DELETE)</text>
+            `}
+          ` : ""}
+
+          ${trigActive ? `
+            <path id="cdcProbePath" d="M 334 107 L 382 80" stroke="#fbbf24" stroke-width="2.5" class="ing2d-flow-active" marker-end="url(#ingArrAmber)"/>
+            <path id="cdcOutPath" d="M 465 122 L 465 154" stroke="#fbbf24" stroke-width="2.2" class="ing2d-flow-active" marker-end="url(#ingArrAmber)"/>
+            <circle r="5" fill="#fbbf24"><animateMotion dur="1.5s" repeatCount="indefinite" path="M 334 107 L 382 80 L 465 122 L 465 154"/></circle>
+          ` : ""}
+
+          ${walActive ? `
+            <path id="cdcProbePath" d="M 334 211 C 362 211, 354 82, 382 82" stroke="#10b981" stroke-width="2.6" class="ing2d-flow-active" marker-end="url(#ingArrEmerald)"/>
+            <path id="cdcOutPath" d="M 465 122 L 465 154" stroke="#38bdf8" stroke-width="2.4" class="ing2d-flow-active" marker-end="url(#ingArrCyan)"/>
+            <circle r="5.5" fill="#34d399"><animateMotion dur="1.2s" repeatCount="indefinite" path="M 334 211 C 362 211, 354 82, 382 82 L 465 122 L 465 154"/></circle>
+          ` : ""}
+        </svg>
+        <div class="ing2d-metrics-strip">
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Tải CPU Nguồn</span><span class="ing2d-metric-val" style="color:${pollActive ? '#fda4af' : (trigActive ? '#fde68a' : '#6ee7b7')}">${cpuVal}</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Độ Trễ Giao Dịch</span><span class="ing2d-metric-val">${latVal}</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Trạng Thái DELETE</span><span class="ing2d-metric-val" style="color:${(pollActive && isDel) ? '#fda4af' : '#6ee7b7'}">${delStatus}</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Xâm Phạm Schema</span><span class="ing2d-metric-val">${schemaMod}</span></div>
+        </div>
+      `;
+
+      if (pollActive && isDel) {
+        status.innerHTML = `<strong style="color:#fda4af;">[CẢNH BÁO MẤT DỮ LIỆU]:</strong> Khi chạy lệnh vật lý <code>DELETE FROM orders WHERE id=8888</code>, bản ghi biến mất khỏi B-Tree/Heap. Truy vấn <code>SELECT WHERE last_modified &gt; T</code> trả về 0 dòng — kho dữ liệu đích giữ mãi đơn hàng ảo!`;
+      } else if (pollActive) {
+        status.innerHTML = `<strong style="color:#fda4af;">[Thế hệ 1 — Timestamp Polling]:</strong> Đặt đầu dò tại Tầng 1 (SQL Executor). Cứ mỗi chu kỳ lại quét bảng làm CPU vọt lên 78% và có nguy cơ bỏ sót giao dịch treo (Uncommitted Transaction Skew).`;
+      } else if (trigActive) {
+        status.innerHTML = `<strong style="color:#fde68a;">[Thế hệ 2 — Trigger-Based CDC]:</strong> Đặt đầu dò tại Tầng 2 (Trigger Engine). Bắt được cả lệnh <code>DELETE</code> nhờ biến <code>OLD.*</code>, nhưng bắt khách hàng chờ ghi xong cả Bảng Chính lẫn <code>shadow_table</code> (độ trễ tăng gấp đôi 12ms → 26ms).`;
+      } else {
+        status.innerHTML = `<strong style="color:#6ee7b7;">[Thế hệ 3 — Log-Based CDC (Debezium)]:</strong> Đặt đầu dò tại Tầng 4 (<code>pg_wal</code> LSN=0/16B3748). Không chạm vào SQL Engine hay Bảng Chính, tiêu tốn chỉ ~2% CPU và bắt trọn vẹn mọi thao tác <code>INSERT/UPDATE/DELETE</code> theo thời gian thực!`;
+      }
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${pollActive ? 'infra2d-btn-danger' : ''}" onclick="ing2dState.cdcMode='poll';renderIngestion2DInteractiveStage('cdc')">1. Timestamp Polling (L1)</button>
+        <button type="button" class="infra2d-btn ${trigActive ? 'infra2d-btn-amber' : ''}" onclick="ing2dState.cdcMode='trig';renderIngestion2DInteractiveStage('cdc')">2. Trigger Shadow Table (L2)</button>
+        <button type="button" class="infra2d-btn ${walActive ? 'infra2d-btn-emerald' : ''}" onclick="ing2dState.cdcMode='wal';renderIngestion2DInteractiveStage('cdc')">3. Log-Based WAL / Debezium (L4)</button>
+        <button type="button" class="infra2d-btn ${isDel ? 'infra2d-btn-primary' : ''}" onclick="ing2dState.cdcHardDelete=!ing2dState.cdcHardDelete;renderIngestion2DInteractiveStage('cdc')">${isDel ? 'Đang bật: Lệnh Hard DELETE #8888' : 'Thử thách: Bắn lệnh Hard DELETE #8888'}</button>
+      `;
+    } else if (mode === "producer") {
+      const isKeyed = (ing2dState.prodMode === "keyed");
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Producer Internal Pipeline (Left) -->
+          <rect x="12" y="12" width="235" height="226" rx="8" fill="#090d16" stroke="#334155" stroke-width="1.5"/>
+          <text x="22" y="29" fill="#94a3b8" font-size="10" font-weight="700" font-family="monospace">CẮT LỚP KAFKA PRODUCER CLIENT</text>
+
+          <rect x="24" y="38" width="210" height="38" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="1.3"/>
+          <text x="32" y="54" fill="#f8fafc" font-size="10.5" font-weight="700">[1] Avro Serializer (Schema ID)</text>
+          <text x="32" y="68" fill="#38bdf8" font-size="9" font-family="monospace">${isKeyed ? 'Key="USR-104" | #8888 (E1→E2→E3)' : 'Key=null | #8888 (E1→E2→E3)'}</text>
+
+          <rect x="24" y="88" width="210" height="44" rx="6" fill="${isKeyed ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)'}" stroke="${isKeyed ? '#10b981' : '#fbbf24'}" stroke-width="1.5"/>
+          <text x="32" y="105" fill="#f8fafc" font-size="10.5" font-weight="700">[2] Partitioner Router</text>
+          <text x="32" y="121" fill="${isKeyed ? '#6ee7b7' : '#fde68a'}" font-size="9" font-family="monospace">${isKeyed ? 'murmur2("USR-104") % 3 == Partition 1' : 'Round-Robin / Sticky → Rải P0, P1, P2'}</text>
+
+          <rect x="24" y="144" width="210" height="42" rx="6" fill="#0f172a" stroke="#6366f1" stroke-width="1.3"/>
+          <text x="32" y="160" fill="#f8fafc" font-size="10.5" font-weight="700">[3] RecordAccumulator (RAM Batch)</text>
+          <text x="32" y="175" fill="#a5b4fc" font-size="9" font-family="monospace">batch.size=64KB | linger.ms=10ms | LZ4</text>
+
+          <rect x="24" y="196" width="210" height="32" rx="6" fill="#0f172a" stroke="#334155" stroke-width="1.3"/>
+          <text x="32" y="216" fill="#e2e8f0" font-size="10" font-weight="700">[4] Sender I/O Thread (Async Push)</text>
+
+          <!-- Right Side: Kafka Topic Partitions 0, 1, 2 -->
+          <rect x="305" y="12" width="243" height="226" rx="8" fill="#090d16" stroke="#334155" stroke-width="1.5"/>
+          <text x="315" y="29" fill="#94a3b8" font-size="10" font-weight="700" font-family="monospace">TOPIC: prod.orders (3 PARTITIONS)</text>
+
+          <!-- Partition 0 -->
+          <rect x="317" y="40" width="218" height="54" rx="6" fill="#0f172a" stroke="${!isKeyed ? '#fbbf24' : '#1e293b'}" stroke-width="1.5"/>
+          <text x="327" y="57" fill="#f8fafc" font-size="10.5" font-weight="700">Partition 0 (Broker 1)</text>
+          <text x="327" y="76" fill="${!isKeyed ? '#fde68a' : '#64748b'}" font-size="9.5" font-family="monospace">${!isKeyed ? '[Off 0: E1 CREATED #8888]' : '[Trống — Dành cho Key khác]'}</text>
+
+          <!-- Partition 1 -->
+          <rect x="317" y="106" width="218" height="58" rx="6" fill="${isKeyed ? 'rgba(16,185,129,0.14)' : '#0f172a'}" stroke="${isKeyed ? '#10b981' : '#fbbf24'}" stroke-width="1.8"/>
+          <text x="327" y="123" fill="#f8fafc" font-size="10.5" font-weight="700">Partition 1 (Broker 2)</text>
+          <text x="327" y="141" fill="${isKeyed ? '#6ee7b7' : '#fde68a'}" font-size="9.2" font-family="monospace">${isKeyed ? '[Off 10: E1 CREATED] → [Off 11: E2 PAID]' : '[Off 0: E2 PAID #8888]'}</text>
+          <text x="327" y="155" fill="${isKeyed ? '#6ee7b7' : '#94a3b8'}" font-size="9.2" font-family="monospace">${isKeyed ? '→ [Off 12: E3 SHIPPED] (Đúng thứ tự 100%!)' : '(Chỉ nhận 1/3 sự kiện)'}</text>
+
+          <!-- Partition 2 -->
+          <rect x="317" y="176" width="218" height="52" rx="6" fill="#0f172a" stroke="${!isKeyed ? '#fbbf24' : '#1e293b'}" stroke-width="1.5"/>
+          <text x="327" y="193" fill="#f8fafc" font-size="10.5" font-weight="700">Partition 2 (Broker 3)</text>
+          <text x="327" y="212" fill="${!isKeyed ? '#fda4af' : '#64748b'}" font-size="9.5" font-family="monospace">${!isKeyed ? '[Off 0: E3 SHIPPED] (Đọc trước cả E1!)' : '[Trống — Dành cho Key khác]'}</text>
+
+          <!-- Animated Routing Wires -->
+          ${isKeyed ? `
+            <path d="M 234 110 C 275 110, 275 135, 317 135" stroke="#10b981" stroke-width="2.8" class="ing2d-flow-active"/>
+            <circle r="5.5" fill="#34d399"><animateMotion dur="1.1s" repeatCount="indefinite" path="M 234 110 C 275 110, 275 135, 317 135"/></circle>
+          ` : `
+            <path d="M 234 110 C 270 110, 275 67, 317 67" stroke="#fbbf24" stroke-width="2" class="ing2d-flow-active"/>
+            <path d="M 234 110 C 270 110, 275 135, 317 135" stroke="#fbbf24" stroke-width="2" class="ing2d-flow-active"/>
+            <path d="M 234 110 C 270 110, 275 202, 317 202" stroke="#f43f5e" stroke-width="2" class="ing2d-flow-active"/>
+            <circle r="4.5" fill="#fbbf24"><animateMotion dur="1.2s" repeatCount="indefinite" path="M 234 110 C 270 110, 275 67, 317 67"/></circle>
+            <circle r="4.5" fill="#38bdf8"><animateMotion dur="1.4s" repeatCount="indefinite" path="M 234 110 C 270 110, 275 135, 317 135"/></circle>
+            <circle r="4.5" fill="#f43f5e"><animateMotion dur="1.0s" repeatCount="indefinite" path="M 234 110 C 270 110, 275 202, 317 202"/></circle>
+          `}
+        </svg>
+        <div class="ing2d-metrics-strip">
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Thuật Toán Chọn</span><span class="ing2d-metric-val">${isKeyed ? 'murmur2(key) % 3' : 'Sticky / Round-Robin'}</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Partition Đích</span><span class="ing2d-metric-val" style="color:${isKeyed ? '#6ee7b7' : '#fde68a'}">${isKeyed ? '100% vào Partition 1' : 'Rải đều P0, P1, P2'}</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Bảo Toàn Thứ Tự</span><span class="ing2d-metric-val" style="color:${isKeyed ? '#6ee7b7' : '#fda4af'}">${isKeyed ? 'Đảm bảo 100% (E1→E2→E3)' : 'MẤT THỨ TỰ (Race!)'}</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Nén Lô RAM</span><span class="ing2d-metric-val">64KB / LZ4</span></div>
+        </div>
+      `;
+
+      status.innerHTML = isKeyed
+        ? `<strong style="color:#6ee7b7;">[Chế độ Có Khóa — With Key = "USR-104"]:</strong> Hàm băm <code>murmur2("USR-104") % 3</code> luôn trả về <code>Partition 1</code>. Cả 3 sự kiện <code>CREATED → PAID → SHIPPED</code> của đơn #8888 nằm nối đuôi nhau trên cùng một Partition, bảo toàn 100% thứ tự nhân quả!`
+        : `<strong style="color:#fda4af;">[Chế độ Không Khóa — Without Key = null]:</strong> Các sự kiện của đơn #8888 bị rải ra 3 Partition khác nhau (<code>P0</code>, <code>P1</code>, <code>P2</code>). Nếu Consumer đọc <code>P2</code> chạy nhanh hơn <code>P0</code>, hệ thống đích sẽ nhận lệnh <code>SHIPPED</code> trước cả khi đơn hàng được <code>CREATED</code>!`;
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isKeyed ? 'infra2d-btn-emerald' : ''}" onclick="ing2dState.prodMode='keyed';renderIngestion2DInteractiveStage('producer')">1. Có Khóa: key="USR-104" (murmur2 → P1)</button>
+        <button type="button" class="infra2d-btn ${!isKeyed ? 'infra2d-btn-amber' : ''}" onclick="ing2dState.prodMode='keyless';renderIngestion2DInteractiveStage('producer')">2. Không Khóa: key=null (Rải đều P0, P1, P2)</button>
+      `;
+    } else if (mode === "consumer") {
+      const cCount = ing2dState.consCount;
+      // Map partitions P0, P1, P2 to consumers 1..cCount
+      let pMap = [0, 0, 0];
+      if (cCount === 1) pMap = [1, 1, 1];
+      else if (cCount === 2) pMap = [1, 1, 2];
+      else pMap = [1, 2, 3]; // for 3 or 4 consumers, C4 is IDLE!
+
+      const pY = [62, 125, 188];
+      const cY = cCount === 1 ? [125] : (cCount === 2 ? [90, 165] : (cCount === 3 ? [62, 125, 188] : [48, 98, 148, 198]));
+
+      let wiresSvg = "";
+      for (let p = 0; p < 3; p++) {
+        const targetC = pMap[p] - 1;
+        const y1 = pY[p];
+        const y2 = cY[targetC];
+        const pathStr = `M 212 ${y1} C 265 ${y1}, 275 ${y2}, 330 ${y2}`;
+        wiresSvg += `
+          <path d="${pathStr}" stroke="#38bdf8" stroke-width="2.4" class="ing2d-flow-active"/>
+          <circle r="4.8" fill="#34d399"><animateMotion dur="${1.1 + p * 0.2}s" repeatCount="indefinite" path="${pathStr}"/></circle>
+        `;
+      }
+
+      let consBoxesSvg = "";
+      for (let c = 0; c < cCount; c++) {
+        const isIdle = (c === 3);
+        const cy = cY[c] - 20;
+        const assignedParts = [];
+        for (let p = 0; p < 3; p++) if (pMap[p] === c + 1) assignedParts.push(`P${p}`);
+        consBoxesSvg += `
+          <rect x="330" y="${cy}" width="212" height="40" rx="6" fill="${isIdle ? 'rgba(244,63,94,0.16)' : '#0f172a'}" stroke="${isIdle ? '#f43f5e' : '#34d399'}" stroke-width="1.6"/>
+          <text x="340" y="${cy + 16}" fill="#f8fafc" font-size="10.5" font-weight="700">Consumer ${c + 1} ${isIdle ? '[IDLE — NHÀN RỖI!]' : '[Active]'}</text>
+          <text x="340" y="${cy + 31}" fill="${isIdle ? '#fda4af' : '#6ee7b7'}" font-size="9.2" font-family="monospace">${isIdle ? '0 Partition (Do P=3 < C=4!)' : 'Độc quyền đọc: ' + assignedParts.join(', ')}</text>
+        `;
+      }
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="12" y="12" width="200" height="226" rx="8" fill="#090d16" stroke="#334155" stroke-width="1.5"/>
+          <text x="22" y="29" fill="#94a3b8" font-size="10" font-weight="700" font-family="monospace">TOPIC: prod.orders (P=3)</text>
+
+          <rect x="24" y="40" width="176" height="44" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="1.4"/>
+          <text x="34" y="58" fill="#f8fafc" font-size="10.5" font-weight="700">Partition 0</text>
+          <text x="34" y="74" fill="#94a3b8" font-size="9" font-family="monospace">Off 0..42 (10 MB/s)</text>
+
+          <rect x="24" y="103" width="176" height="44" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="1.4"/>
+          <text x="34" y="121" fill="#f8fafc" font-size="10.5" font-weight="700">Partition 1 (#8888)</text>
+          <text x="34" y="137" fill="#38bdf8" font-size="9" font-family="monospace">Off 0..58 (10 MB/s)</text>
+
+          <rect x="24" y="166" width="176" height="44" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="1.4"/>
+          <text x="34" y="184" fill="#f8fafc" font-size="10.5" font-weight="700">Partition 2</text>
+          <text x="34" y="200" fill="#94a3b8" font-size="9" font-family="monospace">Off 0..39 (10 MB/s)</text>
+
+          <rect x="318" y="12" width="230" height="226" rx="8" fill="#090d16" stroke="#334155" stroke-width="1.5"/>
+          <text x="328" y="29" fill="#94a3b8" font-size="10" font-weight="700" font-family="monospace">CONSUMER GROUP: fraud-detector</text>
+
+          ${wiresSvg}
+          ${consBoxesSvg}
+        </svg>
+        <div class="ing2d-metrics-strip">
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Số Partition (P)</span><span class="ing2d-metric-val">3 Partitions</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Số Consumer (C)</span><span class="ing2d-metric-val">${cCount} Consumers</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Tổng Thông Lượng</span><span class="ing2d-metric-val" style="color:${cCount >= 3 ? '#6ee7b7' : '#fde68a'}">${Math.min(3, cCount) * 10} MB/s</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Consumer Dư Thừa</span><span class="ing2d-metric-val" style="color:${cCount > 3 ? '#fda4af' : '#6ee7b7'}">${cCount > 3 ? '1 IDLE (C4 ngồi chơi!)' : '0 IDLE (100% bận)'}</span></div>
+        </div>
+      `;
+
+      if (cCount === 1) {
+        status.innerHTML = `<strong style="color:#fde68a;">[1 Consumer đọc cả 3 Partitions]:</strong> Một mình Consumer 1 phải gánh toàn bộ P0, P1, P2. Thông lượng bị kẹt ở mức 10 MB/s và <code>Consumer Lag</code> tăng nhanh.`;
+      } else if (cCount === 2) {
+        status.innerHTML = `<strong style="color:#bae6fd;">[2 Consumers chia tải lệch (2 + 1)]:</strong> Group Coordinator gán <code>P0, P1 → Consumer 1</code> và <code>P2 → Consumer 2</code>. Consumer 1 vẫn chịu tải gấp đôi Consumer 2.`;
+      } else if (cCount === 3) {
+        status.innerHTML = `<strong style="color:#6ee7b7;">[3 Consumers — Điểm Cân Bằng Vàng 1:1]:</strong> Mỗi Partition được độc quyền bởi đúng 1 Consumer (<code>P0→C1, P1→C2, P2→C3</code>). Thông lượng đạt đỉnh 30 MB/s và <code>Consumer Lag = 0</code>!`;
+      } else {
+        status.innerHTML = `<strong style="color:#fda4af;">[4 Consumers > 3 Partitions — Cảnh báo IDLE!]:</strong> Do quy tắc bất biến <em>"Trong cùng 1 Consumer Group, mỗi Partition chỉ được đọc bởi tối đa 1 Consumer"</em>, <strong>Consumer 4 không được cấp Partition nào và phải ngồi chơi (IDLE)</strong>! Muốn 4 Consumers cùng chạy, bắt buộc phải tăng số Partition của Topic lên &ge; 4.`;
+      }
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${cCount === 1 ? 'infra2d-btn-amber' : ''}" onclick="ing2dState.consCount=1;renderIngestion2DInteractiveStage('consumer')">1 Consumer (Quá tải)</button>
+        <button type="button" class="infra2d-btn ${cCount === 2 ? 'infra2d-btn-cyan' : ''}" onclick="ing2dState.consCount=2;renderIngestion2DInteractiveStage('consumer')">2 Consumers (Lệch 2:1)</button>
+        <button type="button" class="infra2d-btn ${cCount === 3 ? 'infra2d-btn-emerald' : ''}" onclick="ing2dState.consCount=3;renderIngestion2DInteractiveStage('consumer')">3 Consumers (Tối ưu 1:1)</button>
+        <button type="button" class="infra2d-btn ${cCount === 4 ? 'infra2d-btn-danger' : ''}" onclick="ing2dState.consCount=4;renderIngestion2DInteractiveStage('consumer')">4 Consumers (C4 bị IDLE!)</button>
+      `;
+    } else if (mode === "replication") {
+      const sc = ing2dState.repScenario; // 'normal' | 'acks1_crash' | 'acksall_crash'
+      const isNormal = (sc === "normal");
+      const isAcks1Crash = (sc === "acks1_crash");
+      const isAcksAllCrash = (sc === "acksall_crash");
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Producer Box -->
+          <rect x="14" y="88" width="136" height="74" rx="8" fill="#0f172a" stroke="${isAcks1Crash ? '#f43f5e' : '#38bdf8'}" stroke-width="1.6"/>
+          <text x="24" y="108" fill="#f8fafc" font-size="10.5" font-weight="800">Kafka Producer</text>
+          <text x="24" y="125" fill="#38bdf8" font-size="9.2" font-family="monospace">Order #8888 (Off 42)</text>
+          <text x="24" y="142" fill="${isAcks1Crash ? '#fda4af' : '#6ee7b7'}" font-size="9.2" font-weight="700" font-family="monospace">acks = ${isAcks1Crash ? '1 (Nguy hiểm!)' : 'all (An toàn)'}</text>
+
+          <!-- Kafka Cluster 3 Brokers -->
+          <rect x="188" y="10" width="358" height="230" rx="8" fill="#090d16" stroke="#334155" stroke-width="1.5"/>
+          <text x="200" y="27" fill="#94a3b8" font-size="10" font-weight="700" font-family="monospace">KAFKA CLUSTER (REPLICATION FACTOR = 3, MIN.INSYNC = 2)</text>
+
+          <!-- Broker 1 -->
+          <rect x="202" y="38" width="330" height="56" rx="6" fill="${isNormal ? 'rgba(16,185,129,0.14)' : 'rgba(244,63,94,0.18)'}" stroke="${isNormal ? '#10b981' : '#f43f5e'}" stroke-width="1.7"/>
+          <text x="214" y="57" fill="#f8fafc" font-size="11" font-weight="800">Broker 1 — ${isNormal ? 'LEADER REPLICA (Active)' : '✗ SẬP NGUỒN ĐỘT NGỘT (CRASHED!)'}</text>
+          <text x="214" y="76" fill="${isNormal ? '#6ee7b7' : '#fda4af'}" font-size="9.5" font-family="monospace">${isNormal ? 'Log: [Off 40][Off 41][Off 42: #8888] (LEO=43)' : (isAcks1Crash ? 'Đã nhận #8888 & trả ACK=1 nhưng CHẾT trước khi B2/B3 kịp kéo!' : 'Sập sau khi B2 & B3 đã đồng bộ xong #8888!')}</text>
+
+          <!-- Broker 2 -->
+          <rect x="202" y="106" width="330" height="58" rx="6" fill="${!isNormal ? 'rgba(56,189,248,0.16)' : '#0f172a'}" stroke="${!isNormal ? '#38bdf8' : '#334155'}" stroke-width="1.7"/>
+          <text x="214" y="125" fill="#f8fafc" font-size="11" font-weight="800">Broker 2 — ${isNormal ? 'Follower Replica (Trong tập ISR)' : '★ TỰ ĐỘNG THĂNG CẤP LÀM LEADER MỚI!'}</text>
+          <text x="214" y="144" fill="${isAcks1Crash ? '#fda4af' : '#6ee7b7'}" font-size="9.5" font-family="monospace">${isAcks1Crash ? 'Log: [Off 40][Off 41] → MẤT VĨNH VIỄN Off 42 (#8888)!' : 'Log: [Off 40][Off 41][Off 42: #8888] (Bảo toàn 100%!)'}</text>
+
+          <!-- Broker 3 -->
+          <rect x="202" y="176" width="330" height="52" rx="6" fill="#0f172a" stroke="#334155" stroke-width="1.5"/>
+          <text x="214" y="195" fill="#f8fafc" font-size="11" font-weight="700">Broker 3 — Follower Replica (Trong tập ISR)</text>
+          <text x="214" y="213" fill="${isAcks1Crash ? '#fda4af' : '#6ee7b7'}" font-size="9.5" font-family="monospace">${isAcks1Crash ? 'Log: [Off 40][Off 41] (Chưa kịp kéo Off 42)' : 'Log: [Off 40][Off 41][Off 42: #8888] (In-Sync)'}</text>
+
+          ${isNormal ? `
+            <path d="M 150 118 C 175 118, 175 66, 202 66" stroke="#10b981" stroke-width="2.5" class="ing2d-flow-active"/>
+            <path d="M 365 94 L 365 106" stroke="#38bdf8" stroke-width="2" class="ing2d-flow-active"/>
+            <path d="M 365 164 L 365 176" stroke="#38bdf8" stroke-width="2" class="ing2d-flow-active"/>
+            <circle r="5" fill="#34d399"><animateMotion dur="1.1s" repeatCount="indefinite" path="M 150 118 C 175 118, 175 66, 202 66"/></circle>
+          ` : `
+            <path d="M 150 132 L 202 132" stroke="${isAcks1Crash ? '#f43f5e' : '#38bdf8'}" stroke-width="2.5" class="ing2d-flow-active"/>
+            <circle r="5" fill="${isAcks1Crash ? '#f43f5e' : '#38bdf8'}"><animateMotion dur="1.1s" repeatCount="indefinite" path="M 150 132 L 202 132"/></circle>
+          `}
+        </svg>
+        <div class="ing2d-metrics-strip">
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Leader Hiện Tại</span><span class="ing2d-metric-val">${isNormal ? 'Broker 1' : 'Broker 2 (Failover)'}</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Tập Hợp ISR</span><span class="ing2d-metric-val">${isNormal ? '{B1, B2, B3}' : '{B2, B3}'}</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Cấu Hình Producer</span><span class="ing2d-metric-val">${isAcks1Crash ? 'acks = 1' : 'acks = all'}</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Số Phận Đơn #8888</span><span class="ing2d-metric-val" style="color:${isAcks1Crash ? '#fda4af' : '#6ee7b7'}">${isAcks1Crash ? 'MẤT DỮ LIỆU (Data Loss!)' : 'An toàn tuyệt đối (0% Loss)'}</span></div>
+        </div>
+      `;
+
+      if (isNormal) {
+        status.innerHTML = `<strong style="color:#6ee7b7;">[Trạng thái Bình thường — RF=3, ISR={B1, B2, B3}]:</strong> Producer ghi đơn #8888 vào <code>Broker 1 (Leader)</code>. Hai máy <code>Broker 2</code> và <code>Broker 3</code> liên tục kéo bản sao về để giữ trạng thái đồng bộ trong tập <code>ISR</code>.`;
+      } else if (isAcks1Crash) {
+        status.innerHTML = `<strong style="color:#fda4af;">[Cạm bẫy Mất Dữ liệu của acks=1 (Slide 39)]:</strong> Producer nhận báo thành công ngay khi <code>Broker 1</code> vừa ghi xong đĩa cục bộ. Đúng tích tắc đó <code>Broker 1</code> cháy nguồn trước khi <code>Broker 2 &amp; 3</code> kịp chép #8888 về! Khi <code>Broker 2</code> lên làm Leader mới, đơn #8888 biến mất vĩnh viễn!`;
+      } else {
+        status.innerHTML = `<strong style="color:#6ee7b7;">[Chốt chặn Bất tử: acks=all + min.insync.replicas=2]:</strong> <code>Broker 1</code> chỉ được phép trả ACK cho Producer sau khi các Follower trong <code>ISR</code> đã chép xong #8888. Khi <code>Broker 1</code> sập, <code>Broker 2</code> tự động thăng cấp làm Leader mới trong vài mili-giây với 0% mất mát dữ liệu!`;
+      }
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isNormal ? 'infra2d-btn-emerald' : ''}" onclick="ing2dState.repScenario='normal';renderIngestion2DInteractiveStage('replication')">1. Bình thường (ISR = {B1, B2, B3})</button>
+        <button type="button" class="infra2d-btn ${isAcks1Crash ? 'infra2d-btn-danger' : ''}" onclick="ing2dState.repScenario='acks1_crash';renderIngestion2DInteractiveStage('replication')">2. Sập Broker 1 với acks=1 (Mất đơn #8888!)</button>
+        <button type="button" class="infra2d-btn ${isAcksAllCrash ? 'infra2d-btn-cyan' : ''}" onclick="ing2dState.repScenario='acksall_crash';renderIngestion2DInteractiveStage('replication')">3. Sập Broker 1 với acks=all + min.insync=2 (An toàn 100%)</button>
+      `;
+    } else if (mode === "compaction") {
+      const cm = ing2dState.compMode; // 'dirty' | 'compacted' | 'tombstone'
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="12" y="10" width="536" height="230" rx="8" fill="#090d16" stroke="#334155" stroke-width="1.5"/>
+          <text x="24" y="28" fill="#94a3b8" font-size="10" font-weight="700" font-family="monospace">CẮT LỚP THƯ MỤC ĐĨA VẬT LÝ: /var/lib/kafka/data/prod.orders-1/ (SLIDE 40)</text>
+
+          <!-- Top Row: Segment Files on Disk -->
+          <rect x="24" y="38" width="160" height="46" rx="6" fill="#0f172a" stroke="#475569" stroke-width="1.3"/>
+          <text x="32" y="55" fill="#cbd5e1" font-size="10" font-weight="700">000000000000.log</text>
+          <text x="32" y="71" fill="#64748b" font-size="9" font-family="monospace">Closed Segment (&gt;7d → unlink O(1))</text>
+
+          <rect x="198" y="38" width="164" height="46" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="1.4"/>
+          <text x="206" y="55" fill="#f8fafc" font-size="10" font-weight="700">000000000010.log</text>
+          <text x="206" y="71" fill="#38bdf8" font-size="9" font-family="monospace">Clean Head + .index + .timeindex</text>
+
+          <rect x="376" y="38" width="160" height="46" rx="6" fill="#0f172a" stroke="#10b981" stroke-width="1.4"/>
+          <text x="384" y="55" fill="#f8fafc" font-size="10" font-weight="700">000000000050.log</text>
+          <text x="384" y="71" fill="#34d399" font-size="9" font-family="monospace">Active Segment (Append-only)</text>
+
+          <!-- Bottom Area: Log Compaction Cells -->
+          <text x="24" y="108" fill="#e2e8f0" font-size="10.5" font-weight="700">Cơ chế Nén Nhật ký Theo Khóa (cleanup.policy = compact — Keep latest value per Key):</text>
+
+          <!-- Offset 10 -->
+          <rect x="24" y="120" width="118" height="92" rx="6" fill="${cm === 'dirty' ? '#0f172a' : 'rgba(244,63,94,0.1)'}" stroke="${cm === 'dirty' ? '#38bdf8' : '#475569'}" stroke-dasharray="${cm === 'dirty' ? '0' : '4 4'}" stroke-width="1.5"/>
+          <text x="32" y="139" fill="#94a3b8" font-size="9.5" font-family="monospace">Offset 10</text>
+          <text x="32" y="157" fill="#f8fafc" font-size="10" font-weight="700" font-family="monospace">Key: ORD-8888</text>
+          <text x="32" y="175" fill="#cbd5e1" font-size="9.5" font-family="monospace">status: PENDING</text>
+          <text x="32" y="197" fill="${cm === 'dirty' ? '#fde68a' : '#f43f5e'}" font-size="9" font-weight="700">${cm === 'dirty' ? 'Bản cũ #1' : '✗ Đã dọn (Superseded)'}</text>
+
+          <!-- Offset 11 (Other order) -->
+          <rect x="154" y="120" width="118" height="92" rx="6" fill="rgba(16,185,129,0.12)" stroke="#10b981" stroke-width="1.6"/>
+          <text x="162" y="139" fill="#94a3b8" font-size="9.5" font-family="monospace">Offset 11</text>
+          <text x="162" y="157" fill="#f8fafc" font-size="10" font-weight="700" font-family="monospace">Key: ORD-9999</text>
+          <text x="162" y="175" fill="#6ee7b7" font-size="9.5" font-family="monospace">status: PAID</text>
+          <text x="162" y="197" fill="#34d399" font-size="9" font-weight="700">✓ Giữ nguyên (Khóa khác)</text>
+
+          <!-- Offset 12 -->
+          <rect x="284" y="120" width="118" height="92" rx="6" fill="${cm === 'dirty' ? '#0f172a' : 'rgba(244,63,94,0.1)'}" stroke="${cm === 'dirty' ? '#38bdf8' : '#475569'}" stroke-dasharray="${cm === 'dirty' ? '0' : '4 4'}" stroke-width="1.5"/>
+          <text x="292" y="139" fill="#94a3b8" font-size="9.5" font-family="monospace">Offset 12</text>
+          <text x="292" y="157" fill="#f8fafc" font-size="10" font-weight="700" font-family="monospace">Key: ORD-8888</text>
+          <text x="292" y="175" fill="#cbd5e1" font-size="9.5" font-family="monospace">status: PAID</text>
+          <text x="292" y="197" fill="${cm === 'dirty' ? '#fde68a' : '#f43f5e'}" font-size="9" font-weight="700">${cm === 'dirty' ? 'Bản cũ #2' : '✗ Đã dọn (Superseded)'}</text>
+
+          <!-- Offset 13 (Latest or Tombstone) -->
+          <rect x="414" y="120" width="122" height="92" rx="6" fill="${cm === 'tombstone' ? 'rgba(244,63,94,0.18)' : 'rgba(56,189,248,0.16)'}" stroke="${cm === 'tombstone' ? '#f43f5e' : '#38bdf8'}" stroke-width="1.8"/>
+          <text x="422" y="139" fill="#94a3b8" font-size="9.5" font-family="monospace">${cm === 'tombstone' ? 'Offset 14 (Tombstone)' : 'Offset 13 (Mới nhất)'}</text>
+          <text x="422" y="157" fill="#f8fafc" font-size="10" font-weight="700" font-family="monospace">Key: ORD-8888</text>
+          <text x="422" y="175" fill="${cm === 'tombstone' ? '#fda4af' : '#38bdf8'}" font-size="9.5" font-weight="700" font-family="monospace">${cm === 'tombstone' ? 'value: null' : 'status: SHIPPED'}</text>
+          <text x="422" y="197" fill="${cm === 'tombstone' ? '#fda4af' : '#34d399'}" font-size="9" font-weight="700">${cm === 'tombstone' ? '[DEL] Bia mộ xóa khóa!' : '★ Bản ghi giữ lại!'}</text>
+        </svg>
+        <div class="ing2d-metrics-strip">
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Time/Size Retention</span><span class="ing2d-metric-val">7 days / 1 GB</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Log Compaction</span><span class="ing2d-metric-val">${cm === 'dirty' ? 'Chưa chạy (4 bản ghi)' : (cm === 'compacted' ? 'Đã nén (Còn 2 bản ghi)' : 'Tombstone (Xóa #8888)')}</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Trạng Thái #8888</span><span class="ing2d-metric-val" style="color:${cm === 'tombstone' ? '#fda4af' : '#6ee7b7'}">${cm === 'tombstone' ? 'value = null (Purge)' : 'SHIPPED (Off 13)'}</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Chi Phí Xóa Đĩa</span><span class="ing2d-metric-val">O(1) Sequential I/O</span></div>
+        </div>
+      `;
+
+      if (cm === "dirty") {
+        status.innerHTML = `<strong style="color:#bae6fd;">[1. Vùng Dirty Tail trước khi nén]:</strong> Mọi thay đổi của <code>ORD-8888</code> (<code>Off 10: PENDING</code>, <code>Off 12: PAID</code>, <code>Off 13: SHIPPED</code>) được ghi nối đuôi tuần tự vào tệp <code>.log</code> đang mở.`;
+      } else if (cm === "compacted") {
+        status.innerHTML = `<strong style="color:#6ee7b7;">[2. Sau khi Log Cleaner thực thi Log Compaction]:</strong> Luồng nền của Broker quét gộp các Segment, tự động loại bỏ <code>Offset 10</code> và <code>Offset 12</code> đã lỗi thời, chỉ giữ lại trạng thái cuối cùng <code>Offset 13 (SHIPPED)</code> cho khóa <code>ORD-8888</code>!`;
+      } else {
+        status.innerHTML = `<strong style="color:#fda4af;">[3. Bản ghi Bia mộ Tombstone (key="ORD-8888", value=null)]:</strong> Khi đơn hàng bị xóa vật lý, Debezium bắn một bản ghi có <code>value = null</code>. Các Consumer nhận tín hiệu xóa khỏi bảng đích, và sau thời gian <code>delete.retention.ms</code>, Log Cleaner thu hồi vĩnh viễn khóa <code>ORD-8888</code> khỏi đĩa!`;
+      }
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${cm === 'dirty' ? 'infra2d-btn-cyan' : ''}" onclick="ing2dState.compMode='dirty';renderIngestion2DInteractiveStage('compaction')">1. Trước khi nén (Dirty Tail: 4 Offsets)</button>
+        <button type="button" class="infra2d-btn ${cm === 'compacted' ? 'infra2d-btn-emerald' : ''}" onclick="ing2dState.compMode='compacted';renderIngestion2DInteractiveStage('compaction')">2. Chạy Log Compaction (Giữ bản mới nhất)</button>
+        <button type="button" class="infra2d-btn ${cm === 'tombstone' ? 'infra2d-btn-danger' : ''}" onclick="ing2dState.compMode='tombstone';renderIngestion2DInteractiveStage('compaction')">3. Bắn Tombstone (key=#8888, value=null)</button>
+      `;
+    } else {
+      // Slide 6: Production Challenges
+      const ch = ing2dState.chalMode; // 'bloat' | 'heartbeat' | 'dlq' | 'outbox'
+      const isBloat = (ch === "bloat");
+      const isHb = (ch === "heartbeat");
+      const isDlq = (ch === "dlq");
+      const isOutbox = (ch === "outbox");
+
+      stage.innerHTML = `
+        <svg class="ing2d-svg-stage" viewBox="0 0 560 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Box 1: Source PostgreSQL + Outbox + WAL -->
+          <rect x="12" y="14" width="175" height="222" rx="8" fill="#090d16" stroke="${isBloat ? '#f43f5e' : '#10b981'}" stroke-width="1.6"/>
+          <text x="22" y="32" fill="#f8fafc" font-size="10" font-weight="800" font-family="monospace">1. POSTGRESQL SOURCE</text>
+
+          <rect x="22" y="42" width="155" height="52" rx="6" fill="#0f172a" stroke="${isOutbox ? '#38bdf8' : '#334155'}" stroke-width="1.4"/>
+          <text x="30" y="58" fill="#f8fafc" font-size="10" font-weight="700">${isOutbox ? 'ACID: orders + outbox' : 'Bảng: shop.orders'}</text>
+          <text x="30" y="74" fill="${isOutbox ? '#38bdf8' : '#94a3b8'}" font-size="8.8" font-family="monospace">${isOutbox ? 'Chống lỗi Dual-Write 100%' : 'Ghi giao dịch #8888'}</text>
+
+          <rect x="22" y="106" width="155" height="62" rx="6" fill="${isBloat ? 'rgba(244,63,94,0.2)' : 'rgba(16,185,129,0.14)'}" stroke="${isBloat ? '#f43f5e' : '#10b981'}" stroke-width="1.6"/>
+          <text x="30" y="123" fill="#f8fafc" font-size="10" font-weight="700">pg_wal &amp; Replication Slot</text>
+          <text x="30" y="140" fill="${isBloat ? '#fda4af' : '#6ee7b7'}" font-size="9" font-weight="700" font-family="monospace">${isBloat ? '[!] DISK: 96% (WAL BLOAT!)' : '✓ DISK: 14% (Đã xả WAL)'}</text>
+          <text x="30" y="156" fill="#cbd5e1" font-size="8.5" font-family="monospace">${isBloat ? 'confirmed_flush_lsn ĐỨNG IM' : 'heartbeat.interval.ms=10s'}</text>
+
+          <rect x="22" y="178" width="155" height="46" rx="6" fill="#0f172a" stroke="#334155" stroke-width="1.2"/>
+          <text x="30" y="195" fill="#cbd5e1" font-size="9.5" font-weight="700">Chốt trần an toàn DB:</text>
+          <text x="30" y="211" fill="#38bdf8" font-size="8.5" font-family="monospace">max_slot_wal_keep_size=10GB</text>
+
+          <!-- Box 2: Debezium + Kafka + Schema Registry -->
+          <rect x="208" y="14" width="160" height="222" rx="8" fill="#090d16" stroke="#38bdf8" stroke-width="1.5"/>
+          <text x="218" y="32" fill="#f8fafc" font-size="10" font-weight="800" font-family="monospace">2. DEBEZIUM &amp; KAFKA</text>
+
+          <rect x="218" y="42" width="140" height="52" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="1.3"/>
+          <text x="226" y="58" fill="#f8fafc" font-size="10" font-weight="700">Debezium Connector</text>
+          <text x="226" y="74" fill="#38bdf8" font-size="8.8" font-family="monospace">plugin.name = pgoutput</text>
+
+          <rect x="218" y="106" width="140" height="58" rx="6" fill="#0f172a" stroke="#6366f1" stroke-width="1.4"/>
+          <text x="226" y="123" fill="#f8fafc" font-size="10" font-weight="700">Schema Registry</text>
+          <text x="226" y="140" fill="#a5b4fc" font-size="8.8" font-family="monospace">Avro BACKWARD / FULL</text>
+          <text x="226" y="154" fill="#94a3b8" font-size="8.5" font-family="monospace">Chặn Schema Drift từ gốc</text>
+
+          <rect x="218" y="176" width="140" height="48" rx="6" fill="#0f172a" stroke="#334155" stroke-width="1.2"/>
+          <text x="226" y="194" fill="#f8fafc" font-size="9.5" font-weight="700">Kafka Connect Offsets</text>
+          <text x="226" y="210" fill="#6ee7b7" font-size="8.5" font-family="monospace">connect-offsets (Compact)</text>
+
+          <!-- Box 3: Sink Connector + Lakehouse + DLQ -->
+          <rect x="390" y="14" width="158" height="222" rx="8" fill="#090d16" stroke="#334155" stroke-width="1.5"/>
+          <text x="400" y="32" fill="#f8fafc" font-size="10" font-weight="800" font-family="monospace">3. MULTI-SINK &amp; DLQ</text>
+
+          <rect x="400" y="42" width="138" height="72" rx="6" fill="rgba(16,185,129,0.12)" stroke="#10b981" stroke-width="1.5"/>
+          <text x="408" y="60" fill="#f8fafc" font-size="10" font-weight="700">Data Lakehouse (D02)</text>
+          <text x="408" y="77" fill="#6ee7b7" font-size="8.8" font-family="monospace">+ Elastic + Redis + Flink</text>
+          <text x="408" y="95" fill="#cbd5e1" font-size="8.5" font-family="monospace">Nhận dòng sạch #8888</text>
+
+          <rect x="400" y="132" width="138" height="92" rx="6" fill="${isDlq ? 'rgba(245,158,11,0.18)' : '#0f172a'}" stroke="${isDlq ? '#fbbf24' : '#475569'}" stroke-width="1.6"/>
+          <text x="408" y="151" fill="#fde68a" font-size="10" font-weight="800">Dead Letter Queue (DLQ)</text>
+          <text x="408" y="168" fill="#cbd5e1" font-size="8.8" font-family="monospace">errors.tolerance = all</text>
+          <text x="408" y="185" fill="${isDlq ? '#fda4af' : '#94a3b8'}" font-size="8.8" font-family="monospace">${isDlq ? 'Đã cách ly 1 Poison Pill!' : 'Kênh cách ly bản ghi lỗi'}</text>
+          <text x="408" y="203" fill="#6ee7b7" font-size="8.5" font-family="monospace">Đường ống chính KHÔNG SẬP</text>
+
+          <!-- Animated Connectors -->
+          ${!isBloat ? `
+            <path d="M 177 135 L 218 68" stroke="#10b981" stroke-width="2.4" class="ing2d-flow-active"/>
+            <circle r="5" fill="#34d399"><animateMotion dur="1.1s" repeatCount="indefinite" path="M 177 135 L 218 68"/></circle>
+          ` : `
+            <line x1="177" y1="135" x2="218" y2="68" stroke="#f43f5e" stroke-width="2.2" stroke-dasharray="3 3"/>
+          `}
+          <path d="M 358 68 L 400 68" stroke="#38bdf8" stroke-width="2.4" class="ing2d-flow-active"/>
+          <circle r="4.8" fill="#38bdf8"><animateMotion dur="1.0s" repeatCount="indefinite" path="M 358 68 L 400 68"/></circle>
+          ${isDlq ? `
+            <path d="M 358 135 L 400 175" stroke="#fbbf24" stroke-width="2.4" class="ing2d-flow-active"/>
+            <circle r="5" fill="#fbbf24"><animateMotion dur="1.1s" repeatCount="indefinite" path="M 358 135 L 400 175"/></circle>
+          ` : ""}
+        </svg>
+        <div class="ing2d-metrics-strip">
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Ổ Cứng pg_wal</span><span class="ing2d-metric-val" style="color:${isBloat ? '#fda4af' : '#6ee7b7'}">${isBloat ? '96% (Báo động đỏ!)' : '14% (An toàn)'}</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Heartbeat LSN</span><span class="ing2d-metric-val">${isBloat ? 'Tắt (Kẹt LSN)' : '10.000 ms (Active)'}</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Xử Lý Poison Pill</span><span class="ing2d-metric-val">${isDlq ? 'Cách ly vào DLQ' : 'Schema Registry + DLQ'}</span></div>
+          <div class="ing2d-metric-chip"><span class="ing2d-metric-label">Tính Nguyên Tử</span><span class="ing2d-metric-val">${isOutbox ? 'Transactional Outbox' : 'Log-Based CDC'}</span></div>
+        </div>
+      `;
+
+      if (isBloat) {
+        status.innerHTML = `<strong style="color:#fda4af;">[Sự cố #1 — Đầy ổ cứng PostgreSQL do kẹt Replication Slot (WAL Bloat)]:</strong> Khi Debezium ngắt kết nối hoặc bảng <code>orders</code> ít ghi trong khi các bảng khác ghi ồ ạt, con trỏ <code>confirmed_flush_lsn</code> không nhích lên được. PostgreSQL giữ lại toàn bộ tệp <code>pg_wal</code> làm đầy 96% ổ đĩa!`;
+      } else if (isHb) {
+        status.innerHTML = `<strong style="color:#6ee7b7;">[Phác đồ Giải cứu WAL Bloat]:</strong> Bật <code>heartbeat.interval.ms = 10000</code> kèm <code>heartbeat.action.query</code> để Debezium chủ động đẩy con trỏ <code>confirmed_flush_lsn</code> định kỳ, đồng thời khóa trần <code>max_slot_wal_keep_size = 10GB</code> trong <code>postgresql.conf</code>!`;
+      } else if (isDlq) {
+        status.innerHTML = `<strong style="color:#fde68a;">[Phác đồ Chống Tin Nhắn Độc (Poison Pill) &amp; Schema Drift]:</strong> Khi gặp một bản ghi hỏng định dạng, Kafka Connect Sink cấu hình <code>errors.tolerance = all</code> sẽ tự động bẻ lái bản ghi lỗi kèm Stacktrace vào kênh cách ly <strong>Dead Letter Queue (DLQ)</strong>, giúp luồng dữ liệu chính chạy xuyên suốt 24/7!`;
+      } else {
+        status.innerHTML = `<strong style="color:#bae6fd;">[Phác đồ Chống Ghi Kép (Dual-Write) bằng Transactional Outbox Pattern]:</strong> Thay vì vừa <code>COMMIT</code> vào DB vừa gọi <code>producer.send()</code> trên code dễ gây lệch trạng thái khi sập mạng, ứng dụng ghi đồng thời vào bảng <code>orders</code> và bảng <code>outbox_events</code> trong cùng 1 ACID Transaction cục bộ!`;
+      }
+
+      ctrls.innerHTML = `
+        <button type="button" class="infra2d-btn ${isBloat ? 'infra2d-btn-danger' : ''}" onclick="ing2dState.chalMode='bloat';renderIngestion2DInteractiveStage('challenges')">1. Sự cố: Kẹt Slot → Nổ đĩa pg_wal (96%)</button>
+        <button type="button" class="infra2d-btn ${isHb ? 'infra2d-btn-emerald' : ''}" onclick="ing2dState.chalMode='heartbeat';renderIngestion2DInteractiveStage('challenges')">2. Giải cứu WAL: Heartbeat + max_slot_wal_keep_size</button>
+        <button type="button" class="infra2d-btn ${isDlq ? 'infra2d-btn-amber' : ''}" onclick="ing2dState.chalMode='dlq';renderIngestion2DInteractiveStage('challenges')">3. Cô lập Poison Pill sang Dead Letter Queue (DLQ)</button>
+        <button type="button" class="infra2d-btn ${isOutbox ? 'infra2d-btn-cyan' : ''}" onclick="ing2dState.chalMode='outbox';renderIngestion2DInteractiveStage('challenges')">4. Chống Dual-Write: Transactional Outbox</button>
+      `;
+    }
+  }
+
   /* ==========================================================================
      UNIFIED TOPIC RENDERER (DECLARATIVE TOPIC_CONFIG FOR F01, F03, F06, D02)
      ========================================================================== */
@@ -5579,6 +7491,20 @@ __LESSON_TEMPLATES_JS__
       leadHtml: "Hiểu bản chất ảo hóa cấp hệ điều hành (Linux Namespaces, <code>cgroups v2</code>, OverlayFS), kiến trúc động cơ OCI Runtime (<code>containerd</code>/<code>runc</code>), đóng gói ứng dụng với Docker Compose và điều phối cụm container trên Kubernetes.",
       stageStatus: () => "Đã xuất bản"
     },
+    D01: {
+      stages: INGESTION_STAGES,
+      swatchClass: "swatch-fig",
+      maskFile: "vines.svg",
+      pictogram: "NodeTree",
+      sealTitle: "D01 · Kafka & Debezium CDC",
+      heroSvg: `<svg viewBox="0 0 120 120" fill="none" aria-hidden="true"><circle cx="30" cy="60" r="14" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.22" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5"/><circle cx="90" cy="34" r="14" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.22" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5"/><circle cx="90" cy="86" r="14" fill="var(--cds-color-swatch-base-primary)" fill-opacity="0.22" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5"/><path d="M43 54L77 39M43 66L77 81M90 48V72" stroke="var(--cds-color-swatch-contrast-primary)" stroke-width="2.5" stroke-linecap="round"/></svg>`,
+      metaTrack: "II. Data Engineering · D01 · Ingestion Layer",
+      slideHref: "course-slides/07-ingestion-layer.pdf",
+      slideLabel: "Slide gốc: 07-ingestion-layer.pdf (45 trang)",
+      titleHtml: "Data Engineering — Ingestion Layer, Apache Kafka &amp; Real-Time Debezium CDC",
+      leadHtml: "Làm chủ kiến trúc thu thập dữ liệu hiện đại: từ giải phẫu hệ thống nguồn (OLTP/OLAP, GIGO, Push/Pull/Poll, Row/Column/Hybrid Parquet), ba thế hệ Change Data Capture (Timestamp Polling, Trigger, Log-Based WAL/binlog), đến cơ học vận hành cụm <strong>Apache Kafka</strong> (KRaft, Partition Sizing, Zero-Copy, Producer <code>murmur2</code>, Consumer Group, <code>ISR</code>, <code>Exactly-once</code>, Log Compaction) và đường ống <strong>Debezium CDC</strong> thực chiến.",
+      stageStatus: () => "Đã xuất bản"
+    },
     D02: {
       stages: STORAGE_STAGES,
       swatchClass: "swatch-oat",
@@ -5676,7 +7602,7 @@ __LESSON_TEMPLATES_JS__
     const padNum = n => String(n).padStart(2, "0");
     const prevStage = stages.find(s => s.id === currentStageId - 1);
     const nextStage = stages.find(s => s.id === currentStageId + 1);
-    const publishedOrder = ["F01", "F03", "F06", "D02"];
+    const publishedOrder = ["F01", "F03", "F06", "D01", "D02"];
     const topicIdx = publishedOrder.indexOf(topicCode);
 
     let prevCardHtml = `<div></div>`;
@@ -5723,7 +7649,7 @@ __LESSON_TEMPLATES_JS__
   }
 
   function renderCatalogView() {
-    const featuredCodes = ["F01", "F03", "F06", "D02"];
+    const featuredCodes = ["F01", "F03", "F06", "D01", "D02"];
     const featuredCards = featuredCodes.map(code => {
       const cfg = TOPIC_CONFIG[code];
       const { group, item } = findTopicContext(code);
@@ -6575,6 +8501,9 @@ __LESSON_TEMPLATES_JS__
       if (activeTopic === "F06" && activeStorageStage === 1) {
         renderInfra2DSlide();
       }
+      if (activeTopic === "D01" && activeStorageStage === 1) {
+        renderIngestion2DSlide();
+      }
       bindGlossaryTerms(container);
     } else {
       const { group, item } = findTopicContext(activeTopic);
@@ -6823,6 +8752,37 @@ __LESSON_TEMPLATES_JS__
         stage: stg.id,
         section: null,
         keywords: normalizeSearch(`F06 docker container kubernetes k8s podman containerd runc ${stg.title}`)
+      });
+    }
+    const d01StationLists = [
+      [1, INGESTION_CHANG1_STATIONS, "ingestion source system gigo governance structured semi-structured unstructured push pull poll oltp olap etlt row column hybrid parquet logs order 8888"],
+      [2, INGESTION_CHANG2_STATIONS, "cdc change data capture full table dump timestamp polling watermark soft delete is_deleted trigger shadow table write amplification log-based wal pgoutput binlog lsn"],
+      [3, INGESTION_CHANG3_STATIONS, "apache kafka event streaming broker topic partition offset consumer lag zookeeper kraft consensus kafka connect mirrormaker 2 schema registry zero-copy sendfile page cache"],
+      [4, INGESTION_CHANG4_STATIONS, "kafka producer murmur2 sticky partitioner recordaccumulator batch.size linger.ms consumer group rebalance cooperativestickyassignor replication leader follower isr high watermark acks=0 acks=1 acks=all idempotence eos log compaction tombstone"],
+      [5, INGESTION_CHANG5_STATIONS, "debezium snapshot wal streaming before after op envelope kafka connect sink smt replication slot wal bloat heartbeat.interval.ms max_slot_wal_keep_size poison pill dead letter queue dlq hot partition dual-write transactional outbox"]
+    ];
+    for (const [stgId, stList, kwExtra] of d01StationLists) {
+      for (const st of stList) {
+        entries.push({
+          kind: "Trạm kiến thức",
+          title: st.fullTitle,
+          sub: `II. Data Engineering / D01 · Ingestion Layer / Chặng ${stgId}`,
+          topic: "D01",
+          stage: stgId,
+          section: st.id,
+          keywords: normalizeSearch(`${st.code} ${st.fullTitle} ${kwExtra}`)
+        });
+      }
+    }
+    for (const stg of INGESTION_STAGES) {
+      entries.push({
+        kind: "Chặng bài đọc",
+        title: `D01 · ${stg.title}`,
+        sub: "II. Data Engineering / Ingestion Layer",
+        topic: "D01",
+        stage: stg.id,
+        section: null,
+        keywords: normalizeSearch(`D01 ingestion kafka debezium cdc ${stg.title}`)
       });
     }
     for (const st of STORAGE_CHANG1_STATIONS) {
@@ -7668,6 +9628,7 @@ def main():
     linux_ascii = build_linux_ascii_diagrams()
     db_ascii = build_db_ascii_diagrams()
     container_ascii = build_container_ascii_diagrams()
+    ingestion_ascii = build_ingestion_ascii_diagrams()
 
     compiled_html_template = HTML_TEMPLATE.replace("__LESSON_TEMPLATES_JS__", compile_lesson_templates_js())
 
@@ -7718,6 +9679,7 @@ def main():
         "linux_diagrams": _build_diag_map(linux_ascii, "linux"),
         "db_diagrams": _build_diag_map(db_ascii, "db"),
         "container_diagrams": _build_diag_map(container_ascii, "container"),
+        "ingestion_diagrams": _build_diag_map(ingestion_ascii, "ingestion"),
         "pictograms": pictograms_payload,
         "masks": masks_payload,
         "ai_vault": _load_obfuscated_ai_vault(),
@@ -7744,7 +9706,7 @@ def main():
     )
     (ROOT / "fsds-learning-hub.html").write_text(html, encoding="utf-8")
     (ROOT / "index.html").write_text(html, encoding="utf-8")
-    total_diags = sum(len(data_out[k]) for k in ("storage_diagrams", "linux_diagrams", "db_diagrams", "container_diagrams"))
+    total_diags = sum(len(data_out[k]) for k in ("storage_diagrams", "linux_diagrams", "db_diagrams", "container_diagrams", "ingestion_diagrams"))
     g_stats = glossary_payload["stats"]
     print(
         f"Built fsds-learning-hub.html + index.html ({len(html):,} bytes), content/lessons-data.json, "

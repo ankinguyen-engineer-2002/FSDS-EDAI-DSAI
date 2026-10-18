@@ -1,0 +1,255 @@
+      <div class="prose">
+        <x-spine id="ingestion-1-spine" badge="TRONG BÀI HỌC NÀY · D01" title="Chặng 1: Bản Đồ Thu Thập Dữ Liệu &amp; Giải Phẫu Hệ Thống Nguồn (Source Systems)" subtitle="Trạm 0.0 → 1.3">Hành trình của sự kiện <strong>Order #8888</strong> (<code>order_id=&quot;ORD-8888&quot;</code>, <code>user_id=&quot;USR-104&quot;</code>, <code>amount=450000</code>, <code>LSN=0/16B3748</code>) từ hệ thống nguồn OLTP, vượt qua định luật GIGO, phân loại định dạng (Structured/Semi-structured/Unstructured), mô hình Push/Pull/Poll, bố cục Row/Column/Hybrid và tiến vào đường ống thu thập dữ liệu.</x-spine>
+
+        <section class="lesson-section" id="ingestion-0-map">
+          <h2 id="ingestion-0-map-h2" tabindex="-1">Trạm 0.0: Nhân vật chính Order #8888 &amp; Bản đồ Kiến trúc 5 Chặng Ingestion Layer</h2>
+
+          <p>Để kết nối liền mạch từ động cơ cơ sở dữ liệu giao dịch ở học phần <strong>F03 · Database Fundamentals</strong> sang tầng lưu trữ phân tán <strong>D02 · Storage Layer</strong>, toàn bộ học phần <strong>D01 · Ingestion Layer</strong> theo chân một nhân vật chính duy nhất: <strong>Sự kiện Giao dịch <code>Order #8888</code> (<code>order_id="ORD-8888"</code>, <code>user_id="USR-104"</code>, <code>amount=450000</code>, ghi tại vị trí nhật ký <code>LSN=0/16B3748</code> trong tệp <code>pg_wal</code> của PostgreSQL)</strong>. Ngay khoảnh khắc khách hàng bấm thanh toán, <code>Order #8888</code> không được phép nằm chết trong ổ đĩa NVMe của máy chủ OLTP: nó phải được rút trích qua tầng <strong>Ingestion Layer</strong> để đồng thời cấp liệu cho dịch vụ <strong>Fraud Detection</strong> kiểm duyệt gian lận trong <code>&lt; 50ms</code>, đồng bộ tồn kho <strong>Inventory</strong> theo thời gian thực, và đáp xuống <strong>Data Lakehouse</strong> phục vụ báo cáo phân tích lịch sử mà không làm nghẽn CPU của hệ thống bán hàng.</p>
+
+          <x-figure id="ingestion-0-1" key="0.1" title="Sơ đồ 0.1 — Bản đồ Tư duy 5 Chặng: Hành trình Sự kiện Order #8888 qua Tầng Ingestion">Toàn cảnh lộ trình nhân quả 5 Chặng (16 Trạm) đưa giao dịch #8888 từ PostgreSQL OLTP qua Debezium CDC và cụm Apache Kafka tới Data Lakehouse.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chặng &amp; Trạm</th>
+                  <th>Trọng tâm Slide 07 &amp; Giáo trình Sách</th>
+                  <th>Điểm nghẽn Khởi phát</th>
+                  <th>Cơ chế Giải quyết Vật lý</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Chặng 1</strong><br/><em>Trạm 0.0 → 1.3</em><br/>Bản đồ &amp; Hệ thống Nguồn</td>
+                  <td>• Kiến trúc 5 tầng dữ liệu &amp; 5 trụ cột <strong>Data Governance</strong> (<em>Slide 04–07</em>).<br/>• <strong>File Ingestion</strong>, 3 cấp cấu trúc dữ liệu, mẫu <strong>Push / Pull / Poll</strong> (<em>Slide 08–10</em>; <em>FoDE</em> Ch. 5, 7).<br/>• Đối chiếu <strong>OLTP vs. OLAP</strong>, bố cục <code>CSV</code> / <code>ORC</code> / <code>Parquet</code>, <strong>ETL / ELT / EtLT</strong> &amp; <strong>Logs</strong> (<em>Slide 15–19</em>; <em>Data Pipelines</em> Ch. 3).</td>
+                  <td>Truy vấn phân tích trực tiếp trên DB bán hàng gây tranh chấp khóa (Lock Contention); lập trình viên sửa bảng (<code>ALTER TABLE</code>) không báo trước làm vỡ đường ống hạ nguồn (<strong>GIGO</strong>).</td>
+                  <td>Tách biệt hoàn toàn OLTP và OLAP qua tầng đệm <strong>Staging Area</strong>; áp đặt <strong>Data Contracts</strong>, lọc PII/rác trên đường bay bằng mô hình <strong>EtLT</strong> và chọn đúng mẫu <strong>Push / Pull / Poll</strong>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 2</strong><br/><em>Trạm 2.1 → 2.3</em><br/>Ba Thế hệ CDC</td>
+                  <td>• Đồng bộ <strong>Batch Sync</strong> vs. <strong>Change Data Capture (CDC)</strong> (<em>Slide 11–14</em>).<br/>• 3 thế hệ CDC: <strong>Query-based Polling</strong>, <strong>Trigger-based Capture</strong>, và <strong>Log-based CDC (Debezium + WAL)</strong> (<em>Data Pipelines</em> Ch. 2; <em>FoDE</em> Ch. 7).</td>
+                  <td>Quét <code>WHERE updated_at &gt; ...</code> bỏ sót lệnh <code>DELETE</code> vật lý và đánh sập CPU nguồn; gắn Trigger làm tăng gấp đôi I/O ghi trong cùng giao dịch của <code>Order #8888</code>.</td>
+                  <td>Đọc bất đồng bộ trực tiếp luồng byte nhị phân từ <code>pg_wal</code> (<code>LSN=0/16B3748</code>) qua <strong>Logical Replication Slot</strong> và plugin <code>pgoutput</code> với tác động gần bằng <code>0%</code> lên luồng ghi OLTP.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 3</strong><br/><em>Trạm 3.1 → 3.3</em><br/>Kiến trúc Apache Kafka</td>
+                  <td>• Tiến hóa từ <strong>Point-to-Point Spaghetti</strong> sang <strong>Event Streaming Platform</strong> (<em>Slide 20–30</em>).<br/>• Giải phẫu <strong>Broker</strong>, <strong>Topic</strong>, <strong>Partition</strong>, <strong>Offset</strong>, băm khóa <code>murmur2</code>, và cơ chế <strong>Consumer Group Rebalance</strong> (<em>Kafka Definitive Guide</em> Ch. 1, 3, 4).</td>
+                  <td>Kết nối điểm-nối-điểm ($N \times M$) tạo ma trận dây nhợ dễ đứt gãy; gửi sự kiện <code>Order #8888</code> không có khóa khiến trạng thái <code>Updated</code> đến trước cả <code>Created</code>.</td>
+                  <td>Ghi nối đuôi bất biến (<strong>Append-only Log</strong>) chia thành các <strong>Partitions</strong>; băm <code>murmur2(order_id)</code> để gom mọi biến động của <code>ORD-8888</code> vào đúng một Partition duy nhất theo thứ tự tuyệt đối.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 4</strong><br/><em>Trạm 4.1 → 4.3</em><br/>Độ bền, Lưu trữ &amp; Hiệu năng</td>
+                  <td>• Cơ chế <strong>Leader / Follower Replication</strong>, <strong>ISR (In-Sync Replicas)</strong>, <code>acks=0/1/all</code> (<em>Slide 31–38</em>).<br/>• Giải phẫu Segment Files (<code>.log</code>, <code>.index</code>, <code>.timeindex</code>), <strong>Delete vs. Log Compaction</strong>, <strong>Page Cache</strong> &amp; <strong>Zero-Copy</strong> <code>sendfile(2)</code> (<em>Kafka Definitive Guide</em> Ch. 2, 6).</td>
+                  <td>Broker giữ vai trò Leader chết đột ngột ngay sau khi nhận <code>Order #8888</code> gây mất đơn hoặc nhân bản đơn; truyền hàng triệu bản ghi qua mạng làm bão hòa CPU do chép bộ nhớ 4 lần.</td>
+                  <td>Khóa cấu hình <code>acks=all</code> + <code>min.insync.replicas=2</code> + <code>enable.idempotence=true</code>; kết hợp <strong>OS Page Cache</strong> và syscall <code>sendfile(2)</code> truyền thẳng từ Disk Cache ra NIC không qua User Space.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chặng 5</strong><br/><em>Trạm 5.1 → 5.3</em><br/>Vận hành Thực chiến &amp; Công cụ</td>
+                  <td>• Hệ sinh thái <strong>Kafka Connect</strong>, <strong>Schema Registry (Avro/Protobuf)</strong>, <strong>Airbyte</strong>, <strong>Apache NiFi</strong>, <strong>Debezium</strong> (<em>Slide 39–44</em>).<br/>• Giải cứu thảm họa thực chiến: <strong>PostgreSQL WAL Disk Full</strong>, <strong>Out-of-Order Events</strong>, <strong>Poison Pill &amp; Dead Letter Queue (DLQ)</strong>.</td>
+                  <td>Connector Debezium bị treo khiến PostgreSQL giữ khư khư tệp <code>pg_wal</code> làm nổ 100% ổ cứng DB nguồn; một bản ghi JSON sai kiểu dữ liệu làm kẹt cứng toàn bộ Consumer Group.</td>
+                  <td>Thiết lập <code>max_slot_wal_keep_size</code> + cảnh báo <code>pg_replication_slots</code>; cưỡng chế tương thích lược đồ bằng <strong>Schema Registry</strong> và bẻ lái bản ghi lỗi sang <strong>Dead Letter Queue (DLQ)</strong>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="lesson-section" id="ingestion-1-0-sim">
+          <h2 id="ingestion-1-0-sim-h2" tabindex="-1">Trạm 1.0 (Mô phỏng 2D): Phòng Thí Nghiệm Dòng Chảy CDC, Kafka Partition, ISR Failover &amp; WAL Bloat</h2>
+
+          <p>Trước khi đi vào giải phẫu từng lớp lý thuyết, hãy trực tiếp điều khiển sự kiện <strong>Order #8888</strong> (<code>LSN=0/16B3748</code>) đi qua <strong>6 kịch bản vận hành thực tế</strong> trong Phòng Thí Nghiệm 2D dưới đây: từ so sánh áp lực CPU giữa <code>Polling vs Trigger vs Debezium WAL</code>, thuật toán định tuyến phân vùng <code>Keyed murmur2 vs Round-Robin</code>, cơ chế tự chia tải <code>Consumer Group Rebalance</code>, kịch bản sập máy chủ <code>Broker ISR Failover &amp; acks</code>, thu gom rác <code>Log Compaction</code>, cho tới quy trình <code>WAL Bloat Rescue</code> khi ổ đĩa cơ sở dữ liệu nguồn chạm ngưỡng nguy hiểm.</p>
+
+          <x-ingestion2d></x-ingestion2d>
+        </section>
+
+        <section class="lesson-section" id="ingestion-1-1">
+          <h2 id="ingestion-1-1-h2" tabindex="-1">Trạm 1.1: Kiến trúc 5 Tầng Dữ liệu, Lớp Quản trị Data Governance &amp; Định luật GIGO tại Hệ thống Nguồn</h2>
+
+          <p><strong>Ingestion Layer (Tầng thu thập dữ liệu)</strong> là trạm biên phòng tách biệt các hệ thống sinh dữ liệu vận hành (<strong>Data Sources</strong>) khỏi vùng đệm trung chuyển (<strong>Staging Area</strong>) và kho phân tích (<strong>Data Warehouse / Data Marts</strong>), hoạt động dưới sự giám sát xuyên suốt của lớp quản trị <strong>Data Governance</strong> (<em>Slide 04–06</em>). Nếu thiếu tầng Ingestion và vùng đệm Staging, việc cho phép các chuyên viên phân tích chạy truy vấn <code>SELECT SUM(amount) ... GROUP BY ...</code> quét hàng chục triệu dòng trực tiếp trên cơ sở dữ liệu PostgreSQL đang xử lý giao dịch <code>Order #8888</code> sẽ lập tức gây bão I/O ổ đĩa, tràn bộ nhớ đệm <code>shared_buffers</code> và tranh chấp khóa (<strong>Lock Contention</strong>), đẩy độ trễ thanh toán của khách hàng từ <code>5ms</code> vọt lên <code>30,000ms</code> (Timeout).</p>
+
+          <p>Theo <em>Fundamentals of Data Engineering</em> (Ch. 5 &amp; Ch. 7) và <em>Slide 07</em>, kỹ sư dữ liệu không có quyền kiểm soát hệ thống nguồn nhưng phải gánh toàn bộ hậu quả từ <strong>Định luật GIGO (Garbage In = Garbage Out — Rác đầu vào sinh rác đầu ra)</strong>. Kịch bản phá hủy đường ống phổ biến nhất trên thực tế là <strong>Upstream Schema Drift (Trôi trượt lược đồ thượng nguồn)</strong>: đội phát triển ứng dụng âm thầm chạy lệnh <code>ALTER TABLE orders RENAME COLUMN amount TO total_vnd;</code> hoặc đổi kiểu dữ liệu mà không thông báo. Nếu tầng Ingestion chỉ chép mù (Blind Copy) mà không có <strong>Data Contracts (Hợp đồng dữ liệu)</strong> và trạm kiểm dịch tại <strong>Staging Area</strong>, các bản ghi chứa <code>NULL</code> hoặc sai lệch đơn vị tiền tệ sẽ chảy thẳng vào bảng báo cáo tài chính của CEO, làm sai lệch hoàn toàn quyết định kinh doanh.</p>
+
+          <x-figure id="ingestion-1-1-fig" key="1.1" title="Sơ đồ 1.1 — Kiến trúc 5 Tầng Dữ liệu, Nền tảng Data Governance &amp; Nút thắt Cổ chai tại Nguồn (GIGO)">Định vị tầng Ingestion giữa hệ thống nguồn và kho phân tích, kèm cơ chế bảo vệ CPU nguồn và kiểm soát Schema Drift.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Phân lớp Kiến trúc / Trụ cột Governance</th>
+                  <th>Vai trò Cơ học đối với Sự kiện <code>Order #8888</code></th>
+                  <th>Rủi ro Vật lý nếu Khuyết hoặc Thiết kế Sai</th>
+                  <th>Cơ chế Kỹ thuật &amp; Chốt chặn Thực thi</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Data Sources (Hệ thống nguồn)</strong></td>
+                  <td>Nơi khởi sinh giao dịch <code>Order #8888</code> (CSDL OLTP PostgreSQL, tệp đối soát CSV/JSON, API cổng thanh toán, thiết bị IoT).</td>
+                  <td>Tài nguyên CPU, RAM và kết nối mạng hữu hạn; dễ sập nếu bị tiến trình đọc bên ngoài vắt kiệt IOPS.</td>
+                  <td>Đọc qua <strong>Read Replica</strong> hoặc đọc nhật ký <code>pg_wal</code> (Log-based CDC); giới hạn băng thông kết nối đọc.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Ingestion Layer (Tầng thu thập)</strong></td>
+                  <td>Vận chuyển bản ghi <code>ORD-8888</code> từ nguồn về hệ thống đích theo lô (<strong>Batch</strong>) hoặc luồng thời gian thực (<strong>Streaming</strong>).</td>
+                  <td>Mất bản ghi khi đứt mạng, nhân bản đơn hàng khi chạy lại (Retry), hoặc tắc nghẽn đường ống khi lưu lượng tăng đột biến.</td>
+                  <td>Thiết kế luồng thu thập <strong>Idempotent (Lũy đẳng)</strong>, hàng đợi chống tràn (<strong>Backpressure</strong>) trên Apache Kafka.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Staging Area (Vùng đệm trung chuyển)</strong></td>
+                  <td>Nơi hạ cánh đầu tiên (Landing / Raw Zone) lưu giữ nguyên trạng bản ghi <code>Order #8888</code> trước khi biến đổi sâu.</td>
+                  <td>Khi logic biến đổi bị lỗi, nếu không có bản lưu thô tại Staging sẽ phải quét lại DB nguồn gây quá tải hệ thống bán hàng.</td>
+                  <td>Lưu trữ bất biến trên Object Storage (<code>s3://raw-staging/orders/</code>); tách luồng bản ghi lỗi sang vùng cách ly <strong>Quarantine</strong>.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Warehouse &amp; Data Marts (Kho &amp; Chợ dữ liệu)</strong></td>
+                  <td>Chuẩn hóa, tích hợp lịch sử <code>Order #8888</code> vào mô hình phân tích chung (Warehouse) và tách các tập con theo phòng ban (Data Marts: Finance, Marketing) phục vụ <strong>Users</strong>.</td>
+                  <td>Người dùng cuối truy vấn trực tiếp vào bảng thô chưa làm sạch, dẫn tới mỗi phòng ban tính ra một con số doanh thu khác nhau.</td>
+                  <td>Tổ chức theo mô hình <strong>Star Schema</strong> hoặc <strong>Medallion (Bronze → Silver → Gold)</strong> với định nghĩa chỉ số thống nhất.</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Data Governance Layer (5 Trụ cột Quản trị Xuyên suốt)</strong></td>
+                  <td>Bao phủ toàn bộ 5 tầng qua 5 trụ cột: <strong>Data Quality</strong>, <strong>Data Security</strong>, <strong>Data Lineage</strong>, <strong>Metadata Management</strong>, và <strong>Access Control</strong> (<em>Slide 05</em>).</td>
+                  <td>Rò rỉ thông tin nhạy cảm (PII) của <code>USR-104</code>; không truy vết được nguồn gốc khi con số <code>amount=450000</code> bị sai lệch.</td>
+                  <td>Kiểm định lược đồ tự động (<strong>Schema Registry / Data Contracts</strong>), mã hóa &amp; che dấu PII, ghi vết <strong>OpenLineage</strong> và phân quyền <strong>RBAC/ABAC</strong>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Đặt tầng Ingestion và vùng đệm Staging đứng chắn trước Data Warehouse giúp giải phóng hệ thống nguồn OLTP khỏi gánh nặng truy vấn phân tích. Tuy nhiên, dữ liệu tại nguồn không chỉ nằm gọn trong các bảng SQL ngay ngắn mà còn tồn tại dưới dạng hàng triệu tệp tin phẳng, tài liệu JSON lồng nhau và luồng dữ liệu phi cấu trúc — đòi hỏi kỹ sư phải phân loại chính xác cấp độ cấu trúc và chọn đúng cơ chế điều khiển luồng <strong>Push, Pull hay Poll</strong> tại <strong>Trạm 1.2</strong>.</p>
+        </section>
+
+        <section class="lesson-section" id="ingestion-1-2">
+          <h2 id="ingestion-1-2-h2" tabindex="-1">Trạm 1.2: Giải phẫu File Ingestion, Ba Cấp độ Cấu trúc Dữ liệu &amp; Mô hình Push – Pull – Poll</h2>
+
+          <p><strong>File Ingestion (Thu thập dữ liệu tệp)</strong> vận hành dựa trên sự đánh đổi giữa độ trễ và chi phí khởi tạo qua hai chế độ: <strong>Batch-based Ingestion</strong> (gom dữ liệu theo khung giờ cố định, ví dụ 24 giờ/lần lúc nửa đêm) và <strong>Micro-batching</strong> (chia thành các lô nhỏ từ vài giây đến vài phút để giảm độ trễ mà không tốn chi phí duy trì luồng 24/7) (<em>Slide 08–09</em>). Bên trong các tệp này, dữ liệu liên quan đến <code>Order #8888</code> xuất hiện dưới <strong>3 cấp độ cấu trúc (Data Structure Tiers)</strong> (<em>Slide 10</em>): <strong>Structured Data</strong> (bảng dòng/cột có lược đồ cứng <code>Schema-on-Write</code> như bảng <code>orders</code>), <strong>Semi-Structured Data</strong> (dữ liệu tự mô tả <code>Self-describing</code> bằng thẻ/khóa linh hoạt như tệp <code>order_8888_webhook.json</code> hay <code>XML</code> từ cổng thanh toán), và <strong>Unstructured Data</strong> (dữ liệu nhị phân tự do không có lược đồ cố định như ảnh chụp kiện hàng <code>pod_8888.jpg</code>, tệp âm thanh tổng đài <code>.wav</code> hay hóa đơn <code>.pdf</code>).</p>
+
+          <p>Khi di chuyển các tệp và bản ghi này qua mạng từ hệ thống nguồn về tầng Ingestion, sách <em>Fundamentals of Data Engineering</em> (Ch. 7) phân định rõ <strong>3 mẫu giao tiếp cơ học: Push, Pull và Poll</strong>. Sự khác biệt không chỉ nằm ở hướng mũi tên dữ liệu mà nằm ở <strong>vị trí khởi tạo kết nối mạng (Firewall Inbound/Outbound)</strong> và <strong>quyền kiểm soát áp lực tải (Backpressure)</strong>: trong mô hình <strong>Push</strong>, nguồn chủ động bắn dữ liệu sang đích ngay khi phát sinh nhưng dễ làm ngập lụt (Overwhelm) tầng đích nếu lưu lượng tăng đột biến; ngược lại, trong mô hình <strong>Pull</strong>, hệ thống thu thập chủ động điều tiết tốc độ kéo dữ liệu theo sức chứa của mình, còn <strong>Poll</strong> là biến thể định kỳ hỏi nguồn xem có thay đổi mới hay không trước khi kéo về.</p>
+
+          <x-figure id="ingestion-1-2-fig" key="1.2" title="Sơ đồ 1.2 — Tam giác Cấu trúc Dữ liệu (Structured / Semi / Unstructured) &amp; Ba Mẫu Thu thập Push – Pull – Poll">Đối chiếu đặc tính lược đồ, chi phí xử lý và cơ chế điều khiển luồng giữa Push, Pull và Poll trong Batch/Micro-batch Ingestion.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Phân nhóm Đối chiếu</th>
+                  <th>Cơ chế Vật lý &amp; Đặc tả Lược đồ</th>
+                  <th>Ưu thế Kỹ thuật &amp; Hiệu năng</th>
+                  <th>Điểm nghẽn &amp; Bài toán Thực chiến với <code>Order #8888</code></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Structured Data</strong><br/>(Dữ liệu có cấu trúc)</td>
+                  <td>Tổ chức thành bảng <strong>Rows &amp; Columns</strong> chặt chẽ; kiểu dữ liệu (<code>INT</code>, <code>DECIMAL(12,2)</code>, <code>TIMESTAMP</code>) được cưỡng chế ngay khi ghi (<strong>Schema-on-Write</strong>).</td>
+                  <td>Tối ưu hóa bộ nhớ, nén cao, truy vấn SQL và lập chỉ mục B-Tree cực nhanh, dễ dàng kiểm định chất lượng tự động.</td>
+                  <td>Kém linh hoạt: thêm một trường khuyến mãi mới cho <code>Order #8888</code> phải chạy lệnh <code>ALTER TABLE</code> trên toàn bảng.</td>
+                </tr>
+                <tr>
+                  <td><strong>Semi-Structured Data</strong><br/>(Dữ liệu bán cấu trúc)</td>
+                  <td>Định dạng <code>JSON</code>, <code>XML</code>, <code>YAML</code> mang siêu dữ liệu tự mô tả (<strong>Self-describing metadata</strong>) đi kèm từng bản ghi; cho phép lồng nhau (Nested) và đa hình.</td>
+                  <td>Thích ứng tức thì khi đối tác thanh toán thêm trường mới vào payload <code>order_8888.json</code> mà không làm gãy luồng ghi thô.</td>
+                  <td>Tốn dung lượng lưu trữ do lặp lại tên khóa (Key names) ở mọi dòng; tốn CPU phân tích cú pháp (Parse) khi đọc (<strong>Schema-on-Read</strong>).</td>
+                </tr>
+                <tr>
+                  <td><strong>Unstructured Data</strong><br/>(Dữ liệu phi cấu trúc)</td>
+                  <td>Chuỗi byte nguyên bản không tuân theo mô hình bảng hay cây khóa: ảnh giao hàng (<code>JPEG/PNG</code>), ghi âm CSKH (<code>MP3/WAV</code>), hóa đơn <code>PDF</code>, văn bản tự do.</td>
+                  <td>Lưu giữ trọn vẹn tín hiệu gốc của thế giới thực để huấn luyện mô hình Deep Learning, OCR, Speech-to-Text hoặc tạo Vector Embeddings.</td>
+                  <td>Không thể dùng SQL thuần để lọc trực tiếp; phải lưu trên <strong>Object Storage</strong> (S3/GCS) và gắn bảng <strong>Metadata Catalog</strong> trỏ đường dẫn URI.</td>
+                </tr>
+                <tr>
+                  <td><strong>Mẫu Push (Đẩy chủ động)</strong></td>
+                  <td>Hệ thống nguồn mở kết nối đẩy thẳng sự kiện sang đích ngay khi xảy ra (ví dụ: Webhook cổng thanh toán, <strong>S3 Event Notification</strong> đẩy vào SQS/Kafka, App gửi gRPC).</td>
+                  <td>Độ trễ cực thấp (Real-time / Event-driven); không tốn tài nguyên hỏi thăm khi hệ thống nguồn không có đơn hàng mới.</td>
+                  <td>Đích phải mở cổng tường lửa (Inbound Port) và dễ bị đánh sập nếu nguồn bắn 100.000 sự kiện/giây mà không có bộ đệm <strong>Backpressure</strong>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Mẫu Pull (Kéo chủ động)</strong></td>
+                  <td>Tầng Ingestion chủ động mở kết nối tới nguồn để rút dữ liệu về theo lô hoặc luồng (ví dụ: Spark đọc tệp từ S3/SFTP, Kafka Consumer kéo batch từ Broker).</td>
+                  <td>Kiểm soát hoàn toàn <strong>Backpressure</strong> (năng lực xử lý tới đâu kéo tới đó); hệ thống đích không cần mở cổng Inbound ra ngoài.</td>
+                  <td>Đòi hỏi quyền truy cập đọc vào hệ thống nguồn và cơ chế đánh dấu vị trí đọc (Offset/Bookmark) để đảm bảo <strong>Idempotency</strong> khi chạy lại.</td>
+                </tr>
+                <tr>
+                  <td><strong>Mẫu Poll (Hỏi thăm định kỳ)</strong></td>
+                  <td>Tầng Ingestion định kỳ gửi truy vấn kiểm tra trạng thái nguồn (ví dụ: mỗi 5 phút chạy <code>SELECT ... WHERE updated_at &gt; last_ watermark</code> qua JDBC hoặc gọi REST API).</td>
+                  <td>Dễ triển khai nhất trên các hệ thống CSDL hoặc REST API cũ không hỗ trợ cơ chế bắn sự kiện (Webhook/Streaming).</td>
+                  <td>Lãng phí CPU/I/O do các chu kỳ hỏi rỗng (<strong>Empty Polls</strong>); luôn tồn tại độ trễ bằng khoảng cách giữa 2 lần Poll và nguy cơ bỏ sót bản ghi xóa cứng.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Hiểu rõ 3 cấp độ cấu trúc và 3 mẫu Push/Pull/Poll giúp kỹ sư thiết kế đường truyền mạng an toàn cho các tệp dữ liệu. Nhưng đối với nhân vật chính <code>Order #8888</code> sinh ra từ cơ sở dữ liệu giao dịch và các tệp nhật ký vận hành máy chủ, tại sao định dạng lưu trữ tại nguồn lại hoàn toàn đối lập với định dạng tại kho phân tích, và dữ liệu phải được biến đổi vào thời điểm nào trên đường đi? Chúng ta bước sang <strong>Trạm 1.3</strong>.</p>
+        </section>
+
+        <section class="lesson-section" id="ingestion-1-3">
+          <h2 id="ingestion-1-3-h2" tabindex="-1">Trạm 1.3: Đối chiếu OLTP vs. OLAP, Bố cục Lưu trữ (Row / Column / Hybrid), Mô hình EtLT &amp; Thu thập Logs</h2>
+
+          <p><strong>OLTP (Online Transaction Processing — Xử lý giao dịch trực tuyến)</strong> và <strong>OLAP (Online Analytical Processing — Xử lý phân tích trực tuyến)</strong> được thiết kế cho hai mẫu truy cập vật lý trái ngược nhau hoàn toàn trên ổ đĩa (<em>Slide 15–18</em>). Hệ thống OLTP (như PostgreSQL xử lý <code>Order #8888</code>) phục vụ hàng nghìn người dùng tuyến đầu (Frontline Workers / Khách hàng) thực hiện các thao tác <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code> đơn lẻ với độ trễ mili-giây, nên bắt buộc phải xếp các cột của cùng một đơn hàng nằm liền kề nhau theo <strong>Row-Based Layout (Bố cục theo dòng — ví dụ tệp <code>CSV</code> hoặc trang 8KB Heap)</strong> để đọc/ghi trọn vẹn một bản ghi qua mệnh đề lọc <code>WHERE order_id = 'ORD-8888'</code> chỉ trong 1 lần chạm đĩa. Ngược lại, hệ thống OLAP phục vụ các bài toán tổng hợp lịch sử quy mô lớn (<code>SELECT SUM(amount) FROM orders</code>), nếu dùng bố cục theo dòng sẽ buộc đầu đọc đĩa phải quét qua hàng chục cột không dùng tới (địa chỉ, ghi chú, chuỗi trình duyệt). Vì vậy, OLAP chuyển sang <strong>Column-Based Layout (như <code>ORC</code>)</strong> hoặc <strong>Hybrid Row-Group Layout (như <code>Apache Parquet</code>)</strong> — chia bảng thành các cụm hàng (<strong>Row Groups</strong> <code>128MB–1GB</code>) rồi gom từng cột thành các <strong>Column Chunks</strong> liền mạch để chỉ đọc đúng cột được chiếu trong mệnh đề <code>SELECT</code> (<strong>Column Projection</strong>) và đạt tỷ lệ nén gấp <code>4x–10x</code>.</p>
+
+          <p>Để chuyển dữ liệu từ thế giới OLTP sang OLAP cùng với luồng <strong>Logs (Nhật ký hệ thống)</strong> từ các máy chủ, Docker Containers và thiết bị IoT (gồm 6 nhóm trên <em>Slide 19</em>: <strong>System Logs</strong>, <strong>Application Logs</strong>, <strong>Error/Debug Logs</strong>, <strong>Audit Logs</strong>, <strong>Security Logs</strong>, và <strong>Network Logs</strong>), kiến trúc đường ống đã tiến hóa từ <strong>ETL (Extract → Transform → Load)</strong> truyền thống sang <strong>ELT (Extract → Load → Transform)</strong> trên nền tảng Cloud Data Warehouse/Lakehouse (<em>Slide 16</em>). Tuy nhiên, trong <em>Data Pipelines Pocket Reference</em> (Ch. 3, tr. 26–29), James Densmore chỉ ra rằng ELT thuần túy (đổ thẳng 100% dữ liệu thô chưa qua xử lý vào kho rồi mới biến đổi) tiềm ẩn rủi ro pháp lý và chất lượng nghiêm trọng; do đó, các hệ thống hiện đại áp dụng mẫu lai <strong>EtLT (Extract → light Transform → Load → Transform)</strong> — thực hiện một bước biến đổi nhẹ (<code>t</code> nhỏ) ngay trên đường bay để che dấu thông tin định danh cá nhân (<strong>PII Masking/Hashing</strong> cho <code>USR-104</code>), khử trùng lặp sơ bộ và kiểm tra lược đồ trước khi dữ liệu chạm xuống đĩa của Data Lakehouse.</p>
+
+          <x-figure id="ingestion-1-3-fig" key="1.3" title="Sơ đồ 1.3 — Giải phẫu Bố cục Byte (Row CSV vs. Column ORC vs. Hybrid Parquet), Luồng EtLT &amp; Thu thập Hệ thống Logs">Cơ chế sắp xếp vật lý trên đĩa quyết định tốc độ đọc/ghi giữa OLTP và OLAP cùng kiến trúc thu thập Log đa nguồn.</x-figure>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tiêu chí Kiến trúc (Slide 16–18 &amp; Sách)</th>
+                  <th>Hệ thống OLTP / Mô hình ETL</th>
+                  <th>Hệ thống OLAP / Mô hình ELT</th>
+                  <th>Bố cục Hybrid (<code>Parquet</code>) &amp; Mẫu lai <strong>EtLT</strong></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Mục đích &amp; Trọng tâm (Purpose &amp; Primary Focus)</strong></td>
+                  <td><strong>OLTP:</strong> Vận hành giao dịch thời gian thực (đặt đơn <code>#8888</code>, trừ kho, thanh toán) với tính toàn vẹn <strong>ACID</strong> tuyệt đối và độ trễ <code>1–10ms</code>.</td>
+                  <td><strong>OLAP:</strong> Phân tích xu hướng lịch sử đa chiều, báo cáo BI, huấn luyện ML trên tập dữ liệu hàng tỷ dòng với thông lượng quét cao.</td>
+                  <td>Kết nối OLTP và OLAP: vừa giữ được ranh giới lô hàng (Row Group) vừa đạt tốc độ quét cột và nén cao cho cả BI lẫn AI.</td>
+                </tr>
+                <tr>
+                  <td><strong>Mô hình Sở hữu &amp; Truy cập (Ownership &amp; Data Access)</strong></td>
+                  <td>Thuộc sở hữu của đội Kỹ thuật Phần mềm (Software/App Team); tối ưu cho hàng nghìn thao tác đọc/ghi ngẫu nhiên nhỏ (<code>INSERT/UPDATE/DELETE</code>).</td>
+                  <td>Thuộc sở hữu của đội Dữ liệu &amp; Phân tích (Data/BI Team); tối ưu cho các truy vấn đọc tuần tự lớn (<strong>Batch Read / Sequential Scan</strong>).</td>
+                  <td>Ranh giới chuyển giao quyền sở hữu tại tầng Ingestion được khóa chặt bằng <strong>Data Contracts</strong> để chống gãy vỡ lược đồ.</td>
+                </tr>
+                <tr>
+                  <td><strong>Bố cục Byte trên Đĩa (Storage Layout — Slide 17)</strong></td>
+                  <td><strong>Row-Based (<code>CSV</code>, OLTP Heap):</strong> Xếp liền kề <code>[Row1: Col1, Col2, Col3] [Row2: ...]</code>. Tối ưu khi lọc <code>WHERE</code> lấy trọn 1 dòng, nhưng rất chậm khi tính tổng 1 cột.</td>
+                  <td><strong>Column-Based (<code>ORC</code> / Column Store):</strong> Gom toàn bộ giá trị <code>Col1</code> nằm cạnh nhau, rồi tới <code>Col2</code>. Đọc cực nhanh khi chiếu <code>SELECT Col2</code> nhưng tốn chi phí ghép dòng.</td>
+                  <td><strong>Hybrid Row-Group (<code>Parquet</code>):</strong> Cắt ngang bảng thành các <strong>Row Groups</strong>, bên trong mỗi Row Group lại xếp dọc theo <strong>Column Chunks</strong> kèm thống kê <code>Min/Max</code> ở Footer.</td>
+                </tr>
+                <tr>
+                  <td><strong>Chuỗi Biến đổi Đường ống (ETL vs. ELT vs. EtLT)</strong></td>
+                  <td><strong>ETL (Extract-Transform-Load):</strong> Biến đổi nặng trên máy chủ trung gian trước khi nạp vào kho; tốn chi phí tính toán ban đầu và phải chạy lại từ nguồn nếu logic sai.</td>
+                  <td><strong>ELT (Extract-Load-Transform):</strong> Nạp thẳng dữ liệu thô vào Data Lake/Warehouse rồi dùng sức mạnh MPP của đích để biến đổi; linh hoạt nhưng dễ nạp cả dữ liệu bẩn/PII.</td>
+                  <td><strong>EtLT (Extract-light Transform-Load-Transform):</strong> Chèn bước <code>t</code> nhẹ trên đường thu thập để băm/ẩn PII (<code>user_id</code>, SĐT), chuẩn hóa múi giờ UTC và lọc gói tin hỏng trước khi <code>Load</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Thu thập Nhật ký Hệ thống (System &amp; App Logs — Slide 19)</strong></td>
+                  <td>Sinh ra liên tục từ Docker Containers, Web Servers, DB và thiết bị IoT dưới dạng văn bản hoặc <code>JSON</code> (System, Application, Error/Debug, Audit, Security, Network Logs).</td>
+                  <td>Được gom về kho tập trung để giám sát an ninh (SIEM), kiểm toán truy cập (Audit) và phân tích hành vi người dùng (Clickstream).</td>
+                  <td>Dùng các Agent siêu nhẹ (<strong>Fluent Bit / Vector / Filebeat</strong>) đọc đuôi tệp log, áp dụng bước <code>t</code> (tách trường Regex/JSON, lọc mật khẩu) rồi đẩy vào Kafka/Object Storage.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>Khép lại Chặng 1, chúng ta đã định vị được tọa độ của sự kiện <code>Order #8888</code> tại hệ thống nguồn OLTP, thiết lập hàng rào Data Governance chống định luật GIGO, phân loại 3 cấp cấu trúc dữ liệu, chọn mẫu Push/Pull/Poll và áp dụng luồng EtLT để chuẩn bị chuyển đổi từ bố cục dòng sang bố cục cột Hybrid Parquet. Nhưng câu hỏi cơ học hóc búa nhất vẫn đang chờ ở phía trước: <strong>Làm thế nào để rút trích sự kiện <code>Order #8888</code> ra khỏi cơ sở dữ liệu PostgreSQL ngay khoảnh khắc vừa <code>COMMIT</code> mà không làm tăng tải CPU nguồn và không bỏ sót bất kỳ lệnh <code>UPDATE</code> hay <code>DELETE</code> nào?</strong> Chúng ta bước sang <strong>Chặng 2: Ba Thế Hệ Change Data Capture (Polling, Trigger &amp; Log-Based CDC)</strong>.</p>
+        </section>
+
+        <section class="summary-section" id="ingestion-1-summary">
+          <h2 id="ingestion-1-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 1 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <ol>
+            <li><strong>Tại sao không chạy truy vấn phân tích doanh thu trực tiếp trên CSDL PostgreSQL đang xử lý <code>Order #8888</code>, và hiện tượng Upstream Schema Drift kích hoạt định luật GIGO như thế nào?</strong><br/>Truy vấn phân tích quét hàng triệu dòng trên DB giao dịch sẽ gây bão I/O, đẩy bật các trang dữ liệu nóng khỏi bộ nhớ đệm và gây tranh chấp khóa (Lock Contention) làm treo ứng dụng bán hàng. Đồng thời, nếu lập trình viên thượng nguồn đổi tên cột hoặc kiểu dữ liệu (<code>ALTER TABLE</code>) mà không có <strong>Data Contracts</strong> và trạm kiểm dịch tại <strong>Staging Area</strong>, dữ liệu lỗi/<code>NULL</code> sẽ chảy thẳng vào báo cáo hạ nguồn theo đúng định luật <strong>GIGO (Garbage In = Garbage Out)</strong>.</li>
+            <li><strong>Năm trụ cột của lớp Data Governance hoạt động như thế nào xuyên suốt kiến trúc 5 tầng dữ liệu?</strong><br/>Khác với các tầng xử lý tuần tự (<code>Data Sources → Ingestion → Staging → Warehouse → Data Marts</code>), <strong>Data Governance</strong> là lớp cắt ngang giám sát toàn diện qua 5 trụ cột: <strong>Data Quality</strong> (kiểm định tính đầy đủ, chính xác), <strong>Data Security</strong> (mã hóa, ẩn PII), <strong>Data Lineage</strong> (truy vết nguồn gốc và biến đổi của <code>Order #8888</code>), <strong>Metadata Management</strong> (quản lý lược đồ và từ điển dữ liệu), và <strong>Access Control</strong> (phân quyền truy cập theo vai trò).</li>
+            <li><strong>Phân biệt cơ chế vật lý và đánh đổi giữa 3 mẫu thu thập Push, Pull và Poll?</strong><br/><strong>Push</strong> do nguồn chủ động bắn sang đích ngay khi có sự kiện (độ trễ thấp nhất nhưng đích phải mở cổng tường lửa Inbound và dễ bị quá tải nếu thiếu Backpressure); <strong>Pull</strong> do hệ thống thu thập chủ động kéo dữ liệu về theo năng lực xử lý của đích (kiểm soát tốt Backpressure và Idempotency); <strong>Poll</strong> là việc định kỳ hỏi thăm nguồn xem có dữ liệu mới không rồi mới kéo về (dễ cài đặt nhưng gây lãng phí tài nguyên do các chu kỳ hỏi rỗng Empty Polls).</li>
+            <li><strong>Tại sao bố cục Row-Based (<code>CSV</code>) tối ưu cho mệnh đề <code>WHERE</code> lấy trọn bản ghi OLTP, Column-Based (<code>ORC</code>) tối ưu cho mệnh đề <code>SELECT</code> chiếu cột OLAP, còn <code>Apache Parquet</code> lại chọn kiến trúc Hybrid?</strong><br/>Lưu theo dòng giúp đọc/ghi toàn bộ các thuộc tính của một giao dịch <code>Order #8888</code> trong một lần truy xuất tuần tự ngắn, còn lưu theo cột giúp bỏ qua các cột thừa khi tính toán tổng hợp trên hàng tỷ dòng. <strong>Apache Parquet</strong> kết hợp cả hai bằng cách cắt bảng ngang thành các <strong>Row Groups</strong>, rồi bên trong mỗi Row Group lại lưu dọc theo <strong>Column Chunks</strong> kèm thống kê <code>Min/Max</code>, giúp vừa nhảy cóc qua các khối không thỏa điều kiện <code>WHERE</code> (Predicate Pushdown), vừa chỉ đọc đúng cột trong <code>SELECT</code> (Column Projection).</li>
+            <li><strong>Biến thể <code>EtLT</code> (Extract – light Transform – Load – Transform) giải quyết lỗ hổng thực tế nào của cả <code>ETL</code> truyền thống lẫn <code>ELT</code> thuần túy?</strong><br/><code>ETL</code> biến đổi nặng trước khi lưu nên chậm và mất khả năng tái xử lý từ dữ liệu thô, trong khi <code>ELT</code> đổ thẳng dữ liệu thô vào kho nên có nguy cơ lưu trữ trái phép dữ liệu nhạy cảm (PII) hoặc nạp rác làm hỏng bảng đích. <strong>EtLT</strong> thực hiện bước biến đổi nhẹ (<code>t</code>) ngay trên đường thu thập để băm/che dấu PII của <code>USR-104</code>, khử trùng lặp và kiểm tra lược đồ, sau đó mới nạp (<code>Load</code>) vào Data Lakehouse để thực hiện các phép biến đổi nghiệp vụ lớn (<code>T</code>).</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/D01/2" onclick="selectStorageStage(2);return false;">Sang Chặng 2: Ba Thế Hệ Change Data Capture (Polling, Trigger &amp; Log-Based CDC) →</a></p>
+        </section>
+      </div>

@@ -1,0 +1,341 @@
+      <div class="prose">
+        <x-spine id="ingestion-5-spine" badge="CHẶNG 5 · DEBEZIUM CDC &amp; PRODUCTION CHALLENGES" title="Chặng 5: Đường Ống CDC Thời Gian Thực Với Debezium &amp; Giải Quyết Thách Thức Vận Hành Thực Chiến" subtitle="Trạm 5.1 → 5.3">Khép kín hành trình của <strong>Order #8888</strong>: cắm <strong>Debezium Source Connector</strong> vào khe nhân bản <code>pgoutput</code> của PostgreSQL để biến dòng byte <code>WAL</code> thành gói tin chuẩn hóa <code>before/after/op</code>, phân phối qua Kafka Connect tới Data Lakehouse, và hóa giải 4 tai nạn sinh tử trong vận hành thực tế (nổ ổ cứng <code>WAL Bloat</code>, <code>Schema Drift</code>, <code>Hot Partition</code> và <code>Dual-Write</code>).</x-spine>
+
+        <p>Ở <strong>Chặng 3</strong> và <strong>Chặng 4</strong>, chúng ta đã chứng minh vì sao cơ chế <strong>Log-Based CDC</strong> đọc nhật ký giao dịch <code>pg_wal</code> / <code>binlog</code> vượt trội tuyệt đối so với truy vấn <code>SELECT</code> theo lô, đồng thời nắm vững kiến trúc phân vùng bất biến của <strong>Apache Kafka</strong>. Tuy nhiên, tệp nhị phân <code>pg_wal</code> của PostgreSQL hay <code>binlog</code> của MySQL đều mang định dạng độc quyền cấp thấp của từng hệ quản trị. <strong>Chặng 5</strong> ghép nối toàn bộ các mảnh rời rạc thành một đường ống <strong>End-to-End Real-Time Ingestion</strong> hoàn chỉnh: sử dụng <strong>Debezium</strong> trên nền <strong>Kafka Connect</strong> để giải mã nhật ký giao dịch thành gói tin <code>before/after/op</code> chuẩn hóa, cấp dữ liệu đồng thời cho đa đích (Multi-Sink), và trang bị phác đồ phòng vệ trước 4 thảm họa vận hành thực tế khắc nghiệt nhất.</p>
+
+        <section class="lesson-section" id="ingestion-5-1">
+          <h2 id="ingestion-5-1-h2" tabindex="-1">Trạm 5.1: Giải phẫu Debezium Log-Based CDC — Chu trình Snapshot sang Streaming WAL &amp; Cấu trúc Gói tin before/after/op</h2>
+
+          <p><strong>Debezium</strong> là nền tảng thu thập dữ liệu thay đổi phân tán mã nguồn mở (open-source distributed Change Data Capture platform) được xây dựng trực tiếp trên khung <strong>Apache Kafka Connect</strong>. Thay vì tự viết trình phân tích cú pháp nhị phân cho từng loại cơ sở dữ liệu, kỹ sư chỉ cần triển khai các đầu nối <strong>Debezium Source Connector</strong> móc trực tiếp vào nhật ký giao dịch sẵn có của hệ quản trị nguồn (<code>WAL</code> của PostgreSQL, <code>binlog</code> của MySQL/MariaDB, <code>Oplog</code> của MongoDB, <code>Redo Log</code> của Oracle hoặc <code>Transaction Log</code> của SQL Server) để bắt mọi biến động ở cấp độ từng dòng (row-level changes) với độ trễ mili-giây và chuyển đổi chúng thành luồng sự kiện có cấu trúc thống nhất, hoàn toàn độc lập với công nghệ cơ sở dữ liệu bên dưới (database-agnostic event streams).</p>
+
+          <x-figure id="ingestion-5-1-fig" key="5.1" title="Sơ đồ 5.1 — Giải phẫu Nội tại Debezium: Chuyển tiếp Không Khe hở (Snapshot → WAL Streaming) &amp; Cấu trúc Phong bì Sự kiện (before/after/op)">Cách Debezium móc vào Replication Slot của PostgreSQL/MySQL và chuẩn hóa mọi biến động thành gói tin sự kiện thống nhất.</x-figure>
+
+          <h3 id="ingestion-5-1-handover">Cơ chế Chuyển tiếp Không Khe hở (Zero-Gap Handover): Từ Initial Consistent Snapshot sang Continuous WAL Streaming</h3>
+          <p>Một câu hỏi kinh điển khi cắm Debezium vào bảng <code>public.orders</code> đã vận hành 5 năm và đang chứa sẵn 50 triệu đơn hàng lịch sử là: <em>Làm sao lấy được toàn bộ 50 triệu đơn hàng cũ mà không làm khóa bảng bán hàng, lại vừa không bỏ sót hay nhân đôi các đơn hàng mới phát sinh trong lúc đang chép dữ liệu lịch sử?</em> Theo <em>Data Pipelines Pocket Reference</em> (Ch. 4, tr. 79–82) và tài liệu kiến trúc Debezium, đầu nối giải quyết bài toán này qua quy trình chuyển tiếp nguyên tử 2 pha dựa trên con trỏ <code>LSN</code> (Log Sequence Number):</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Giai đoạn vận hành</th>
+                  <th>Cơ chế thực thi bên dưới PostgreSQL &amp; Debezium Connector</th>
+                  <th>Trạng thái con trỏ <code>LSN</code> &amp; Mã thao tác <code>op</code></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Bước 1: Đóng dấu vị trí nhật ký (Slot &amp; LSN Recording)</strong></td>
+                  <td>Ngay khi khởi chạy lần đầu, Debezium khởi tạo khe nhân bản logic (Logical Replication Slot sử dụng trình giải mã gốc <code>pgoutput</code>) và mở một giao dịch đọc cô lập ở mức <code>REPEATABLE READ</code>. Cơ sở dữ liệu trả về vị trí nhật ký chính xác tại khoảnh khắc tạo snapshot, ký hiệu là <code>LSN_0</code> (ví dụ <code>0/16B3740</code>).</td>
+                  <td>Ghi nhận mốc neo <code>LSN_0 = 0/16B3740</code> vào bộ nhớ trạng thái của Connector. Các giao dịch <code>INSERT</code>/<code>UPDATE</code> mới của khách hàng vẫn tiếp tục chảy vào <code>pg_wal</code> ở vị trí <code>&gt; LSN_0</code> mà không bị chặn.</td>
+                </tr>
+                <tr>
+                  <td><strong>Bước 2: Quét ảnh chụp lịch sử (Phase 1 — Initial Consistent Snapshot)</strong></td>
+                  <td>Dưới ô bảo vệ của MVCC Snapshot tại mốc <code>LSN_0</code>, Debezium quét tuần tự các trang dữ liệu <code>8KB</code> của bảng <code>public.orders</code> để đọc toàn bộ 50 triệu đơn hàng lịch sử tồn tại trước thời điểm <code>LSN_0</code>, đóng gói từng dòng và đẩy vào Kafka topic <code>prod.public.orders</code>.</td>
+                  <td>Mọi bản ghi lịch sử phát ra trong pha này mang mã <code>"op": "r"</code> (Read — đọc từ snapshot), trường <code>"before": null</code>, trường <code>"after"</code> chứa trạng thái dòng tại mốc <code>LSN_0</code>, và <code>"snapshot": "true"</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Bước 3: Chuyển giao nối tiếp sang Đọc luồng (Phase 2 — Continuous WAL Streaming)</strong></td>
+                  <td>Ngay khi dòng lịch sử cuối cùng của Snapshot hoàn tất, Debezium giải phóng giao dịch <code>REPEATABLE READ</code> và lập tức chuyển sang đọc luồng sự kiện từ Replication Slot bắt đầu <strong>chính xác từ vị trí <code>LSN_0</code> trở đi</strong> thông qua kênh <code>PUBLICATION</code>.</td>
+                  <td>Các biến động thực tế sau mốc <code>LSN_0</code> (như <strong>Order #8888</strong> tại <code>LSN = 0/16B3748</code>) được phát tiếp nối với mã <code>"op": "c"</code> (Create), <code>"op": "u"</code> (Update) hoặc <code>"op": "d"</code> (Delete) mà không hở một byte nào.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 id="ingestion-5-1-envelope">Giải phẫu Phong bì Sự kiện Chuẩn hóa (Debezium Event Envelope: before / after / source / op)</h3>
+          <p>Dù nguồn dữ liệu là PostgreSQL, MySQL hay SQL Server, Debezium luôn chuẩn hóa mọi biến động thành một cấu trúc phong bì (Event Envelope) thống nhất. Khi khách hàng Nguyễn Văn A vừa bấm đặt <strong>Order #8888</strong> (<code>INSERT</code> với <code>status = 'PENDING'</code>, <code>LSN = 23803720</code>) và 3 giây sau cổng thanh toán cập nhật trạng thái sang <code>status = 'PAID'</code> (<code>UPDATE</code> tại <code>LSN = 23804192</code>, bật <code>REPLICA IDENTITY FULL</code> trên bảng để bắt đủ ảnh trước và sau), gói tin JSON/Avro do Debezium đẩy vào Kafka chứa đầy đủ ngữ cảnh nhân – quả của sự kiện:</p>
+
+          <pre><code>{
+  "before": {
+    "order_id": 8888,
+    "customer_id": 402,
+    "province": "BinhDuong",
+    "amount_vnd": 15000000,
+    "status": "PENDING",
+    "created_at": 1760772312000
+  },
+  "after": {
+    "order_id": 8888,
+    "customer_id": 402,
+    "province": "BinhDuong",
+    "amount_vnd": 15000000,
+    "status": "PAID",
+    "created_at": 1760772312000
+  },
+  "source": {
+    "version": "2.7.3.Final",
+    "connector": "postgresql",
+    "name": "prod",
+    "ts_ms": 1760772315120,
+    "snapshot": "false",
+    "db": "ecommerce_oltp",
+    "schema": "public",
+    "table": "orders",
+    "txId": 94812,
+    "lsn": 23804192
+  },
+  "op": "u",
+  "ts_ms": 1760772315305
+}</code></pre>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Trường dữ liệu trong Payload</th>
+                  <th>Ý nghĩa cơ học &amp; Giá trị theo từng loại thao tác</th>
+                  <th>Ứng dụng tại tầng Hạ lưu (Data Lakehouse &amp; Streaming)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>before</code></td>
+                  <td>Trạng thái nguyên vẹn của dòng <strong>trước khi</strong> câu lệnh SQL thực thi. Bằng <code>null</code> đối với lệnh <code>INSERT</code> (<code>"op": "c"</code>) hoặc đọc Snapshot (<code>"op": "r"</code>); chứa giá trị cũ đối với <code>UPDATE</code> (<code>"op": "u"</code>) và <code>DELETE</code> (<code>"op": "d"</code>).</td>
+                  <td>Cho phép hệ thống chống gian lận hoặc bảng <code>SCD Type 2</code> biết chính xác cột nào vừa bị sửa (ví dụ đối chiếu <code>before.status = 'PENDING'</code> sang <code>after.status = 'PAID'</code> hoặc phát hiện hành vi sửa trộm <code>amount_vnd</code>).</td>
+                </tr>
+                <tr>
+                  <td><code>after</code></td>
+                  <td>Trạng thái mới nhất của dòng <strong>sau khi</strong> câu lệnh SQL hoàn tất. Chứa dữ liệu mới đối với <code>"c"</code>, <code>"r"</code>, <code>"u"</code>; bằng <code>null</code> đối với lệnh <code>DELETE</code> (<code>"op": "d"</code>).</td>
+                  <td>Là nguồn dữ liệu chính để lệnh <code>MERGE INTO</code> trên bảng <strong>Apache Iceberg / Delta Lake / Apache Hudi</strong> cập nhật trạng thái hiện hành của <strong>Order #8888</strong> ở tầng Silver.</td>
+                </tr>
+                <tr>
+                  <td><code>source.lsn</code> &amp; <code>source.ts_ms</code></td>
+                  <td><code>source.lsn</code> là số thứ tự byte trong nhật ký <code>pg_wal</code> của PostgreSQL; <code>source.ts_ms</code> là thời điểm giao dịch thực sự <code>COMMIT</code> tại cơ sở dữ liệu nguồn (khác với <code>ts_ms</code> ở ngoài cùng là thời điểm Debezium xử lý gói tin).</td>
+                  <td>Cung cấp khóa sắp xếp thứ tự tuyệt đối (deterministic ordering key) khi khử trùng lặp (Deduplication) trên Lakehouse và đo lường độ trễ thu thập thực tế: <code>Ingestion Lag = root.ts_ms - source.ts_ms</code>.</td>
+                </tr>
+                <tr>
+                  <td><code>op</code> (Operation Code)</td>
+                  <td>Mã định danh thao tác: <code>"c"</code> (Create / <code>INSERT</code>), <code>"u"</code> (Update / <code>UPDATE</code>), <code>"d"</code> (Delete / <code>DELETE</code>), <code>"r"</code> (Read từ Initial Snapshot), và <code>"t"</code> (Truncate bảng).</td>
+                  <td>Giải quyết triệt để mù điểm <strong>Hard Delete</strong> của Batch Polling: khi thấy <code>"op": "d"</code> kèm <code>before.order_id = 8888</code> (và một bản ghi Tombstone có <code>value = null</code> tiếp theo để dọn Log Compaction), Lakehouse lập tức đánh dấu xóa đơn hàng mà không để lọt doanh thu ảo.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="lesson-section" id="ingestion-5-2">
+          <h2 id="ingestion-5-2-h2" tabindex="-1">Trạm 5.2: Kiến trúc Đường ống End-to-End — Từ Đa Hệ quản trị Nguồn qua Debezium &amp; Kafka Connect Đến Đa Đích (Multi-Sink)</h2>
+
+          <p>Một đường ống thu thập dữ liệu thời gian thực cấp doanh nghiệp không chỉ phục vụ một đích đến duy nhất. Theo kiến trúc chuẩn 4 bước của Debezium (<strong>Bước 1: Hệ quản trị Nguồn</strong> gồm 10 nguồn chính thức <code>MySQL</code>, <code>MariaDB</code>, <code>MongoDB</code>, <code>PostgreSQL</code>, <code>Oracle</code>, <code>SQL Server</code>, <code>Cassandra</code>, <code>Vitess</code>, <code>Google Cloud Spanner</code>, <code>Informix</code> → <strong>Bước 2: Debezium Source Connector</strong> → <strong>Bước 3: Apache Kafka</strong> → <strong>Bước 4: Sink Connector → Hệ thống Đích</strong>) và <em>Kafka: The Definitive Guide</em> (Ch. 7, tr. 142–154), việc vận hành các đầu nối trên cụm <strong>Kafka Connect Distributed Mode</strong> tạo ra mô hình <strong>Đọc một lần, Phục vụ đa đích (Capture Once, Fan-out to Multi-Sink)</strong>: cơ sở dữ liệu nguồn chỉ chịu đúng một kết nối đọc nhật ký <code>pg_wal</code> duy nhất, trong khi hàng chục hệ thống hạ lưu (Data Lakehouse, công cụ tìm kiếm, bộ nhớ đệm, luồng AI/ML) cùng tiêu thụ sự kiện của <strong>Order #8888</strong> hoàn toàn độc lập.</p>
+
+          <x-figure id="ingestion-5-2-fig" key="5.2" title="Sơ đồ 5.2 — Kiến trúc Đường ống Thu thập Dữ liệu Thời gian thực End-to-End: Source DB → Debezium → Kafka → Multi-Sink">Một lần đọc duy nhất từ Transaction Log cấp dữ liệu đồng thời cho Data Lakehouse, công cụ tìm kiếm Elasticsearch, bộ đệm Redis và luồng chống gian lận.</x-figure>
+
+          <h3 id="ingestion-5-2-connect">Giải phẫu Kafka Connect Distributed Mode: Workers, Tasks, Internal Topics &amp; Single Message Transforms (SMTs)</h3>
+          <p>Khác với việc tự viết ứng dụng Producer/Consumer rời rạc, <strong>Kafka Connect</strong> tách biệt hoàn toàn <strong>khái niệm cấu hình (Connectors)</strong> khỏi <strong>đơn vị thực thi vật lý (Tasks &amp; Workers)</strong>:</p>
+          <ul>
+            <li><strong>Workers (Các nút máy chủ vận hành):</strong> Là các tiến trình JVM chạy không trạng thái (stateless container processes). Khi chạy ở chế độ <strong>Distributed Mode</strong>, nhiều Worker cùng tham gia một cụm thông qua <code>group.id</code> chung. Nếu một Worker bị sập phần cứng, các Worker còn lại tự động phát hiện qua cơ chế Heartbeat và chia nhau gánh các Task đang dang dở mà không cần con người can thiệp.</li>
+            <li><strong>Tasks (Các luồng kéo/đẩy dữ liệu):</strong> Connector chia nhỏ công việc thành một hoặc nhiều <code>Task</code> (điều khiển bởi tham số <code>tasks.max</code>). Lưu ý cơ học quan trọng: với <strong>Debezium PostgreSQL / MySQL Source Connector</strong>, <code>tasks.max</code> luôn bằng <code>1</code> cho mỗi cơ sở dữ liệu nguồn vì nhật ký giao dịch <code>pg_wal</code> / <code>binlog</code> là một chuỗi tuần tự duy nhất; ngược lại, ở phía <strong>Sink Connector</strong> (như Iceberg Sink hoặc S3 Sink), ta có thể cấu hình <code>tasks.max = 12</code> để 12 luồng đọc song song từ 12 Partition của Kafka và ghi xuống Object Storage.</li>
+            <li><strong>Ba Internal Topics lưu giữ trạng thái bền vững:</strong> Cụm Kafka Connect không lưu bất kỳ tệp cấu hình hay con trỏ nào trên ổ cứng cục bộ của Worker mà cất toàn bộ vào 3 Kafka Topic nội bộ có bật <code>cleanup.policy=compact</code>: (1) <code>connect-configs</code> lưu cấu hình JSON của mọi Connector; (2) <code>connect-status</code> lưu trạng thái <code>RUNNING</code>, <code>PAUSED</code> hoặc <code>FAILED</code> của từng Task; (3) <code>connect-offsets</code> lưu chính xác vị trí con trỏ <code>lsn = 23804192</code> mà Debezium đã đọc tới. Nhờ <code>connect-offsets</code>, khi container Worker khởi động lại trên một máy chủ hoàn toàn mới, Debezium đọc lại <code>lsn</code> từ Kafka và tiếp tục kéo <code>pg_wal</code> ngay tại byte tiếp theo.</li>
+            <li><strong>Single Message Transforms (SMTs — Biến đổi nhẹ ngay trên đường bay):</strong> Trước khi gói tin rời Source Connector hoặc trước khi ghi vào Sink Connector, kỹ sư có thể gắn chuỗi hàm biến đổi nhẹ từng bản ghi như <code>ExtractNewRecordState</code> (làm phẳng phong bì Debezium, chỉ giữ lại phần <code>after</code> cho các hệ thống đích không hiểu cấu trúc <code>before/after</code>), gắn thêm trường siêu dữ liệu (<code>InsertField</code>), định tuyến lại tên Topic (<code>RegexRouter</code>), hoặc che dấu trường nhạy cảm PII (<code>MaskField</code> biến số điện thoại của khách hàng Nguyễn Văn A thành <code>"****-***-456"</code>).</li>
+          </ul>
+
+          <h3 id="ingestion-5-2-config">Cấu hình Thực chiến: Khởi tạo Debezium PostgreSQL Connector qua REST API</h3>
+          <p>Trong môi trường Production, kỹ sư triển khai Debezium bằng cách gửi cấu hình JSON tới cổng REST API (<code>POST /connectors</code> trên cổng <code>8083</code>) của cụm Kafka Connect. Dưới đây là bản cấu hình chuẩn mực sử dụng trình giải mã <code>pgoutput</code> nguyên bản của PostgreSQL (không cần cài đặt thư viện C bên ngoài lên máy chủ DB) cho bảng <code>public.orders</code>:</p>
+
+          <pre><code>{
+  "name": "debezium-postgres-orders-source",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+    "database.hostname": "pg-oltp-primary.internal",
+    "database.port": "5432",
+    "database.user": "debezium_cdc_Role",
+    "database.password": "${file:/secrets/pg-credentials.properties:password}",
+    "database.dbname": "ecommerce_oltp",
+    "topic.prefix": "prod",
+    "table.include.list": "public.orders,public.outbox_events",
+    "plugin.name": "pgoutput",
+    "slot.name": "debezium_orders_slot",
+    "publication.name": "dbz_orders_publication",
+    "publication.autocreate.mode": "filtered",
+    "snapshot.mode": "initial",
+    "decimal.handling.mode": "precise",
+    "time.precision.mode": "connect",
+    "tombstones.on.delete": "true",
+    "heartbeat.interval.ms": "10000",
+    "heartbeat.action.query": "INSERT INTO public.debezium_heartbeat (id, ts) VALUES (1, NOW()) ON CONFLICT (id) DO UPDATE SET ts = EXCLUDED.ts;",
+    "key.converter": "io.confluent.connect.avro.AvroConverter",
+    "key.converter.schema.registry.url": "http://schema-registry.internal:8081",
+    "value.converter": "io.confluent.connect.avro.AvroConverter",
+    "value.converter.schema.registry.url": "http://schema-registry.internal:8081"
+  }
+}</code></pre>
+
+          <h3 id="ingestion-5-2-multisink">Một lần bắt biến động (Single Capture) — Cấp dưỡng đồng thời cho 4 Hệ thống Đích (Multi-Sink)</h3>
+          <p>Khi sự kiện của <strong>Order #8888</strong> đã nằm trong Kafka topic <code>prod.public.orders</code> (được phân vùng theo khóa chính <code>order_id = 8888</code>), 4 nhóm hệ thống hạ lưu cùng đọc luồng dữ liệu này với tốc độ và mục đích riêng biệt:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Hệ thống Đích (Sink Target)</th>
+                  <th>Cơ chế Kết nối &amp; Tiêu thụ</th>
+                  <th>Cách xử lý Đơn hàng #8888 &amp; Độ trễ Mục tiêu (SLA)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Data Lakehouse (Học phần D02 — Iceberg / Delta Lake / Hudi trên S3/MinIO)</strong></td>
+                  <td>Kafka Connect Iceberg/Delta Sink Connector hoặc Spark Structured Streaming / Apache Flink.</td>
+                  <td>Ghi nối đuôi (Append-only) toàn bộ phong bì <code>before/after/op</code> vào bảng <strong>Bronze</strong> để lưu vết kiểm toán lịch sử; sau đó chạy <code>MERGE INTO</code> theo <code>order_id = 8888</code> và <code>source.lsn</code> để cập nhật trạng thái <code>PAID</code> lên bảng <strong>Silver / Gold</strong> (SLA: <code>1 – 5 phút</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Công cụ Tìm kiếm Toàn văn (Elasticsearch / OpenSearch)</strong></td>
+                  <td>Kafka Connect Elasticsearch Sink Connector kèm SMT <code>ExtractNewRecordState</code>.</td>
+                  <td>Trích xuất phần <code>after</code> của <strong>Order #8888</strong> và lập chỉ mục nghịch đảo (Inverted Index) theo mã đơn, tên khách hàng Nguyễn Văn A và địa chỉ Bình Dương để nhân viên CSKH tra cứu đơn hàng tức thì (SLA: <code>&lt; 1 giây</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Bộ nhớ đệm Tốc độ cao (Redis In-Memory Cache)</strong></td>
+                  <td>Redis Sink Connector hoặc dịch vụ Cache Invalidation Consumer.</td>
+                  <td>Khi thấy sự kiện <code>"op": "u"</code> chuyển trạng thái <strong>Order #8888</strong> sang <code>PAID</code>, lập tức xóa khóa đệm cũ (<code>DEL order:8888</code>) hoặc ghi đè trạng thái mới vào RAM để ứng dụng di động của khách hàng hiển thị kết quả thanh toán thành công ngay lập tức (SLA: <code>&lt; 50 ms</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Động cơ Xử lý Luồng (Apache Flink / Kafka Streams)</strong></td>
+                  <td>Consumer Group đọc trực tiếp từ Kafka topic với cơ chế quản lý trạng thái (Stateful Stream Processing).</td>
+                  <td>Kết hợp (Stream-Stream Join) sự kiện <strong>Order #8888</strong> trị giá <code>15.000.000 VNĐ</code> với luồng lịch sử đăng nhập IP bất thường trong cửa sổ trượt 5 phút để chấm điểm rủi ro gian lận (Fraud Scoring) theo thời gian thực (SLA: <code>&lt; 50 ms</code>).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="lesson-section" id="ingestion-5-3">
+          <h2 id="ingestion-5-3-h2" tabindex="-1">Trạm 5.3: Bốn Thách thức Vận hành Thực chiến (Kafka &amp; Debezium Challenges) — WAL Bloat, Schema Drift, Hot Partition &amp; Outbox Pattern</h2>
+
+          <p>Xây dựng một đường ống Debezium + Kafka chạy được trên máy cá nhân chỉ mất 15 phút, nhưng giữ cho đường ống đó không làm sập cơ sở dữ liệu OLTP nguồn lúc 2 giờ sáng đòi hỏi kỹ sư phải làm chủ các cơ chế vật lý ngầm. Dựa trên <em>Kafka: The Definitive Guide</em> (Ch. 9–10) và <em>Data Pipelines Pocket Reference</em> (Ch. 8–9), dưới đây là <strong>4 tai nạn vận hành kinh điển nhất</strong> cùng phác đồ phòng vệ triệt để.</p>
+
+          <x-figure id="ingestion-5-3-fig" key="5.3" title="Sơ đồ 5.3 — Bốn Kịch bản Sự cố Thực chiến &amp; Phác đồ Hóa giải: WAL Bloat, Schema Registry + DLQ, Hot Partition &amp; Outbox Pattern">Cơ chế phòng vệ chủ động chống tràn đĩa pg_wal, cô lập bản ghi lỗi vào Dead Letter Queue và đảm bảo tính nguyên tử bằng Transactional Outbox.</x-figure>
+
+          <h3 id="ingestion-5-3-walbloat">Thảm họa #1 — Đầy ổ cứng DB nguồn do kẹt Replication Slot (PostgreSQL WAL Disk Bloat)</h3>
+          <p><strong>Cơ chế vật lý gây tai nạn:</strong> Để đảm bảo Debezium không bao giờ bị mất dữ liệu khi mất mạng tạm thời, <strong>PostgreSQL Replication Slot</strong> hoạt động như một chiếc kẹp giữ giấy cứng: chừng nào Debezium chưa gửi tín hiệu xác nhận đã đọc và ghi xong vị trí <code>confirmed_flush_lsn</code> vào Kafka, PostgreSQL <strong>tuyệt đối từ chối xóa hoặc tái sử dụng các tệp phân đoạn <code>pg_wal</code> (mỗi tệp <code>16 MB</code>) từ vị trí đó trở đi</strong>. Sự cố nổ ổ cứng <code>100% Disk Full</code> làm sập toàn bộ hệ thống bán hàng OLTP xảy ra trong 2 kịch bản:</p>
+          <ol>
+            <li><strong>Kịch bản A (Abandoned Slot):</strong> Đầu nối Debezium bị lỗi cấu hình hoặc bị kỹ sư tắt đi để bảo trì nhưng quên xóa Replication Slot trên PostgreSQL (<code>pg_replication_slots.active = false</code>). Các giao dịch mới vẫn dồn dập đổ vào làm thư mục <code>pg_wal</code> phình to hàng trăm Gigabyte cho đến khi ổ cứng máy chủ chính chạm đáy <code>0 byte</code> trống.</li>
+            <li><strong>Kịch bản B (Cạm bẫy Bảng ít biến động — Low-Traffic Database / Table Trap):</strong> Ngay cả khi Debezium vẫn đang chạy khỏe mạnh (<code>active = true</code>), nếu Debezium chỉ theo dõi một bảng ít thay đổi (hoặc một cơ sở dữ liệu nhánh không có giao dịch mới), trong khi một bảng khác không được theo dõi trên cùng cụm PostgreSQL lại ghi hàng triệu dòng log mỗi phút: vì bảng được theo dõi không có sự kiện mới, Debezium không nhận được bản ghi nào để commit offset về Kafka, dẫn tới <code>confirmed_flush_lsn</code> đứng im tại chỗ và PostgreSQL vẫn giữ lại toàn bộ <code>pg_wal</code> của các bảng kia!</li>
+          </ol>
+          <p><strong>Phác đồ hóa giải triệt để:</strong></p>
+          <ul>
+            <li><strong>Bật Heartbeat chủ động kèm câu lệnh ghi định kỳ:</strong> Cấu hình đồng thời <code>heartbeat.interval.ms = 10000</code> (10 giây) và <code>heartbeat.action.query = "INSERT INTO public.debezium_heartbeat (id, ts) VALUES (1, NOW()) ON CONFLICT (id) DO UPDATE SET ts = EXCLUDED.ts;"</code>. Cứ mỗi 10 giây, Debezium tự tạo một giao dịch nhỏ vào bảng nhịp tim để buộc con trỏ <code>confirmed_flush_lsn</code> luôn dịch chuyển về phía trước, giải phóng các tệp <code>pg_wal</code> cũ.</li>
+            <li><strong>Cài cầu chì giới hạn dung lượng WAL trên PostgreSQL (từ PostgreSQL 13+):</strong> Thiết lập tham số <code>max_slot_wal_keep_size = '20GB'</code> trong tệp <code>postgresql.conf</code>. Nếu Debezium chết quá lâu khiến lượng <code>pg_wal</code> tồn đọng vượt mốc <code>20 GB</code>, PostgreSQL sẽ chủ động hủy hiệu lực của Replication Slot đó để <strong>cứu sống máy chủ OLTP chính</strong> (chấp nhận để Debezium chụp lại Snapshot sau).</li>
+            <li><strong>Giám sát độ trễ LSN bằng SQL thực chiến:</strong> Cài đặt cảnh báo PagerDuty ngay khi truy vấn kiểm tra dung lượng <code>pg_wal</code> bị giữ lại vượt ngưỡng an toàn (ví dụ <code>&gt; 5 GB</code>) hoặc <code>active = false</code> quá 5 phút:</li>
+          </ul>
+
+          <pre><code>SELECT
+    slot_name,
+    plugin,
+    active,
+    pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) AS retained_wal_size,
+    pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn)) AS replication_lag_bytes
+FROM pg_replication_slots;</code></pre>
+
+          <h3 id="ingestion-5-3-schema">Thảm họa #2 — Trôi dạt Lược đồ (Schema Drift) &amp; Tin nhắn Độc (Poison Pill)</h3>
+          <p><strong>Cơ chế vật lý gây tai nạn:</strong> Vào lúc 14:00 chiều, đội phát triển ứng dụng chạy lệnh <code>ALTER TABLE public.orders ADD COLUMN discount_code VARCHAR(32)</code> hoặc đổi kiểu dữ liệu cột trên PostgreSQL mà không báo trước. Nếu đường ống truyền tải chuỗi JSON thô không có kiểm soát lược đồ, hoặc nếu một bản ghi bị hỏng định dạng nhị phân (<strong>Poison Pill — Tin nhắn độc</strong>) lọt vào Topic, tiến trình Sink Connector ở hạ lưu sẽ văng ngoại lệ <code>SerializationException</code> / <code>DataException</code>, tự động khởi động lại, đọc lại đúng bản ghi độc đó và rơi vào vòng lặp chết (Crash Loop) làm tắc nghẽn toàn bộ hàng triệu đơn hàng phía sau.</p>
+          <p><strong>Phác đồ hóa giải triệt để:</strong></p>
+          <ul>
+            <li><strong>Cưỡng chế Hợp đồng Dữ liệu bằng Schema Registry (Avro / Protobuf):</strong> Thay vì gửi JSON kèm toàn bộ định nghĩa schema lặp đi lặp lại trong từng gói tin (làm phình kích thước bản ghi gấp 3–4 lần), Debezium đăng ký lược đồ vào <strong>Confluent Schema Registry</strong> hoặc <strong>Apicurio Registry</strong> và chỉ đính kèm <code>Schema ID</code> (4 byte) ở đầu gói tin nhị phân Avro/Protobuf. Bằng cách bật chế độ tương thích <code>BACKWARD</code> hoặc <code>FULL</code> trên Schema Registry, người tiêu dùng (Sink/Lakehouse) luôn đọc được cả dữ liệu cũ lẫn dữ liệu mới khi thêm cột có giá trị mặc định, đồng thời chặn đứng các thay đổi phá vỡ cấu trúc (như xóa cột bắt buộc hoặc đổi kiểu <code>INT</code> sang <code>STRING</code>).</li>
+            <li><strong>Cô lập Tin nhắn Độc bằng Dead Letter Queue (DLQ) trong Kafka Connect:</strong> Trên các Sink Connector, tuyệt đối không dùng cấu hình mặc định <code>errors.tolerance = none</code> cho các luồng không được phép dừng. Kỹ sư cấu hình chuyển hướng bản ghi lỗi sang <strong>Dead Letter Queue Topic</strong> kèm đầy đủ thông tin ngoại lệ trong Header để đường ống chính tiếp tục xử lý <strong>Order #8888</strong> bình thường:</li>
+          </ul>
+
+          <pre><code>"errors.tolerance": "all",
+"errors.deadletterqueue.topic.name": "dlq.prod.public.orders",
+"errors.deadletterqueue.topic.replication.factor": "3",
+"errors.deadletterqueue.context.headers.enable": "true",
+"errors.log.enable": "true",
+"errors.log.include.messages": "true"</code></pre>
+
+          <h3 id="ingestion-5-3-hotpartition">Thảm họa #3 — Lệch tải Phân vùng (Hot Partition Skew), Under-Replicated Partitions &amp; Rebalance Storms</h3>
+          <p><strong>Cơ chế vật lý gây tai nạn:</strong> Khi phân vùng Kafka theo khóa <code>merchant_id</code> (mã cửa hàng) hoặc <code>province</code>, vào ngày siêu khuyến mãi Flash Sale, một cửa hàng thương hiệu lớn chiếm tới 45% tổng lượng đơn hàng toàn sàn. Do thuật toán băm <code>murmur2(key) % num_partitions</code> luôn đẩy cùng một khóa vào đúng một Partition cố định, <code>Partition 3</code> cùng máy chủ Broker chứa nó và đúng 1 Consumer phụ trách <code>Partition 3</code> bị quá tải CPU/Disk tới 100%, gây trễ hàng giờ (<strong>Hot Partition Skew</strong>), trong khi 11 Partition và 11 Consumer còn lại ngồi rảnh rỗi. Tệ hơn, Consumer bị quá tải xử lý một mẻ <code>poll()</code> quá lâu vượt ngưỡng <code>max.poll.interval.ms</code> sẽ bị Coordinator tưởng nhầm là đã chết và kích hoạt <strong>Bão Tái cân bằng (Rebalance Storm — Stop-the-world)</strong> trên toàn Consumer Group.</p>
+          <p><strong>Phác đồ hóa giải triệt để:</strong></p>
+          <ul>
+            <li><strong>Chọn Khóa Phân vùng có Độ phân tán cao (High-Cardinality Key) hoặc Key Salting:</strong> Với bảng <code>public.orders</code>, luôn chọn <code>order_id</code> (như <code>8888</code>) làm khóa phân vùng Kafka để đảm bảo thứ tự nhân – quả của từng đơn hàng (<code>PENDING</code> → <code>PAID</code> → <code>SHIPPED</code>) mà vẫn rải đều tải tuyệt đối trên mọi Partition. Nếu bắt buộc phải gom theo <code>merchant_id</code>, áp dụng kỹ thuật <strong>Salted Key</strong> (nối thêm hậu tố ngẫu nhiên từ <code>0..9</code> như <code>merchant_99#3</code> cho các cửa hàng VIP) và gom phần tử bước hai ở tầng Flink/Spark.</li>
+            <li><strong>Chống Bão Rebalance trên Consumer &amp; Kafka Connect:</strong> Bật bộ phân phối hợp tác tăng trưởng <code>partition.assignment.strategy = CooperativeStickyAssignor</code> (chỉ thu hồi các Partition cần chuyển giao thay vì dừng toàn bộ các luồng đang chạy), giới hạn <code>max.poll.records = 500</code> và tăng <code>max.poll.interval.ms = 600000</code> nếu tác vụ ghi xuống Sink tốn nhiều thời gian.</li>
+            <li><strong>Giám sát 3 Chỉ số Vàng của Cụm Kafka (The 3 Golden Kafka Metrics):</strong> (1) <code>UnderReplicatedPartitions</code> bắt buộc bằng <code>0</code> (nếu <code>&gt; 0</code> nghĩa là có Broker đang tụt hậu hoặc đứt mạng, nguy cơ mất dữ liệu hoặc nghẽn lệnh ghi <code>acks=all</code>); (2) <code>ActiveControllerCount</code> bắt buộc bằng <code>1</code> trên toàn cụm (nếu bằng <code>0</code> hoặc <code>&gt; 1</code> là cụm đang rơi vào trạng thái Split-Brain / mất não điều khiển); (3) <code>RecordsLagMax</code> / <code>ConsumerLag</code> đo khoảng cách tụt hậu của Consumer so với đầu ghi mới nhất.</li>
+          </ul>
+
+          <h3 id="ingestion-5-3-outbox">Thảm họa #4 — Bài toán Ghi Kép (Dual-Write Problem) trong Microservices &amp; Mẫu Transactional Outbox Pattern</h3>
+          <p><strong>Cơ chế vật lý gây tai nạn:</strong> Trong kiến trúc Microservices, dịch vụ <code>OrderService</code> thường mắc một lỗi thiết kế chí mạng gọi là <strong>Ghi Kép (Dual-Write Anti-Pattern)</strong>: trong hàm xử lý đặt hàng, code ứng dụng thực hiện bước (1) <code>INSERT INTO orders VALUES (8888, ...)</code> xuống PostgreSQL và <code>COMMIT</code>, ngay dòng code tiếp theo mới thực hiện bước (2) gọi hàm <code>kafkaProducer.send("OrderCreated", 8888)</code>. Vì PostgreSQL và Kafka là hai hệ thống phân tán tách rời không dùng chung giao thức 2PC (Two-Phase Commit): nếu máy chủ ứng dụng mất điện hoặc đứt mạng đúng vào tích tắc 1 mili-giây giữa bước (1) và bước (2), <strong>Order #8888</strong> đã nằm trong PostgreSQL nhưng <strong>không bao giờ xuất hiện trên Kafka</strong> (dịch vụ Kho vận không xuất hàng, Data Lakehouse mất đơn). Ngược lại, nếu gửi Kafka trước rồi mới <code>COMMIT</code> DB nhưng DB bị lỗi khóa ngoại và <code>ROLLBACK</code>, Kafka lại phát đi một đơn hàng ma không hề tồn tại!</p>
+          <p><strong>Phác đồ hóa giải triệt để — Mẫu Kiến trúc Hộp thư đi Giao dịch (Transactional Outbox Pattern với Debezium):</strong></p>
+          <ul>
+            <li><strong>Gộp cả nghiệp vụ lẫn sự kiện vào 1 giao dịch ACID nội bộ duy nhất:</strong> Ứng dụng <code>OrderService</code> <strong>tuyệt đối không gọi trực tiếp <code>kafkaProducer.send()</code></strong>. Thay vào đó, bên trong cùng một khối giao dịch PostgreSQL (<code>BEGIN ... COMMIT</code>), ứng dụng vừa <code>INSERT</code> dòng đơn hàng vào bảng <code>public.orders</code>, vừa <code>INSERT</code> gói tin sự kiện vào bảng <code>public.outbox_events</code> nằm ngay trong cùng cơ sở dữ liệu đó:</li>
+          </ul>
+
+          <pre><code>BEGIN TRANSACTION;
+
+-- 1. Ghi nhận trạng thái nghiệp vụ của Order #8888
+INSERT INTO public.orders (order_id, customer_id, province, amount_vnd, status)
+VALUES (8888, 402, 'BinhDuong', 15000000, 'PENDING');
+
+-- 2. Ghi sự kiện phát hành vào bảng Outbox trong CÙNG 1 giao dịch ACID nội bộ
+INSERT INTO public.outbox_events (event_id, aggregate_type, aggregate_id, event_type, payload)
+VALUES (
+  'e4b9-8888-0001',
+  'Order',
+  '8888',
+  'OrderCreated',
+  '{"order_id": 8888, "customer_id": 402, "province": "BinhDuong", "amount_vnd": 15000000, "status": "PENDING"}'::jsonb
+);
+
+COMMIT; -- Hoặc cả hai cùng thành công trong pg_wal, hoặc cả hai cùng ROLLBACK!</code></pre>
+
+          <ul>
+            <li><strong>Debezium Outbox Event Router đảm nhận việc chuyển phát tin cậy:</strong> Đầu nối Debezium đọc <code>pg_wal</code> của bảng <code>public.outbox_events</code>, kết hợp bộ biến đổi <code>io.debezium.transforms.outbox.EventRouter</code> để tự động lấy cột <code>aggregate_id = '8888'</code> làm khóa phân vùng Kafka, lấy cột <code>payload</code> làm nội dung bản ghi và đẩy sang topic <code>outbox.event.Order</code>. Bằng cách này, ta đạt được <strong>đảm bảo nguyên tử 100% (Atomicity)</strong> giữa trạng thái Database và luồng sự kiện Kafka mà không cần khóa phân tán đắt đỏ.</li>
+          </ul>
+
+          <h3 id="ingestion-5-3-runbook">Ma trận Sổ tay Trực chiến (Production Runbook Matrix) cho Kỹ sư Dữ liệu</h3>
+          <p>Bảng tổng hợp dưới đây đóng vai trò cẩm nang chẩn đoán nhanh khi vận hành cụm <strong>Debezium + Apache Kafka</strong> ở quy mô lớn:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Kịch bản Sự cố</th>
+                  <th>Hiện tượng &amp; Chỉ số Cảnh báo (Alerting Metrics)</th>
+                  <th>Nguyên nhân Vật lý Gốc (Root Cause)</th>
+                  <th>Cấu hình &amp; Phác đồ Xử lý Triệt để</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Nổ đĩa WAL trên PostgreSQL (<code>WAL Disk Bloat</code>)</strong></td>
+                  <td>• Ổ đĩa chứa thư mục <code>pg_wal</code> tăng vọt lên <code>&gt; 85%</code>.<br>• <code>pg_replication_slots.active = false</code> hoặc <code>retained_wal_size &gt; 5 GB</code>.</td>
+                  <td>Debezium Connector bị sập mà không xóa Slot, hoặc theo dõi DB/bảng ít giao dịch khiến con trỏ <code>confirmed_flush_lsn</code> không tiến lên được trong khi bảng khác ghi nặng.</td>
+                  <td>• Bật <code>heartbeat.interval.ms=10000</code> kèm <code>heartbeat.action.query</code> cập nhật bảng nhịp tim.<br>• Đặt cầu chì <code>max_slot_wal_keep_size = '20GB'</code> trong <code>postgresql.conf</code>.<br>• Giám sát và cảnh báo dựa trên <code>pg_wal_lsn_diff()</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Trôi dạt Lược đồ &amp; Tin nhắn Độc (<code>Schema Drift &amp; Poison Pill</code>)</strong></td>
+                  <td>• Task của Sink Connector chuyển sang trạng thái <code>FAILED</code> liên tục (Crash Loop).<br>• Log báo lỗi <code>SerializationException</code> hoặc lệch kiểu dữ liệu cột.</td>
+                  <td>Nguồn chạy lệnh <code>ALTER TABLE</code> phá vỡ tương thích ngược, hoặc có gói tin lỗi định dạng làm nghẽn toàn bộ luồng đọc tuần tự của Partition.</td>
+                  <td>• Bắt buộc dùng <strong>Schema Registry</strong> (Avro/Protobuf) với chế độ <code>BACKWARD</code> / <code>FULL</code>.<br>• Cấu hình <code>errors.tolerance=all</code> và chuyển hướng bản ghi lỗi vào <code>errors.deadletterqueue.topic.name</code> kèm Header báo lỗi.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Lệch tải Phân vùng &amp; Bão Rebalance (<code>Hot Partition &amp; Rebalance Storm</code>)</strong></td>
+                  <td>• 1 Broker / 1 Consumer CPU <code>100%</code> và <code>RecordsLagMax</code> tăng dựng đứng trên 1 Partition duy nhất.<br>• Log Consumer liên tục báo <code>Revoking partitions... Rebalancing</code>.</td>
+                  <td>Chọn khóa phân vùng có độ phân bố lệch (như <code>merchant_id</code> mùa siêu sale) làm 40% đơn đổ vào 1 Partition; xử lý quá hạn <code>max.poll.interval.ms</code> gây Rebalance dây chuyền.</td>
+                  <td>• Đổi sang khóa có độ phân tán cao (<code>order_id</code>) hoặc áp dụng <strong>Key Salting</strong> (<code>key#0..9</code>).<br>• Dùng <code>CooperativeStickyAssignor</code>, giảm <code>max.poll.records</code> và tinh chỉnh <code>session.timeout.ms</code> / <code>max.poll.interval.ms</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Mất đồng bộ do Ghi Kép (<code>Dual-Write Inconsistency</code>)</strong></td>
+                  <td>• Đối soát cuối ngày thấy đơn hàng có trong PostgreSQL nhưng thiếu trên Kafka / Data Lakehouse (hoặc ngược lại).</td>
+                  <td>Ứng dụng tự ghi vào DB rồi gọi <code>producer.send()</code> thành 2 bước rời rạc qua mạng; sập tiến trình ở giữa làm gãy tính nguyên tử.</td>
+                  <td>• Cấm gọi <code>producer.send()</code> trực tiếp sau khi <code>COMMIT</code> DB.<br>• Áp dụng <strong>Transactional Outbox Pattern</strong>: ghi cả <code>orders</code> và <code>outbox_events</code> trong cùng 1 giao dịch ACID nội bộ và dùng Debezium <code>EventRouter</code> phát sự kiện.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="summary-section" id="ingestion-5-summary">
+          <h2 id="ingestion-5-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 5 &amp; Khép kín Toàn bộ Học phần D01 · Ingestion Layer</h2>
+
+          <p><strong>Khép kín hành trình 5 Chặng (16 Trạm) của Order #8888 tại Tầng Thu thập Dữ liệu (D01 · Ingestion Layer):</strong> Xuất phát từ nỗi đau kinh điển ở <strong>Chặng 1</strong> và <strong>Chặng 2</strong> khi các luồng <strong>Batch Polling</strong> quét lặp đi lặp lại bảng bán hàng gây nghẽn I/O, bỏ lọt trạng thái trung gian và mù trước lệnh xóa <code>DELETE</code>, hành trình của <strong>Order #8888 (khách hàng Nguyễn Văn A tại Bình Dương đặt bộ Sofa 15.000.000 VNĐ)</strong> đã lột xác hoàn toàn sang kiến trúc <strong>Event-Driven Log-Based CDC</strong>. Ngay khoảnh khắc giao dịch <code>COMMIT</code> xuống tệp nhật ký <code>pg_wal</code> tại địa chỉ <code>LSN = 0/16B3748</code> (<strong>Chặng 3</strong>), đầu nối <strong>Debezium PostgreSQL Source Connector</strong> (<strong>Chặng 5</strong>) đọc luồng byte qua khe nhân bản <code>pgoutput</code>, đóng gói thành phong bì chuẩn hóa <code>before/after/op</code> (được bảo vệ bởi <strong>Schema Registry</strong> và <strong>Transactional Outbox</strong>), rồi đẩy vào <code>Partition 1</code> của cụm <strong>Apache Kafka</strong> với cơ chế sao lưu bền vững <code>acks=all</code>, <code>min.insync.replicas=2</code> và đọc thẳng từ đĩa qua <code>sendfile()</code> Zero-Copy (<strong>Chặng 4</strong>). Từ trục xương sống Kafka này, sự kiện <strong>Order #8888</strong> hạ cánh an toàn dưới dạng các tệp sự kiện bất biến tại <strong>Tầng Bronze (Landing / Raw Zone) trên Cloud Object Storage (S3/MinIO)</strong> — chính thức trao lại ngọn đuốc cho <strong>Học phần D02 (Storage Layer &amp; Open Lakehouse Architecture)</strong> để tiếp tục hành trình nén cột <strong>Apache Parquet</strong>, đóng giao dịch ACID bằng <strong>Delta Lake / Apache Iceberg / Apache Hudi</strong> và tinh chế qua mô hình <strong>Medallion (Bronze → Silver → Gold)</strong>.</p>
+
+          <ol>
+            <li><strong>Debezium làm cách nào để chuyển tiếp từ đọc dữ liệu lịch sử (Snapshot) sang đọc luồng thời gian thực (WAL Streaming) mà không bị mất hay trùng lặp bản ghi nào?</strong> → Debezium thực hiện quy trình <strong>Zero-Gap Handover</strong>: (1) Tạo Replication Slot và ghi nhận ngay vị trí nhật ký hiện hành <code>LSN_0</code>; (2) Mở giao dịch <code>REPEATABLE READ</code> tại đúng mốc <code>LSN_0</code> để quét toàn bộ dữ liệu lịch sử mà không khóa các lệnh ghi mới (phát bản ghi với mã <code>"op": "r"</code>); (3) Ngay khi Snapshot hoàn tất, chuyển sang đọc luồng sự kiện từ Replication Slot bắt đầu nối tiếp chính xác từ vị trí <code>LSN_0</code> trở đi (phát bản ghi với mã <code>"op": "c"</code>, <code>"u"</code>, <code>"d"</code>).</li>
+            <li><strong>Trong phong bì sự kiện (Event Envelope) của Debezium, các trường <code>before</code>, <code>after</code>, <code>source.lsn</code> và mã <code>op</code> mang giá trị gì khi Order #8888 bị sửa (UPDATE) hoặc bị xóa cứng (DELETE)?</strong> → Khi <code>UPDATE</code> (<code>"op": "u"</code> với <code>REPLICA IDENTITY FULL</code>), <code>before</code> chứa trạng thái dòng cũ trước khi sửa (ví dụ <code>status: "PENDING"</code>) và <code>after</code> chứa trạng thái mới sau khi sửa (<code>status: "PAID"</code>); khi <code>DELETE</code> (<code>"op": "d"</code>), <code>before</code> chứa dữ liệu của dòng vừa bị xóa còn <code>after</code> bằng <code>null</code> (kèm theo một bản ghi Tombstone có <code>value = null</code> để phục vụ Kafka Log Compaction), trong khi <code>source.lsn</code> lưu vị trí byte chính xác trong <code>pg_wal</code> để khử trùng và sắp xếp thứ tự tại đích.</li>
+            <li><strong>Tại sao một bảng ít phát sinh giao dịch lại có thể làm nổ ổ cứng <code>pg_wal</code> trên PostgreSQL khi chạy Debezium, và cách khắc phục triệt để là gì?</strong> → Vì PostgreSQL giữ lại toàn bộ các tệp <code>pg_wal</code> tính từ mốc <code>confirmed_flush_lsn</code> của Replication Slot; nếu bảng được Debezium theo dõi không có giao dịch mới trong khi các bảng khác trên cùng máy chủ ghi dữ liệu ồ ạt, Debezium không có sự kiện để đẩy sang Kafka và không cập nhật <code>confirmed_flush_lsn</code>, khiến <code>pg_wal</code> phình vô hạn. Cách khắc phục: bật <code>heartbeat.interval.ms</code> kết hợp <code>heartbeat.action.query</code> để ghi nhịp tim định kỳ buộc LSN tiến lên, đồng thời đặt cầu chì <code>max_slot_wal_keep_size</code> trong <code>postgresql.conf</code> và giám sát <code>pg_replication_slots</code>.</li>
+            <li><strong>Làm thế nào để ngăn chặn một bản ghi lỗi cấu trúc (Poison Pill) hoặc lệnh <code>ALTER TABLE</code> bất ngờ làm sập toàn bộ đường ống Kafka Connect lúc nửa đêm?</strong> → Kết hợp 2 lớp bảo vệ: (1) Ở đầu vào, sử dụng <strong>Schema Registry (Avro/Protobuf)</strong> bật kiểm tra tương thích <code>BACKWARD</code> hoặc <code>FULL</code> để phát hiện và chặn sớm các thay đổi lược đồ phá vỡ cấu trúc; (2) Ở đầu ra (Sink Connector), cấu hình <code>errors.tolerance = all</code> và <code>errors.deadletterqueue.topic.name</code> để tự động tách riêng các bản ghi lỗi kèm nguyên nhân ngoại lệ sang <strong>Dead Letter Queue (DLQ)</strong> mà không làm dừng luồng xử lý chính.</li>
+            <li><strong>Tại sao việc vừa lưu đơn hàng vào PostgreSQL vừa gọi hàm <code>producer.send()</code> trong code ứng dụng lại gây lệch dữ liệu (Dual-Write), và mẫu Transactional Outbox giải quyết bài toán đó ra sao?</strong> → Vì Database và Kafka không chia sẻ giao dịch nguyên tử chung: nếu ứng dụng sập sau khi <code>COMMIT</code> DB nhưng trước khi gửi Kafka thành công, dữ liệu sẽ bị mất trên Kafka. Mẫu <strong>Transactional Outbox</strong> hóa giải triệt để bằng cách ghi cả dòng nghiệp vụ (bảng <code>orders</code>) lẫn dòng sự kiện (bảng <code>outbox_events</code>) vào <strong>cùng một giao dịch ACID nội bộ của PostgreSQL</strong>, sau đó để <strong>Debezium</strong> đọc <code>pg_wal</code> của bảng <code>outbox_events</code> và chuyển tiếp sang Kafka với độ tin cậy tuyệt đối.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/D02/1" onclick="selectTopic('D02', 1);return false;">Tiếp nối sang Học phần D02: Data Engineering — Storage Layer &amp; Open Lakehouse Architecture →</a></p>
+        </section>
+      </div>

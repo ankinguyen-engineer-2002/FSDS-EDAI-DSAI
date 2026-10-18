@@ -1357,6 +1357,104 @@ RAW_GLOSSARY = [
         "kubectl apply -f order-api-deployment.yaml && kubectl get pods -o wide",
         "Trong một `Pod`, các container (như `order-api` và `log-agent` sidecar) dùng chung `Network Namespace` nên gọi nhau trực tiếp qua `localhost`, nhưng vẫn bị cô lập hệ thống tệp (`mnt` Namespace riêng)."
     ),
+    # =========================================================================
+    # D01: INGESTION LAYER — KAFKA, DEBEZIUM CDC & PRODUCTION CHALLENGES
+    # =========================================================================
+    (
+        "ingestion.source-gigo-etlt",
+        "Ingestion Layer, GIGO Principle, Push/Pull/Poll Patterns & EtLT Subpattern",
+        "DATA INGESTION & SOURCE SYSTEMS",
+        ["D01", "D02"],
+        [
+            "ingestion layer", "gigo", "gigo principle", "garbage in garbage out",
+            "push pattern", "pull pattern", "poll pattern", "micro-batching",
+            "semi-structured", "unstructured data", "structured data", "etlt",
+            "row-based", "column-based", "hybrid row-group"
+        ],
+        "Tầng thu thập dữ liệu (Ingestion Layer) là trạm kiểm soát biên giới tách rời các hệ thống nguồn OLTP khỏi kho phân tích OLAP, ngăn chặn định luật GIGO (Garbage In, Garbage Out) và bảo vệ CPU nguồn khỏi các truy vấn quét nặng.",
+        "Phân loại dữ liệu theo 3 cấp cấu trúc (Structured, Semi-Structured, Unstructured), điều phối luồng qua 3 mẫu giao tiếp (Push đẩy chủ động, Pull kéo theo yêu cầu, Poll thăm dò định kỳ) và áp dụng mô hình EtLT (Extract - Light Transform - Load - Transform) để ẩn thông tin nhạy cảm PII, chuẩn hóa múi giờ và khử trùng ngay trên đường bay trước khi hạ cánh xuống Data Lakehouse.",
+        "aws s3 cp s3://raw-landing/orders_2026.parquet s3://bronze-zone/orders/",
+        "Áp dụng mô hình EtLT giúp phát hiện sớm lỗi Schema Drift từ hệ thống nguồn trước khi dữ liệu bẩn kịp làm hỏng các bảng báo cáo tài chính ở tầng Gold."
+    ),
+    (
+        "ingestion.cdc-three-generations",
+        "Three Generations of Change Data Capture (CDC): Timestamp Polling, Trigger Shadow Table & Log-Based CDC (WAL / binlog)",
+        "CHANGE DATA CAPTURE (CDC)",
+        ["D01", "F03"],
+        [
+            "change data capture", "timestamp-based cdc", "timestamp polling",
+            "trigger-based cdc", "shadow table", "log-based cdc", "high-watermark",
+            "soft delete", "hard delete", "write amplification", "pgoutput",
+            "binlog_format", "wal_level"
+        ],
+        "Ba thế hệ bắt biến động dữ liệu (INSERT, UPDATE, DELETE) tiến hóa từ quét bảng định kỳ (Polling) và gắn bẫy đồng bộ (Trigger) sang đọc tuần tự tệp nhật ký giao dịch nhị phân (Log-Based CDC) với độ trễ mili-giây và 0% tải truy vấn bảng gốc.",
+        "Timestamp Polling quét cột `last_modified` nhưng mù hoàn toàn trước lệnh xóa vật lý `DELETE` và dễ sót dữ liệu do `Uncommitted Transaction Skew`. Trigger-based CDC ghi đồng bộ vào bảng bóng (`shadow_table`) trong cùng giao dịch ACID làm nhân đôi độ trễ ghi I/O. Chỉ có Log-Based CDC đọc trực tiếp luồng byte từ PostgreSQL `pg_wal` (`wal_level = logical`, `pgoutput`) hoặc MySQL `binlog` (`binlog_format = ROW`) mới tách rời hoàn toàn khỏi luồng giao dịch chính.",
+        "SELECT * FROM pg_create_logical_replication_slot('debezium_orders_slot', 'pgoutput');",
+        "Trên hệ thống thanh toán/đơn hàng lớn, tuyệt đối tránh gắn Trigger CDC lên bảng chính vì một lỗi nhỏ trong hàm Trigger sẽ làm Rollback toàn bộ giao dịch mua hàng của khách."
+    ),
+    (
+        "ingestion.kafka-kraft-ecosystem",
+        "Apache Kafka Distributed Event Streaming, KRaft Consensus & Extended Ecosystem (Kafka Connect, Schema Registry, MirrorMaker 2)",
+        "APACHE KAFKA ARCHITECTURE",
+        ["D01", "D02"],
+        [
+            "apache kafka", "event streaming", "kafka broker", "kafka cluster",
+            "kraft", "kraft mode", "apache zookeeper", "zookeeper",
+            "kafka connect", "mirrormaker 2", "mirrormaker", "kafka streams"
+        ],
+        "Apache Kafka thay thế mạng nhện tích hợp điểm-điểm O(N x M) bằng một trục xương sống sự kiện phân tán (Distributed Append-Only Commit Log) có độ phức tạp O(N + M), tự điều phối Metadata bằng giao thức đồng thuận KRaft mà không cần ZooKeeper.",
+        "Từ phiên bản Kafka 3.3+ / 4.0, bộ điều khiển đồng thuận KRaft (Kafka Raft Metadata Mode) lưu toàn bộ trạng thái cụm vào topic nội bộ `__cluster_metadata`, hỗ trợ hàng triệu Partitions và rút ngắn thời gian Failover xuống vài mili-giây. Hệ sinh thái mở rộng gồm Kafka Connect (nạp/xả dữ liệu không cần code), Confluent Schema Registry (kiểm định hợp đồng lược đồ Avro/Protobuf) và MirrorMaker 2 (nhân bản liên cụm đa vùng địa lý).",
+        "kafka-storage.sh format -t $CLUSTER_UUID -c config/kraft/server.properties",
+        "Kết hợp Kafka Connect với Schema Registry giúp tự động chặn đứng các bản ghi vi phạm tương thích lược đồ (Schema Drift) ngay tại cửa ngõ Producer."
+    ),
+    (
+        "ingestion.partition-offset-lag",
+        "Kafka Topic Design, Partition Sizing Formula, Zero-Copy sendfile(2), Offset Pointer & Consumer Lag",
+        "APACHE KAFKA ARCHITECTURE",
+        ["D01"],
+        [
+            "kafka topic", "partition", "partitions", "unit of parallelism",
+            "consumer lag", "sendfile", "os page cache", "high watermark",
+            "log end offset", "control record"
+        ],
+        "Partition là đơn vị song song hóa vật lý nhỏ nhất của Kafka: mỗi bản ghi vào Partition được gán một số nguyên thứ tự bất biến (Offset), và dữ liệu được truyền thẳng từ OS Page Cache ra Card mạng qua lời gọi hệ thống Zero-Copy sendfile(2).",
+        "Số lượng Partition được định cỡ theo công thức N = max(ceil(T_target / T_producer_per_part), ceil(T_target / T_consumer_per_part)) với thông lượng ~5-10 MB/s mỗi Partition. Consumer theo dõi tiến độ đọc qua topic nội bộ `__consumer_offsets`; khoảng cách `Consumer Lag = Log End Offset - Current Consumer Offset` là chỉ số vận hành quan trọng số 1 để phát hiện tắc nghẽn xử lý và kích hoạt mở rộng ngang.",
+        "kafka-consumer-groups.sh --bootstrap-server kafka:9092 --describe --group fraud-detector",
+        "Nhờ kỹ thuật Zero-Copy `sendfile(2)` qua DMA, Kafka không cần chép dữ liệu vào vùng nhớ JVM Heap, cho phép phục vụ nhiều Consumer Group cùng lúc ở tốc độ bão hòa đường truyền mạng."
+    ),
+    (
+        "ingestion.producer-consumer-isr-eos",
+        "Kafka Internals: Producer murmur2 Hash & RecordAccumulator, Consumer Group Rebalance, ISR Replication, Delivery Guarantees (EOS) & Log Compaction",
+        "KAFKA INTERNALS & RELIABILITY",
+        ["D01"],
+        [
+            "murmur2", "sticky partitioner", "recordaccumulator", "linger.ms", "batch.size",
+            "consumer group", "cooperativestickyassignor", "rebalance",
+            "in-sync replicas", "isr", "replication.factor", "min.insync.replicas",
+            "at-most-once", "at-least-once", "exactly-once", "enable.idempotence",
+            "log compaction", "tombstone"
+        ],
+        "Bộ cơ học nội tại giúp Kafka vừa đạt thông lượng cực đại vừa bảo toàn dữ liệu tuyệt đối: băm khóa murmur2 giữ thứ tự theo khách hàng, quy tắc 1 Partition tối đa 1 Consumer/Group, bầu chọn Leader từ tập ISR và nén nhật ký theo khóa (Log Compaction).",
+        "Producer băm khóa `murmur2(key) % numPartitions` để gom mọi sự kiện cùng thực thể vào 1 Partition và nén lô tại `RecordAccumulator`. Trong cùng Consumer Group, nếu số Consumer vượt quá số Partition thì các Consumer dư thừa sẽ rơi vào trạng thái nhàn rỗi (`IDLE`). Để chống mất dữ liệu (như bẫy `acks=1` khi Leader sập trước khi Follower kịp chép), Production bắt buộc dùng bộ ba `replication.factor=3`, `min.insync.replicas=2`, `acks=all` kết hợp `enable.idempotence=true` (PID + Sequence Number). Trên đĩa, `cleanup.policy=compact` giữ lại giá trị mới nhất cho mỗi khóa và xóa khóa qua bản ghi bia mộ Tombstone (`value=null`).",
+        "kafka-configs.sh --bootstrap-server kafka:9092 --alter --entity-type topics --entity-name prod.orders --add-config min.insync.replicas=2,cleanup.policy=compact",
+        "Cấu hình `acks=1` KHÔNG đảm bảo chống mất dữ liệu vì Leader có thể sập nguồn ngay sau khi trả ACK nhưng trước khi các Follower trong tập ISR kịp kéo bản ghi về."
+    ),
+    (
+        "ingestion.debezium-wal-outbox",
+        "Debezium CDC Pipeline: Snapshot-to-WAL Handover, Event Envelope (before/after/op), WAL Bloat Prevention, Dead Letter Queue (DLQ) & Transactional Outbox Pattern",
+        "DEBEZIUM CDC & PRODUCTION OPS",
+        ["D01", "D02"],
+        [
+            "debezium", "replication slot", "wal bloat", "confirmed_flush_lsn",
+            "heartbeat.interval.ms", "max_slot_wal_keep_size", "poison pill",
+            "dead letter queue", "dlq", "hot partition", "dual-write",
+            "transactional outbox", "outbox pattern", "single message transforms"
+        ],
+        "Debezium là nền tảng CDC phân tán chạy trên Kafka Connect, thực hiện chuyển giao không khe hở từ chụp ảnh lịch sử (Consistent Snapshot) sang đọc trực tiếp luồng WAL/binlog và đóng gói biến động thành phong bì chuẩn hóa before/after/source/op.",
+        "Trong vận hành thực chiến, kỹ sư phải hóa giải 4 rủi ro sinh tử: (1) Chống nổ ổ cứng `pg_wal` do kẹt Replication Slot bằng cách bật `heartbeat.interval.ms`, `heartbeat.action.query` và khóa trần `max_slot_wal_keep_size`; (2) Cô lập bản ghi lỗi (`Poison Pill`) sang kênh cách ly `Dead Letter Queue` (`errors.tolerance=all`); (3) Chống lệch tải `Hot Partition` bằng Salting Key và giám sát `UnderReplicatedPartitions == 0`; (4) Xóa sổ lỗi ghi kép (`Dual-Write`) trong Microservices bằng mẫu `Transactional Outbox Pattern` (ghi bảng nghiệp vụ và bảng `outbox_events` trong cùng 1 ACID Transaction cục bộ).",
+        "curl -X POST -H 'Content-Type: application/json' --data @register-postgres-connector.json http://connect:8083/connectors",
+        "Nếu bảng được Debezium theo dõi nằm chung Database với các bảng ghi ồ ạt nhưng bản thân nó ít phát sinh giao dịch, việc quên cấu hình `heartbeat.interval.ms` sẽ khiến `confirmed_flush_lsn` đứng im và làm đầy 100% ổ cứng PostgreSQL!"
+    ),
 ]
 
 
@@ -1414,6 +1512,12 @@ def _resolve_station_link(tid: str, scope: list) -> str:
         "container.overlayfs-seccomp": "#/F06/2/container-2-3",
         "container.oci-runtime-stack": "#/F06/3/container-3-2",
         "container.kubernetes-orchestration": "#/F06/4/container-4-2",
+        "ingestion.source-gigo-etlt": "#/D01/1/ingestion-1-1",
+        "ingestion.cdc-three-generations": "#/D01/2/ingestion-2-4",
+        "ingestion.kafka-kraft-ecosystem": "#/D01/3/ingestion-3-2",
+        "ingestion.partition-offset-lag": "#/D01/3/ingestion-3-3",
+        "ingestion.producer-consumer-isr-eos": "#/D01/4/ingestion-4-4",
+        "ingestion.debezium-wal-outbox": "#/D01/5/ingestion-5-3",
         "storage.memory-hierarchy": "#/D02/1/storage-1-1",
         "storage.ram-spill-to-disk": "#/D02/1/storage-1-2",
         "storage.disk-seek-vs-scan": "#/D02/1/storage-1-3",
@@ -1451,6 +1555,8 @@ def _resolve_station_link(tid: str, scope: list) -> str:
         return "#/F03/1"
     if prefix == "container":
         return "#/F06/1"
+    if prefix == "ingestion":
+        return "#/D01/1"
     if prefix == "storage":
         return "#/D02/1"
     topic = scope[0] if scope else "F01"
@@ -1554,6 +1660,12 @@ CANONICAL_SHORT_TITLES = {
     "container.overlayfs-seccomp": "OverlayFS Union Mount & Seccomp / Capabilities",
     "container.oci-runtime-stack": "OCI Runtime Stack (containerd → shim → runc)",
     "container.kubernetes-orchestration": "Kubernetes Control Plane & Worker Architecture",
+    "ingestion.source-gigo-etlt": "Ingestion Layer, GIGO & EtLT Pattern",
+    "ingestion.cdc-three-generations": "Change Data Capture (Polling / Trigger / WAL)",
+    "ingestion.kafka-kraft-ecosystem": "Apache Kafka, KRaft & Connect Ecosystem",
+    "ingestion.partition-offset-lag": "Kafka Partition, Offset, Lag & Zero-Copy",
+    "ingestion.producer-consumer-isr-eos": "Producer murmur2, Consumer Group, ISR & EOS",
+    "ingestion.debezium-wal-outbox": "Debezium CDC, WAL Bloat, DLQ & Outbox Pattern",
 }
 
 

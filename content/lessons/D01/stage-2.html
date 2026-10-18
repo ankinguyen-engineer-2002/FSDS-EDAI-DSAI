@@ -1,0 +1,287 @@
+      <div class="prose">
+        <x-spine id="ingestion-2-spine" badge="CHẶNG 2 · CHANGE DATA CAPTURE (CDC)" title="Chặng 2: Ba Thế Hệ Change Data Capture — Từ Timestamp Polling, Trigger Đến Log-Based CDC" subtitle="Trạm 2.1 → 2.4">Giải phẫu cơ học 3 phương pháp bắt biến động dữ liệu (<code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>) cho giao dịch <strong>Order #8888</strong>: tại sao Polling mù xóa cứng và quét cháy CPU, Trigger làm chậm gấp đôi giao dịch OLTP, và chỉ có Log-Based CDC đọc từ <code>WAL/binlog</code> mới đạt độ trễ mili-giây mà không xâm phạm bảng nguồn.</x-spine>
+
+        <section class="lesson-section" id="ingestion-2-1">
+          <h2 id="ingestion-2-1-h2" tabindex="-1">Trạm 2.1: Bài toán Đồng bộ Biến động (CDC) &amp; Sự Sụp đổ của Full-Table Dump Định kỳ</h2>
+
+          <p><strong>Change Data Capture (CDC — Thu thập Biến động Dữ liệu)</strong> là tập hợp các mẫu thiết kế kỹ thuật dùng để nhận diện, theo dõi và trích xuất riêng những dòng dữ liệu vừa phát sinh biến động (<code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>) trong cơ sở dữ liệu nguồn thay vì đọc lặp lại toàn bộ bảng theo chu kỳ. Khi giao dịch <strong>Order #8888</strong> (<code>15.000.000 VNĐ</code>) được khởi tạo, thanh toán hoặc hủy đơn trên PostgreSQL OLTP, hệ thống CDC đóng vai trò mạch máu truyền tải từng sự kiện thay đổi đó theo thời gian thực sang chuỗi hệ thống đích: chỉ mục tìm kiếm <strong>Elasticsearch</strong>, bộ nhớ đệm <strong>Redis</strong>, và kho phân tích <strong>Snowflake / Data Lakehouse</strong> (<em>Slide 11</em>).</p>
+
+          <p>Ở giai đoạn khởi đầu khi bảng <code>orders</code> chỉ có vài chục nghìn dòng, các đội kỹ thuật thường chọn giải pháp ngây thơ nhất là <strong>Full-Table Dump định kỳ</strong>: lập lịch Cronjob lúc <code>02:00 AM</code> chạy câu lệnh <code>SELECT * FROM orders</code> để chép đè toàn bộ bảng sang Data Warehouse. Tuy nhiên, ngay khi quy mô bảng <code>orders</code> chạm ngưỡng <strong>500 triệu dòng (<code>500,000,000 rows</code>, dung lượng vật lý ~<code>250 GB</code> trên đĩa)</strong> trong khi số đơn hàng thực sự phát sinh hoặc đổi trạng thái mỗi ngày chỉ chiếm <strong>0.1% (<code>500,000 rows</code> ~ <code>250 MB</code>)</strong>, cơ chế Full-Table Dump sụp đổ hoàn toàn trên cả 3 phương diện vật lý:</p>
+
+          <ul>
+            <li><strong>Bão hòa băng thông mạng (Network Saturation):</strong> Kéo <code>250 GB</code> dữ liệu thô qua kết nối mạng <code>1 Gbps</code> tiêu tốn tối thiểu <code>35–45 phút</code> chiếm dụng toàn bộ đường truyền chỉ để lọc lấy <code>250 MB</code> dữ liệu mới, gây lãng phí <code>99.9%</code> băng thông I/O mạng.</li>
+            <li><strong>Tràn bộ nhớ đệm &amp; Tranh chấp khóa trên PostgreSQL (I/O &amp; Lock Contention):</strong> Một phép quét tuần tự (<code>Seq Scan</code>) trên 500 triệu dòng buộc PostgreSQL phải đọc hàng chục triệu trang đĩa <code>8KB</code> đi qua vùng nhớ <code>shared_buffers</code>, đẩy bật (evict) các trang dữ liệu nóng đang phục vụ khách đặt hàng trực tuyến. Đồng thời, giao dịch đọc kéo dài hàng chục phút giữ chặt một <code>MVCC Snapshot</code> cũ, ngăn tiến trình <code>AUTOVACUUM</code> dọn dẹp các dòng rác (<code>Dead Tuples</code>), làm phình bảng (Table Bloat) và kéo tụt thông lượng giao dịch OLTP.</li>
+            <li><strong>Độ trễ dữ liệu 24 giờ &amp; Mất dấu lịch sử xóa (24-Hour Stale Latency):</strong> Các hệ thống chống gian lận, bộ đệm <code>Redis</code> và báo cáo vận hành bị mù hoàn toàn trước các biến động trong ngày; nếu một bản ghi bị xóa vật lý bằng lệnh <code>DELETE</code> rồi bảng mới được chép đè mỗi đêm, việc đối soát lịch sử từng bước chuyển trạng thái trở nên bất khả thi.</li>
+          </ul>
+
+          <x-figure id="ingestion-2-1-fig" key="2.1" title="Sơ đồ 2.1 — Toàn cảnh Tiến hóa 3 Thế hệ CDC: Timestamp Polling, Trigger-Based và Log-Based CDC">Đối chiếu vị trí can thiệp vào Database nguồn của 3 kiến trúc CDC và luồng phân phối sự kiện tới các hệ thống đích.</x-figure>
+
+          <p>Để chuyển độ phức tạp trích xuất từ $O(N_{\text{total}})$ (quét toàn bảng 500 triệu dòng) xuống đúng $O(\Delta_{\text{changes}})$ (chỉ bắt 500 nghìn dòng biến động), kiến trúc Ingestion tiến hóa qua <strong>3 thế hệ CDC</strong> phân biệt nhau bởi <strong>tầng can thiệp vào Database nguồn</strong> (<em>Slide 11</em>):</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Thế hệ Kiến trúc CDC</th>
+                  <th>Tầng can thiệp trong RDBMS</th>
+                  <th>Cơ chế vận hành cốt lõi với Order #8888</th>
+                  <th>Luồng phân phối Downstream tiêu biểu</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Timestamp-Based Polling</strong></td>
+                  <td><strong>Query Processor</strong><br><em>(Truy vấn SQL định kỳ)</em></td>
+                  <td>Định kỳ mỗi $N$ phút bắn câu lệnh <code>SELECT ... WHERE updated_at &gt; :last_watermark</code> trực tiếp vào bảng <code>orders</code> để lọc các dòng mới sửa.</td>
+                  <td>Nạp theo lô nhỏ (Micro-batch) vào Staging Table của Data Warehouse hoặc <code>S3 / Lakehouse</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Trigger-Based CDC</strong></td>
+                  <td><strong>Execution Engine</strong><br><em>(Hook đồng bộ trong Transaction)</em></td>
+                  <td>Gắn hàm <code>TRIGGER</code> tự động kích hoạt ngay bên trong giao dịch <code>INSERT / UPDATE / DELETE</code> của bảng <code>orders</code> để chép biến động sang bảng bóng <code>shadow_table</code> (<code>orders_audit_log</code>).</td>
+                  <td>Tiến trình đọc bảng <code>audit_log</code> đẩy sang hàng đợi sự kiện hoặc đồng bộ sang hệ thống đối soát.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Log-Based CDC</strong></td>
+                  <td><strong>Storage Engine</strong><br><em>(Đọc luồng nhật ký nhị phân)</em></td>
+                  <td>Đọc tuần tự và bất đồng bộ trực tiếp từ tệp nhật ký giao dịch <code>WAL</code> (PostgreSQL) hoặc <code>binlog</code> (MySQL) dưới đĩa mà không chạy bất kỳ lệnh <code>SELECT</code> hay <code>TRIGGER</code> nào trên bảng <code>orders</code>.</td>
+                  <td>Phát luồng sự kiện thời gian thực (mili-giây) qua <code>Apache Kafka</code> tới đồng thời <code>Elasticsearch</code>, <code>Redis</code> và <code>Snowflake / Lakehouse</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="ingestion-2-2">
+          <h2 id="ingestion-2-2-h2" tabindex="-1">Trạm 2.2: Timestamp-Based Polling CDC — Cửa sổ High-Watermark, Cạm bẫy Soft Delete &amp; Chi phí Quét Bảng</h2>
+
+          <p><strong>Timestamp-Based Polling CDC</strong> (còn gọi là <em>Query-Based CDC</em>) là phương pháp thêm một cột dấu thời gian (như <code>LAST_MODIFIED</code>, <code>LAST_UPDATED</code> hoặc <code>updated_at</code>) vào bảng nguồn và dùng tiến trình lập lịch định kỳ truy vấn các dòng có giá trị thời gian lớn hơn mốc quét thành công gần nhất (con trỏ <strong>High-Watermark</strong>). Ưu điểm lớn nhất của phương pháp này là tính đơn giản: kỹ sư chỉ cần viết câu lệnh <code>SELECT</code> tiêu chuẩn qua kết nối <code>JDBC/ODBC</code> mà không cần quyền quản trị hệ thống tệp nhật ký. Tuy nhiên, kiến trúc này mang 3 khuyết tật cơ học chí mạng: <strong>mù hoàn toàn trước lệnh xóa vật lý (Hard <code>DELETE</code>)</strong> nên bắt buộc phải sửa quy trình nghiệp vụ sang xóa mềm (<strong>Soft Delete</strong> qua cờ <code>is_deleted = true/false</code>), <strong>tiêu tốn tài nguyên CPU/I/O của Database nguồn</strong> do phải lặp lại truy vấn liên tục, và <strong>rơi mất dữ liệu âm thầm</strong> khi gặp giao dịch treo (<em>Slide 12</em> &amp; <em>Data Pipelines Pocket Reference</em> Ch. 4).</p>
+
+          <x-figure id="ingestion-2-2-fig" key="2.2" title="Sơ đồ 2.2 — Giải phẫu Timestamp-Based Polling: Con trỏ High-Watermark, Cờ Soft Delete (is_deleted) &amp; Lỗ hổng Mất Dữ liệu">Cơ chế quét theo cột thời gian buộc phải sửa lược đồ bảng gốc (thêm is_deleted) và bỏ sót các lệnh xóa vật lý.</x-figure>
+
+          <h3>Tại sao Polling mù trước Hard DELETE và bắt buộc dùng cờ Soft Delete?</h3>
+          <p>Khi một dòng dữ liệu của <strong>Order #8888</strong> bị xóa khỏi bảng bằng lệnh vật lý <code>DELETE FROM orders WHERE order_id = 8888;</code>, bản ghi đó biến mất hoàn toàn khỏi bảng <code>orders</code>. Khi tiến trình Polling chạy câu lệnh <code>SELECT * FROM orders WHERE updated_at &gt; :last_watermark</code> ở chu kỳ tiếp theo, không còn bất kỳ dòng nào tồn tại để trả về — dẫn đến việc bản ghi #8888 đã xóa ở OLTP nhưng vẫn tồn tại vĩnh viễn như một "bản ghi ma" (Zombie Record) trên Data Warehouse và Redis. Để vá lỗ hổng này, đội phát triển ứng dụng bị ép phải <strong>sửa lược đồ bảng gốc</strong>: cấm dùng lệnh <code>DELETE</code> và thay bằng lệnh <code>UPDATE</code> gán cờ <code>is_deleted = true</code> kèm cập nhật cột <code>updated_at = NOW()</code>:</p>
+
+          <pre><code>-- 1. Buộc phải sửa Schema bảng nguồn: thêm cột mốc thời gian và cờ Soft Delete
+ALTER TABLE orders
+  ADD COLUMN updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ADD COLUMN is_deleted BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Bắt buộc đánh B-Tree Index trên cột updated_at, nếu không mỗi lần Poll sẽ quét toàn bảng (Seq Scan)
+CREATE INDEX CONCURRENTLY idx_orders_updated_at ON orders (updated_at);
+
+-- 2. Nghiệp vụ hủy/xóa Order #8888: CẤM chạy DELETE vật lý, phải chuyển thành UPDATE (Soft Delete)
+UPDATE orders
+SET status = 'CANCELLED',
+    is_deleted = TRUE,
+    updated_at = NOW()
+WHERE order_id = 8888;
+
+-- 3. Truy vấn trích xuất của tiến trình Polling dùng cửa sổ High-Watermark
+SELECT order_id, customer_id, total_amount, status, is_deleted, updated_at
+FROM orders
+WHERE updated_at &gt; '2026-10-18 10:00:00+00'
+  AND updated_at &lt;= '2026-10-18 10:00:04+00'
+ORDER BY updated_at ASC;</code></pre>
+
+          <h3>Giải phẫu 2 lỗ hổng mất dữ liệu trong Data Pipelines Pocket Reference (Ch. 4)</h3>
+          <p>Ngay cả khi đã đánh chỉ mục <code>B-Tree</code> trên cột <code>updated_at</code> và áp dụng <code>is_deleted = TRUE</code>, Timestamp-Based Polling vẫn làm thất thoát dữ liệu trong môi trường giao dịch đồng thời cao do hai cơ chế vật lý sau:</p>
+
+          <ul>
+            <li><strong>Lỗ hổng 1 — Đua tốc độ tại biên High-Watermark (Uncommitted Transaction Skew):</strong> Trong PostgreSQL, hàm <code>NOW()</code> (hoặc <code>CURRENT_TIMESTAMP</code>) trả về thời điểm <strong>bắt đầu giao dịch (<code>BEGIN</code>)</strong>, nhưng dòng dữ liệu chỉ hiển thị cho các kết nối khác sau khi giao dịch <strong>chốt hoàn tất (<code>COMMIT</code>)</strong>. Hãy xét kịch bản thực tế với <strong>Order #8888</strong>:
+              <ul>
+                <li>Tại <code>10:00:01</code>: Giao dịch A bắt đầu cập nhật <strong>Order #8888</strong>, gán <code>updated_at = 10:00:01</code>, nhưng phải chờ cổng thanh toán ngân hàng phản hồi nên chưa <code>COMMIT</code>.</li>
+                <li>Tại <code>10:00:03</code>: Giao dịch B cập nhật nhanh một đơn hàng khác (<code>Order #8889</code>) với <code>updated_at = 10:00:03</code> và <code>COMMIT</code> ngay lập tức.</li>
+                <li>Tại <code>10:00:04</code>: Tiến trình Polling thức dậy, quét <code>WHERE updated_at &gt; '10:00:00'</code>. Nó nhìn thấy <code>Order #8889</code> (<code>10:00:03</code>), không thấy <strong>Order #8888</strong> (vì Giao dịch A chưa <code>COMMIT</code>), và đẩy con trỏ <code>High-Watermark</code> mới lên mốc <code>10:00:04</code>.</li>
+                <li>Tại <code>10:00:06</code>: Giao dịch A của <strong>Order #8888</strong> cuối cùng cũng <code>COMMIT</code> thành công xuống đĩa, nhưng mang nhãn <code>updated_at = 10:00:01</code>.</li>
+                <li>Tại <code>10:00:08</code>: Chu kỳ Polling kế tiếp chỉ quét <code>WHERE updated_at &gt; '10:00:04'</code>. Bản cập nhật của <strong>Order #8888</strong> (<code>10:00:01 &lt; 10:00:04</code>) bị <strong>bỏ sót vĩnh viễn</strong> mà không hề báo lỗi!</li>
+              </ul>
+            </li>
+            <li><strong>Lỗ hổng 2 — San phẳng các trạng thái trung gian (Flattened Intermediate States):</strong> Giả sử chu kỳ Polling chạy mỗi <code>5 phút</code> một lần (<code>10:00</code> → <code>10:05</code>). Trong khoảng 5 phút đó, <strong>Order #8888</strong> liên tiếp chuyển qua 4 trạng thái: <code>PENDING</code> (<code>10:01</code>) → <code>PAID</code> (<code>10:02</code>) → <code>PACKING</code> (<code>10:03</code>) → <code>CANCELLED</code> (<code>10:04</code>). Khi câu lệnh <code>SELECT</code> quét bảng lúc <code>10:05</code>, nó chỉ đọc được ảnh chụp cuối cùng trên dòng hiện tại là <code>status = 'CANCELLED'</code> và <code>updated_at = 10:04</code>. Toàn bộ lịch sử sự kiện trung gian (khách đã thanh toán lúc mấy giờ, kho đã đóng gói bao lâu trước khi hủy) bị xóa sổ hoàn toàn.</li>
+          </ul>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="ingestion-2-3">
+          <h2 id="ingestion-2-3-h2" tabindex="-1">Trạm 2.3: Trigger-Based CDC — Bảng Bóng (Shadow Table), Nhân đôi Ghi I/O &amp; Ác mộng Cascading Triggers</h2>
+
+          <p>Để khắc phục bệnh mù lệnh xóa cứng <code>DELETE</code> và mất trạng thái trung gian của Timestamp Polling, thế hệ thứ hai là <strong>Trigger-Based CDC</strong> can thiệp trực tiếp vào tầng thực thi của Database bằng cách cài đặt các hàm <strong>Database Triggers</strong> (<code>AFTER INSERT OR UPDATE OR DELETE</code>) trên bảng gốc. Mỗi khi có bất kỳ câu lệnh biến đổi dữ liệu nào chạm vào bảng <code>orders</code>, Database tự động thực thi hàm Trigger để ghi thêm một bản ghi lịch sử (chứa trạng thái cũ <code>OLD</code>, trạng thái mới <code>NEW</code> và mã thao tác <code>I / U / D</code>) vào một <strong>Bảng Bóng (<code>shadow_table</code> / <code>orders_audit_log</code>)</strong> chuyên biệt. Phương pháp này bắt trọn 100% mọi biến động (kể cả lệnh xóa vật lý <code>DELETE</code> và mọi trạng thái trung gian) và được hỗ trợ sẵn trên hầu hết RDBMS truyền thống; nhưng cái giá phải trả là <strong>nhân đôi tải ghi I/O đồng bộ ngay trong giao dịch gốc</strong> và tạo ra <strong>rủi ro sập dây chuyền (Cascading Failure)</strong> cực kỳ khó gỡ lỗi (<em>Slide 13</em>).</p>
+
+          <x-figure id="ingestion-2-3-fig" key="2.3" title="Sơ đồ 2.3 — Giải phẫu Trigger-Based CDC: Ghi Đồng bộ vào Shadow Table &amp; Hệ lụy Nhân đôi Độ trễ Giao dịch">Mỗi câu lệnh INSERT/UPDATE/DELETE trên bảng chính bị chặn lại để thực thi thêm một lệnh ghi vào bảng audit_log trong cùng giao dịch.</x-figure>
+
+          <h3>Giải phẫu cơ chế khóa đồng bộ (Synchronous ACID Coupling) trên Order #8888</h3>
+          <p>Điểm tử huyệt của Trigger-Based CDC nằm ở tính chất <strong>Đồng bộ nguyên tử (Atomicity)</strong>: trong PostgreSQL, MySQL hay SQL Server, một hàm Trigger khai báo trên bảng <code>orders</code> bắt buộc phải chạy <strong>bên trong cùng một ranh giới giao dịch ACID (<code>BEGIN ... COMMIT</code>)</strong> với câu lệnh của khách hàng:</p>
+
+          <pre><code>-- Hàm Trigger thực thi ĐỒNG BỘ bên trong giao dịch của khách hàng
+CREATE OR REPLACE FUNCTION fn_capture_orders_cdc()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF (TG_OP = 'DELETE') THEN
+    INSERT INTO orders_audit_log (order_id, op_type, old_payload, captured_at)
+    VALUES (OLD.order_id, 'D', to_jsonb(OLD), clock_timestamp());
+    RETURN OLD;
+  ELSIF (TG_OP = 'UPDATE') THEN
+    INSERT INTO orders_audit_log (order_id, op_type, old_payload, new_payload, captured_at)
+    VALUES (NEW.order_id, 'U', to_jsonb(OLD), to_jsonb(NEW), clock_timestamp());
+    RETURN NEW;
+  ELSIF (TG_OP = 'INSERT') THEN
+    INSERT INTO orders_audit_log (order_id, op_type, new_payload, captured_at)
+    VALUES (NEW.order_id, 'I', to_jsonb(NEW), clock_timestamp());
+    RETURN NEW;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_orders_cdc
+AFTER INSERT OR UPDATE OR DELETE ON orders
+FOR EACH ROW EXECUTE FUNCTION fn_capture_orders_cdc();</code></pre>
+
+          <p>Khi khách hàng bấm nút thanh toán cho <strong>Order #8888</strong>, thay vì chỉ tốn 1 lần ghi vào bảng <code>orders</code>, tiến trình Backend Process của PostgreSQL bị buộc phải thực hiện chuỗi thao tác nhân đôi (<strong>Write Amplification $2\times$</strong>) trước khi được phép trả kết quả <code>COMMIT</code> về cho ứng dụng:</p>
+
+          <ol>
+            <li><strong>Nhân đôi độ trễ giao dịch (<code>12ms → 26ms</code>):</strong> Mỗi câu lệnh <code>UPDATE orders</code> (vốn tốn ~<code>12ms</code> để khóa dòng, ghi trang <code>8KB</code> vào <code>shared_buffers</code>, cập nhật B-Tree Index và đẩy vào <code>WAL</code>) nay bị chặn lại để biên dịch JSONB, cấp phát thêm trang mới trên bảng <code>orders_audit_log</code>, cập nhật Index của bảng <code>audit_log</code> và ghi gấp đôi lượng byte xuống tệp <code>WAL</code>. Tổng thời gian giữ khóa giao dịch vọt lên <code>26ms</code> (+116%), làm giảm một nửa thông lượng xử lý đơn hàng tối đa (<code>Max TPS</code>) vào giờ cao điểm Flash Sale.</li>
+            <li><strong>Chia sẻ số phận sống còn (Fate-Sharing Outage):</strong> Vì câu lệnh <code>INSERT INTO orders_audit_log</code> nằm chung giao dịch với lệnh đặt hàng, nếu bảng <code>orders_audit_log</code> bị đầy phân vùng đĩa (Disk Full), bị khóa bảng bởi một tiến trình đọc CDC phía sau, hoặc kỹ sư chạy lệnh <code>ALTER TABLE orders</code> làm lệch kiểu dữ liệu trong Trigger, hàm Trigger sẽ ném ngoại lệ (Exception) và <strong>ép PostgreSQL thực hiện <code>ROLLBACK</code> toàn bộ giao dịch đặt hàng của khách</strong>. Một lỗi nhỏ ở tầng thu thập dữ liệu phân tích lập tức đánh sập chức năng mua hàng cốt lõi của công ty.</li>
+            <li><strong>Ác mộng Cascading Triggers trên 500 bảng:</strong> Trong hệ thống ERP hoặc Core Banking có hàng trăm bảng liên kết khóa ngoại (<code>ON DELETE CASCADE</code>) và nhiều tầng Trigger lồng nhau, việc duy trì, nâng cấp lược đồ (Schema Migration) và truy vết lỗi hiệu năng qua hàng trăm hàm <code>PL/pgSQL</code> ẩn dưới Database trở thành gánh nặng vận hành không thể kiểm soát.</li>
+          </ol>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="ingestion-2-4">
+          <h2 id="ingestion-2-4-h2" tabindex="-1">Trạm 2.4: Log-Based CDC — Đọc Tuần tự Nhật ký Nhị phân (WAL / binlog) &amp; Đánh đổi Độ phức tạp Giải mã</h2>
+
+          <p><strong>Log-Based CDC</strong> hóa giải triệt để bài toán hiệu năng của hai thế hệ trước bằng cách dựa trên một nguyên lý cơ học có sẵn của mọi cơ sở dữ liệu ACID: để đảm bảo tính bền vững (<em>Durability</em>) và khôi phục sau sự cố mất điện (<em>Crash Recovery</em>), Database <strong>luôn luôn ghi tuần tự mọi biến động dữ liệu (<code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>) vào tệp Nhật ký Giao dịch (Transaction Log)</strong> trước khi báo <code>COMMIT</code> thành công. Thay vì bắt Database chạy thêm câu lệnh <code>SELECT</code> quét bảng hay cài <code>TRIGGER</code> ghi gấp đôi dữ liệu, công cụ Log-Based CDC (như <strong>Debezium</strong>, <strong>AWS DMS</strong>, <strong>Fivetran</strong>) kết nối như một tiến trình đọc luồng byte tuần tự trực tiếp từ tệp nhật ký dưới đĩa. Kết quả là hệ thống thu được 100% sự kiện thay đổi ở độ trễ mili-giây với <strong>0% tải truy vấn trên bảng chính</strong> và <strong>không cần sửa đổi bất kỳ cột nào trong Schema gốc</strong> (<em>Slide 14</em>).</p>
+
+          <x-figure id="ingestion-2-4-fig" key="2.4" title="Sơ đồ 2.4 — Giải phẫu Log-Based CDC: Đọc Bất đồng bộ từ Nhật ký Giao dịch (WAL / binlog) Với 0% Tải Truy vấn Bảng">Tách rời hoàn toàn luồng giao dịch OLTP và luồng thu thập dữ liệu bằng cách đọc tuần tự luồng byte nhị phân từ Transaction Log.</x-figure>
+
+          <h3>Đánh đổi kỹ thuật của Log-Based CDC: Định dạng nhị phân độc quyền &amp; Giải mã Giao dịch</h3>
+          <p>Không có bữa trưa nào miễn phí: việc chuyển gánh nặng ra khỏi bảng OLTP đẩy toàn bộ độ phức tạp kỹ thuật sang <strong>Bộ giải mã nhật ký (Log Reader / Decoder Engine)</strong> (<em>Slide 14</em> &amp; <em>Data Pipelines Pocket Reference</em> Ch. 4, tr. 39–73):</p>
+
+          <ul>
+            <li><strong>Không tồn tại chuẩn nhật ký chung (Proprietary Binary Formats):</strong> Mỗi hệ quản trị cơ sở dữ liệu thiết kế một cấu trúc byte nhị phân độc quyền cho nhật ký giao dịch: PostgreSQL dùng <strong>Write-Ahead Log (<code>WAL</code>)</strong> định vị bằng mã <code>LSN (Log Sequence Number)</code>; MySQL dùng <strong>Binary Log (<code>binlog</code>)</strong> định vị bằng <code>GTID</code> hoặc <code>binlog file + position</code>; Oracle dùng <strong><code>Redo Log</code></strong> (đọc qua <code>LogMiner</code> / <code>XStream</code>); SQL Server dùng <strong><code>Transaction Log</code> (<code>.ldf</code>)</strong>. Do đó, mỗi loại Database bắt buộc phải có một Connector giải mã chuyên biệt.</li>
+            <li><strong>Lọc bỏ giao dịch hủy (<code>ROLLBACK</code>) &amp; Xử lý thay đổi lược đồ (<code>Schema Evolution</code>):</strong> Vì Database đẩy các bản ghi thay đổi xuống <code>WAL</code> ngay trong lúc giao dịch đang chạy (trước cả khi biết giao dịch đó sẽ <code>COMMIT</code> hay <code>ROLLBACK</code>), động cơ Log-Based CDC phải tự duy trì bộ đệm trạng thái trong RAM (Transaction Buffer) để gom các bản ghi cùng <code>Transaction ID (txid)</code>, chỉ phát sự kiện ra ngoài khi gặp bản ghi <code>COMMIT</code> và lập tức vứt bỏ toàn bộ nếu gặp bản ghi <code>ROLLBACK</code>. Tương tự, khi bảng nguồn chạy lệnh <code>ALTER TABLE</code> thêm/xóa cột, Connector phải duy trì lịch sử lược đồ (<code>Schema History Topic</code>) khớp với từng mốc <code>LSN / Offset</code> để giải mã đúng cấu trúc byte cũ và mới.</li>
+          </ul>
+
+          <h3>Đối sánh cơ học PostgreSQL Logical Decoding (<code>wal_level = logical</code>) vs. MySQL Binary Log (<code>binlog_format = ROW</code>)</h3>
+          <p>Để triển khai Log-Based CDC an toàn trên hai hệ CSDL phổ biến nhất là PostgreSQL và MySQL, kỹ sư dữ liệu bắt buộc phải nắm vững cấu hình giải mã ở tầng Storage Engine (<em>Data Pipelines Pocket Reference</em> Ch. 4):</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Cơ chế &amp; Tham số Cấu hình</th>
+                  <th>PostgreSQL (Write-Ahead Log — <code>WAL</code>)</th>
+                  <th>MySQL / MariaDB (Binary Log — <code>binlog</code>)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Tham số kích hoạt bắt buộc</strong></td>
+                  <td><code>wal_level = logical</code> (mặc định là <code>replica</code> chỉ chứa địa chỉ trang vật lý, cần nâng lên <code>logical</code> để ghi đủ thông tin giải mã thành dòng/cột).</td>
+                  <td><code>binlog_format = ROW</code> kèm <code>binlog_row_image = FULL</code> (bắt buộc để ghi đầy đủ cả ảnh chụp trước <code>before</code> và sau <code>after</code> của toàn bộ các cột).</td>
+                </tr>
+                <tr>
+                  <td><strong>Tại sao chế độ mặc định / <code>STATEMENT</code> thất bại với CDC?</strong></td>
+                  <td>Ở mức <code>minimal</code> hoặc <code>replica</code>, <code>WAL</code> chỉ ghi <em>"Sửa byte thứ 120 tại Page #42"</em> mà không có siêu dữ liệu bảng/cột để dịch ngược thành JSON của <strong>Order #8888</strong>.</td>
+                  <td>MySQL hỗ trợ 3 chế độ: <code>STATEMENT</code>, <code>MIXED</code>, <code>ROW</code>. Nếu để <code>STATEMENT</code>, <code>binlog</code> chỉ lưu câu chữ SQL (ví dụ <code>UPDATE orders SET updated_at = NOW(), trace_id = UUID() WHERE status = 'PENDING'</code>). Khi CDC đọc lại câu SQL này ở thời điểm khác, các hàm bất định (<strong>Non-deterministic functions</strong> như <code>NOW()</code>, <code>UUID()</code>, <code>RAND()</code>) sẽ sinh ra giá trị hoàn toàn sai lệch và không thể biết chính xác những <code>order_id</code> nào đã bị sửa hay giá trị cũ của chúng là gì!</td>
+                </tr>
+                <tr>
+                  <td><strong>Cơ chế trích xuất &amp; Định vị con trỏ</strong></td>
+                  <td>Sử dụng <strong>Logical Decoding Output Plugin</strong> (chuẩn gốc <code>pgoutput</code> hoặc <code>wal2json</code>) đọc qua một <strong>Replication Slot</strong> giữ con trỏ <code>LSN</code> (ví dụ <code>0/16B3748</code>).</td>
+                  <td>Connector đóng vai trò một <strong>MySQL Replica giả lập (Binlog Client)</strong> đọc luồng sự kiện nhị phân (<code>WRITE_ROWS_EVENT</code>, <code>UPDATE_ROWS_EVENT</code>, <code>DELETE_ROWS_EVENT</code>) theo tọa độ <code>GTID</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Rủi ro vận hành sống còn cần canh gác</strong></td>
+                  <td><strong>Tràn ổ cứng do kẹt <code>Replication Slot</code>:</strong> Nếu tiến trình CDC (Debezium) bị sập mà không giải phóng Slot, PostgreSQL sẽ giữ lại toàn bộ tệp <code>WAL</code> từ mốc <code>LSN</code> cũ không dám xóa, làm đầy 100% ổ đĩa và sập DB chính. Bắt buộc cấu hình chốt chặn <code>max_slot_wal_keep_size</code> và cảnh báo độ trễ <code>pg_replication_slots</code>.</td>
+                  <td><strong>Mất dấu khi dọn <code>binlog</code> quá sớm:</strong> Nếu tiến trình CDC ngừng chạy lâu hơn thời gian giữ log (<code>binlog_expire_logs_seconds</code>), MySQL sẽ xóa mất tệp <code>binlog</code> cũ khiến Connector mất con trỏ, buộc phải chạy lại <code>Initial Snapshot</code> toàn bảng.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Ma trận Quyết định Kỹ thuật: Đối sánh Toàn diện Full-Table Dump &amp; 3 Thế hệ CDC</h3>
+          <p>Bảng ma trận dưới đây tổng hợp 7 chiều kích kỹ thuật cốt lõi để kiến trúc sư dữ liệu lựa chọn phương án đồng bộ cho bảng <code>orders</code>:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chiều kích Kỹ thuật</th>
+                  <th>Full-Table Dump (<code>SELECT *</code>)</th>
+                  <th>Timestamp Polling CDC</th>
+                  <th>Trigger-Based CDC</th>
+                  <th>Log-Based CDC (<code>WAL / binlog</code>)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Độ trễ dữ liệu (Latency)</strong></td>
+                  <td>Rất cao (<code>6 – 24 giờ</code> theo chu kỳ Batch đêm).</td>
+                  <td>Trung bình (<code>1 – 15 phút</code>; giảm xuống giây sẽ làm cháy CPU nguồn).</td>
+                  <td>Thấp (<code>Vài giây – vài phút</code> tùy chu kỳ quét bảng <code>shadow_table</code>).</td>
+                  <td><strong>Thời gian thực (<code>&lt; 100 ms – vài giây</code>)</strong>.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Bắt lệnh Hard <code>DELETE</code></strong></td>
+                  <td>Không trực tiếp (phải so khớp toàn bộ khóa chính <code>FULL OUTER JOIN</code> cực đắt).</td>
+                  <td><strong>Không thể</strong> (Mù hoàn toàn trước Hard <code>DELETE</code>; bắt buộc sửa app sang Soft Delete <code>is_deleted = true</code>).</td>
+                  <td><strong>Có (100%)</strong> (Trigger <code>AFTER DELETE</code> bắt được toàn bộ bản ghi <code>OLD</code>).</td>
+                  <td><strong>Có (100%)</strong> (Đọc trực tiếp sự kiện xóa cùng ảnh chụp <code>before</code> từ <code>WAL/binlog</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Tác động CPU/I/O Nguồn</strong></td>
+                  <td>Cực nặng vào khung giờ chạy Batch (quét 100% trang đĩa, làm trôi bộ đệm RAM).</td>
+                  <td>Cao và liên tục (lặp lại truy vấn <code>WHERE updated_at &gt; ?</code>; thảm họa nếu thiếu Index).</td>
+                  <td><strong>Rất nặng trên luồng Ghi OLTP</strong> (Nhân đôi I/O ghi đồng bộ, tăng gấp đôi độ trễ giao dịch <code>12ms → 26ms</code>).</td>
+                  <td><strong>Cực thấp (~0% tải truy vấn bảng)</strong>; chỉ đọc tuần tự tệp log sẵn có dưới đĩa.</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Yêu cầu sửa Schema bảng gốc</strong></td>
+                  <td>Không cần sửa Schema.</td>
+                  <td><strong>Bắt buộc sửa Schema</strong> (Thêm cột <code>updated_at</code>, <code>is_deleted</code> + đánh B-Tree Index).</td>
+                  <td>Không sửa cột bảng gốc, nhưng <strong>bắt buộc cài đối tượng <code>TRIGGER</code> và tạo bảng <code>shadow_table</code></strong> trong DB.</td>
+                  <td><strong>Không chạm vào bảng gốc</strong> (Chỉ bật cấu hình hệ thống <code>wal_level = logical</code> / <code>binlog_format = ROW</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Bắt được trạng thái trung gian</strong></td>
+                  <td>Không (Chỉ thấy trạng thái cuối cùng lúc <code>02:00 AM</code>).</td>
+                  <td>Không (Các bước <code>PENDING → PAID → CANCELLED</code> giữa 2 lần Poll bị san phẳng).</td>
+                  <td><strong>Có (100%)</strong> (Mỗi lần <code>UPDATE</code> sinh ra 1 dòng riêng trong <code>audit_log</code>).</td>
+                  <td><strong>Có (100%)</strong> (Ghi nhận tuần tự mọi bước chuyển trạng thái theo đúng thứ tự <code>LSN</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>6. Độ phức tạp vận hành</strong></td>
+                  <td>Thấp nhất (1 kịch bản SQL đơn giản).</td>
+                  <td>Thấp – Trung bình (Cần xử lý lệch múi giờ và giao dịch treo tại biên High-Watermark).</td>
+                  <td>Cao (Khó gỡ lỗi Trigger lồng nhau, rủi ro lỗi Trigger làm <code>ROLLBACK</code> giao dịch khách hàng).</td>
+                  <td><strong>Cao nhất</strong> (Phụ thuộc định dạng nhị phân từng hãng DB, cần quản lý Kafka/Debezium, <code>Replication Slot</code> và <code>Schema Evolution</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong>7. Trường hợp sử dụng tối ưu</strong></td>
+                  <td>Bảng danh mục tĩnh siêu nhỏ (<code>&lt; 100,000 rows</code>) như bảng mã tỉnh thành, mã tiền tệ.</td>
+                  <td>Hệ thống cũ (Legacy DB) không cho phép bật <code>WAL/binlog</code>, chỉ có quyền đọc <code>SELECT</code> qua tài khoản Read-Only.</td>
+                  <td>Hệ thống yêu cầu kiểm toán nội bộ nghiêm ngặt (Audit Trail) ngay trong cùng Database và lưu lượng ghi thấp.</td>
+                  <td><strong>Chuẩn mực Production hiện đại</strong> cho bảng giao dịch lớn (<code>orders</code>, <code>payments</code>) đồng bộ sang Kafka, Redis, Elastic, Lakehouse.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="summary-section" id="ingestion-2-summary">
+          <h2 id="ingestion-2-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 2 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <ol>
+            <li><strong>Tại sao Full-Table Dump (<code>SELECT * FROM orders</code>) sụp đổ khi bảng đạt 500 triệu dòng?</strong> Vì nó biến bài toán trích xuất $0.1\%$ biến động mỗi ngày thành thao tác quét $100\%$ dung lượng bảng (~<code>250 GB</code>), gây bão hòa mạng, làm trôi bộ đệm <code>shared_buffers</code>, chặn tiến trình <code>AUTOVACUUM</code> và giữ độ trễ dữ liệu ở mức 24 giờ.</li>
+            <li><strong>Tại sao Timestamp-Based Polling vừa mù lệnh xóa vật lý, vừa có thể bỏ sót vĩnh viễn bản ghi đã <code>COMMIT</code>?</strong> Lệnh <code>DELETE</code> xóa bay dòng dữ liệu khỏi bảng nên câu lệnh <code>SELECT WHERE updated_at &gt; ?</code> không bao giờ tìm thấy (buộc phải sửa bảng thêm cờ <code>is_deleted = true</code>). Đồng thời, nếu Giao dịch A bắt đầu lúc <code>10:00:01</code> nhưng <code>COMMIT</code> lúc <code>10:00:06</code> sau khi tiến trình Polling đã quét qua mốc <code>10:00:04</code>, bản ghi mang nhãn <code>10:00:01</code> sẽ nằm lọt dưới con trỏ <code>High-Watermark</code> và bị bỏ qua vĩnh viễn.</li>
+            <li><strong>Cơ chế nào khiến Trigger-Based CDC làm tăng gấp đôi độ trễ giao dịch OLTP và đe dọa làm sập luồng đặt hàng?</strong> Hàm <code>TRIGGER</code> thực thi đồng bộ ngay bên trong giao dịch ACID của khách hàng, biến 1 lần ghi trên bảng <code>orders</code> thành 2 lần ghi bảng + 2 lần cập nhật Index (độ trễ tăng từ <code>12ms → 26ms</code>); nếu bảng <code>orders_audit_log</code> lỗi hoặc đầy đĩa, ngoại lệ từ Trigger sẽ ép <code>ROLLBACK</code> luôn đơn hàng của khách.</li>
+            <li><strong>Tại sao MySQL bắt buộc phải cấu hình <code>binlog_format = ROW</code> thay vì <code>STATEMENT</code> khi chạy Log-Based CDC?</strong> Vì chế độ <code>STATEMENT</code> chỉ lưu câu lệnh SQL gốc; khi câu lệnh chứa hàm bất định như <code>NOW()</code> hoặc <code>UUID()</code>, bộ đọc CDC không thể xác định giá trị thực tế đã ghi cũng như không biết khóa chính và giá trị trước khi sửa (<code>before</code> image) của từng dòng.</li>
+            <li><strong>Thảm họa vận hành nào xảy ra trên PostgreSQL nếu tiến trình Log-Based CDC bị chết mà không giải phóng <code>Replication Slot</code>?</strong> PostgreSQL sẽ giữ lại toàn bộ các tệp nhật ký <code>WAL</code> tính từ mốc <code>LSN</code> cuối cùng mà Slot đó xác nhận, dẫn đến tràn 100% dung lượng ổ đĩa vật lý và làm sập Database chính nếu không được bảo vệ bởi tham số <code>max_slot_wal_keep_size</code>.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/D01/3" onclick="selectStorageStage(3);return false;">Sang Chặng 3: Hệ Sinh Thái Apache Kafka &amp; Kiến Trúc Lưu Trữ Phân Tán →</a></p>
+        </section>
+      </div>

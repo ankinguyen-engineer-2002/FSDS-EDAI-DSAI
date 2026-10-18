@@ -1,0 +1,389 @@
+      <div class="prose">
+        <x-spine id="ingestion-4-spine" badge="CHẶNG 4 · KAFKA INTERNALS &amp; RELIABILITY" title="Chặng 4: Cơ Học Vận Hành Kafka — Producer, Consumer Group, Replication, Delivery Guarantees &amp; Log Model" subtitle="Trạm 4.1 → 4.5">Phẫu thuật toàn diện đường đi của sự kiện <strong>Order #8888</strong> bên trong cụm Kafka: từ thuật toán băm khóa <code>murmur2</code> của Producer, quy tắc chia tải trong Consumer Group, bầu chọn Leader tự động qua tập hợp <code>ISR</code>, ba cấp độ đảm bảo giao nhận (<code>At-most-once</code>, <code>At-least-once</code>, <code>Exactly-once</code>) đến cơ chế nén nhật ký <code>Log Compaction</code>.</x-spine>
+
+        <p>Ở <strong>Chặng 3</strong>, chúng ta đã thiết lập cấu trúc vật lý của một Topic trên cụm Kafka gồm nhiều Partition bất biến chỉ ghi nối đuôi (<code>Append-only Log</code>) với số thứ tự <code>offset</code> tăng đơn điệu. Bước vào <strong>Chặng 4 (Trạm 4.1 → 4.5)</strong>, chúng ta phẫu thuật cơ học vận hành toàn trình của sự kiện <strong>Order #8888</strong> (<code>order_id = "ORD-8888"</code>, <code>user_id = "USR-104"</code>, <code>amount = 15000000</code>): làm thế nào <strong>Producer</strong> quyết định đẩy bản ghi vào đúng Partition và gom lô nén tốc độ cao; làm thế nào hàng chục tiến trình trong <strong>Consumer Group</strong> chia tải đọc song song mà không giẫm chân lên nhau; cơ chế nhân bản <strong>Leader/Follower Replicas</strong> qua tập hợp <strong><code>ISR</code> (In-Sync Replicas)</strong> bảo vệ dữ liệu khi máy chủ vật lý bốc cháy; sự đánh đổi sống còn giữa ba cấp độ cam kết giao nhận (<strong><code>At-most-once</code></strong>, <strong><code>At-least-once</code></strong>, <strong><code>Exactly-once</code></strong>) cùng cạm bẫy mất dữ liệu ngầm của <code>acks=1</code>; và cách Kafka quản lý vòng đời tệp <strong>Log Segment</strong> trên đĩa cứng kết hợp <strong><code>Log Compaction</code></strong>.</p>
+
+        <section class="lesson-section" id="ingestion-4-1">
+          <h2 id="ingestion-4-1-h2" tabindex="-1">Trạm 4.1: Producer Internals — Chiến lược Chọn Partition (Keyed murmur2 Hash vs. Keyless Sticky) &amp; Bộ đệm Gom lô</h2>
+
+          <p><strong>Kafka Producer</strong> không đơn thuần bắn từng bản ghi rời rạc qua mạng ngay khi hàm <code>send()</code> được gọi; thay vào đó, nó vận hành như một đường ống bất đồng bộ 4 tầng (<code>Serializer</code> → <code>Partitioner</code> → <code>RecordAccumulator</code> → <code>Sender I/O Thread</code>) nhằm tối đa hóa thông lượng mạng và bảo toàn thứ tự sự kiện (<em>Slide 35</em>; <em>Kafka: The Definitive Guide</em>, Ch. 3, tr. 41–62). Ba trách nhiệm cốt lõi của một Producer gồm: chọn đúng Topic đích (ví dụ <code>orders</code>), quyết định chính xác Partition sẽ chứa bản ghi, và truyền tải bản ghi một cách tin cậy kèm cơ chế thử lại khi lỗi mạng tạm thời.</p>
+
+          <p>Quyết định trọng yếu nhất tại tầng <code>Partitioner</code> là bài toán đánh đổi giữa <strong>bảo toàn thứ tự theo thực thể (Strict Per-Key Ordering)</strong> và <strong>phân bổ cân bằng tải (Load Balancing)</strong> thông qua việc có đính kèm khóa (<code>key</code>) vào bản ghi <code>ProducerRecord</code> hay không:</p>
+
+          <ul>
+            <li><strong>Gửi kèm khóa (With a Key — Ví dụ: <code>user_id = "USR-104"</code> hoặc <code>order_id = "ORD-8888"</code>):</strong> Khi bản ghi có <code>key != null</code>, bộ phân vùng mặc định của Kafka băm mảng byte của khóa bằng thuật toán <strong><code>murmur2</code></strong> rồi chia lấy dư cho tổng số Partition hiện có của Topic:
+              $$\text{Partition ID} = \text{toPositive}(\text{murmur2}(\text{keyBytes})) \bmod N_{\text{partitions}}$$
+              Vì hàm băm <code>murmur2</code> có tính tất định (deterministic), mọi sự kiện phát sinh từ cùng khóa <code>user_id = "USR-104"</code> (hoặc <code>order_id = "ORD-8888"</code> qua các trạng thái <code>CREATED</code> → <code>PAID</code> → <code>SHIPPED</code>) luôn rơi vào <strong>cùng một Partition duy nhất</strong> (ví dụ <code>Partition 1</code>). Nhờ tính bất biến chỉ ghi nối đuôi của Partition, Kafka cam kết thứ tự đọc ra cho từng khách hàng hoặc từng đơn hàng khớp 100% với thứ tự xảy ra ngoài đời thực.</li>
+            <li><strong>Gửi không kèm khóa (Without a Key — <code>key = null</code>):</strong> Khi luồng dữ liệu không đòi hỏi thứ tự theo thực thể (như log truy cập HTTP hoặc chỉ số đo lường hệ thống), Producer phân phối đều các bản ghi qua tất cả các Partition theo cơ chế <strong><code>Round-Robin</code></strong> hoặc <strong><code>StickyPartitioner</code></strong> để cân bằng tải lưu trữ và tính toán. Kể từ Kafka 2.4+, <strong><code>StickyPartitioner</code></strong> thay thế hoàn toàn kiểu chia vòng tròn từng thông điệp đơn lẻ (per-message Round-Robin): thay vì rải 3 bản ghi liên tiếp vào <code>P0</code>, <code>P1</code>, <code>P2</code> làm tạo ra 3 lô nhỏ xíu chưa đầy, Producer "bám dính" (stick) vào một Partition duy nhất (ví dụ <code>P0</code>) cho đến khi lô đệm đầy dung lượng <code>batch.size</code> hoặc hết thời gian chờ <code>linger.ms</code>, sau đó mới chuyển sang bám dính vào <code>P1</code>. Cơ chế này giúp lấp đầy lô nhanh hơn, giảm số lượng gói tin RPC gửi tới Broker và giảm mạnh tải CPU.</li>
+          </ul>
+
+          <x-figure id="ingestion-4-1-fig" key="4.1" title="Sơ đồ 4.1 — Đường ống Nội bộ Kafka Producer: Băm Khóa (murmur2 Key Hash) vs. Chia Tải (Keyless) &amp; Bộ Đệm RecordAccumulator">So sánh luồng định tuyến bảo toàn thứ tự theo user_id (With Key) và luồng phân tán cân bằng tải (Without Key).</x-figure>
+
+          <h3>Cơ học bộ đệm RecordAccumulator &amp; bộ đôi tham số batch.size / linger.ms</h3>
+          <p>Sau khi <code>Partitioner</code> ấn định được Partition đích (ví dụ <code>orders-1</code> cho <code>Order #8888</code>), luồng ứng dụng chính (Application Thread) không trực tiếp mở kết nối TCP tới Broker mà chỉ đẩy bản ghi vào vùng nhớ đệm nội bộ <strong><code>RecordAccumulator</code></strong> (mặc định tổng dung lượng <code>buffer.memory = 32MB</code>), nơi duy trì một hàng đợi đôi <code>Deque&lt;ProducerBatch&gt;</code> riêng biệt cho từng <code>TopicPartition</code>. Một luồng nền chuyên biệt mang tên <strong><code>Sender I/O Thread</code></strong> sẽ quét các lô (batch) đã sẵn sàng, gom các lô có chung Broker Leader vào một <code>ProduceRequest</code> duy nhất và bắn qua socket mạng. Thời điểm một <code>ProducerBatch</code> được xuất xưởng phụ thuộc vào hai ngưỡng điều khiển (<em>Kafka: The Definitive Guide</em>, Ch. 3, tr. 52–56):</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tham số cấu hình Producer</th>
+                  <th>Giá trị mặc định vs. Khuyến nghị Production</th>
+                  <th>Cơ chế vận hành nội bộ</th>
+                  <th>Đánh đổi Hiệu năng (Latency vs. Throughput)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong><code>batch.size</code></strong></td>
+                  <td>Mặc định: <code>16384</code> (<code>16KB</code>)<br>Production: <code>32768</code> – <code>65536</code> (<code>32KB–64KB</code>)</td>
+                  <td>Dung lượng tối đa tính bằng byte của một <code>ProducerBatch</code> dành cho một Partition đơn lẻ. Khi lô chạm ngưỡng này, <code>Sender</code> lập tức đóng gói gửi đi ngay mà không cần chờ hết giờ.</td>
+                  <td>Đặt quá nhỏ làm giảm hiệu quả nén và tăng số lần gọi mạng; đặt quá lớn gây lãng phí RAM nếu lưu lượng thực tế thấp.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>linger.ms</code></strong></td>
+                  <td>Mặc định: <code>0</code> (gửi ngay lập tức)<br>Production: <code>5</code> – <code>20</code> (<code>ms</code>)</td>
+                  <td>Thời gian tối đa mà <code>RecordAccumulator</code> giữ một lô chưa đầy để chờ thêm các bản ghi mới cùng Partition nhảy vào chung chuyến xe trước khi giao cho <code>Sender</code>.</td>
+                  <td>Chấp nhận tăng độ trễ thêm <code>5–20ms</code> để gom được hàng trăm sự kiện vào một lô lớn, giúp thuật toán nén đạt tỷ lệ cao nhất và tăng thông lượng gấp nhiều lần.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>compression.type</code></strong></td>
+                  <td>Mặc định: <code>none</code><br>Production: <code>lz4</code> hoặc <code>zstd</code></td>
+                  <td>Nén toàn bộ mảng bản ghi bên trong <code>ProducerBatch</code> trước khi truyền qua mạng và giữ nguyên định dạng nén đó khi ghi thẳng xuống đĩa của Broker.</td>
+                  <td><code>lz4</code> tối ưu tốc độ CPU và độ trễ thấp; <code>zstd</code> cho tỷ lệ nén tốt nhất trên dữ liệu JSON/Avro nhiều chuỗi lặp lại, tiết kiệm tới 60–75% băng thông mạng và đĩa.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>buffer.memory</code> &amp; <code>max.block.ms</code></strong></td>
+                  <td><code>buffer.memory = 33554432</code> (<code>32MB</code>)<br><code>max.block.ms = 60000</code> (<code>60s</code>)</td>
+                  <td>Tổng vùng nhớ RAM cấp cho <code>RecordAccumulator</code>. Nếu ứng dụng sinh dữ liệu nhanh hơn tốc độ <code>Sender</code> đẩy lên Broker khiến <code>32MB</code> đầy tràn, hàm <code>send()</code> sẽ bị chặn tối đa <code>max.block.ms</code> trước khi ném ngoại lệ <code>TimeoutException</code>.</td>
+                  <td>Cơ chế tạo áp lực ngược (Backpressure) tự nhiên bảo vệ JVM của ứng dụng khỏi lỗi tràn bộ nhớ <code>OutOfMemoryError</code> khi cụm Kafka bị nghẽn.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <pre><code>// Cấu hình chuẩn Production cho Kafka Producer gửi sự kiện Order #8888
+Properties props = new Properties();
+props.put("bootstrap.servers", "kafka-1:9092,kafka-2:9092,kafka-3:9092");
+props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+props.put("value.serializer", "io.confluent.kafka.serializers.KafkaAvroSerializer");
+
+// Tối ưu gom lô (Batching) và nén (Compression) tại RecordAccumulator
+props.put("batch.size", 65536);              // Gom lô tối đa 64KB cho mỗi TopicPartition
+props.put("linger.ms", 10);                  // Chờ tối đa 10ms để lấp đầy batch trước khi gửi
+props.put("compression.type", "lz4");        // Nén cả lô bằng LZ4 giảm băng thông mạng và I/O đĩa
+
+// Gửi kèm khóa user_id="USR-104" -> murmur2("USR-104") % 3 luôn định tuyến vào cùng 1 Partition
+ProducerRecord&lt;String, OrderEvent&gt; record = new ProducerRecord&lt;&gt;(
+    "orders", "USR-104", new OrderEvent("ORD-8888", "USR-104", 15000000L, "CREATED")
+);
+producer.send(record);</code></pre>
+
+          <p><strong>Cạm bẫy kiến trúc cần tránh:</strong> Công thức <code>murmur2(key) % numPartitions</code> phụ thuộc trực tiếp vào mẫu số $N_{\text{partitions}}$. Nếu ban đầu Topic <code>orders</code> có <code>3 Partitions</code> nhưng sau 6 tháng vận hành kỹ sư chạy lệnh tăng lên <code>6 Partitions</code> giữa chừng, kết quả phép chia lấy dư của khóa <code>"USR-104"</code> sẽ nhảy sang một Partition mới — phá vỡ lời hứa bảo toàn thứ tự lịch sử của khóa đó. Do đó, đối với các Topic phụ thuộc chặt vào định tuyến theo khóa, kỹ sư phải tính toán dư dung lượng Partition ngay từ lúc khởi tạo hoặc định tuyến sang một Topic phiên bản mới khi cần mở rộng.</p>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="ingestion-4-2">
+          <h2 id="ingestion-4-2-h2" tabindex="-1">Trạm 4.2: Consumer Groups — Quy tắc Độc quyền Partition, Đa Nhóm Fan-out &amp; Tái cân bằng (Rebalance)</h2>
+
+          <p>Khi hàng chục nghìn đơn hàng như <strong>Order #8888</strong> đổ vào Topic <code>orders</code> mỗi giây, một tiến trình đọc đơn lẻ không thể xử lý kịp tốc độ ghi của hàng trăm Producer. Kafka giải quyết bài toán mở rộng ngang chiều đọc thông qua <strong>Consumer Group</strong> — một tập hợp các tiến trình Consumer cùng mang chung định danh <code>group.id</code> phối hợp đọc chung một Topic theo <strong>Quy tắc Độc quyền Nội nhóm (Intra-Group Partition Exclusivity)</strong>: <em>bên trong cùng một Consumer Group, mỗi Partition chỉ được gán cho duy nhất một Consumer đọc tại một thời điểm</em> (<em>Slide 36</em>; <em>Kafka: The Definitive Guide</em>, Ch. 4, tr. 63–91).</p>
+
+          <p>Quy tắc "1 Partition → tối đa 1 Consumer trong cùng Group" mang lại ba lợi ích cơ học đồng thời: (1) <strong>Xử lý song song (Parallel Processing)</strong> và <strong>Mở rộng ngang (Horizontal Scaling)</strong> chỉ bằng cách bật thêm tiến trình Consumer mới vào nhóm; (2) <strong>Không trùng lặp xử lý nội nhóm (No Duplicate Processing inside the same group)</strong> vì hai Consumer cùng nhóm không bao giờ đọc trùng một Partition; và (3) <strong>Bảo toàn thứ tự từng Partition</strong> mà không cần khóa phân tán (Distributed Lock) đắt đỏ giữa các luồng đọc.</p>
+
+          <x-figure id="ingestion-4-2-fig" key="4.2" title="Sơ đồ 4.2 — Cơ học Consumer Group: Quy tắc 1 Partition – 1 Consumer, Trạng thái Idle &amp; Giao thức Tái Cân Bằng">Ánh xạ phân chia Partition giữa các Consumer trong cùng một Group và cơ chế phát sóng độc lập sang nhiều Consumer Group khác nhau.</x-figure>
+
+          <h3>Ba kịch bản tương quan số lượng Consumer ($N_{\text{consumers}}$) vs. số lượng Partition ($N_{\text{partitions}}$)</h3>
+          <p>Giả sử Topic <code>orders</code> được chia thành $N_{\text{partitions}} = 4$ phân vùng (<code>P0</code>, <code>P1</code>, <code>P2</code>, <code>P3</code>). Tùy thuộc vào số lượng tiến trình đọc $N_{\text{consumers}}$ trong nhóm <code>order-processing-group</code>, bộ điều phối <code>GroupCoordinator</code> sẽ phân bổ tải theo đúng 3 kịch bản toán học sau:</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tương quan Quy mô</th>
+                  <th>Ví dụ với Topic có 4 Partitions (<code>P0..P3</code>)</th>
+                  <th>Sơ đồ gán Partition (Assignment)</th>
+                  <th>Hệ quả Vận hành Thực tế</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Ít Consumer hơn Partition</strong><br>($N_{\text{consumers}} &lt; N_{\text{partitions}}$)</td>
+                  <td><code>2 Consumers</code> đọc <code>4 Partitions</code></td>
+                  <td><code>Consumer 1</code> nhận <code>[P0, P1]</code><br><code>Consumer 2</code> nhận <code>[P2, P3]</code></td>
+                  <td>Một Consumer hoàn toàn có thể đọc đồng thời <strong>nhiều Partition</strong>. Nếu <code>Consumer 1</code> sập, một mình <code>Consumer 2</code> sẽ gánh cả 4 Partition <code>[P0, P1, P2, P3]</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Bằng đúng số Partition</strong><br>($N_{\text{consumers}} = N_{\text{partitions}}$)</td>
+                  <td><code>4 Consumers</code> đọc <code>4 Partitions</code></td>
+                  <td><code>C1 → [P0]</code>, <code>C2 → [P1]</code>,<br><code>C3 → [P2]</code>, <code>C4 → [P3]</code></td>
+                  <td><strong>Trạng thái bão hòa song song (1:1 Optimal Mapping):</strong> Đạt độ song song tối đa của Topic; mỗi Consumer chuyên trách xử lý đúng 1 Partition.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Nhiều Consumer hơn Partition</strong><br>($N_{\text{consumers}} &gt; N_{\text{partitions}}$)</td>
+                  <td><code>5 Consumers</code> đọc <code>4 Partitions</code></td>
+                  <td><code>C1..C4</code> nhận <code>P0..P3</code>;<br><strong><code>Consumer 5 → [] (IDLE)</code></strong></td>
+                  <td>Do cấm 2 Consumer cùng nhóm đọc chung 1 Partition, <strong><code>Consumer 5</code> hoàn toàn ngồi không (Idle Standby)</strong>, không nhận bất kỳ dữ liệu nào cho tới khi 1 trong 4 Consumer kia bị sập.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Đa nhóm tiêu thụ độc lập (Multi-Group Broadcast / Fan-out)</h3>
+          <p>Trong khi các Consumer <em>bên trong cùng một nhóm</em> chia nhau tập dữ liệu để mở rộng tải (Queue / Load-balancing semantics), thì các <strong>Consumer Group khác nhau</strong> lại hoạt động hoàn toàn độc lập theo mô hình phát sóng (Publish-Subscribe Broadcast). Khi sự kiện <code>Order #8888</code> nằm tại <code>Partition 1, offset = 4092</code>, cả ba nhóm ứng dụng hạ nguồn gồm:</p>
+          <ul>
+            <li>Nhóm kiểm tra gian lận thời gian thực (<code>group.id = "fraud-detection-group"</code>)</li>
+            <li>Nhóm trừ tồn kho hàng hóa (<code>group.id = "inventory-service-group"</code>)</li>
+            <li>Nhóm nạp dữ liệu thô xuống hồ dữ liệu (<code>group.id = "lakehouse-sink-group"</code>)</li>
+          </ul>
+          <p>đều đồng thời đọc được <strong>100% bản sao của sự kiện <code>Order #8888</code></strong> mà không ảnh hưởng tới nhau. Kafka đạt được điều này vì Broker không xóa bản ghi sau khi đọc và theo dõi vị trí đọc (con trỏ <code>offset</code>) tách biệt theo bộ khóa <code>(group.id, topic, partition)</code> bên trong Topic hệ thống nội bộ <code>__consumer_offsets</code>.</p>
+
+          <h3>Vòng lặp Poll Loop, luồng Heartbeat &amp; Giao thức Tái cân bằng (Cooperative Rebalance)</h3>
+          <p>Khi một Consumer mới gia nhập nhóm, một Consumer hiện hữu bị sập, hoặc quản trị viên thêm Partition mới vào Topic, nhóm phải thực hiện quá trình <strong>Tái cân bằng (Rebalance)</strong> — thu hồi và chia lại quyền sở hữu Partition giữa các thành viên (<em>Kafka: The Definitive Guide</em>, Ch. 4, tr. 68–76). Để phát hiện thành viên chết và tránh bão tái cân bằng giả (False Rebalance Storm), Kafka tách biệt hai cơ chế kiểm tra sức khỏe độc lập:</p>
+
+          <ul>
+            <li><strong>Luồng nhịp tim ngầm (Background Heartbeat Thread — <code>heartbeat.interval.ms = 3000</code> &amp; <code>session.timeout.ms = 45000</code>):</strong> Một luồng chạy ngầm định kỳ mỗi <code>3 giây</code> gửi tín hiệu sống (Heartbeat) về Broker đóng vai trò <code>GroupCoordinator</code>. Nếu quá <code>session.timeout.ms</code> (mặc định <code>45 giây</code>) mà <code>GroupCoordinator</code> không nhận được nhịp tim nào (do máy chủ chứa Consumer mất nguồn hoặc đứt mạng), nó tuyên bố Consumer đó đã chết và kích hoạt Rebalance.</li>
+            <li><strong>Giám sát vòng lặp xử lý chính (Poll Loop Liveness — <code>max.poll.interval.ms = 300000</code> &amp; <code>max.poll.records = 500</code>):</strong> Ngay cả khi luồng Heartbeat ngầm vẫn báo sống, nếu luồng xử lý chính của ứng dụng bị treo cứng khi gọi API bên ngoài hoặc xử lý lô <code>500</code> bản ghi quá lâu vượt ngưỡng <code>max.poll.interval.ms</code> (<code>5 phút</code>) mà chưa quay lại gọi hàm <code>poll()</code> tiếp theo, Consumer sẽ chủ động gửi lệnh <code>LeaveGroup</code> để nhường Partition của mình cho thành viên khác xử lý tiếp.</li>
+            <li><strong>Chống "Đóng băng toàn nhóm" bằng <code>CooperativeStickyAssignor</code>:</strong> Trong giao thức cũ (<em>Eager Rebalance</em> với <code>RangeAssignor</code> hoặc <code>RoundRobinAssignor</code>), mỗi khi có 1 Consumer gia nhập hoặc rời nhóm, <strong>100% Consumer trong nhóm bắt buộc phải thu hồi toàn bộ Partition đang đọc</strong>, khiến cả đường ống ngừng hoạt động hoàn toàn (<em>Stop-the-World pause</em>) trong suốt quá trình chia lại. Ngược lại, chiến lược hiện đại <code>partition.assignment.strategy = CooperativeStickyAssignor</code> thực hiện tái cân bằng hợp tác từng phần (Incremental Cooperative Rebalance): các Consumer giữ nguyên những Partition không cần di chuyển và tiếp tục đọc bình thường, chỉ bàn giao đúng các Partition cần chuyển giao sang thành viên mới.</li>
+          </ul>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="ingestion-4-3">
+          <h2 id="ingestion-4-3-h2" tabindex="-1">Trạm 4.3: Replication &amp; Fault Tolerance — Leader/Follower Replicas, Tập hợp ISR &amp; Bầu chọn Tự động khi Sập Broker</h2>
+
+          <p>Tại <strong>Trạm 4.1</strong> và <strong>4.2</strong>, sự kiện <strong>Order #8888</strong> đã được ghi vào <code>Partition 1</code> trên một máy chủ Broker. Nhưng trong một cụm phân tán chạy trên phần cứng phổ thông, ổ đĩa NVMe có thể cháy hoặc bo mạch chủ có thể sập nguồn bất cứ lúc nào. Để đảm bảo khả năng chịu lỗi (Fault Tolerance) mà không làm mất đơn hàng, Kafka nhân bản mỗi Partition ra nhiều máy chủ Broker khác nhau dựa trên hệ số <strong><code>replication.factor</code></strong> (thông thường <code>replication.factor = 3</code> trong môi trường Production), phân chia rõ hai vai trò: một bản sao duy nhất làm <strong>Leader Replica</strong> và các bản sao còn lại làm <strong>Follower Replicas</strong> (<em>Slide 37</em>; <em>Kafka: The Definitive Guide</em>, Ch. 5 &amp; 6, tr. 97–104, 117–122).</p>
+
+          <ul>
+            <li><strong>Leader Replica (Bản sao Trưởng):</strong> Mỗi Partition có duy nhất một Leader tại một thời điểm (ví dụ <code>Partition 0</code> đặt Leader tại <code>Broker 1</code>). Toàn bộ yêu cầu ghi từ Producer và đọc từ Consumer <strong>bắt buộc phải đi qua Leader</strong> để đảm bảo tính nhất quán tuyệt đối, trừ khi cấu hình tính năng đọc bản sao gần nhất theo tủ mạng (<code>client.rack</code> / Follower Fetching trong Kafka 2.4+ cho cụm đa vùng).</li>
+            <li><strong>Follower Replicas (Các bản sao Phụ):</strong> Đóng vai trò dự phòng nóng trên các Broker khác (ví dụ <code>Broker 2</code> và <code>Broker 3</code>). Khác với hệ thống đẩy thụ động, các Follower trong Kafka hoạt động giống hệt một Consumer nội bộ: chúng liên tục gửi các gói tin <code>FetchRequest</code> tuần tự tới Leader để kéo các bản ghi mới nhất về ghi nối đuôi vào tệp nhật ký cục bộ của mình theo đúng thứ tự <code>offset</code> của Leader.</li>
+          </ul>
+
+          <x-figure id="ingestion-4-3-fig" key="4.3" title="Sơ đồ 4.3 — Kiến trúc Chịu lỗi Replication: Leader vs. Follower Replicas, Tập hợp ISR &amp; Kịch bản Bầu chọn Leader Mới">Quá trình sao chép dữ liệu giữa Leader và các Follower trong tập ISR cùng cơ chế tự động chuyển đổi dự phòng khi Broker 1 gặp sự cố.</x-figure>
+
+          <h3>Tập hợp Bản sao Đồng bộ ISR (In-Sync Replicas) &amp; Ngưỡng High Watermark</h3>
+          <p>Không phải mọi Follower tồn tại trên cụm đều đủ tư cách lên kế vị ngay khi Leader sập. Kafka phân tách tổng tập hợp bản sao <strong><code>AR</code> (Assigned Replicas)</strong> thành hai nhóm động dựa trên độ trễ sao chép thực tế:</p>
+
+          <ul>
+            <li><strong><code>ISR</code> (In-Sync Replicas — Tập hợp Bản sao Đồng bộ):</strong> Bao gồm bản thân <code>Leader</code> và tất cả các <code>Follower</code> đang bám sát tiến độ của Leader. Một Follower được coi là nằm trong <code>ISR</code> nếu nó liên tục gửi <code>FetchRequest</code> và bắt kịp <code>LEO</code> (<em>Log End Offset</em> — vị trí bản ghi mới nhất của Leader) trong khoảng thời gian cho phép <strong><code>replica.lag.time.max.ms</code></strong> (mặc định <code>30000ms = 30 giây</code>).</li>
+            <li><strong><code>OSR</code> (Out-of-Sync Replicas — Bản sao Lệch pha):</strong> Nếu một Follower trên <code>Broker 3</code> bị kẹt GC Pause, nghẽn mạng hoặc hỏng đĩa khiến nó không kéo kịp dữ liệu mới nhất của Leader quá ngưỡng <code>replica.lag.time.max.ms</code>, Leader sẽ lập tức <strong>trục xuất Follower đó khỏi tập hợp <code>ISR</code></strong> và ghi nhận thay đổi metadata vào bộ điều phối cụm (<code>KRaft Controller Quorum</code>). Khi <code>Broker 3</code> hồi phục và kéo bù dữ liệu bắt kịp <code>High Watermark</code> hiện tại của Leader, nó mới được kết nạp trở lại vào <code>ISR</code>.</li>
+            <li><strong>Chốt chặn <code>High Watermark (HW)</code> bảo vệ Consumer:</strong> Một bản ghi (như <code>Order #8888</code> tại <code>offset = 4092</code>) chỉ được coi là <strong>Committed (Đã cam kết an toàn)</strong> khi toàn bộ các thành viên hiện có trong tập <code>ISR</code> đã sao chép thành công bản ghi đó về tới <code>offset = 4092</code>. Con trỏ đánh dấu <code>offset</code> đã được toàn bộ <code>ISR</code> xác nhận gọi là <strong><code>High Watermark (HW)</code></strong>. Mọi Consumer bên ngoài <strong>chỉ được phép đọc các bản ghi từ <code>HW</code> trở xuống</strong>; các bản ghi nằm giữa <code>HW</code> và <code>LEO</code> (chưa sao chép xong sang đủ <code>ISR</code>) hoàn toàn vô hình đối với Consumer để tránh đọc phải dữ liệu "bóng ma" sẽ bị cắt bỏ nếu Leader sập đột ngột.</li>
+          </ul>
+
+          <h3>Tam giác Vàng Cấu hình Chống Mất Dữ liệu (Production Golden Triad)</h3>
+          <p>Khi máy chủ <code>Broker 1</code> (đang giữ <code>Leader</code> của <code>Partition 0</code>) bất ngờ mất nguồn, bộ điều phối <code>Controller</code> phát hiện sự cố và tự động bầu chọn một Follower nằm trong tập hợp <strong><code>ISR</code></strong> (ví dụ trên <code>Broker 2</code>) lên làm <strong>Leader mới</strong> chỉ trong vài mili-giây mà không mất bất kỳ đơn hàng nào đã cam kết. Tuy nhiên, để cơ chế này khóa chặt rủi ro mất dữ liệu trong mọi kịch bản sự cố phần cứng, kỹ sư bắt buộc phải thiết lập đồng bộ <strong>Tam giác Vàng 3 tham số</strong> sau đây (<em>Kafka: The Definitive Guide</em>, Ch. 6, tr. 117–122):</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Tham số Cấu hình (Topic / Broker)</th>
+                  <th>Giá trị Chuẩn Production</th>
+                  <th>Vai trò Cơ học trong Cụm Phân tán</th>
+                  <th>Hậu quả nếu Cấu hình Sai</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong><code>replication.factor</code></strong></td>
+                  <td><code>3</code></td>
+                  <td>Tạo 3 bản sao vật lý cho mỗi Partition (1 Leader + 2 Followers) rải trên 3 Broker (và 3 Rack) khác nhau.</td>
+                  <td>Nếu chỉ đặt <code>1</code>, hỏng 1 ổ đĩa đồng nghĩa mất trắng dữ liệu. Nếu đặt <code>2</code>, không thể dùng <code>min.insync.replicas = 2</code> mà vẫn chịu được sự cố bảo trì 1 máy chủ.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>min.insync.replicas</code></strong></td>
+                  <td><code>2</code><br><em>(Kết hợp bắt buộc với <code>acks=all</code> ở Producer)</em></td>
+                  <td>Quy định số lượng bản sao tối thiểu phải có mặt trong tập <code>ISR</code> (gồm cả Leader và ít nhất 1 Follower) để một thao tác ghi được phép thành công.</td>
+                  <td>Nếu tập <code>ISR</code> bị co lại chỉ còn <code>1</code> thành viên (do 2 Follower cùng sập), Broker sẽ từ chối lệnh ghi mới bằng lỗi <code>NotEnoughReplicasException</code> thay vì nhận đơn vào 1 máy duy nhất rồi mất trắng.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>unclean.leader.election.enable</code></strong></td>
+                  <td><code>false</code></td>
+                  <td>Cấm tuyệt đối việc bầu chọn một bản sao nằm ngoài tập <code>ISR</code> (<code>Out-of-Sync Replica</code> bị hụt dữ liệu) lên làm Leader mới khi toàn bộ các nút thuộc <code>ISR</code> đều sập.</td>
+                  <td>Nếu bật <code>true</code> (ưu tiên AP thay vì CP), một Broker cũ bị tụt hậu hàng nghìn offset sẽ lên làm Leader, <strong>cắt cụt (truncate) vĩnh viễn mọi đơn hàng đã cam kết</strong> và gây lệch dữ liệu nghiêm trọng ở hạ nguồn.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="ingestion-4-4">
+          <h2 id="ingestion-4-4-h2" tabindex="-1">Trạm 4.4: Ba Cấp Độ Đảm Bảo Giao Nhận (At-most-once, At-least-once, Exactly-once) &amp; Cạm bẫy Mất Dữ liệu của acks=1</h2>
+
+          <p>Nhân bản dữ liệu ở tầng Broker (Trạm 4.3) mới chỉ là một nửa bức tranh tin cậy; nửa còn lại phụ thuộc vào cách <strong>Producer</strong> chờ xác nhận ghi (<code>acks</code>), cách nó xử lý khi gửi lại (<code>retries</code> / <code>enable.idempotence</code>), và thời điểm <strong>Consumer</strong> xác nhận tiến độ đọc (<code>commit offset</code>). Sự phối hợp giữa ba thành phần này tạo nên <strong>3 Cấp độ Đảm bảo Giao nhận Thông điệp (Message Delivery Guarantees)</strong> kinh điển trong hệ thống phân tán (<em>Slide 38–39</em>; <em>Kafka: The Definitive Guide</em>, Ch. 6):</p>
+
+          <ol>
+            <li><strong><code>At-most-once</code> (Tối đa một lần — Có thể mất dữ liệu, không bao giờ trùng lặp):</strong>
+              <ul>
+                <li><em>Cấu hình:</em> Đặt <code>acks=0</code> tại Producer và <code>enable.auto.commit=true</code> (với chu kỳ ngắn hoặc commit ngay trước khi xử lý) tại Consumer.</li>
+                <li><em>Hành vi cơ học:</em> Producer bắn bản ghi vào socket mạng rồi coi như thành công ngay lập tức (<em>Fire-and-forget</em>) mà không chờ Broker phản hồi và không bao giờ thử lại (<code>retries=0</code>). Ở phía đầu đọc, Consumer đọc lô bản ghi và <strong>commit offset trước khi bắt đầu xử lý nghiệp vụ</strong>.</li>
+                <li><em>Kịch bản lỗi:</em> Nếu gói tin rớt trên đường truyền mạng hoặc Consumer bị sập nguồn ngay trong lúc đang xử lý đơn hàng (sau khi đã commit offset), khi khởi động lại Consumer sẽ đọc tiếp từ offset mới — <strong>bản ghi bị mất vĩnh viễn</strong>. Chỉ sử dụng cho luồng log telemetry, chỉ số cảm biến IoT tần suất cao hoặc sự kiện click chuột không trọng yếu.</li>
+              </ul>
+            </li>
+            <li><strong><code>At-least-once</code> (Ít nhất một lần — Không mất dữ liệu khi chuẩn cấu hình, nhưng có thể trùng lặp):</strong>
+              <ul>
+                <li><em>Cấu hình:</em> Đặt <code>acks=1</code> hoặc <code>acks=all</code> (kèm <code>retries &gt; 0</code>) tại Producer, và <code>enable.auto.commit=false</code> tại Consumer.</li>
+                <li><em>Hành vi cơ học:</em> Producer chờ nhận tín hiệu xác nhận (ACK) từ Broker; nếu hết thời gian chờ (Timeout) hoặc lỗi mạng tạm thời, Producer tự động gửi lại (Retry) bản ghi. Ở phía đầu đọc, Consumer <strong>xử lý hoàn tất nghiệp vụ của thông điệp trước, sau đó mới gọi lệnh <code>commitSync()</code> / <code>commitAsync()</code></strong> để lưu offset.</li>
+                <li><em>Kịch bản lỗi &amp; Trùng lặp:</em> Nếu Broker đã ghi xong <code>Order #8888</code> nhưng gói tin ACK trả về bị rớt mạng, Producer gửi lại lần 2 khiến Partition có 2 bản ghi giống hệt nhau. Hoặc nếu Consumer vừa ghi đơn hàng xuống CSDL xong nhưng bị sập nguồn 1 mili-giây trước khi kịp commit offset, khi sống dậy nó sẽ đọc và xử lý lại chính đơn hàng đó lần thứ hai.</li>
+              </ul>
+            </li>
+            <li><strong><code>Exactly-once</code> (Chính xác một lần — EOS: Không mất dữ liệu, không trùng lặp kể cả khi lỗi):</strong>
+              <ul>
+                <li><em>Cấu hình:</em> Đặt <code>acks=all</code> kết hợp <code>enable.idempotence=true</code> (và <code>transactional.id</code> nếu xử lý luồng Read-Process-Write) tại Producer, kết hợp <code>isolation.level=read_committed</code> tại Consumer.</li>
+                <li><em>Hành vi cơ học:</em> Ngay cả khi Producer gửi lại nhiều lần do đứt mạng hay Consumer khởi động lại giữa chừng, mỗi sự kiện <strong>Order #8888</strong> chỉ được ghi nhận và xử lý <strong>đúng một lần duy nhất</strong> xuyên suốt đường ống.</li>
+              </ul>
+            </li>
+          </ol>
+
+          <h3>Cảnh báo Sinh tử từ Slide 39: Tại sao acks=1 KHÔNG đảm bảo chống mất dữ liệu?</h3>
+          <p>Một trong những ngộ nhận nguy hiểm nhất của kỹ sư mới làm việc với Kafka là tin rằng chỉ cần bật <code>acks=1</code> kèm cơ chế thử lại (<code>retries</code>) là đạt được <code>At-least-once</code> an toàn tuyệt đối. Thực tế cơ học chứng minh điều ngược lại (<em>Slide 39 Warning</em>):</p>
+          <ul>
+            <li>Với <strong><code>acks=1</code></strong>, ngay khi <strong>Leader Broker</strong> ghi bản ghi <code>Order #8888</code> vào nhật ký cục bộ của riêng nó, nó lập tức trả kết quả thành công (ACK) về cho Producer <strong>trước khi các Follower kịp kéo (fetch) bản ghi đó về</strong>. Nếu đúng vào khoảnh khắc mili-giây đó, máy chủ Leader bị sập nguồn đột ngột, một Follower trong tập <code>ISR</code> (vốn chưa hề nhận được <code>Order #8888</code>) sẽ được bầu lên làm Leader mới. Kết quả: <strong>Đơn hàng #8888 vừa được báo thành công cho khách hàng bị bốc hơi vĩnh viễn!</strong></li>
+            <li>Ngược lại, với <strong><code>acks=all</code></strong> (tương đương <code>acks=-1</code>) kết hợp <code>min.insync.replicas=2</code>, Leader chỉ được phép trả ACK về cho Producer sau khi bản thân Leader và <strong>toàn bộ các Follower trong tập <code>ISR</code></strong> đều đã ghi nhận thành công bản ghi. Do đó, muốn cam kết không mất dữ liệu (Zero Data Loss), bắt buộc phải dùng <strong><code>acks=all</code></strong> chứ không bao giờ được dừng ở <code>acks=1</code>.</li>
+          </ul>
+
+          <x-figure id="ingestion-4-4-fig" key="4.4" title="Sơ đồ 4.4 — Giải phẫu 3 Cấp độ Cam kết Giao nhận: At-most-once, At-least-once &amp; Exactly-once Semantics (EOS)">Đối chiếu luồng xác nhận giữa Producer, Broker và thời điểm Commit Offset của Consumer trong 3 chế độ đảm bảo giao nhận.</x-figure>
+
+          <h3>Cơ chế Nội bộ của Exactly-Once Semantics (EOS): Idempotent Producer (PID + Sequence Number) &amp; Giao dịch Nguyên tử</h3>
+          <p>Làm thế nào Kafka triệt tiêu hoàn toàn bản ghi trùng lặp khi mạng chập chờn buộc Producer phải gửi lại? Cơ chế <strong><code>Exactly-once (EOS)</code></strong> được lắp ghép từ hai tầng kỹ thuật bổ trợ nhau (<em>Kafka: The Definitive Guide</em>, Ch. 6):</p>
+
+          <ul>
+            <li><strong>Tầng 1 — Idempotent Producer (Chống trùng lặp trên từng Partition bằng <code>PID</code> + <code>Sequence Number</code>):</strong> Khi bật <code>enable.idempotence=true</code> (được bật mặc định từ Kafka 3.0+ kèm <code>acks=all</code>), mỗi thực thể Producer khi khởi tạo sẽ được Broker cấp một mã định danh duy nhất <strong><code>PID</code> (Producer ID)</strong>. Với mỗi bản ghi gửi vào một <code>TopicPartition</code> cụ thể, Producer đính kèm một số thứ tự tăng đơn điệu <strong><code>Sequence Number</code></strong> ($0, 1, 2, \dots$). Phía Broker duy trì trong bộ nhớ đệm 5 số <code>Sequence Number</code> gần nhất cho mỗi cặp <code>(PID, TopicPartition)</code> (tương ứng giới hạn <code>max.in.flight.requests.per.connection &lt;= 5</code>). Nếu <code>Order #8888</code> mang <code>(PID=701, Seq=42)</code> đã được Broker ghi vào đĩa nhưng gói ACK bị rớt mạng khiến Producer gửi lại đúng gói <code>(PID=701, Seq=42)</code> lần hai, Leader phát hiện <code>Seq=42</code> đã tồn tại nên <strong>âm thầm hủy bỏ bản ghi trùng lặp mà không ghi thêm lần nữa</strong>, đồng thời gửi lại ACK báo thành công cho Producer.</li>
+            <li><strong>Tầng 2 — Transactional API &amp; Two-Phase Commit (Chống trùng lặp vắt ngang nhiều Partition trong luồng Read-Process-Write):</strong> Khi một ứng dụng vừa đọc sự kiện từ Topic <code>raw-orders</code>, xử lý biến đổi, rồi ghi kết quả ra nhiều Partition của Topic <code>validated-orders</code> đồng thời commit offset đã đọc, chỉ riêng Idempotent Producer là chưa đủ. Kafka sử dụng <strong><code>TransactionCoordinator</code></strong> cùng mã cố định <code>transactional.id</code> để chạy giao thức cam kết 2 pha: toàn bộ các bản ghi xuất ra và bản ghi commit offset (gửi qua hàm <code>sendOffsetsToTransaction()</code>) được gói vào một giao dịch nguyên tử. Khi giao dịch hoàn tất, Coordinator ghi một bản ghi điều khiển đặc biệt gọi là <strong><code>Control Record</code> (Commit Marker / Abort Marker)</strong> vào nhật ký. Ở phía hạ nguồn, các Consumer cấu hình <strong><code>isolation.level=read_committed</code></strong> sẽ tự động lọc bỏ mọi thông điệp thuộc giao dịch bị hủy (<code>Aborted</code>) và tạm hoãn đọc các thông điệp của giao dịch đang mở cho tới khi thấy <code>Commit Marker</code>.</li>
+          </ul>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Cấp độ Đảm bảo</th>
+                  <th>Cấu hình Producer</th>
+                  <th>Cấu hình Broker</th>
+                  <th>Cấu hình Consumer</th>
+                  <th>Hệ quả khi Sự cố (Failure Mode)</th>
+                  <th>Trường hợp Sử dụng Thực tế</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong><code>At-most-once</code></strong></td>
+                  <td><code>acks=0</code><br><code>retries=0</code></td>
+                  <td>Mặc định</td>
+                  <td><code>enable.auto.commit=true</code><br><em>(Commit trước khi xử lý)</em></td>
+                  <td><strong>Mất dữ liệu</strong> nếu rớt gói tin mạng hoặc Consumer sập khi đang xử lý; không bao giờ bị trùng lặp.</td>
+                  <td>Log hành vi clickstream, chỉ số đo lường CPU/RAM máy chủ, dữ liệu cảm biến IoT phi trọng yếu.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>At-least-once</code></strong><br><em>(Cạm bẫy <code>acks=1</code>)</em></td>
+                  <td><code>acks=1</code><br><code>retries &gt; 0</code></td>
+                  <td><code>replication.factor=3</code></td>
+                  <td><code>enable.auto.commit=false</code><br><em>(Xử lý xong mới commit)</em></td>
+                  <td><strong>Vẫn mất dữ liệu</strong> nếu Leader sập ngay sau khi trả ACK nhưng trước khi Follower kịp sao chép; đồng thời có thể trùng lặp khi retry.</td>
+                  <td>Các luồng sự kiện thông thường cần độ trễ ghi cực thấp và chấp nhận rủi ro mất vài bản ghi khi sập nút.</td>
+                </tr>
+                <tr>
+                  <td><strong><code>At-least-once</code></strong><br><em>(Chuẩn Zero Data Loss)</em></td>
+                  <td><code>acks=all</code><br><code>retries=MAX_INT</code></td>
+                  <td><code>replication.factor=3</code><br><code>min.insync.replicas=2</code><br><code>unclean.leader.election.enable=false</code></td>
+                  <td><code>enable.auto.commit=false</code><br><em>(Xử lý xong mới commit + Upsert/Idempotent Sink)</em></td>
+                  <td><strong>0% mất dữ liệu</strong>; có thể phát sinh bản ghi trùng lặp nếu rớt gói ACK hoặc Consumer sập trước bước commit offset.</td>
+                  <td>Chuẩn phổ biến nhất cho Data Pipeline nạp vào Data Lakehouse / DB có sẵn khóa chính khử trùng (<code>MERGE INTO</code> / <code>UPSERT</code>).</td>
+                </tr>
+                <tr>
+                  <td><strong><code>Exactly-once (EOS)</code></strong></td>
+                  <td><code>acks=all</code><br><code>enable.idempotence=true</code><br><code>transactional.id="tx-order-1"</code></td>
+                  <td><code>replication.factor=3</code><br><code>min.insync.replicas=2</code><br><code>transaction.state.log.replication.factor=3</code></td>
+                  <td><code>isolation.level=read_committed</code><br><code>enable.auto.commit=false</code></td>
+                  <td><strong>0% mất dữ liệu &amp; 0% trùng lặp</strong> xuyên suốt chu trình Read → Process → Write bên trong Kafka.</td>
+                  <td>Giao dịch thanh toán tài chính, đối soát số dư ví điện tử, đơn hàng thương mại điện tử <strong>Order #8888</strong>, Kafka Streams / Flink.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <hr />
+
+        <section class="lesson-section" id="ingestion-4-5">
+          <h2 id="ingestion-4-5-h2" tabindex="-1">Trạm 4.5: Mô hình Lưu trữ Log Segment trên Đĩa &amp; Ba Chính sách Dọn dẹp (Time, Size &amp; Log Compaction)</h2>
+
+          <p>Khác với các hệ thống hàng đợi truyền thống (như RabbitMQ) xóa ngay thông điệp khỏi bộ nhớ sau khi Consumer xác nhận đã đọc, Kafka lưu trữ bền vững toàn bộ sự kiện trên đĩa cứng và cho phép nhiều nhóm Consumer tua lại lịch sử bất cứ lúc nào. Nhưng ổ đĩa vật lý không phải là vô hạn: nếu giữ mãi hàng tỷ sự kiện suốt nhiều năm, cụm Broker sẽ cạn sạch dung lượng. Kafka kiểm soát vòng đời dữ liệu thông qua mô hình chia nhỏ tệp vật lý thành các <strong>Log Segments</strong> kết hợp với <strong>3 chính sách lưu giữ và dọn dẹp (Retention &amp; Cleanup Policies)</strong> (<em>Slide 40</em>; <em>Kafka: The Definitive Guide</em>, Ch. 5, tr. 105–113).</p>
+
+          <h3>Giải phẫu thư mục Partition vật lý trên đĩa: Tại sao Kafka cắt tệp thành các Log Segments?</h3>
+          <p>Trên hệ thống tệp Linux của Broker, mỗi Partition là một thư mục vật lý mang tên <code>&lt;topic&gt;-&lt;partition_id&gt;</code> (ví dụ thư mục <code>/var/lib/kafka/data/orders-0/</code>). Thay vì nhồi nhét hàng chục Terabyte dữ liệu vào một tệp khổng lồ duy nhất (khiến việc tìm kiếm và xóa dữ liệu cũ đầu tệp đòi hỏi phải dịch chuyển hàng tỷ byte), Kafka chia nhỏ nhật ký của mỗi Partition thành một chuỗi các tệp phân đoạn có kích thước cố định gọi là <strong>Log Segments</strong> (mặc định <strong><code>log.segment.bytes = 1073741824</code> (<code>1GB</code>)</strong> hoặc đóng theo thời gian <code>log.roll.ms</code>). Mỗi phân đoạn được đặt tên bằng chuỗi 20 chữ số biểu thị <strong><code>Base Offset</code></strong> (offset của bản ghi đầu tiên trong phân đoạn đó) và đi kèm bộ 3 tệp vật lý:</p>
+
+          <ul>
+            <li><strong>Tệp dữ liệu (<code>00000000000000000000.log</code>):</strong> Lưu chuỗi các lô bản ghi nhị phân (<code>RecordBatch</code>) thực tế theo thứ tự ghi nối đuôi. Phân đoạn cuối cùng đang mở để nhận bản ghi mới gọi là <strong><code>Active Segment</code></strong>; mọi phân đoạn trước đó đã chạm ngưỡng <code>1GB</code> đều được đóng lại thành các <strong><code>Closed Segments</code></strong> hoàn toàn bất biến (Immutable).</li>
+            <li><strong>Tệp chỉ mục Offset thưa (<code>00000000000000000000.index</code>):</strong> Ánh xạ từ số thứ tự <code>offset</code> sang vị trí byte vật lý (<code>physical byte position</code>) trong tệp <code>.log</code>. Vì các bản ghi đã nằm tuần tự theo offset, Kafka không cần đánh chỉ mục cho từng bản ghi một như B-Tree mà chỉ lưu chỉ mục thưa (<em>Sparse Index</em>, mặc định cứ mỗi <code>log.index.interval.bytes = 4096</code> (<code>4KB</code>) dữ liệu mới ghi 1 mục). Khi Consumer yêu cầu đọc <code>offset = 4092</code>, Broker tra cứu nhị phân (Binary Search) trong tệp <code>.index</code> đã được ánh xạ vào RAM qua <code>mmap</code> để nhảy tới vị trí <code>4KB</code> gần nhất, rồi đọc trượt vài byte là lấy được ngay bản ghi.</li>
+            <li><strong>Tệp chỉ mục Thời gian (<code>00000000000000000000.timeindex</code>):</strong> Ánh xạ từ nhãn thời gian (<code>timestamp</code>) sang <code>offset</code> tương ứng, phục vụ thao tác tua lại dữ liệu theo mốc thời gian (<code>offsetsForTimes()</code>) hoặc kiểm tra tuổi thọ phân đoạn khi dọn rác.</li>
+          </ul>
+
+          <x-figure id="ingestion-4-5-fig" key="4.5" title="Sơ đồ 4.5 — Giải phẫu Log Segment trên Đĩa (.log/.index) &amp; So sánh Xóa theo Thời gian/Dung lượng vs. Nén theo Khóa (Log Compaction)">Cơ chế cắt phân đoạn tệp nhật ký vật lý và cách Log Cleaner giữ lại bản ghi mới nhất cho mỗi khóa kèm bản ghi bia mộ Tombstone.</x-figure>
+
+          <h3>Ba Chính sách Lưu giữ &amp; Dọn dẹp Nhật ký (Time-based, Size-based &amp; Log Compaction)</h3>
+          <p>Nhờ kiến trúc chia nhỏ thành các <code>Closed Segments</code> bất biến (và quy tắc bất khả xâm phạm: <em>không bao giờ xóa hoặc nén phân đoạn <code>Active Segment</code> đang mở</em>), Kafka cung cấp 3 cơ chế kiểm soát dung lượng thông qua tham số <code>cleanup.policy</code> (<em>Slide 40</em>):</p>
+
+          <div class="table-wrap">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>Chính sách Lưu giữ (Slide 40)</th>
+                  <th>Tham số Cấu hình Chuẩn</th>
+                  <th>Cơ học Thực thi trên Đĩa Vật lý</th>
+                  <th>Ứng dụng Thực chiến cho Order #8888</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Xóa theo Thời gian</strong><br><em>(Time-based Retention: <code>7 days</code>)</em></td>
+                  <td><code>cleanup.policy=delete</code><br><code>retention.ms=604800000</code><br><em>(Mặc định: 7 ngày)</em></td>
+                  <td>Tiến trình dọn dẹp kiểm tra nhãn thời gian lớn nhất (<code>max timestamp</code> trong <code>.timeindex</code>) của từng <code>Closed Segment</code>. Nếu toàn bộ bản ghi trong phân đoạn đã cũ hơn <code>7 ngày</code>, HĐH thực hiện lời gọi <code>unlink()</code> xóa thẳng tệp <code>.log/.index/.timeindex</code> với chi phí $O(1)$ mà không gây phân mảnh đĩa.</td>
+                  <td>Lưu giữ luồng sự kiện giao dịch <code>orders</code> trong 7 ngày để các ứng dụng hạ nguồn hoặc job Spark/Flink có thể đọc lại (Replay) khi cần sửa lỗi logic.</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Xóa theo Dung lượng</strong><br><em>(Size-based Retention: <code>1 GB per partition</code>)</em></td>
+                  <td><code>cleanup.policy=delete</code><br><code>retention.bytes=1073741824</code><br><em>(Mặc định: <code>-1</code> = không giới hạn)</em></td>
+                  <td>Khi tổng dung lượng các tệp phân đoạn của một Partition vượt ngưỡng <code>1GB</code>, Broker tự động xóa các <code>Closed Segment</code> cũ nhất (có <code>Base Offset</code> nhỏ nhất) cho tới khi tổng dung lượng tụt xuống dưới ngưỡng quy định.</td>
+                  <td>Đặt chốt chặn bảo hiểm phần cứng cho các Topic log dung lượng cực lớn nhằm đảm bảo ổ đĩa Broker không bao giờ bị đầy tràn (Disk Full) khi lưu lượng tăng đột biến.</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Nén theo Khóa</strong><br><em>(Log Compaction: <code>Keep latest per key</code>)</em></td>
+                  <td><code>cleanup.policy=compact</code><br><em>(Hoặc kết hợp: <code>compact,delete</code>)</em></td>
+                  <td>Thay vì xóa mù quáng theo tuổi thọ, luồng nền <code>Log Cleaner</code> quét các phân đoạn cũ và <strong>chỉ giữ lại duy nhất bản ghi có <code>offset</code> mới nhất cho mỗi khóa <code>key</code></strong>, loại bỏ toàn bộ các trạng thái trung gian cũ của cùng khóa đó.</td>
+                  <td>Lưu bảng trạng thái hiện tại của đơn hàng (<code>ORD-8888: CREATED → PAID → SHIPPED</code> chỉ giữ lại bản <code>SHIPPED</code>), danh mục sản phẩm, cấu hình hệ thống, hoặc Topic nội bộ <code>__consumer_offsets</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Giải phẫu cơ chế Log Compaction: Clean Head, Dirty Tail &amp; Bản ghi Bia mộ (Tombstone Record)</h3>
+          <p>Khi một Topic được cấu hình <code>cleanup.policy=compact</code> (chẳng hạn Topic lưu ảnh chụp trạng thái đơn hàng hoặc luồng thay đổi CDC từ cơ sở dữ liệu), nhật ký của Partition được chia làm hai phần rõ rệt (<em>Kafka: The Definitive Guide</em>, Ch. 5, tr. 108–113):</p>
+
+          <ul>
+            <li><strong><code>Clean Head</code> (Phần đầu đã nén) &amp; <code>Dirty Tail</code> (Phần đuôi chưa nén):</strong> Các sự kiện mới vừa ghi vào vẫn nằm nguyên vẹn ở phần đuôi <code>Dirty Tail</code> (nơi có thể chứa cả 3 bản ghi của khóa <code>"ORD-8888"</code> tại <code>offset 10: CREATED</code>, <code>offset 25: PAID</code>, và <code>offset 89: SHIPPED</code>). Khi tỷ lệ dữ liệu bẩn vượt ngưỡng <code>min.cleanable.dirty.ratio</code> (mặc định <code>0.5</code>), luồng nền <code>Log Cleaner Thread</code> xây dựng một bảng băm (<code>SkimpyOffsetMap</code>) trong bộ nhớ ánh xạ <code>hash(key) → latest_offset</code>, sau đó chép các bản ghi còn hiệu lực sang phân đoạn mới thuộc vùng <code>Clean Head</code> — lúc này khóa <code>"ORD-8888"</code> chỉ còn giữ lại duy nhất bản ghi tại <code>offset 89: SHIPPED</code>.</li>
+            <li><strong>Làm sao xóa vĩnh viễn một khóa trong Topic nén bằng <code>Tombstone Record</code>?</strong> Nếu khách hàng hủy và yêu cầu xóa hoàn toàn hồ sơ cá nhân theo quy định bảo mật dữ liệu (GDPR), việc chỉ ngừng gửi bản ghi mới sẽ khiến bản ghi cũ nhất ở vùng <code>Clean Head</code> tồn tại mãi mãi. Để xóa hoàn toàn một khóa khỏi Topic nén, Producer phải gửi một bản ghi đặc biệt có <strong>khóa <code>key = "ORD-8888"</code> kèm giá trị <code>value = null</code></strong> — được gọi là <strong><code>Tombstone Record</code> (Bản ghi Bia mộ)</strong>. Trong lần nén đầu tiên, <code>Log Cleaner</code> xóa sạch mọi bản ghi lịch sử trước đó của <code>"ORD-8888"</code> nhưng vẫn giữ lại bản ghi <code>Tombstone (value = null)</code> trong suốt khoảng thời gian <strong><code>delete.retention.ms</code></strong> (mặc định <code>86400000ms = 24 giờ</code>) để các Consumer đang ngoại tuyến kịp đọc thấy tín hiệu xóa và xóa bản ghi tương ứng ở cơ sở dữ liệu hạ nguồn. Sau khi hết <code>24 giờ</code>, chính bản ghi bia mộ <code>Tombstone</code> cũng bị thu dọn vĩnh viễn khỏi đĩa.</li>
+          </ul>
+        </section>
+
+        <section class="summary-section" id="ingestion-4-summary">
+          <h2 id="ingestion-4-summary-h2" tabindex="-1">Tóm tắt bỏ túi Chặng 4 &amp; Checklist 5 câu hỏi bản chất</h2>
+
+          <p><strong>Checklist 5 câu hỏi bản chất kiểm tra độ hiểu sâu Chặng 4 (Cơ học vận hành Kafka):</strong></p>
+          <ol>
+            <li><strong>Định tuyến Partition tại Producer:</strong> Sự khác biệt cơ học giữa việc gửi sự kiện <code>Order #8888</code> có đính kèm khóa (<code>key = "USR-104"</code>) và không đính kèm khóa (<code>key = null</code>) là gì? Tại sao bộ đôi tham số <code>batch.size</code> và <code>linger.ms</code> tại bộ đệm <code>RecordAccumulator</code> lại quyết định trực tiếp tỷ lệ nén <code>lz4</code>/<code>zstd</code> và thông lượng toàn cụm?
+              <br><em>Đáp án:</em> Khi có khóa, Producer áp dụng công thức $\text{murmur2}(\text{key}) \bmod N_{\text{partitions}}$ để đưa mọi sự kiện của cùng một khóa vào đúng một Partition duy nhất, bảo toàn thứ tự tuyệt đối cho thực thể đó. Khi không có khóa, Producer dùng <code>StickyPartitioner</code> bám dính vào một Partition cho tới khi đầy lô <code>batch.size</code> (hoặc hết thời gian chờ <code>linger.ms</code>) rồi mới đổi sang Partition kế tiếp nhằm lấp đầy lô nhanh, tăng tỷ lệ nén và giảm số lần gọi mạng.</li>
+            <li><strong>Quy tắc Consumer Group &amp; Fan-out:</strong> Nếu một Topic có <code>4 Partitions</code> được đọc bởi một Consumer Group gồm <code>5 Consumers</code>, điều gì xảy ra với Consumer thứ 5? Làm thế nào 3 dịch vụ khác nhau (Fraud Detection, Inventory, Lakehouse Sink) cùng nhận được 100% sự kiện <code>Order #8888</code> mà không tranh giành dữ liệu của nhau?
+              <br><em>Đáp án:</em> Do quy tắc độc quyền nội nhóm (mỗi Partition chỉ được đọc bởi tối đa 1 Consumer trong cùng một Group tại một thời điểm), Consumer thứ 5 sẽ rơi vào trạng thái <strong><code>IDLE</code> (ngồi chờ dự phòng)</strong> và không nhận bất kỳ dữ liệu nào. Để 3 dịch vụ cùng đọc 100% dữ liệu độc lập (Fan-out), mỗi dịch vụ phải được gán một mã <code>group.id</code> riêng biệt; Kafka theo dõi con trỏ <code>offset</code> tách biệt theo từng <code>group.id</code> trong Topic <code>__consumer_offsets</code>.</li>
+            <li><strong>Replication, ISR &amp; Tam giác Vàng chống mất dữ liệu:</strong> Tập hợp <code>ISR</code> (In-Sync Replicas) là gì và điều kiện nào khiến một Follower bị trục xuất khỏi <code>ISR</code>? Tại sao trong môi trường Production bắt buộc phải kết hợp bộ ba <code>replication.factor = 3</code>, <code>min.insync.replicas = 2</code> và <code>unclean.leader.election.enable = false</code>?
+              <br><em>Đáp án:</em> <code>ISR</code> gồm Leader và các Follower đang kéo dữ liệu bám sát Leader trong ngưỡng thời gian <code>replica.lag.time.max.ms</code>; quá ngưỡng này Follower bị loại khỏi <code>ISR</code>. Bộ ba cấu hình đảm bảo mỗi Partition có 3 bản sao vật lý, mọi lệnh ghi (<code>acks=all</code>) phải được xác nhận bởi ít nhất 2 bản sao đồng bộ, và cấm tuyệt đối việc bầu một bản sao bị tụt hậu ngoài <code>ISR</code> lên làm Leader gây cắt cụt dữ liệu đã cam kết.</li>
+            <li><strong>Cạm bẫy <code>acks=1</code> &amp; Cơ chế <code>Exactly-once (EOS)</code>:</strong> Tại sao cấu hình <code>acks=1</code> trong chế độ <code>At-least-once</code> vẫn có thể làm mất đơn hàng <code>Order #8888</code>? Kafka kết hợp những cơ chế nào ở Producer, Broker và Consumer để đạt được <code>Exactly-once Semantics (EOS)</code>?
+              <br><em>Đáp án:</em> Với <code>acks=1</code>, Leader trả ACK ngay khi ghi xong vào nhật ký của riêng nó; nếu Leader sập trước khi các Follower kịp kéo bản ghi đó về, Leader mới được bầu lên sẽ không có bản ghi đó (mất dữ liệu). Để đạt <code>EOS</code>, Kafka kết hợp: (1) <code>acks=all</code> + <code>enable.idempotence=true</code> gắn <code>PID</code> và <code>Sequence Number</code> để Broker tự động loại bỏ các lần gửi lặp; (2) <code>TransactionCoordinator</code> ghi <code>Control Record (Commit Marker)</code> gom chung dữ liệu xuất và offset tiêu thụ vào một giao dịch nguyên tử; và (3) Consumer đặt <code>isolation.level=read_committed</code> để chỉ đọc các giao dịch đã cam kết.</li>
+            <li><strong>Mô hình Log Segment &amp; Log Compaction:</strong> Tại sao Kafka chia thư mục Partition thành các tệp <code>Log Segment</code> (<code>.log</code>, <code>.index</code>, <code>.timeindex</code>) thay vì lưu một tệp duy nhất? Sự khác biệt giữa <code>cleanup.policy=delete</code> (theo thời gian <code>7 days</code> hoặc dung lượng <code>1 GB</code>) và <code>cleanup.policy=compact</code> (kèm bản ghi bia mộ <code>Tombstone value=null</code>) là gì?
+              <br><em>Đáp án:</em> Chia thành các <code>Closed Segments</code> bất biến giúp thao tác xóa dữ liệu hết hạn trở thành lệnh <code>unlink()</code> tệp ở mức hệ điều hành với độ phức tạp $O(1)$, đồng thời hỗ trợ tìm kiếm nhanh qua chỉ mục thưa <code>.index</code> ánh xạ vào RAM. Chính sách <code>delete</code> cắt bỏ toàn bộ các phân đoạn cũ theo tuổi thọ (<code>retention.ms</code>) hoặc kích thước (<code>retention.bytes</code>), trong khi <code>compact</code> chỉ giữ lại bản ghi mới nhất cho mỗi khóa <code>key</code> và dùng bản ghi <code>Tombstone (value=null)</code> để thông báo xóa vĩnh viễn khóa đó sau thời gian <code>delete.retention.ms</code>.</li>
+          </ol>
+
+          <p style="margin-top:14px;"><a href="#/D01/5" onclick="selectStorageStage(5);return false;">Sang Chặng 5: Đường Ống CDC Thời Gian Thực Với Debezium &amp; Thách Thức Vận Hành Thực Chiến →</a></p>
+        </section>
+      </div>

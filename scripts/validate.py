@@ -181,11 +181,35 @@ def main():
         "4.3": "boxes",
     }
 
+    ingestion_expected_kinds = {
+        "0.1": "boxes",
+        "1.1": "boxes",
+        "1.2": "boxes",
+        "1.3": "boxes",
+        "2.1": "boxes",
+        "2.2": "boxes",
+        "2.3": "boxes",
+        "2.4": "boxes",
+        "3.1": "boxes",
+        "3.2": "boxes",
+        "3.3": "boxes",
+        "3.4": "boxes",
+        "4.1": "boxes",
+        "4.2": "boxes",
+        "4.3": "boxes",
+        "4.4": "boxes",
+        "4.5": "boxes",
+        "5.1": "boxes",
+        "5.2": "boxes",
+        "5.3": "boxes",
+    }
+
     suite_specs = [
         ("storage_diagrams", "Storage", expected_kinds),
         ("linux_diagrams", "Linux", linux_expected_kinds),
         ("db_diagrams", "DB", db_expected_kinds),
         ("container_diagrams", "Container", container_expected_kinds),
+        ("ingestion_diagrams", "Ingestion", ingestion_expected_kinds),
     ]
 
     for dict_key, label_prefix, kind_map in suite_specs:
@@ -226,8 +250,8 @@ def main():
 
     # 4. Verify all externalized lesson stage files have their section IDs, h2 headings, and Claude Editorial Standard compliance
     lesson_files = sorted((ROOT / "content" / "lessons").glob("*/*.html"))
-    if len(lesson_files) < 19:
-        raise SystemExit(f"Expected >= 19 lesson HTML files in content/lessons/, found {len(lesson_files)}")
+    if len(lesson_files) < 24:
+        raise SystemExit(f"Expected >= 24 lesson HTML files in content/lessons/, found {len(lesson_files)}")
     forbidden_stage_patterns = [
         r"<h3>\s*[1-5]\.\s*(Bối cảnh|Nỗi đau|Sơ đồ|Đúc kết|Kết nối)",
         r"\[Bổ sung Chuyên sâu",
@@ -376,6 +400,9 @@ def main():
         "buildInfra2DSimulatorHtml",
         "renderInfra2DSlide",
         "goToInfra2DSlide",
+        "buildIngestion2DSimulatorHtml",
+        "renderIngestion2DInteractiveStage",
+        "renderIngestion2DSlide",
     ):
         if fn not in html:
             raise SystemExit(f"Missing Academy / Colored ASCII / Glossary / 2D Simulator symbol in HTML: {fn}")
@@ -386,8 +413,8 @@ def main():
     g_entries = data["glossary"]["entries"]
     g_lookup = data["glossary"]["lookup"]
     g_stats = data["glossary"].get("stats", {})
-    if len(g_entries) < 70:
-        raise SystemExit(f"Expected >= 70 canonical glossary entries, found {len(g_entries)}")
+    if len(g_entries) < 80:
+        raise SystemExit(f"Expected >= 80 canonical glossary entries, found {len(g_entries)}")
     if len(g_lookup) < 500:
         raise SystemExit(f"Expected >= 500 exact normalized lookup keys in glossary, found {len(g_lookup)}")
     if g_stats.get("unclassified_count", 1) != 0:
@@ -446,12 +473,13 @@ def main():
         + len(linux_expected_kinds)
         + len(db_expected_kinds)
         + len(container_expected_kinds)
+        + len(ingestion_expected_kinds)
     )
     print(
-        f"PASS: Negative self-tests: 6/6 | JS syntax: valid | Runtime DOM QA: 19/19 pages + #/catalog + #/glossary (3 viewports) | "
+        f"PASS: Negative self-tests: 6/6 | JS syntax: valid | Runtime DOM QA: 24/24 pages + #/catalog + #/glossary (3 viewports) | "
         f"Anthropic Academy CDS Typography: verified | Glossary Scanner: {len(g_entries)} entries / {len(g_lookup)} lookup keys (0 unclassified) | "
         f"Colored ASCII checks: {char_checked}/{total_expected} char + {geom_checked}/{total_expected} geometry | "
-        f"Externalized Lessons: {len(lesson_files)}/19 stage files ({section_count} stations) | "
+        f"Externalized Lessons: {len(lesson_files)}/24 stage files ({section_count} stations) | "
         f"Quarantine verified: 0 live Picture/Mermaid bloat | Official slide TOCs: {len(slides)}/12 | Anti-slop audit: clean."
     )
 
