@@ -224,13 +224,30 @@ def main():
         if s not in html:
             raise SystemExit(f"Official slide missing from HTML Table of Contents: {s}")
 
-    # 4. Verify all 19 externalized lesson stage files have their section IDs and h2 headings present in HTML
+    # 4. Verify all externalized lesson stage files have their section IDs, h2 headings, and Claude Editorial Standard compliance
     lesson_files = sorted((ROOT / "content" / "lessons").glob("*/*.html"))
-    if len(lesson_files) != 19:
-        raise SystemExit(f"Expected 19 lesson HTML files in content/lessons/, found {len(lesson_files)}")
+    if len(lesson_files) < 19:
+        raise SystemExit(f"Expected >= 19 lesson HTML files in content/lessons/, found {len(lesson_files)}")
+    forbidden_stage_patterns = [
+        r"<h3>\s*[1-5]\.\s*(Bối cảnh|Nỗi đau|Sơ đồ|Đúc kết|Kết nối)",
+        r"\[Bổ sung Chuyên sâu",
+        r"\(Bước 0\s*[—-]",
+        r"\(Tương ứng Mục\s+\d+",
+        r"\[(Bối cảnh & Ẩn dụ|Định nghĩa chuẩn xác|Sơ đồ trực quan|Đúc kết Kỹ thuật)",
+    ]
     section_count = 0
     for lf in lesson_files:
         l_text = lf.read_text(encoding="utf-8")
+        if lf.name == "stage-1.html" and "<x-spine " not in l_text:
+            raise SystemExit(f"Missing <x-spine> header in {lf}")
+        if 'class="summary-section"' not in l_text and '-summary"' not in l_text:
+            raise SystemExit(f"Missing summary-section in {lf}")
+        for fig_cap in re.findall(r"<x-figure[^>]*>(.*?)</x-figure>", l_text, flags=re.S):
+            if not fig_cap.strip():
+                raise SystemExit(f"Empty <x-figure> caption in {lf}")
+        for pat in forbidden_stage_patterns:
+            if re.search(pat, l_text):
+                raise SystemExit(f"Forbidden scaffolding/meta-label pattern /{pat}/ found in {lf}")
         for sec_id in re.findall(r'<section class="lesson-section" id="([^"]+)"', l_text):
             section_count += 1
             if f'id="{sec_id}"' not in html:
