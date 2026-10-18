@@ -1,23 +1,16 @@
       <div class="prose">
-        <p>Ở <strong>Chặng 3</strong>, <strong>Đơn hàng #8888</strong> đã vượt qua đường ống ETL để đặt chân vào bên trong <strong>Data Warehouse (Kho dữ liệu)</strong>. Nhưng lúc này, một bài toán thiết kế mới lại nảy sinh: <em>Nếu chúng ta bê nguyên xi hàng trăm bảng dữ liệu có cấu trúc phức tạp từ phần mềm bán hàng (OLTP) vào trong Data Warehouse, chuyện gì sẽ xảy ra?</em></p>
-
-        <p>Khi Giám đốc Kinh doanh mở công cụ BI (như Power BI hoặc Tableau) để hỏi một câu đơn giản: <em>"Doanh thu bán hàng tại khu vực Bình Dương trong tháng này là bao nhiêu?"</em>, hệ thống sẽ phải nối (<code>JOIN</code>) hàng chục bảng chằng chịt với nhau, khiến câu lệnh chạy chậm rì rì và người dùng nghiệp vụ hoàn toàn bị lạc lối.</p>
-
-        <p>Đó là lý do ở <strong>Chặng 4 (Trạm cuối của Phần 1)</strong>, chúng ta phải học nghệ thuật <strong>Mô hình hóa dữ liệu (Data Modeling)</strong> và bộ kỹ thuật kinh điển của <strong>Ralph Kimball</strong> để sắp xếp lại Đơn hàng #8888 sao cho <strong>dễ hiểu nhất với con người và truy vấn nhanh nhất với máy tính</strong>.</p>
+        <p>Khi <strong>Đơn hàng #8888</strong> đã được nạp vào <strong>Data Warehouse (Kho dữ liệu)</strong>, việc giữ nguyên hàng trăm bảng chuẩn hóa phức tạp của hệ thống OLTP sẽ buộc các công cụ BI (Power BI, Tableau) phải thực hiện hàng chục phép nối (<code>JOIN</code>) đắt đỏ cho mỗi truy vấn doanh thu. <strong>Chặng 4</strong> giải quyết bài toán <strong>Mô hình hóa dữ liệu (Data Modeling)</strong> và hệ thống kỹ thuật Dimensional Modeling của <strong>Ralph Kimball</strong> để tổ chức dữ liệu trực quan cho người dùng nghiệp vụ và đạt tốc độ quét tối đa trên động cơ cột.</p>
 
         <hr />
 
         <h2 id="storage-4-1" tabindex="-1">Trạm 4.1: Ba cấp độ thiết kế mô hình dữ liệu (Conceptual → Logical → Physical)</h2>
 
-        <h3 id="storage-4-1-analogy">1. Ẩn dụ đời thực: &quot;Ba bản vẽ của người Kiến trúc sư xây nhà&quot;</h3>
-        <p>Trước khi đổ bê tông xây dựng các bảng dữ liệu trong kho để chứa Đơn hàng #8888, người kỹ sư dữ liệu không bao giờ gõ lệnh tạo bảng ngay lập tức mà phải đi qua <strong>3 cấp độ thiết kế từ trừu tượng đến vật lý</strong>:</p>
+        <p><span id="storage-4-1-analogy"></span><span id="storage-4-1-diagram"></span>Trước khi khởi tạo bảng vật lý trong kho dữ liệu cho Đơn hàng #8888, quy trình thiết kế chuẩn đi qua <strong>3 cấp độ từ trừu tượng đến vật lý</strong>:</p>
         <ul>
-          <li><strong>Conceptual Model (Mô hình Khái niệm — "Bản phác thảo nói chuyện với Chủ nhà"):</strong> Bản vẽ tổng quan nhất dùng để giao tiếp với ban giám đốc và bộ phận kinh doanh (Business), chỉ xác định các thực thể kinh doanh chính và mối quan hệ giữa chúng mà chưa bận tâm đến cột hay phần mềm nào.</li>
-          <li><strong>Logical Model (Mô hình Logic — "Bản thiết kế kiến trúc chi tiết"):</strong> Đi sâu vào chi tiết hóa từng bảng, liệt kê tên các cột thuộc tính (attributes), xác định rõ khóa chính (PK) và khóa ngoại (FK), nhưng vẫn hoàn toàn độc lập với phần mềm cơ sở dữ liệu cụ thể.</li>
-          <li><strong>Physical Model (Mô hình Vật lý — "Bản vẽ thi công điện nước thực tế"):</strong> Triển khai bản thiết kế lên một hệ quản trị cơ sở dữ liệu cụ thể, quyết định chính xác kiểu dữ liệu vật lý, cách chia phân vùng (Partitioning), gom cụm (Clustering) và đánh chỉ mục (Indexing).</li>
+          <li><strong>Conceptual Model (Mô hình Khái niệm):</strong> Bản vẽ tổng quan nhất dùng để thống nhất phạm vi với bộ phận kinh doanh (Business), xác định các thực thể cốt lõi và mối quan hệ giữa chúng mà chưa phụ thuộc vào cấu trúc cột hay hệ quản trị CSDL.</li>
+          <li><strong>Logical Model (Mô hình Logic):</strong> Chi tiết hóa từng bảng, liệt kê tên các cột thuộc tính (attributes), định nghĩa khóa chính (PK) và khóa ngoại (FK), nhưng vẫn độc lập với nền tảng CSDL vật lý.</li>
+          <li><strong>Physical Model (Mô hình Vật lý):</strong> Triển khai bản thiết kế lên một hệ quản trị CSDL cụ thể, ấn định kiểu dữ liệu vật lý, chiến lược chia phân vùng (Partitioning), gom cụm (Clustering) và đánh chỉ mục (Indexing).</li>
         </ul>
-
-        <h3 id="storage-4-1-diagram">2. Sơ đồ tiến hóa của Đơn hàng #8888 qua 3 cấp độ thiết kế</h3>
 
         <x-figure id="storage-4-1" key="4.1" title="Hình 4.1 — Tiến hóa của Đơn hàng #8888 qua 3 Cấp độ Thiết kế: Conceptual → Logical → Physical">Từ bản vẽ thực thể kinh doanh (Conceptual) sang lược đồ bảng/cột/khóa độc lập hệ quản trị (Logical) và triển khai vật lý trên CSDL (Physical).</x-figure>
 
@@ -29,7 +22,7 @@
 
         <h2 id="storage-4-2" tabindex="-1">Trạm 4.2: Ba trường phái mô hình hóa trong Data Warehouse (Inmon vs. Kimball vs. Data Vault)</h2>
 
-        <p>Khi bước vào thiết kế cấu trúc kho dữ liệu cho doanh nghiệp, lịch sử ngành dữ liệu chia thành <strong>3 trường phái lớn</strong> với triết lý tiếp cận rất khác nhau:</p>
+        <p>Kiến trúc kho dữ liệu doanh nghiệp phát triển qua <strong>3 trường phái lớn</strong> với triết lý tổ chức khác nhau:</p>
 
         <x-figure id="storage-4-2" key="4.2" title="Hình 4.2 — Ba Trường phái Mô hình hóa Data Warehouse: Bill Inmon vs. Ralph Kimball vs. Data Vault">Đối chiếu kiến trúc: Inmon (Top-down 3NF Enterprise DW phân phối xuống Data Marts), Kimball (Bottom-up Star Schema phục vụ BI trực tiếp) và Data Vault (Hubs, Links, Satellites nạp Insert-only).</x-figure>
 
@@ -43,17 +36,14 @@
 
         <h2 id="storage-4-3" tabindex="-1">Trạm 4.3: Trái tim của Kimball — Bảng sự kiện (Fact) vs. bảng thứ nguyên (Dimension) &amp; độ mịn (Grain)</h2>
 
-        <p>Trong phương pháp <strong>Mô hình hóa chiều (Dimensional Modeling)</strong> của Ralph Kimball, toàn bộ dữ liệu xoay quanh Đơn hàng #8888 được tách bạch thành hai loại bảng cốt lõi: <strong>Bảng Fact (Sự kiện / Đo lường)</strong> và <strong>Bảng Dimension (Thứ nguyên / Ngữ cảnh)</strong>:</p>
+        <p><span id="storage-4-3-fact"></span><span id="storage-4-3-additivity"></span>Trong phương pháp <strong>Mô hình hóa chiều (Dimensional Modeling)</strong> của Ralph Kimball, toàn bộ dữ liệu xoay quanh Đơn hàng #8888 được tách bạch thành hai loại bảng cốt lõi: <strong>Bảng Fact (Sự kiện / Đo lường)</strong> và <strong>Bảng Dimension (Thứ nguyên / Ngữ cảnh)</strong>:</p>
 
-        <x-figure id="storage-4-3" key="4.3" title="Hình 4.3a — Phân tách Đơn hàng #8888 thành Bảng Dimension (Ngữ cảnh) và Bảng Fact (Đo lường tại 1 Grain)">Bảng Dimension (Rộng & Ngắn) cung cấp ngữ cảnh lọc/gom nhóm nối qua khóa PK/FK vào bảng Fact (Hẹp & Rất dài) chứa các số đo định lượng bất biến tại một độ mịn nguyên tử cố định.</x-figure>
+        <x-figure id="storage-4-3" key="4.3" title="Hình 4.3a — Phân tách Đơn hàng #8888 thành Bảng Dimension (Ngữ cảnh) và Bảng Fact (Đo lường tại 1 Grain)">Bảng Dimension (Rộng &amp; Ngắn) cung cấp ngữ cảnh lọc/gom nhóm nối qua khóa PK/FK vào bảng Fact (Hẹp &amp; Rất dài) chứa các số đo định lượng bất biến tại một độ mịn nguyên tử cố định.</x-figure>
 
-        <h3 id="storage-4-3-fact">1. Quy tắc Sống còn của Bảng Fact &amp; Bảng Dimension</h3>
         <ul>
           <li><strong>Bảng Fact (Narrow &amp; Long, Immutable &amp; Append-only):</strong> Lưu các con số định lượng tại <strong>độ mịn nguyên tử thấp nhất (lowest atomic grain)</strong>; tuyệt đối không trộn lẫn số đo lệch độ mịn (như tiền lương cửa hàng trưởng vào bảng giao dịch bán lẻ), không nối trực tiếp 2 bảng Fact với nhau, và giữ mã hóa đơn Ma_Don = 8888 làm <strong>Chiều suy biến (Degenerate Dimension - DD)</strong>.</li>
           <li><strong>Bảng Dimension (Wide &amp; Short):</strong> Lưu thuộc tính văn bản phi chuẩn hóa trả lời <em>Ai, Cái gì, Ở đâu, Khi nào</em> phục vụ lọc (<code>WHERE</code>) và gom nhóm (<code>GROUP BY</code>), luôn đi kèm bảng <strong><code>Dim_Date</code></strong> tạo sẵn theo khóa thông minh YYYYMMDD (như 20261015).</li>
         </ul>
-
-        <h3 id="storage-4-3-additivity">2. Phân loại Số đo (Additivity) &amp; 3 Kiểu Bảng Fact Chuẩn của Kimball</h3>
 
         <x-figure id="storage-4-3b" key="4.3b" title="Hình 4.3b — Phân loại Số đo (Additivity) &amp; 3 Kiểu Bảng Fact Chuẩn của Ralph Kimball">Ba mức cộng gộp số đo (Additive, Semi-additive, Non-additive) và ba kiểu bảng Fact chuẩn (Transaction Fact, Periodic Snapshot Fact, Accumulating Snapshot Fact).</x-figure>
 
@@ -61,13 +51,10 @@
 
         <h2 id="storage-4-4" tabindex="-1">Trạm 4.4: Ba kiến trúc bố trí bảng — Star Schema vs. Snowflake Schema vs. OBT (&amp; OLAP Cubes)</h2>
 
-        <p>Khi ghép bảng Fact và các bảng Dimension lại với nhau, người kỹ sư có <strong>3 lựa chọn kiến trúc sơ đồ</strong> tùy thuộc vào công cụ truy vấn và bài toán hiệu năng:</p>
-
-        <h3 id="storage-4-4-diagram">1. Sơ đồ trực quan hóa 3 Kiến trúc: Star Schema vs. Snowflake Schema vs. OBT</h3>
+        <p><span id="storage-4-4-diagram"></span><span id="storage-4-4-table"></span>Khi ghép bảng Fact và các bảng Dimension lại với nhau, người kỹ sư có <strong>3 lựa chọn kiến trúc sơ đồ</strong> tùy thuộc vào công cụ truy vấn và bài toán hiệu năng:</p>
 
         <x-figure id="storage-4-4" key="4.4" title="Hình 4.4 — Ba Kiến trúc Bố trí Bảng: Star Schema vs. Snowflake Schema vs. OBT (One Big Table)">Đối chiếu cấu trúc kết nối: Star Schema (1 cấp JOIN từ Fact ra các Dimension phi chuẩn hóa), Snowflake Schema (chuẩn hóa tách nhánh Sub-dimension, tốn nhiều JOIN) và OBT (bảng phẳng gộp sẵn toàn bộ cột, 0 JOIN).</x-figure>
 
-        <h3 id="storage-4-4-table">2. Đặt lên bàn cân: Khi nào dùng Star, Snowflake, OBT hay OLAP Cube?</h3>
         <div class="table-wrap">
           <table class="clean-table">
             <thead>
@@ -113,15 +100,13 @@
 
         <h2 id="storage-4-5" tabindex="-1">Trạm 4.5: Bộ ba kỹ thuật sống còn của Kimball — Surrogate Key, SCD (Type 1, 2 &amp; 3) &amp; Bus Matrix</h2>
 
-        <p>Đây là trạm kiến thức thực chiến quan trọng nhất thường xuyên xuất hiện trong các buổi phỏng vấn và thiết kế kiến trúc Data Warehouse thực tế:</p>
-
-        <h3 id="storage-4-5-sk">1. Khóa thay thế (Surrogate Keys) vs. Khóa tự nhiên (Natural Keys)</h3>
+        <h3 id="storage-4-5-sk">Khóa thay thế (Surrogate Keys) vs. Khóa tự nhiên (Natural Keys)</h3>
         <ul>
           <li><strong>Vấn đề thực tế:</strong> Trên hệ thống phần mềm bán hàng nguồn, khách hàng đặt Đơn #8888 có mã tự nhiên (Natural Key) là <code>'KH_001'</code>. Nếu bạn dùng thẳng mã <code>'KH_001'</code> làm khóa chính trong Data Warehouse, kho dữ liệu của bạn sẽ bị phụ thuộc chặt vào hệ thống nguồn (ví dụ: nguồn đổi quy tắc đặt mã hoặc gộp nhiều nguồn bị trùng mã) và không thể lưu được nhiều phiên bản lịch sử của cùng một khách hàng.</li>
           <li><strong>Giải pháp Surrogate Key:</strong> Kimball sử dụng một <strong>khóa số nguyên tự sinh vô nghĩa về mặt nghiệp vụ (Surrogate Key — ví dụ: 101, 205)</strong> để thay thế hoàn toàn cho mã tự nhiên của hệ thống nguồn khi nối bảng Fact và Dimension, giúp <strong>cách ly Data Warehouse khỏi biến động của hệ thống nguồn</strong>, tăng tốc độ phép nối (<code>JOIN</code> trên số nguyên 4-byte/8-byte nhanh hơn nhiều so với chuỗi ký tự) và làm nền tảng bắt buộc để xử lý lịch sử <strong>SCD</strong>.</li>
         </ul>
 
-        <h3 id="storage-4-5-scd">2. Quản lý chiều thay đổi chậm — SCD (Slowly Changing Dimensions: Type 1, Type 2 &amp; Type 3)</h3>
+        <h3 id="storage-4-5-scd">Quản lý chiều thay đổi chậm — SCD (Slowly Changing Dimensions: Type 1, Type 2 &amp; Type 3)</h3>
         <p>Dữ liệu trong bảng Fact là bất biến, nhưng thông tin trong bảng Dimension lại thay đổi theo thời gian — gọi là <strong>Slowly Changing Dimensions (SCD)</strong>. Hãy xem điều gì xảy ra với Đơn hàng #8888 (mua ngày 15/10/2026 tại <strong>Bình Dương</strong>, 5.000.000 VNĐ) khi khách hàng <strong>Nguyễn Văn A (<code>'KH_001'</code>)</strong> chuyển nhà lên <strong>TP.HCM</strong> vào ngày 01/11/2026 và mua tiếp Đơn #9999 (8.000.000 VNĐ):</p>
 
         <x-figure id="storage-4-5a" key="4.5a" title="Hình 4.5a — Đối chiếu Trực quan 3 Chiến lược SCD: Type 1 (Ghi đè) vs. Type 2 (Thêm dòng) vs. Type 3 (Thêm cột)">Tác động lên báo cáo lịch sử của Đơn hàng #8888 khi khách hàng chuyển từ Bình Dương lên TP.HCM: SCD Type 1 làm mất dấu lịch sử, SCD Type 2 bảo toàn trọn vẹn nhờ Surrogate Key mới (101 → 205), và SCD Type 3 mở thêm cột trạng thái cũ/mới trên cùng dòng.</x-figure>
@@ -166,8 +151,7 @@
           </table>
         </div>
 
-        <h3 id="storage-4-5-bus">3. Kiến trúc Tuyến Doanh nghiệp (Enterprise DW Bus Matrix) &amp; Chiều đồng nhất (Conformed Dimensions)</h3>
-        <p>Mảnh ghép cuối cùng của Kimball giải quyết bài toán quy hoạch toàn công ty:</p>
+        <h3 id="storage-4-5-bus">Kiến trúc Tuyến Doanh nghiệp (Enterprise DW Bus Matrix) &amp; Chiều đồng nhất (Conformed Dimensions)</h3>
         <ul>
           <li><strong>Nguy cơ phân mảnh:</strong> Nếu phòng Kinh doanh, phòng Kho vận và phòng Tài chính mỗi bên tự xây dựng các bảng Dimension riêng rẽ không theo chuẩn chung, báo cáo toàn công ty sẽ không thể ghép nối với nhau (rơi vào bẫy <em>Isolated Data Marts</em> mà Bill Inmon từng cảnh báo).</li>
           <li><strong>Giải pháp Enterprise Bus Matrix:</strong> Là một bảng ma trận quy hoạch trong đó các hàng là các <strong>quy trình nghiệp vụ (Business Processes — như Bán lẻ Retail Sales, Tồn kho Inventory, Mua hàng Procurement)</strong> và các cột là các <strong>chiều dùng chung (Conformed Dimensions — như <code>Dim_Date</code>, <code>Dim_Product</code>, <code>Dim_Customer</code>, <code>Dim_Store</code>)</strong>.</li>
@@ -180,13 +164,13 @@
         </ul>
 
         <section class="summary-section" id="storage-4-summary" tabindex="-1">
-          <h2>Tổng kết Chặng 4 &amp; khép lại trọn vẹn phần 1 (4 Nguyên tắc mô hình hóa)</h2>
+          <h2>Tóm tắt bỏ túi Chặng 4 (4 Nguyên tắc mô hình hóa)</h2>
           <ol>
             <li><strong>Ba cấp độ mô hình hóa &amp; Quy trình 4 bước:</strong> Khi thiết kế kho dữ liệu cho <strong>Đơn hàng #8888</strong>, ta đi qua <strong>3 cấp độ mô hình hóa</strong>: Conceptual (tổng quan thực thể cho Business) → Logical (chi tiết bảng, cột, PK/FK) → Physical (triển khai kiểu dữ liệu, Partition, Clustering, Index lên CSDL) kết hợp quy trình 4 bước của Kimball (<em>Chọn quy trình → Tuyên bố Grain → Xác định Dimensions → Xác định Facts</em>).</li>
             <li><strong>Ba trường phái &amp; Cặp bài trùng Fact – Dimension:</strong> Trong 3 trường phái (<strong>Inmon</strong> chuẩn hóa 3NF theo 4 tính chất <em>Subject-oriented, Integrated, Nonvolatile, Time-variant</em>; <strong>Kimball</strong> phi chuẩn hóa theo chiều; và <strong>Data Vault</strong> nạp insert-only vào <em>Hubs, Links, Satellites</em>), mô hình chiều của <strong>Kimball</strong> tách dữ liệu thành bảng <strong>Fact</strong> (số đo định lượng Additive / Semi-additive / Non-additive tại một <strong>Grain</strong> nguyên tử cố định, bất biến, hẹp và dài) và bảng <strong>Dimension</strong> (ngữ cảnh rộng và ngắn mô tả ai, cái gì, ở đâu, khi nào).</li>
             <li><strong>Ba sơ đồ bố trí bảng:</strong> Tùy nhu cầu truy vấn, ta bố trí theo <strong>Star Schema</strong> (chuẩn vàng cho BI, ít JOIN), <strong>Snowflake Schema</strong> (chuẩn hóa các bảng Dim thành nhánh con), hoặc <strong>OBT</strong> (gộp phẳng toàn bộ để loại bỏ JOIN trên Cloud Columnar Engine).</li>
             <li><strong>Bộ ba vũ khí bảo toàn lịch sử &amp; chống phân mảnh:</strong> Để bảo vệ kho khỏi biến động nguồn, lưu trọn vẹn lịch sử thay đổi và thống nhất toàn công ty, ta dùng bộ 3 vũ khí: <strong>Surrogate Keys</strong>, <strong>SCD Type 1, Type 2 (<code>start_date</code>, <code>end_date</code>, <code>is_current</code>) &amp; Type 3 (cột cũ/mới)</strong>, và <strong>Enterprise Bus Matrix (Conformed Dimensions)</strong>.</li>
           </ol>
-          <p style="margin-top:14px;"><strong>Bước ngoặt mở ra Phần 2 (Chặng 5 — From Data Lake to Data Swamp):</strong> Vậy là chúng ta đã hoàn thành trọn vẹn <strong>100% kiến thức Phần 1 (Chặng 1 → Chặng 4)</strong>! Ở <strong>Phần 2 (Chặng 5)</strong>, câu chuyện rẽ sang một bước ngoặt mới: <em>Khi công ty mang toàn bộ dữ liệu thô, hình ảnh, JSON clickstream của Đơn hàng #8888 đổ ồ ạt xuống hồ dữ liệu Data Lake (S3) theo cơ chế Schema-on-Read, tại sao chỉ sau 6 tháng hồ nước trong lành lại biến thành một "Đầm lầy dữ liệu" (Data Swamp) không ai dám đụng vào?</em> <a href="#topic=D02&stage=5" onclick="selectStorageStage(5);return false;">Đọc ngay Chặng 5 ──►</a></p>
+          <p style="margin-top:14px;"><strong>Chặng tiếp theo:</strong> <a href="#topic=D02&stage=5" onclick="selectStorageStage(5);return false;">Chặng 5: Từ Data Lake đến Data Swamp &amp; 3 Lỗ hổng Công cụ ──►</a></p>
         </section>
       </div>

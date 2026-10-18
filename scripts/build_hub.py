@@ -915,13 +915,13 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   .academy-brand-btn {
     display: inline-flex;
     align-items: center;
-    gap: 9px;
+    gap: 11px;
     color: var(--cds-text-primary);
     border: 0;
     background: transparent;
     border-radius: 8px;
-    padding: 0 8px;
-    height: 36px;
+    padding: 0 10px;
+    height: 38px;
     cursor: pointer;
     transition: background 0.14s ease;
   }
@@ -929,28 +929,37 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     background: var(--cds-fill-ghost-hover);
   }
   .academy-brand-mark {
-    width: 22px;
-    height: 22px;
-    border-radius: 6px;
-    border: 1.5px solid var(--cds-text-primary);
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-border);
+    color: var(--cds-clay);
     display: inline-flex;
     align-items: center;
     justify-content: center;
     position: relative;
     flex-shrink: 0;
+    transition: border-color 0.16s ease, background 0.16s ease;
   }
-  .academy-brand-mark::after {
-    content: "";
-    width: 6px;
-    height: 6px;
-    border-radius: 999px;
-    background: var(--cds-clay);
+  .academy-brand-btn:hover .academy-brand-mark {
+    border-color: var(--cds-clay);
+  }
+  .academy-brand-mark svg {
+    width: 16px;
+    height: 16px;
+    display: block;
+  }
+  .academy-brand-wordmark {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 9px;
   }
   .academy-brand-main {
     font-family: var(--cds-font-sans);
-    font-weight: 600;
-    font-size: 13.5px;
-    letter-spacing: 0.08em;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--cds-text-primary);
   }
@@ -958,12 +967,13 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     width: 1px;
     height: 14px;
     background: var(--cds-border-strong);
+    align-self: center;
     flex-shrink: 0;
   }
   .academy-brand-sub {
     font-family: var(--cds-font-serif);
     font-weight: 400;
-    font-size: 17px;
+    font-size: 17.5px;
     letter-spacing: -0.01em;
     color: var(--cds-text-secondary);
   }
@@ -3081,26 +3091,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     text-decoration: underline;
   }
 
-  /* Mobile Dev Preview Frame Mode (Simulate Mobile Phone on Desktop) */
-  body.mobile-dev-preview {
-    background: #141413;
-  }
-  body.mobile-dev-preview .topbar,
-  body.mobile-dev-preview .layout {
-    max-width: 390px;
-    margin-inline: auto;
-    border-inline: 1px solid var(--cds-border-strong);
-    background: var(--cds-surface-0);
-  }
-  body.mobile-dev-preview .layout {
-    grid-template-columns: 0px minmax(0, 1fr) 0px !important;
-  }
-  body.mobile-dev-preview .rail-slot,
-  body.mobile-dev-preview .page-toc-slot,
-  body.mobile-dev-preview .hide-mobile {
-    display: none !important;
-  }
-
   /* ==========================================================================
      8. RESPONSIVE MOBILE & TABLET BREAKPOINTS (390px / 768px)
      ========================================================================== */
@@ -3739,13 +3729,16 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       </button>
       <button class="academy-brand-btn" id="catalogNavBtn" type="button" onclick="openCatalogView()" title="FSDS Learning Academy — Xem toàn bộ Danh mục 26 Học phần">
         <span class="academy-brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 16 16" fill="none">
-            <path d="M8 1.5L9.65 6.35L14.5 8L9.65 9.65L8 14.5L6.35 9.65L1.5 8L6.35 6.35L8 1.5Z" fill="currentColor"/>
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2.75L14.35 9.65L21.25 12L14.35 14.35L12 21.25L9.65 14.35L2.75 12L9.65 9.65L12 2.75Z" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/>
+            <circle cx="12" cy="12" r="2.25" fill="currentColor"/>
           </svg>
         </span>
-        <span class="academy-brand-main">FSDS</span>
-        <span class="academy-brand-sep" aria-hidden="true"></span>
-        <span class="academy-brand-sub" id="brandSubLabel">Academy</span>
+        <span class="academy-brand-wordmark">
+          <span class="academy-brand-main">FSDS</span>
+          <span class="academy-brand-sep" aria-hidden="true"></span>
+          <span class="academy-brand-sub" id="brandSubLabel">Academy</span>
+        </span>
       </button>
       <span class="topbar-divider hide-mobile" aria-hidden="true"></span>
       <nav class="topbar-nav-tabs hide-mobile" aria-label="Điều hướng nền tảng">
@@ -3783,10 +3776,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       <button class="lang-switch-btn" id="langToggleBtn" type="button" onclick="toggleAppLanguage()" title="Chuyển đổi ngôn ngữ Tiếng Việt ↔ English (AI Auto-Translate + TTL Cache)">
         <span class="lang-opt active" id="langOptVi">VI</span>
         <span class="lang-opt" id="langOptEn">EN</span>
-      </button>
-
-      <button class="ui-btn hide-mobile" id="mobilePreviewBtn" type="button" onclick="toggleMobileDevPreview()" title="Xem thử khung giao diện Mobile Chrome (390px)">
-        <span id="mobilePreviewLabel">◈ Mobile</span>
       </button>
 
       <button class="ui-btn" id="themeToggleBtn" type="button" title="Chuyển chế độ màu Sáng / Tối">
@@ -7386,15 +7375,6 @@ Chỉ trả về DUY NHẤT 1 JSON object hợp lệ gồm 5 trường (không b
       pop.classList.remove("open");
     }
   });
-
-  function toggleMobileDevPreview() {
-    const active = document.body.classList.toggle("mobile-dev-preview");
-    const btn = document.getElementById("mobilePreviewBtn");
-    const lbl = document.getElementById("mobilePreviewLabel");
-    if (btn) btn.classList.toggle("active", active);
-    if (lbl) lbl.textContent = active ? "◈ Desktop" : "◈ Mobile";
-    showToast(active ? "Đã bật chế độ xem thử Mobile Chrome (390px)" : "Đã trở về khung nhìn Desktop đầy đủ");
-  }
 
   function applyTheme(mode) {
     const isLight = (mode === "light");

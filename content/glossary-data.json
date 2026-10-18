@@ -4318,9 +4318,9 @@
   "stats": {
     "curated_entries": 74,
     "total_canonical_entries": 74,
-    "total_unique_candidates": 1651,
-    "bound_term_candidates": 157,
-    "classified_non_terms": 1494,
+    "total_unique_candidates": 1679,
+    "bound_term_candidates": 215,
+    "classified_non_terms": 1464,
     "unclassified_candidates": 0,
     "unclassified_count": 0,
     "lookup_keys": 1157,

@@ -1,15 +1,13 @@
       <div class="prose">
         <div class="callout">
-          <div class="callout-title">Liên kết Mạch truyện: Từ Đầm lầy Dữ liệu Data Swamp (Chặng 5) đến "Bộ não Giao dịch" của Kiến trúc Data Lakehouse (Chặng 6)</div>
-          <p>Ở cuối <strong>Chặng 5 (Phần 2)</strong>, chúng ta đã chứng kiến bi kịch của <strong>Đơn hàng #8888</strong>: khi công ty đổ toàn bộ dữ liệu thô xuống <strong>Data Lake (S3)</strong> mà không có "bộ não" kiểm soát, một tác vụ Spark bị đứt mạng giữa chừng đã để lại tệp rác ghi dở <code>3.parquet</code> nằm cạnh tệp chạy lại <code>3_v2.parquet</code>, khiến doanh thu của Đơn #8888 bị tính gấp đôi và biến hồ dữ liệu thành một <strong>Đầm lầy dữ liệu (Data Swamp)</strong> không ai dám tin dùng.</p>
-          <p style="margin-top:8px;">Bước vào <strong>Chặng 6 (Phần 3: Kiến trúc Lakehouse &amp; Bộ ba Open Table Formats)</strong> — chặng nặng ký nhất, đắt giá nhất trong mọi kỳ phỏng vấn Data Engineering hiện đại — chúng ta sẽ giải mã câu hỏi: <em>Làm thế nào để lắp một "Bộ não giao dịch" lên ngay phía trên các tệp Parquet bất biến của S3, biến một cái hồ hỗn loạn thành một hệ thống vừa rẻ như Data Lake vừa thông minh, kỷ luật như Data Warehouse?</em></p>
+          <div class="callout-title">Từ Đầm lầy Dữ liệu Data Swamp (Chặng 5) đến Lớp Siêu dữ liệu Giao dịch của Data Lakehouse (Chặng 6)</div>
+          <p>Ở <strong>Chặng 5</strong>, khi một tác vụ Spark đứt mạng giữa chừng để lại tệp rác ghi dở <code>3.parquet</code> nằm cạnh tệp chạy lại <code>3_v2.parquet</code> trên S3, chuẩn bảng thư mục kiểu cũ cộng trùng doanh thu của <strong>Đơn hàng #8888</strong> gấp đôi. <strong>Chặng 6</strong> giải quyết tận gốc bài toán này bằng cách đặt một lớp <strong>Transactional Metadata (Open Table Formats: Delta Lake, Apache Iceberg, Apache Hudi)</strong> ngay phía trên các tệp Parquet bất biến của Cloud Object Storage.</p>
         </div>
 
         <h2 id="storage-6-1" tabindex="-1">Trạm 6.1: Kiến trúc Data Lakehouse &amp; bước ngoặt &quot;Định nghĩa lại một bảng&quot;</h2>
-        <p><em>(Tương ứng mục 01/ Kiến trúc Lakehouse: Kết hợp Data Lake + Data Warehouse &amp; Tách rời Compute - Storage)</em></p>
 
-        <h3 id="storage-6-1-convergence">1. Phép cộng hoàn hảo: Data Warehouse + Data Lake = Data Lakehouse</h3>
-        <p>Thuật ngữ <strong>Lakehouse</strong> lần đầu tiên được đặt ra bởi Michael Armbrust và các cộng sự trong bài báo khoa học <em>"Lakehouse: A New Generation of Open Platforms That Unify Data Warehousing and Advanced Analytics"</em> tại hội nghị CIDR năm 2021. Kiến trúc này ra đời nhằm giải quyết triệt để những giới hạn của cả Data Lake truyền thống lẫn Data Warehouse bằng cách lấy những phẩm chất tốt nhất của cả hai thế giới:</p>
+        <h3 id="storage-6-1-convergence">Hợp nhất Data Warehouse + Data Lake = Data Lakehouse</h3>
+        <p>Thuật ngữ <strong>Lakehouse</strong> được chuẩn hóa bởi Michael Armbrust và các cộng sự trong bài báo <em>"Lakehouse: A New Generation of Open Platforms That Unify Data Warehousing and Advanced Analytics"</em> (CIDR 2021), hợp nhất kỷ luật giao dịch của Data Warehouse với chi phí và tính mở của Data Lake:</p>
 
         <x-figure id="storage-6-1a" key="6.1a" title="Hình 6.1a — Sơ đồ Giao thoa Kiến trúc Data Lakehouse (CIDR 2021)">Sự hợp nhất giữa kỷ luật quản trị, giao dịch ACID và tốc độ truy vấn BI của Data Warehouse với chi phí lưu trữ siêu rẻ (~$0.02/GB/tháng), định dạng mở và khả năng phục vụ AI/ML của Data Lake.</x-figure>
 
@@ -17,10 +15,10 @@
           <li><strong>Tiến hóa 3 Thế hệ Nền tảng Dữ liệu (<em>CIDR 2021</em> &amp; <em>Delta Lake: The Definitive Guide</em>):</strong> <strong>Thế hệ 1 (Data Warehouse)</strong> gắn chặt Compute-Storage đắt đỏ và mù dữ liệu phi cấu trúc; <strong>Thế hệ 2 (Two-Tier: Data Lake + Warehouse)</strong> mắc 4 căn bệnh hệ thống (ETL hai chặng dễ gãy, dữ liệu bị trễ Stale data, ML/PyTorch không đọc trực tiếp được Warehouse, và TCO đội gấp đôi do lưu trùng lặp); <strong>Thế hệ 3 (Data Lakehouse)</strong> đặt trực tiếp tầng giao dịch ACID lên trên Apache Parquet / S3, xóa bỏ hoàn toàn việc chép dữ liệu sang kho thứ hai.</li>
         </ul>
 
-        <h3 id="storage-6-1-3tier">2. Kiến trúc 3 Tầng của Lakehouse &amp; Nguyên lý Tách rời Compute – Storage</h3>
-        <p>Để vận hành linh hoạt và tiết kiệm chi phí, Lakehouse tách biệt hoàn toàn <strong>Tầng tính toán (Compute)</strong> và <strong>Tầng lưu trữ (Storage)</strong>, đồng thời chèn thêm một <strong>Tầng giao dịch (Transaction Layer)</strong> ở chính giữa:</p>
+        <h3 id="storage-6-1-3tier">Kiến trúc 3 Tầng của Lakehouse &amp; Nguyên lý Tách rời Compute – Storage</h3>
+        <p>Lakehouse tách biệt hoàn toàn <strong>Tầng tính toán (Compute)</strong> và <strong>Tầng lưu trữ (Storage)</strong>, đồng thời chèn thêm <strong>Tầng giao dịch (Transaction Layer)</strong> ở chính giữa:</p>
 
-        <x-figure id="storage-6-1b" key="6.1b" title="Hình 6.1b — Kiến trúc 3 Tầng của Hệ thống Data Lakehouse &amp; Phân tách File Format vs. Table Format">Kiến trúc 3 tầng chuẩn của một hệ thống Data Lakehouse: (1) Query Engines / Ephemeral Compute có bộ đệm cục bộ, (2) Transaction & Table Format Layer đảm nhận ACID và Table Services, (3) Cloud Object Storage lưu trữ Data Files (Parquet/ORC/Avro) và Metadata Files.</x-figure>
+        <x-figure id="storage-6-1b" key="6.1b" title="Hình 6.1b — Kiến trúc 3 Tầng của Hệ thống Data Lakehouse &amp; Phân tách File Format vs. Table Format">Kiến trúc 3 tầng chuẩn của một hệ thống Data Lakehouse: (1) Query Engines / Ephemeral Compute có bộ đệm cục bộ, (2) Transaction &amp; Table Format Layer đảm nhận ACID và Table Services, (3) Cloud Object Storage lưu trữ Data Files (Parquet/ORC/Avro) và Metadata Files.</x-figure>
 
         <ul>
           <li><strong>Tách rời Compute – Storage &amp; 3 Vũ khí Tăng tốc BI (<em>CIDR 2021</em>):</strong> Đơn hàng #8888 nằm trên S3 giá rẻ (~$0.02/GB/tháng), còn các cụm <strong>Ephemeral Clusters</strong> chỉ bật khi chạy job. Dù S3 có độ trễ ~100 ms, Lakehouse vẫn đạt tốc độ BI ngang ngửa Data Warehouse nhờ 3 trụ cột: (1) <strong>Hot Data Caching</strong> trên NVMe SSD/RAM cục bộ của nút tính toán, (2) <strong>Auxiliary Data &amp; Layout</strong> (Min/Max, Bloom Filter, gom cụm Z-Order / Hilbert Curve) giúp bỏ qua 95–99% tệp (Data Skipping), và (3) <strong>Vectorized Execution</strong> (Photon, Velox, DuckDB, Trino) xử lý cột trên Apache Arrow bằng lệnh phần cứng SIMD.</li>
@@ -30,12 +28,11 @@
         </ul>
 
         <h2 id="storage-6-2" tabindex="-1">Trạm 6.2: Giải phẫu &quot;Bộ não&quot; Của bộ ba Open Table Formats (Delta Lake, Iceberg, Hudi)</h2>
-        <p><em>(Tương ứng mục 02.1/ Cơ chế Metadata &amp; Transaction Log: <code>_delta_log</code>, Iceberg 3-layer tree, Hudi Timeline/Index)</em></p>
 
-        <p>Dù có chung mục tiêu quản lý danh sách tệp Parquet trên Object Storage, nhưng <strong>Delta Lake</strong>, <strong>Apache Iceberg</strong> và <strong>Apache Hudi</strong> lại thiết kế "bộ não" lưu trữ siêu dữ liệu theo 3 cơ chế kiến trúc rất đặc trưng:</p>
+        <p>Cùng quản lý danh sách tệp Parquet hợp lệ trên Object Storage, nhưng <strong>Delta Lake</strong>, <strong>Apache Iceberg</strong> và <strong>Apache Hudi</strong> tổ chức cấu trúc siêu dữ liệu theo 3 cơ chế kiến trúc khác biệt:</p>
 
-        <h3 id="storage-6-2-delta">1. Cơ chế của Delta Lake: Nhật ký giao dịch tuần tự _delta_log</h3>
-        <p>Giống như một <strong>cuốn sổ cái kế toán ghi nối đuôi theo thứ tự thời gian</strong>, mọi giao dịch thay đổi bảng đều sinh ra một tệp JSON 20 chữ số tuần tự (<code>000000.json</code>, <code>000001.json</code>...) trong thư mục <strong><code>_delta_log/</code></strong>:</p>
+        <h3 id="storage-6-2-delta">Delta Lake: Nhật ký giao dịch tuần tự _delta_log</h3>
+        <p>Mọi giao dịch thay đổi bảng trong Delta Lake đều ghi nối đuôi một tệp JSON 20 chữ số tuần tự (<code>000000.json</code>, <code>000001.json</code>...) trong thư mục <strong><code>_delta_log/</code></strong>:</p>
 
         <x-figure id="storage-6-2a" key="6.2a" title="Hình 6.2a — Cách Delta Lake (_delta_log) cứu Đơn hàng #8888 khỏi tệp ghi dở (Zombie Writes)">Cơ chế nhật ký giao dịch tuần tự _delta_log của Delta Lake: mọi truy vấn đều đối chiếu danh sách tệp hợp lệ từ tệp Checkpoint và các tệp JSON commit, khiến tệp ghi dở 3_zombie_partial.parquet tự động tàng hình 100%.</x-figure>
 
@@ -43,19 +40,19 @@
           <li><strong>Giải phẫu 6 loại Action trong JSON &amp; Cơ chế <code>_last_checkpoint</code> (<em>Delta Lake: The Definitive Guide</em>, tr. 36–45):</strong> Mỗi tệp commit JSON chứa 6 loại bản ghi hành động: (1) <strong>protocol</strong> (minReaderVersion / minWriterVersion), (2) <strong>metaData</strong> (schema, partitionColumns, cấu hình bảng), (3) <strong>add</strong> (đăng ký tệp Parquet mới hợp lệ kèm stats: numRecords, minValues, maxValues, nullCount cho 32 cột đầu), (4) <strong>remove</strong> (bản ghi bia mộ tombstone gỡ tệp cũ khỏi bản hiện hành nhưng giữ tệp vật lý cho Time Travel kèm deletionTimestamp), (5) <strong>commitInfo</strong> (nhật ký kiểm toán), và (6) <strong>cdc</strong> (trỏ tới <code>_change_data</code>). Cứ sau mỗi <strong>10 commits</strong>, Delta Lake tự động gộp trạng thái từ đầu bảng thành tệp <strong><code>.checkpoint.parquet</code></strong> (hỗ trợ cả <em>V2 Checkpoints</em> với <em>sidecar Parquet</em>) và cập nhật con trỏ <strong><code>_last_checkpoint</code></strong> để động cơ đọc nhảy thẳng tới mốc gần nhất mà không cần quét lại hàng vạn tệp JSON cũ!</li>
         </ul>
 
-        <h3 id="storage-6-2-iceberg">2. Cơ chế của Apache Iceberg: Cây Siêu dữ liệu 3 Tầng (3-Layer Metadata Tree)</h3>
-        <p>Giống như <strong>mục lục phân cấp của một đại thư viện quốc gia</strong>, Iceberg quản lý bảng quy mô Petabyte qua cây 3 tầng từ Catalog → Metadata File (.json) → Manifest List (.avro) → Manifest Files (.avro):</p>
+        <h3 id="storage-6-2-iceberg">Apache Iceberg: Cây Siêu dữ liệu 3 Tầng (3-Layer Metadata Tree)</h3>
+        <p>Iceberg quản lý bảng quy mô Petabyte qua cây siêu dữ liệu phân cấp 3 tầng từ Catalog → Metadata File (.json) → Manifest List (.avro) → Manifest Files (.avro):</p>
 
-        <x-figure id="storage-6-2b" key="6.2b" title="Hình 6.2b — Cây Siêu dữ liệu 3 Tầng của Apache Iceberg ở Quy mô Petabyte">Cấu trúc cây siêu dữ liệu phân cấp của Apache Iceberg: Iceberg Catalog (giữ con trỏ nguyên tử CAS) → Tầng 1: Metadata File (.metadata.json) → Tầng 2: Manifest List (.avro) → Tầng 3: Manifest Files (.avro) → Data & Delete Files (.parquet).</x-figure>
+        <x-figure id="storage-6-2b" key="6.2b" title="Hình 6.2b — Cây Siêu dữ liệu 3 Tầng của Apache Iceberg ở Quy mô Petabyte">Cấu trúc cây siêu dữ liệu phân cấp của Apache Iceberg: Iceberg Catalog (giữ con trỏ nguyên tử CAS) → Tầng 1: Metadata File (.metadata.json) → Tầng 2: Manifest List (.avro) → Tầng 3: Manifest Files (.avro) → Data &amp; Delete Files (.parquet).</x-figure>
 
         <ul>
           <li><strong>Tráo con trỏ Nguyên tử (Atomic CAS Swap) &amp; Cắt tỉa Siêu dữ liệu 2 Cấp (<em>Apache Iceberg: The Definitive Guide</em>, tr. 51–68):</strong> Mọi giao dịch Iceberg hoàn tất bằng một phép hoán đổi nguyên tử (Compare-And-Swap — CAS) tại tầng <strong>Catalog</strong> (REST Catalog, Nessie, Unity Catalog, Snowflake Polaris, Glue) đổi con trỏ từ <code>v1.metadata.json</code> sang <code>v2.metadata.json</code>, đồng thời tái sử dụng các Manifest file cũ không thay đổi. Khi truy vấn Đơn #8888, Iceberg cắt tỉa 2 cấp ngay trên Metadata: <strong>Cấp 1 (Manifest List)</strong> dùng khoảng lower_bound / upper_bound của phân vùng để bỏ qua ngay cả cụm Manifest của các tháng khác; <strong>Cấp 2 (Manifest File)</strong> dùng trạng thái (ADDED / EXISTING / DELETED) và thống kê cột Min/Max/Null để chỉ đích danh tệp <code>0003_8888.parquet</code> mà không cần gửi hàng nghìn lệnh HTTP mở Footer trên S3!</li>
         </ul>
 
-        <h3 id="storage-6-2-hudi">3. Cơ chế của Apache Hudi: Trục thời gian Timeline, File Groups &amp; Hệ thống Indexing</h3>
-        <p>Giống như một <strong>bưu cục chuyển phát nhanh có bảng điện tử theo dõi từng giây (Timeline) và sổ danh bạ tra cứu kệ hàng (Index)</strong>, Hudi (<em>Hadoop Update Delete Incremental</em>) được thiết kế chuyên biệt cho các luồng <strong>Streaming Upsert / CDC</strong> tốc độ cao:</p>
+        <h3 id="storage-6-2-hudi">Apache Hudi: Trục thời gian Timeline, File Groups &amp; Hệ thống Indexing</h3>
+        <p>Hudi (<em>Hadoop Update Delete Incremental</em>) được thiết kế chuyên biệt cho các luồng <strong>Streaming Upsert / CDC</strong> tốc độ cao với trục thời gian trạng thái giao dịch (Timeline) và hệ thống chỉ mục định vị bản ghi (Indexing Subsystem):</p>
 
-        <x-figure id="storage-6-2c" key="6.2c" title="Hình 6.2c — Giải phẫu Kiến trúc Apache Hudi: Timeline (State Machine), Indexing Subsystem &amp; File Groups">Ba trụ cột kiến trúc của Apache Hudi: (1) Hudi Timeline quản lý trạng thái giao dịch qua 3 bước REQUESTED → INFLIGHT → COMPLETED; (2) Hệ thống chỉ mục Indexing (.hoodie/metadata) ánh xạ khóa bản ghi #8888 về đúng FileGroup ID; (3) File Groups & File Slices kết hợp Base File (Parquet cột) và Log Files (Avro dòng).</x-figure>
+        <x-figure id="storage-6-2c" key="6.2c" title="Hình 6.2c — Giải phẫu Kiến trúc Apache Hudi: Timeline (State Machine), Indexing Subsystem &amp; File Groups">Ba trụ cột kiến trúc của Apache Hudi: (1) Hudi Timeline quản lý trạng thái giao dịch qua 3 bước REQUESTED → INFLIGHT → COMPLETED; (2) Hệ thống chỉ mục Indexing (.hoodie/metadata) ánh xạ khóa bản ghi #8888 về đúng FileGroup ID; (3) File Groups &amp; File Slices kết hợp Base File (Parquet cột) và Log Files (Avro dòng).</x-figure>
 
         <ul>
           <li><strong>Máy trạng thái 3 bước của Hudi Timeline, Hybrid File Groups &amp; 4 Loại Chỉ mục (<em>Apache Hudi: The Definitive Guide</em>, tr. 34–58):</strong>
@@ -66,8 +63,8 @@
           </li>
         </ul>
 
-        <h3 id="storage-6-2-uniform">4. Kỷ nguyên Hợp nhất Đa Định dạng: Delta UniForm, Apache XTable &amp; Pluggable Table Format</h3>
-        <p>Trước đây, các công ty đau đầu vì nếu chọn ghi bằng Hudi thì công cụ chỉ hỗ trợ Iceberg không đọc được. Ngày nay, rào cản này đã bị xóa bỏ nhờ <strong>kiến trúc chuyển đổi siêu dữ liệu đa chiều</strong> (bản chất cả 3 đều lưu dữ liệu gốc trên tệp Parquet, chỉ khác nhau ở tệp Metadata!):</p>
+        <h3 id="storage-6-2-uniform">Hợp nhất Đa Định dạng: Delta UniForm, Apache XTable &amp; Pluggable Table Format</h3>
+        <p>Vì cả 3 định dạng bảng đều lưu dữ liệu gốc trên tệp Parquet và chỉ khác nhau ở lớp Metadata, các công cụ hiện đại có thể đọc chéo nhau thông qua <strong>kiến trúc chuyển đổi siêu dữ liệu đa chiều</strong>:</p>
 
         <x-figure id="storage-6-2d" key="6.2d" title="Hình 6.2d — Cơ chế Đọc Đa Định dạng (Delta UniForm / Apache XTable / Pluggable Table Format)">Kiến trúc dịch siêu dữ liệu đa chiều (UniForm / Apache XTable): cho phép Spark, Trino, Snowflake và Flink cùng đọc chung 1 bộ tệp vật lý orders_8888.parquet thông qua lớp Metadata tương ứng mà không cần nhân bản dữ liệu trên S3.</x-figure>
 
@@ -76,7 +73,7 @@
           <li><strong>Hudi Pluggable Table Format &amp; Apache XTable (tiền thân là <em>OneTable</em>):</strong> Hudi tách rời động cơ lưu trữ khỏi định dạng bảng, kết hợp với <strong>Apache XTable</strong> để dịch siêu dữ liệu qua lại đa chiều (omnidirectional interoperation) giữa cả 3 định dạng <strong>Hudi, Iceberg và Delta Lake</strong>, giúp tích hợp dễ dàng với mọi danh mục như Snowflake Polaris hay DataHub mà vẫn giữ nguyên bảng gốc.</li>
         </ul>
 
-        <h3 id="storage-6-2-comparison">5. Bảng So sánh Trực diện: Delta Lake vs. Apache Iceberg vs. Apache Hudi</h3>
+        <span id="storage-6-2-comparison"></span>
         <div class="table-wrap">
           <table class="clean-table">
             <thead>
@@ -117,11 +114,9 @@
         </div>
 
         <h2 id="storage-6-3" tabindex="-1">Trạm 6.3: Bộ tính năng cốt lõi — ACID, concurrency (Occ/mvcc/nbcc), Time Travel &amp; schema</h2>
-        <p><em>(Tương ứng mục 02.2/ Tính năng cốt lõi: ACID Transactions, Time Travel, Schema Enforcement &amp; Evolution)</em></p>
 
-        <h3 id="storage-6-3-concurrency">1. Giao dịch ACID &amp; Ba Cơ chế Kiểm soát Đồng thời (Concurrency Control)</h3>
-        <p>Trên Lakehouse, điều gì xảy ra khi <strong>Luồng A (CDC)</strong> đang cập nhật địa chỉ của Đơn hàng #8888, cùng lúc <strong>Luồng B (Job ETL)</strong> đang gộp các tệp nhỏ, và <strong>Luồng C (Giám đốc)</strong> đang chạy câu lệnh SQL đọc báo cáo doanh thu?</p>
-        <p>Nhờ lớp Transaction Layer, mọi thay đổi đều tuân thủ <strong>ACID</strong> (Atomicity, Consistency, Isolation, Durability) — nếu một tiến trình bị lỗi giữa chừng, hệ thống tự động hủy bỏ (roll back) để dữ liệu luôn nhất quán. Để xử lý nhiều luồng đọc/ghi cùng lúc mà không giẫm đạp lên nhau, Lakehouse sử dụng 3 kỹ thuật kiểm soát đồng thời:</p>
+        <h3 id="storage-6-3-concurrency">Giao dịch ACID &amp; Ba Cơ chế Kiểm soát Đồng thời (Concurrency Control)</h3>
+        <p>Khi nhiều luồng CDC, ETL Compaction và truy vấn BI đọc/ghi đồng thời trên Đơn hàng #8888, lớp Transaction Layer đảm bảo tính <strong>ACID</strong> (Atomicity, Consistency, Isolation, Durability) thông qua 3 cơ chế kiểm soát đồng thời:</p>
 
         <x-figure id="storage-6-3" key="6.3" title="Hình 6.3 — Ba Cơ chế Kiểm soát Đồng thời trên Data Lakehouse (MVCC, OCC &amp; NBCC)">Sự kết hợp giữa MVCC (Cô lập Snapshot giúp Đọc và Ghi không bao giờ khóa nhau), OCC (Kiểm soát lạc quan phát hiện xung đột cấp độ tệp giữa các luồng Ghi) và NBCC (Kiểm soát đồng thời không khóa cho nhiều luồng Streaming trên Apache Hudi).</x-figure>
 
@@ -129,10 +124,10 @@
           <li><strong>Phát hiện Xung đột Cấp Tệp (File-Level Conflict Detection) &amp; Mức Cô lập:</strong> Trong <strong>OCC</strong>, Writer 2 chỉ bị từ chối (ConcurrentModificationException) khi sửa/xóa <strong>đúng tệp Parquet vật lý</strong> mà Writer 1 vừa chạm tới; nếu 2 luồng cùng APPEND hoặc <code>UPDATE</code> trên <strong>2 Partition tách biệt</strong>, cả hai đều commit thành công lên v3. Mặc định Delta Lake dùng mức cô lập <strong>WriteSerializable</strong> (thay vì Serializable cứng nhắc) để cho phép các thao tác blind append chạy song song không chặn lệnh bảo trì <code>OPTIMIZE / Z-ORDER</code>.</li>
         </ul>
 
-        <h3 id="storage-6-3-timetravel">2. Du hành thời gian (Time Travel), Change Data Feed (CDF) &amp; Tiến hóa Lược đồ (Schema Evolution)</h3>
-        <p>Vì tệp Parquet là bất biến và mỗi giao dịch tạo một Version / Snapshot mới, đồng thời mỗi cột được định danh bằng mã số nguyên bất biến (<strong>Column ID / Field ID</strong>), Lakehouse giải quyết trọn vẹn cả bài toán truy vấn lịch sử lẫn đổi tên cột trong 1 ms:</p>
+        <h3 id="storage-6-3-timetravel">Du hành thời gian (Time Travel), Change Data Feed (CDF) &amp; Tiến hóa Lược đồ (Schema Evolution)</h3>
+        <p><span id="storage-6-3-schema"></span>Vì tệp Parquet là bất biến và mỗi giao dịch tạo một Version / Snapshot mới, đồng thời mỗi cột được định danh bằng mã số nguyên bất biến (<strong>Column ID / Field ID</strong>), Lakehouse giải quyết trọn vẹn cả bài toán truy vấn lịch sử lẫn đổi tên cột trong 1 ms:</p>
 
-        <x-figure id="storage-6-3b" key="6.3b" title="Hình 6.3b — Du hành Thời gian (Time Travel), Change Data Feed (CDF) &amp; Schema Evolution bằng Column ID">Cơ chế Time Travel qua chuỗi Snapshot v0 -> v1 -> v2 kèm luồng thay đổi tăng trưởng Change Data Feed (CDF) và bí mật định danh cột bằng mã số nguyên bất biến (Column ID / Field ID) giúp đổi tên cột chỉ bằng 1 thao tác sửa JSON Metadata mà không viết lại tệp Parquet.</x-figure>
+        <x-figure id="storage-6-3b" key="6.3b" title="Hình 6.3b — Du hành Thời gian (Time Travel), Change Data Feed (CDF) &amp; Schema Evolution bằng Column ID">Cơ chế Time Travel qua chuỗi Snapshot v0 -&gt; v1 -&gt; v2 kèm luồng thay đổi tăng trưởng Change Data Feed (CDF) và bí mật định danh cột bằng mã số nguyên bất biến (Column ID / Field ID) giúp đổi tên cột chỉ bằng 1 thao tác sửa JSON Metadata mà không viết lại tệp Parquet.</x-figure>
 
         <pre><code>-- [A] DELTA LAKE (Truy vấn theo Timestamp, Version &amp; Khôi phục bảng):
 SELECT * FROM sales.orders TIMESTAMP AS OF '2026-10-15 14:00:00' WHERE order_id = 8888;
@@ -148,7 +143,6 @@ CALL catalog.system.rollback_to_snapshot('sales.orders', 5789718362515484664);
 SELECT order_id, so_tien, _change_type, _commit_version, _commit_timestamp
 FROM table_changes('sales.orders', 0, 1) WHERE order_id = 8888;</code></pre>
 
-        <h3 id="storage-6-3-schema">3. Tổng kết 4 Trụ cột Quản lý Lược đồ &amp; Dòng thời gian</h3>
         <ul>
           <li><strong>Time Travel &amp; Change Data Feed (CDF):</strong> Phục vụ kiểm toán pháp lý, tái lập tập dữ liệu huấn luyện ML, và Rollback tức thời. Khi bật delta.enableChangeDataFeed = true (hoặc Incremental Query trên Hudi / Changelog Scan trên Iceberg), bảng tự động xuất các dòng biến động kèm <code>_change_type</code> (insert, update_preimage = 15M, update_postimage = 14M, delete) để pipeline <em>Silver → Gold</em> chỉ đọc phần chênh lệch.</li>
           <li><strong>Schema Enforcement &amp; Schema Evolution bằng Column ID:</strong> Chặn đứng dữ liệu sai kiểu ngay lúc ghi (như cố chèn chuỗi 'Mười lăm triệu' vào cột <code>DECIMAL</code>). Khi đổi tên cột (RENAME COLUMN total_cost TO order_amount), nhờ <strong>Iceberg</strong> (mặc định) và <strong>Delta Lake</strong> (Column Mapping Mode = 'id') ánh xạ cột theo <strong>field-id bất biến</strong> thay vì tên chữ như Hive cũ, hệ thống chỉ đổi nhãn hiển thị của ID 2 trong JSON Metadata mà không bao giờ gặp lỗi trả về NULL hay làm "sống dậy" cột cũ đã xóa.</li>
@@ -156,14 +150,11 @@ FROM table_changes('sales.orders', 0, 1) WHERE order_id = 8888;</code></pre>
         </ul>
 
         <h2 id="storage-6-4" tabindex="-1">Trạm 6.4: Chiến lược ghi &amp; cập nhật — Copy-on-Write (COW) vs. Merge-on-Read (MOR)</h2>
-        <p><em>(Tương ứng mục 02.3/ Chiến lược ghi/cập nhật: Copy-on-Write tối ưu đọc vs. Merge-on-Read tối ưu ghi/streaming)</em></p>
 
-        <h3 id="storage-6-4-story">1. Bài toán thực tế của Đơn hàng #8888: Sửa 1 dòng trong tệp Parquet 100 MB!</h3>
-        <p>Giả sử tệp <code>file_01.parquet</code> nặng <strong>100 MB</strong> chứa <strong>100.000 đơn hàng</strong>, trong đó có <strong>Đơn hàng #8888</strong> (15.000.000đ). Năm phút sau, khách hàng nhập mã giảm giá làm số tiền Đơn #8888 đổi thành <strong>14.000.000đ</strong>. Vì tệp Parquet trên S3 là <strong>bất biến (Immutable)</strong>, động cơ Lakehouse có đúng <strong>2 chiến lược</strong> để thực thi lệnh <code>UPDATE</code> này:</p>
+        <p><span id="storage-6-4-story"></span><span id="storage-6-4-table"></span>Khi tệp <code>file_01.parquet</code> nặng <strong>100 MB</strong> chứa <strong>100.000 đơn hàng</strong> và khách hàng nhập mã giảm giá làm số tiền <strong>Đơn hàng #8888</strong> đổi từ 15.000.000đ thành <strong>14.000.000đ</strong>, vì tệp Parquet trên S3 là <strong>bất biến (Immutable)</strong>, động cơ Lakehouse có đúng <strong>2 chiến lược</strong> để thực thi lệnh <code>UPDATE</code>:</p>
 
         <x-figure id="storage-6-4" key="6.4" title="Hình 6.4 — Đối chiếu Cơ học Copy-on-Write (COW) vs. Merge-on-Read (MOR) khi sửa Đơn hàng #8888">Đối chiếu hai chiến lược cập nhật trên Lakehouse: (1) Copy-on-Write (COW) viết lại toàn bộ tệp Parquet 100 MB để tối ưu tốc độ đọc tuyệt đối; (2) Merge-on-Read (MOR) chỉ ghi 1 dòng thay đổi (~1 KB) vào tệp Log/Delete rồi trộn khi đọc để tối ưu tốc độ ghi Streaming/CDC.</x-figure>
 
-        <h3 id="storage-6-4-table">2. Bảng Đặt lên Bàn cân: Khi nào chọn COW, khi nào chọn MOR?</h3>
         <div class="table-wrap">
           <table class="clean-table">
             <thead>
@@ -204,16 +195,13 @@ FROM table_changes('sales.orders', 0, 1) WHERE order_id = 8888;</code></pre>
         </div>
 
         <h2 id="storage-6-5" tabindex="-1">Trạm 6.5: Năm kỹ thuật tối ưu vật lý sống còn trên Lakehouse</h2>
-        <p><em>(Tương ứng mục 02.4/ Kỹ thuật tối ưu vật lý: Compaction, Partitioning, Z-Ordering/Clustering, Deletion Vectors, Vacuum)</em></p>
 
-        <p>Ở quy mô thực tế, nếu không chạy các dịch vụ bảo trì bảng (Table Services), Lakehouse sẽ bị suy thoái hiệu năng và đội chi phí S3. Dưới đây là <strong>3 sơ đồ trực quan hóa trọn vẹn 5 kỹ thuật tối ưu vật lý cốt lõi</strong>:</p>
-
-        <h3 id="storage-6-5-partition">1. Hidden Partitioning &amp; Partition Evolution (Apache Iceberg)</h3>
+        <h3 id="storage-6-5-partition">Hidden Partitioning &amp; Partition Evolution (Apache Iceberg)</h3>
         <p>Khắc phục điểm mù của <strong>Hive Partitioning truyền thống</strong> (bắt người dùng phải nhớ lọc đúng cột thư mục phái sinh <code>nam_thang</code> và không thể đổi cách chia phân vùng nếu không viết lại toàn bộ bảng), Iceberg lưu trực tiếp <strong>6 hàm biến đổi chuẩn</strong> (year, month, day, hour, bucket[N], truncate[L]) vào trong Partition Spec của Metadata:</p>
 
         <x-figure id="storage-6-5a" key="6.5a" title="Hình 6.5a — Đối chiếu Partitioning truyền thống (Hive) vs. Hidden Partitioning &amp; Partition Evolution (Apache Iceberg)">Cơ chế Hidden Partitioning và Partition Evolution của Apache Iceberg: lưu hàm biến đổi phân vùng ngay trong Partition Spec của Metadata giúp tự động cắt tỉa phân vùng từ cột thời gian gốc và tiến hóa chiến lược phân vùng mà không cần viết lại dữ liệu cũ.</x-figure>
 
-        <h3 id="storage-6-5-zorder">2. Gom cụm Đa chiều: Từ Z-Ordering sang Liquid Clustering (Hilbert Curve)</h3>
+        <h3 id="storage-6-5-zorder">Gom cụm Đa chiều: Từ Z-Ordering sang Liquid Clustering (Hilbert Curve)</h3>
         <p>Khi một phân vùng có hàng nghìn tệp Parquet và dữ liệu khách hàng Bình Dương mua Sofa bị rải đều khắp các tệp, khoảng [Min, Max] của tệp nào cũng trải rộng từ A → Z làm tê liệt <strong>Data Skipping</strong>. Kỹ thuật <strong>Z-Ordering</strong> (đan xen bit nhị phân theo đường cong chữ Z) và thế hệ mới <strong>Liquid Clustering</strong> (CLUSTER BY theo đường cong <strong>Hilbert Curve</strong>) gom các dòng cùng khóa đa chiều về chung tệp vật lý:</p>
 
         <x-figure id="storage-6-5b" key="6.5b" title="Hình 6.5b — Gom cụm đa chiều Z-Ordering &amp; Liquid Clustering tăng tốc Data Skipping">So sánh hiệu quả Data Skipping trước và sau khi chạy Z-Ordering / Liquid Clustering: thu hẹp khoảng giá trị [min, max] trên từng tệp Parquet giúp động cơ truy vấn tìm Đơn hàng #8888 chỉ bằng cách đọc File 1 và bỏ qua ngay File 2.</x-figure>
@@ -222,21 +210,20 @@ FROM table_changes('sales.orders', 0, 1) WHERE order_id = 8888;</code></pre>
           <li><strong>Tại sao Liquid Clustering (Hilbert Curve) vượt trội hơn Z-Ordering (<em>Delta Lake: The Definitive Guide</em>, tr. 127–131, 259–263):</strong> Z-Order suy giảm hiệu quả khi vượt quá 3–4 cột và <strong>không có tính tăng trưởng (not incremental)</strong> — mỗi lần có dữ liệu mới lại phải viết lại cả phân vùng. Ngược lại, Liquid Clustering gom cụm tăng trưởng chỉ trên các tệp mới nạp, bảo toàn tính lân cận không gian tốt hơn nhờ đường cong Hilbert, và cho phép đổi khóa gom cụm (<code>ALTER TABLE ... CLUSTER BY</code>) tức thời không cần viết lại bảng.</li>
         </ul>
 
-        <h3 id="storage-6-5-compaction">3. Bộ 3 Dịch vụ Bảo trì Vật lý: Compaction (OPTIMIZE), Deletion Vectors &amp; Vacuum</h3>
+        <h3 id="storage-6-5-compaction">Bộ 3 Dịch vụ Bảo trì Vật lý: Compaction (OPTIMIZE), Deletion Vectors &amp; Vacuum</h3>
         <span id="storage-6-5-dv"></span><span id="storage-6-5-vacuum"></span>
         <p>Để trị dứt điểm căn bệnh <strong>43.200 tệp nhỏ li ti (Small File Problem)</strong> từ luồng Streaming, tăng tốc xóa/sửa dòng trên bảng COW, và thu hồi dung lượng S3 an toàn (cũng như xóa vĩnh viễn dữ liệu cá nhân theo luật <strong>GDPR</strong> qua quy trình 3 bước: <code>DELETE → REORG PURGE / OPTIMIZE → VACUUM</code>), kỹ sư dữ liệu vận hành phối hợp 3 dịch vụ dưới đây:</p>
 
         <x-figure id="storage-6-5c" key="6.5c" title="Hình 6.5c — Bộ 3 Dịch vụ Bảo trì Vật lý trên Lakehouse: Compaction (OPTIMIZE), Deletion Vectors &amp; Vacuum">Sự phối hợp giữa 3 dịch vụ bảo trì vật lý: (1) Compaction (OPTIMIZE) gộp hàng vạn tệp nhỏ thành tệp chuẩn 128 MB – 1 GB; (2) Deletion Vectors dùng Roaring Bitmap đánh dấu xóa mềm tức thì; (3) Vacuum / Expire Snapshots dọn rác vật lý sau chu kỳ lưu giữ 168 giờ.</x-figure>
 
         <section class="summary-section" id="storage-6-summary" tabindex="-1">
-          <h2>Chốt hạ mạch nhân – quả Chặng 6 (Để bước vào Chặng cuối cùng — Chặng 7)</h2>
-          <p>Hãy nhìn lại sức mạnh toàn diện mà <strong>Chặng 6 (Phần 3: Lakehouse)</strong> vừa trang bị cho bạn:</p>
+          <h2>Tóm tắt bỏ túi Chặng 6 (Lakehouse &amp; Open Table Formats)</h2>
           <ol>
             <li><strong>Kiến trúc Lakehouse (CIDR 2021):</strong> Hợp nhất chi phí rẻ và tính mở của <strong>Data Lake (Object Storage + Parquet)</strong> với tính toàn vẹn <strong>ACID, Schema Enforcement và hiệu năng BI</strong> (nhờ <em>Hot Caching, Auxiliary Data &amp; Vectorized Execution</em>) của <strong>Data Warehouse</strong>, đồng thời <strong>tách rời hoàn toàn Compute và Storage</strong>.</li>
             <li><strong>Định nghĩa lại Một Bảng bằng Bộ ba Open Table Formats:</strong> Thay vì định nghĩa bảng bằng thư mục như Hive cũ, bộ ba <strong>Open Table Formats</strong> định nghĩa bảng bằng danh sách tệp hợp lệ trong Metadata: <strong>Delta Lake</strong> dùng nhật ký tuần tự <code>_delta_log</code> (6 loại Action + Checkpoint Parquet + <code>_last_checkpoint</code>), <strong>Apache Iceberg</strong> dùng cây 3 tầng (Catalog CAS → Metadata → Manifest List → Manifest File kèm Hidden Partitioning &amp; Partition Evolution), và <strong>Apache Hudi</strong> dùng Timeline (3 trạng thái) + File Groups + Indexing (RLI/Bloom/Bucket) — và chúng có thể đọc chéo nhau trên cùng 1 bộ tệp Parquet nhờ Delta UniForm / Apache XTable.</li>
             <li><strong>Bộ Tính năng Cốt lõi &amp; Chiến lược Ghi/Đọc:</strong> Bảng Lakehouse cung cấp <strong>ACID &amp; Concurrency (MVCC, OCC phát hiện xung đột cấp tệp, NBCC)</strong>, <strong>Time Travel (Snapshots / Rollback / Change Data Feed)</strong>, <strong>Schema Evolution (nhờ Column ID bất biến)</strong>, và cho phép chọn giữa <strong>Copy-on-Write (COW - tối ưu Đọc)</strong> hoặc <strong>Merge-on-Read (MOR - tối ưu Ghi/Streaming với Positional / Equality Deletes)</strong>.</li>
             <li><strong>Năm kỹ thuật bảo trì vật lý:</strong> Giúp bảng luôn chạy ở tốc độ đỉnh cao: <strong>Compaction (Small File Problem)</strong>, <strong>Hidden Partitioning &amp; Partition Evolution</strong>, <strong>Z-Ordering / Liquid Clustering (Hilbert Curve)</strong>, <strong>Deletion Vectors (Roaring Bitmap)</strong>, và <strong>Vacuum / Snapshot Expiration (168 giờ &amp; tuân thủ GDPR)</strong>.</li>
           </ol>
-          <p style="margin-top:14px;"><strong>Câu hỏi dẫn sang Chặng 7 (Phần 4 — Chặng cuối cùng: Multi-hop Medallion Architecture &amp; Governance):</strong> Bây giờ bạn đã có trong tay những bảng Lakehouse (Delta / Iceberg / Hudi) cực kỳ mạnh mẽ! Nhưng trong một doanh nghiệp lớn, bạn không thể chỉ tạo 1 bảng duy nhất vừa hứng dữ liệu thô bẩn từ nguồn vừa cho Tổng Giám đốc cắm Power BI vào đọc. <strong>Làm thế nào để thiết kế dây chuyền tinh chế dữ liệu qua 3 tầng Bronze → Silver → Gold (kết hợp nhuần nhuyễn MOR/COW, 3NF/SCD2 và Star Schema/OBT), đồng thời quản trị danh mục (Unity Catalog), phả hệ (Lineage), bảo mật (Row/Column Security) và tối ưu tiền bạc (FinOps)?</strong> <a href="#topic=D02&stage=7" onclick="selectStorageStage(7);return false;">Đọc ngay Chặng 7 ──►</a></p>
+          <p style="margin-top:14px;"><strong>Chặng tiếp theo:</strong> <a href="#topic=D02&stage=7" onclick="selectStorageStage(7);return false;">Chặng 7: Kiến trúc Multi-Hop Medallion &amp; Governance ──►</a></p>
         </section>
       </div>

@@ -1,33 +1,20 @@
       <div class="prose">
-        <p>Ở <strong>Chặng 2</strong>, tiến trình <code>grep</code> đã xuất trình căn cước hợp lệ để mở tệp <code>/var/log/app.log</code> trên cây thư mục <code>/</code> và lọc ra hàng nghìn dòng chứa chữ ERROR. Bước sang <strong>Chặng 3 (Trạm 3.1 → 3.2)</strong>, chúng ta giải quyết bài toán phối hợp dây chuyền giữa nhiều tiến trình: <em>Làm thế nào để truyền ngay luồng kết quả của <code>grep</code> sang cho tiến trình kế tiếp xử lý ngay trên bộ nhớ RAM thông qua 3 cổng tiêu chuẩn (stdin: 0, stdout: 1, stderr: 2) và đường ống Pipe (|), đồng thời điều hướng dòng chảy (<code>&gt;&gt;</code> và <code>2&gt;&amp;1</code>) để chặn đứng "bẫy mù lỗi" khi hệ thống chạy ngầm lúc nửa đêm?</em></p>
+        <p>Ở <strong>Chặng 2</strong>, tiến trình <code>grep</code> đã xuất trình căn cước hợp lệ để mở tệp <code>/var/log/app.log</code> trên cây thư mục <code>/</code> và lọc ra hàng nghìn dòng chứa chữ ERROR. Bước sang <strong>Chặng 3 (Trạm 3.1 → 3.2)</strong>, chúng ta giải phẫu cơ chế giao tiếp liên tiến trình (IPC) và điều hướng luồng I/O: làm thế nào để truyền tức thì luồng kết quả của <code>grep</code> sang tiến trình kế tiếp ngay trên bộ đệm RAM của Kernel thông qua 3 cổng tiêu chuẩn (<code>stdin: 0</code>, <code>stdout: 1</code>, <code>stderr: 2</code>) và đường ống <code>Pipe (|)</code>, đồng thời điều hướng dòng chảy (<code>&gt;&gt;</code> và <code>2&gt;&amp;1</code>) để triệt tiêu nguy cơ "mù lỗi" khi hệ thống chạy ngầm.</p>
 
         <x-figure id="linux-3-map" key="0.2" title="Hình 3.0 — Vị trí của Chặng 3 trên Bản đồ Cơ học Linux (Ba Cổng 0/1/2, Đường ống Pipe &amp; Điều hướng I/O)">Khung tham chiếu Chặng 3 trên Bản đồ Cơ học Linux: Cơ chế 3 cổng tiêu chuẩn stdin (0), stdout (1), stderr (2), đường ống Pipe trong bộ đệm RAM của Kernel và các toán tử điều hướng luồng (>, >>, 2>, 2>&1).</x-figure>
 
         <h2 id="linux-3-1" tabindex="-1">Trạm 3.1: Ba cổng tiêu chuẩn (0, 1, 2) &amp; Đường ống Pipe trong Kernel</h2>
 
-        <h3>1. Bối cảnh &amp; Ẩn dụ đời thực</h3>
-        <p>Hãy hình dung mỗi anh đầu bếp Process (Tiến trình đang chạy) khi đứng vào dây chuyền chế biến trong "Căn bếp Linux" đều được thiết kế sẵn đúng <strong>3 cửa giao nhận hàng độc lập</strong> (trong bảng File Descriptor Table của tiến trình — Sách <em>The Linux Programming Interface</em>, Ch. 4 &amp; <em>CS:APP</em>, Ch. 10):</p>
-        <ul>
-          <li><strong>1 cửa nhập nguyên liệu đầu vào</strong> (<code>stdin</code> — <em>Standard Input</em>, mang số hiệu 0).</li>
-          <li><strong>1 cửa xuất món ăn đạt chuẩn ra ngoài</strong> (<code>stdout</code> — <em>Standard Output</em>, mang số hiệu 1).</li>
-          <li><strong>1 cửa thoát hiểm chuyên dùng để báo cáo sự cố/hỏng hóc</strong> (<code>stderr</code> — <em>Standard Error</em>, mang số hiệu 2).</li>
-        </ul>
-        <p>Khi cần kết hợp nhiều đầu bếp làm việc nối tiếp nhau, người điều phối Shell (Trình thông dịch) sẽ lắp một đường ống dẫn kín (Pipe — ký hiệu <code>|</code>) nối thẳng từ cửa xuất thành phẩm (stdout: 1) của anh đứng trước sang cửa nhập nguyên liệu (stdin: 0) của anh đứng sau.</p>
+        <p>Mọi Process trên Linux ngay khi khởi tạo đều được Kernel mở sẵn đúng <strong>3 cổng giao tiếp tiêu chuẩn</strong> trong bảng File Descriptor Table (<em>TLPI</em> Ch. 4 &amp; <em>CS:APP</em> Ch. 10): cổng nhập dữ liệu đầu vào <strong><code>stdin</code> (File Descriptor <code>0</code>)</strong>, cổng xuất kết quả chuẩn <strong><code>stdout</code> (File Descriptor <code>1</code>)</strong>, và cổng báo cáo lỗi độc lập <strong><code>stderr</code> (File Descriptor <code>2</code>)</strong>. Thiết kế tách biệt cổng <code>1</code> và cổng <code>2</code> là một quyết định kiến trúc sống còn để bảo vệ tính toàn vẹn của dây chuyền dữ liệu.</p>
 
-        <h3>2. Nỗi đau (Pain Point) từ trạm trước</h3>
-        <p>Ở Chặng 2, anh đầu bếp <code>grep</code> đã lọc ra được hàng nghìn dòng chứa chữ ERROR từ file <code>/var/log/app.log</code>. Nhưng trong thực tế, một Process đơn lẻ chỉ làm tốt đúng phần việc riêng của nó. Nếu bạn muốn đem kết quả của <code>grep</code> chuyển sang cho một Process thứ hai (như wc -l để đếm tổng số dòng lỗi hoặc <code>sort | uniq -c</code> để thống kê tần suất) mà phải ghi tạm ra ổ cứng rồi đọc lại thì rất rườm rà và tốn Disk I/O. Nguy hiểm hơn: Nếu trong lúc đang lọc dữ liệu mà Process thứ nhất gặp lỗi (ví dụ: đụng phải một file bị khóa quyền đọc báo <em>Permission denied</em>), dòng chữ thông báo lỗi đó nếu đi chung đường với kết quả bình thường sẽ làm "bẩn" nguyên liệu đầu vào của Process thứ hai!</p>
+        <p>Giả sử bạn cần chuyển kết quả của <code>grep</code> sang cho một tiến trình thứ hai (như <code>wc -l</code> để đếm tổng số dòng lỗi hoặc <code>sort | uniq -c</code> để thống kê tần suất). Nếu phải ghi kết quả trung gian ra ổ cứng rồi đọc lại sẽ gây nghẽn Disk I/O; còn nếu gộp chung thông báo lỗi (ví dụ: <em>Permission denied</em> khi đụng tệp bị khóa) vào luồng kết quả, tiến trình phía sau sẽ đếm nhầm cả dòng chữ báo lỗi thành dữ liệu hợp lệ. Khi dùng toán tử <strong>Pipe (<code>|</code>)</strong>, Shell tự động nối cổng <code>stdout (1)</code> của tiến trình trước vào cổng <code>stdin (0)</code> của tiến trình sau qua một bộ đệm vòng (<em>Ring Buffer</em> mặc định 64 KB trên RAM do Kernel quản lý — <em>TLPI</em> Ch. 44), trong khi giữ nguyên cổng <code>stderr (2)</code> đi theo đường riêng.</p>
 
-        <h3>3. Sơ đồ Giải phẫu Cơ chế &amp; Bảng Dữ liệu thật</h3>
-
-        <h4>Sơ đồ 3.1A: Giải phẫu 3 Cổng Tiêu chuẩn (stdin, stdout, stderr) của một Process</h4>
         <x-figure id="linux-3-1a" key="3.1a" title="Sơ đồ 3.1A — Cấu trúc 3 Cổng Giao tiếp Mặc định của Mọi Process (stdin: 0, stdout: 1, stderr: 2)">Mọi Process đang chạy đều nhận dữ liệu qua Cổng 0 (stdin), đẩy kết quả bình thường qua Cổng 1 (stdout) và xả thông báo lỗi qua Cổng 2 (stderr) theo một đường riêng biệt, không bao giờ trộn lẫn vào Cổng 1.</x-figure>
 
-        <h4>Sơ đồ 3.1B: Cơ chế Phối hợp Đa tiến trình qua Đường ống Pipe giữa Shell và Kernel</h4>
         <x-figure id="linux-3-1b" key="3.1b" title="Sơ đồ 3.1B — Phân vai Cơ học khi Nối Nhiều Process: Shell Đấu nối Cổng — Kernel Giữ Đường Pipe trên RAM">Shell đóng vai trò thợ lắp ống nối cổng stdout (1) của Process 1 vào cổng stdin (0) của Process 2; Linux Kernel giữ đường ống Pipe (bộ đệm 64 KB trên RAM) truyền từng byte dữ liệu, trong khi stderr (2) đi đường riêng.</x-figure>
 
-        <h4>Bảng 3.1: Đặt lên bàn cân 3 Cổng Tiêu chuẩn &amp; Phân vai Trách nhiệm trong Hệ thống</h4>
         <div class="table-wrap">
-          <table>
+          <table class="clean-table">
             <thead>
               <tr>
                 <th>Tên Cổng</th>
@@ -41,13 +28,13 @@
                 <td><strong><code>stdin</code></strong><br><em>(Standard Input)</em></td>
                 <td><strong>0</strong></td>
                 <td>Nhận dữ liệu đầu vào để xử lý.</td>
-                <td><strong>Process</strong>: Chỉ tập trung đọc dữ liệu từ cổng 0 và làm việc riêng của nó, không cần biết dữ liệu đến từ bàn phím, từ file hay từ Process khác.</td>
+                <td><strong>Process</strong>: Chỉ tập trung đọc dữ liệu từ cổng 0 và thực thi thuật toán riêng, hoàn toàn độc lập với nguồn phát (bàn phím, tệp hay tiến trình khác).</td>
               </tr>
               <tr>
                 <td><strong><code>stdout</code></strong><br><em>(Standard Output)</em></td>
                 <td><strong>1</strong></td>
                 <td>Gửi kết quả xử lý bình thường ra ngoài.</td>
-                <td><strong>Shell</strong>: Đóng vai trò thợ lắp ống, nối cổng stdout (1) của Process trước vào cổng stdin (0) của Process sau.<br><br><strong>Kernel</strong>: Giữ đường ống Pipe trên bộ nhớ RAM (mặc định 64 KB ring buffer — <em>TLPI</em> Ch. 44) để truyền dòng byte giữa hai tiến trình mà không chạm ổ cứng.</td>
+                <td><strong>Shell</strong>: Đóng vai trò điều phối, đấu nối cổng stdout (1) của Process trước vào cổng stdin (0) của Process sau.<br><br><strong>Kernel</strong>: Giữ đường ống Pipe trên bộ nhớ RAM (mặc định 64 KB ring buffer — <em>TLPI</em> Ch. 44) để truyền dòng byte giữa hai tiến trình mà không chạm ổ cứng.</td>
               </tr>
               <tr>
                 <td><strong><code>stderr</code></strong><br><em>(Standard Error)</em></td>
@@ -59,31 +46,20 @@
           </table>
         </div>
 
-        <h3>4. Đúc kết Cơ học &amp; Đánh đổi (Trade-off)</h3>
-        <ul>
-          <li><strong>Bản chất cơ học:</strong> Sự ưu việt của Linux nằm ở chỗ: Mỗi Process hoàn toàn "mù" về sự tồn tại của các Process khác — nó chỉ biết hút dữ liệu từ cổng 0 (<code>stdin</code>), đẩy kết quả ra cổng 1 (<code>stdout</code>) và xả lỗi ra cổng 2 (<code>stderr</code>). Việc đấu nối dây chuyền là việc của Shell, còn việc giữ đường ống Pipe truyền từng byte dữ liệu an toàn trên RAM là việc của Kernel.</li>
-          <li><strong>Sự đánh đổi dẫn sang Trạm 3.2:</strong> Khi bạn ngồi trực tiếp trước màn hình Terminal, cả cổng 1 (<code>stdout</code>) và cổng 2 (<code>stderr</code>) đều in chữ lên màn hình cho mắt bạn nhìn thấy. Nhưng chuyện gì xảy ra khi tập lệnh của bạn chạy ngầm vào lúc nửa đêm (không hề có màn hình Terminal nào mở sẵn): Các dòng kết quả và dòng báo lỗi đỏ lòm ở cổng 1 và cổng 2 sẽ bị ném đi đâu?</li>
-        </ul>
+        <p>Nhờ cơ chế này, mỗi Process hoàn toàn không cần biết sự tồn tại của các Process khác trong dây chuyền. Tuy nhiên, khi bạn ngồi trực tiếp trước Terminal, cả cổng <code>1 (stdout)</code> và cổng <code>2 (stderr)</code> đều mặc định trỏ ra màn hình để mắt bạn nhìn thấy. Chuyện gì xảy ra khi tập lệnh chạy ngầm vào lúc 03:00 sáng mà không gắn với bất kỳ màn hình Terminal nào?</p>
 
         <h2 id="linux-3-2" tabindex="-1">Trạm 3.2: Điều hướng dòng chảy (&gt;&gt; và 2&gt;&amp;1) — Chặn đứng &quot;Bẫy mù lỗi&quot; khi chạy ngầm</h2>
 
-        <h3>1. Bối cảnh &amp; Ẩn dụ đời thực</h3>
-        <p>Khi bạn trực tiếp đứng ở quầy giao tiếp (Terminal), nhân viên bếp làm xong món ăn (stdout: 1) hay làm cháy chảo báo động (stderr: 2) đều hô to lên ngay trước mặt bạn. Nhưng khi bạn giao việc cho hệ thống tự chạy ngầm lúc 3:00 sáng trong lúc bạn đang ngủ, không có ai đứng ở quầy giao tiếp cả. Nếu bạn không lắp sẵn một <strong>ống dẫn phụ để gom cả biên bản làm việc (1) lẫn biên bản sự cố (2) ghi nối đuôi vào một cuốn sổ nhật ký</strong>, mọi thông báo lỗi sẽ bị ném thẳng vào sọt rác vô hình!</p>
+        <p>Khi một tiến trình chạy ngầm (Background / Cronjob) không có màn hình Terminal đi kèm, mọi thông báo lỗi bắn ra từ cổng <code>stderr (2)</code> sẽ biến mất không dấu vết nếu không được điều hướng tường minh. Để chặn đứng "bẫy mù lỗi" này, kỹ sư bắt buộc phải kết hợp toán tử ghi nối đuôi <strong><code>&gt;&gt;</code></strong> (điều hướng <code>stdout: 1</code> vào tệp nhật ký với cờ <code>O_APPEND</code>) và cụm toán tử <strong><code>2&gt;&amp;1</code></strong> (gọi hệ thống <code>dup2(1, 2)</code> để bẻ cổng <code>stderr: 2</code> chập vào đúng đích đến hiện tại của cổng <code>1</code> — <em>TLPI</em> Ch. 5.5).</p>
 
-        <h3>2. Nỗi đau (Pain Point) từ trạm trước</h3>
-        <p>Rất nhiều người mới học gặp tình huống: Chạy thử lệnh bằng tay trên màn hình Terminal thì thấy lỗi đỏ lòm để sửa ngay, nhưng khi cài cho máy tự chạy ngầm thì chương trình chết im lặng. Vì tiến trình chạy ngầm không có màn hình hiển thị, mọi thông báo lỗi bắn ra từ cổng stderr (2) đều biến mất không dấu vết, khiến kỹ sư sáng hôm sau mở máy lên không tài nào biết được đêm qua hệ thống thất bại vì lý do gì.</p>
+        <p>Điểm cốt tử về mặt cơ học nằm ở <strong>thứ tự đánh giá từ trái sang phải</strong> của Shell: bắt buộc phải viết <code>&gt;&gt; /var/log/backup.log 2&gt;&amp;1</code>. Khi đó, Shell hướng cổng <code>1</code> vào tệp <code>backup.log</code> trước, rồi mới sao chép đích đến của cổng <code>1</code> sang cho cổng <code>2</code>. Nếu viết ngược thành <code>2&gt;&amp;1 &gt;&gt; /var/log/backup.log</code>, cổng <code>2</code> sẽ sao chép đích đến cũ của cổng <code>1</code> (màn hình/vô định) trước khi cổng <code>1</code> rẽ vào tệp log, khiến toàn bộ thông báo lỗi vẫn bị thất thoát.</p>
 
-        <h3>3. Sơ đồ Giải phẫu Cơ chế &amp; Bảng Dữ liệu thật</h3>
-
-        <h4>Sơ đồ 3.2A: Giải phẫu Cơ học Cú pháp Điều hướng &gt;&gt; /var/log/backup.log 2&gt;&amp;1</h4>
         <x-figure id="linux-3-2a" key="3.2a" title="Sơ đồ 3.2A — So sánh Trạng thái Dòng chảy: Chạy Ngầm Mặc định (Mù Lỗi) vs. Điều hướng Thu gom Log (2&gt;&amp;1)">Khi chạy ngầm không điều hướng, cả stdout (1) lẫn stderr (2) đều mất dấu vết vì không có màn hình Terminal; khi thêm >> /var/log/backup.log 2>&1, cổng 1 ghi nối đuôi vào file log và cổng 2 được bẻ chập chung vào cổng 1.</x-figure>
 
-        <h4>Sơ đồ 3.2B: Ma trận Toán tử Điều hướng I/O (&gt;, &gt;&gt;, &lt;, &lt;&lt; EOF, 2&gt;, 2&gt;&amp;1 — Slide 55 &amp; TLPI Ch. 5.5)</h4>
         <x-figure id="linux-3-2b" key="3.2b" title="Sơ đồ 3.2B — Toàn cảnh Các Toán tử Điều hướng I/O trên Linux &amp; Cạm bẫy Thứ tự Gộp Cổng 2&gt;&amp;1">Tổng hợp 6 toán tử điều hướng từ Slide 55 (>, >>, <, << EOF, 2>, 2>&1) và cơ chế lời gọi hệ thống dup2(): Tại sao bắt buộc phải viết >> app.log 2>&1 theo thứ tự từ trái sang phải.</x-figure>
 
-        <h4>Bảng 3.2: Giải mã Từng Mảnh ghép Cơ học trong Lệnh Điều hướng &amp; Hệ thống Toán tử I/O</h4>
         <div class="table-wrap">
-          <table>
+          <table class="clean-table">
             <thead>
               <tr>
                 <th>Thành phần Cú pháp</th>
@@ -95,32 +71,28 @@
               <tr>
                 <td><strong>&gt; /var/log/backup.log</strong><br><em>(Overwrite Output — Slide 55)</em></td>
                 <td>Hướng cổng kết quả bình thường (stdout: 1) ghi <strong>đè mới từ đầu</strong> vào file <code>/var/log/backup.log</code> (cờ <code>O_TRUNC</code>).</td>
-                <td>Chỉ dùng khi muốn tạo báo cáo mới tinh mỗi lần chạy; <strong>cẩn thận</strong> vì nó sẽ xóa sạch toàn bộ lịch sử log của các ngày trước!</td>
+                <td>Chỉ dùng khi muốn tạo báo cáo mới tinh mỗi lần chạy; cần thận trọng vì nó sẽ xóa sạch toàn bộ lịch sử log của các ngày trước.</td>
               </tr>
               <tr>
                 <td><strong><code>&gt;&gt; /var/log/backup.log</code></strong><br><em>(Append Output — Slide 55)</em></td>
                 <td>Hướng cổng kết quả bình thường (stdout: 1) ghi <strong>nối đuôi</strong> vào cuối file <code>/var/log/backup.log</code> (cờ <code>O_APPEND</code>).</td>
-                <td>Giữ nguyên lịch sử cũ trong file, các dòng kết quả mới của đêm nay sẽ được viết tiếp xuống dưới cùng theo trình tự thời gian.</td>
+                <td>Giữ nguyên lịch sử cũ trong file, các dòng kết quả mới sẽ được ghi tiếp xuống cuối tệp theo trình tự thời gian.</td>
               </tr>
               <tr>
                 <td><strong><code>2&gt;&amp;1</code></strong><br><em>(Merge Error to Output — dup2(1, 2))</em></td>
                 <td>Bẻ cổng báo lỗi số 2 (<code>stderr</code>) nhập chung vào <strong>đúng chỗ mà cổng số 1 (&amp;1) đang trỏ tới</strong> tại thời điểm đó.</td>
-                <td>Đảm bảo mọi thông báo lỗi phát sinh cũng chảy vào file <code>/var/log/backup.log</code>. <em>Lưu ý sống còn:</em> Phải viết <code>&gt;&gt; file 2&gt;&amp;1</code> (nếu viết ngược <code>2&gt;&amp;1 &gt;&gt; file</code>, cổng 2 sẽ trỏ vào màn hình cũ trước khi cổng 1 rẽ vào file!).</td>
+                <td>Đảm bảo mọi thông báo lỗi phát sinh cũng chảy vào file <code>/var/log/backup.log</code>. Bắt buộc viết theo thứ tự <code>&gt;&gt; file 2&gt;&amp;1</code>.</td>
               </tr>
               <tr>
                 <td><strong>&lt; input.txt</strong> &amp; <strong>&lt;&lt; EOF</strong><br><em>(Input &amp; Here-Document — Slide 55)</em></td>
                 <td>Bơm nội dung từ một file có sẵn (<code>&lt;</code>) hoặc một khối văn bản nhiều dòng ngay trong kịch bản (&lt;&lt; EOF ... EOF) vào cổng stdin (0).</td>
-                <td>Giúp tự động cấp dữ liệu đầu vào cho chương trình mà không cần con người ngồi gõ bàn phím trực tiếp.</td>
+                <td>Tự động cấp dữ liệu đầu vào cho chương trình mà không cần con người ngồi gõ bàn phím trực tiếp.</td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        <h3>4. Đúc kết Cơ học &amp; Đánh đổi (Trade-off)</h3>
-        <ul>
-          <li><strong>Bản chất cơ học:</strong> Ký hiệu &amp;1 trong cụm <code>2&gt;&amp;1</code> có nghĩa là <em>"địa chỉ hiện tại của cổng số 1"</em> (thực thi qua lời gọi hệ thống <code>dup2()</code> trong Kernel — <em>TLPI</em>, Ch. 5.5). Nhờ bẻ cổng 2 chập vào cổng 1 sau khi cổng 1 đã nối vào file nhật ký, không một dòng báo lỗi nào có thể lọt ra ngoài khi hệ thống chạy ngầm.</li>
-          <li><strong>Sự đánh đổi dẫn sang Chặng 4:</strong> Đến đây, bạn đã nắm vững cách điều khiển một Process đơn lẻ (Chặng 2) và cách ghép nối nhiều Process phối hợp với nhau cũng như thu gom nhật ký lỗi (Chặng 3). Nhưng chẳng lẽ đêm nào bạn cũng phải thức dậy lúc 2:00 sáng để tự tay gõ chuỗi lệnh này? Làm sao để biến toàn bộ quy trình thành một dây chuyền tự động hóa chạy 24/7? Chúng ta bước vào Chặng 4!</li>
-        </ul>
+        <p>Đến đây, bạn đã nắm vững cách điều khiển một Process đơn lẻ (Chặng 2) cũng như cách đấu nối dây chuyền đa tiến trình và thu gom trọn vẹn nhật ký lỗi bằng <code>&gt;&gt; ... 2&gt;&amp;1</code> (Chặng 3). Bước cuối cùng ở <strong>Chặng 4</strong> là đóng gói toàn bộ các thao tác rời rạc này thành một dây chuyền tự động hóa vận hành 24/7 với bộ ba <strong>Bash Script</strong>, <strong>GCC/Makefile</strong> và <strong>Cronjob</strong>.</p>
 
         <section class="summary-section" id="linux-3-summary" tabindex="-1">
           <h2>Tóm tắt bỏ túi Chặng 3</h2>

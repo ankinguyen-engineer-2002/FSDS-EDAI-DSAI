@@ -1,25 +1,15 @@
       <div class="prose">
-        <p>Ở <strong>Chặng 1</strong>, lệnh <code>grep ERROR /var/log/app.log</code> đã được Shell (Bash) đánh thức từ tệp nhị phân tĩnh <code>/bin/grep</code> trên ổ cứng thành một Process sống động trên RAM/CPU và trình tờ phiếu System Call lên Linux Kernel. Bước sang <strong>Chặng 2 (Trạm 2.1 → 2.4)</strong>, chúng ta giải phẫu câu hỏi: <em>Giữa hàng trăm Process của 50 người dùng cùng chạy đồng thời, dựa vào "chứng minh thư" nào mà Kernel quyết định cho phép hay từ chối mở tệp <code>/var/log/app.log</code>? Tại sao trong mắt Linux mọi thứ từ văn bản, thư mục, ổ cứng đến CPU đều là File nằm trên một cây thư mục gốc <code>/</code> duy nhất, và bộ lệnh CLI nào giúp kỹ sư tác chiến trên cây thư mục đó?</em></p>
+        <p>Ở <strong>Chặng 1</strong>, lệnh <code>grep ERROR /var/log/app.log</code> đã được Shell (Bash) đánh thức từ tệp nhị phân tĩnh <code>/bin/grep</code> trên ổ cứng thành một Process sống động trên RAM/CPU và trình tờ phiếu System Call lên Linux Kernel. Bước sang <strong>Chặng 2 (Trạm 2.1 → 2.4)</strong>, chúng ta giải phẫu cơ chế định danh và lưu trữ bên dưới: dựa vào cấu trúc căn cước <code>task_struct</code> nào mà Kernel phân xử quyền truy cập giữa hàng trăm Process của 50 người dùng đồng thời; tại sao mọi thực thể từ văn bản, thư mục, ổ đĩa đến tiến trình đều quy về chuẩn <strong>File</strong> trên một cây thư mục gốc <code>/</code> duy nhất; và bộ lệnh CLI nào giúp kỹ sư tác chiến an toàn trên cây thư mục đó.</p>
 
         <x-figure id="linux-2-map" key="0.2" title="Hình 2.0 — Bản đồ Kiến trúc Chặng 2: Căn cước Process (task_struct), Inode/VFS &amp; Cây Thư mục Gốc /">Tổng quan 4 trạm của Chặng 2 trên Bản đồ Cơ học Linux: [2.1] Hồ sơ căn cước Process & rwx -> [2.2] Everything is a File & Inode -> [2.3] Cây thư mục hợp nhất / -> [2.4] Bộ công cụ CLI điều hướng & săn log.</x-figure>
 
         <hr />
 
         <h2 id="linux-2-1" tabindex="-1">Trạm 2.1: Giải phẫu hồ sơ căn cước của một process (PID, user/group, working directory, environment, open files)</h2>
-        <p><em>(Tương ứng Mục 01/ Introduction to GNU/Linux &amp; 03/ Command Line Basics — Shell &amp; Permissions trong Slide <code>01-linux-fundamentals.pdf</code> tr. 26, 28 + Sách <em>The Linux Programming Interface</em>, Ch. 6: Processes, Ch. 8–9: Users, Groups &amp; Process Credentials, tr. 113–184)</em></p>
 
-        <h3 id="linux-2-1-analogy">1. Bối cảnh &amp; Ẩn dụ đời thực: Thẻ căn cước của &quot;Người đầu bếp&quot;</h3>
-        <p>Hãy quay lại <strong>"Căn bếp Linux"</strong> ở khoảnh khắc anh đầu bếp Process (grep) cầm tờ phiếu System Call (open) đứng trước quầy của vị Bếp trưởng Linux Kernel để xin mở cuốn sổ <code>/var/log/app.log</code>. Trong một nhà hàng có 50 đầu bếp cùng làm việc một lúc, Bếp trưởng không bao giờ giao chìa khóa kho cho một người vô danh. Mỗi Process ngay từ giây phút chào đời qua cặp lệnh <code>fork() + execve()</code> đều bị Kernel gắn chặt một <strong>"Bộ hồ sơ căn cước" (<code>task_struct</code>) gồm 5 thuộc tính bất di bất dịch</strong> đeo trước ngực.</p>
+        <p>Một Process trên Linux không bao giờ tồn tại vô danh: ngay từ khoảnh khắc được khởi tạo qua cặp lời gọi hệ thống <code>fork() + execve()</code>, Kernel gắn chặt vào nó một cấu trúc dữ liệu căn cước (<code>task_struct</code>) gồm <strong>5 thuộc tính cốt lõi</strong> kế thừa trực tiếp từ tiến trình cha (Bash): <strong>PID/PPID</strong>, <strong>User/Group (UID/GID)</strong>, <strong>Working Directory (cwd)</strong>, <strong>Environment (<code>$PATH</code>)</strong> và <strong>Open Files (File Descriptor Table)</strong> (<em>TLPI</em> Ch. 6, 8–9, tr. 113–184). Mọi quyết định tìm lệnh, giải mã đường dẫn hay xét duyệt quyền mở tệp của hệ điều hành đều được tính toán tự động từ 5 thuộc tính này.</p>
 
-        <h3 id="linux-2-1-pain">2. Nỗi đau (Pain Point) từ trạm trước</h3>
-        <p>Khi bạn gõ một dòng lệnh ngắn gọn <code>grep ERROR app.log</code> vào Terminal, có 3 câu hỏi sống còn mà nếu không hiểu cơ chế căn cước của Process, kỹ sư sẽ hoàn toàn mù mờ khi hệ thống báo lỗi:</p>
-        <ul>
-          <li><strong>(1) Làm sao Shell tìm thấy công cụ <code>grep</code>?</strong> Bạn chỉ gõ chữ <code>grep</code> chứ không hề gõ đường dẫn đầy đủ <code>/bin/grep</code>. Tại sao Shell biết phải tìm ở đâu, còn khi bạn tự viết một công cụ riêng thì gõ tên lại bị báo lỗi <em>"Command not found"</em>?</li>
-          <li><strong>(2) Làm sao Process hiểu đường dẫn ngắn <code>app.log</code>?</strong> Trên máy chủ có hàng chục tệp tên là <code>app.log</code> ở các thư mục khác nhau; dựa vào đâu mà tiến trình <code>grep</code> biết chính xác bạn đang nói tới tệp nào?</li>
-          <li><strong>(3) Tại sao người này đọc được <code>app.log</code> còn người kia bị chặn?</strong> Khi gặp lỗi <em>"Permission denied"</em>, làm sao đọc vị chính xác bức tường phân quyền 10 ký tự <code>-rw-r-----</code> của Linux để xử lý tận gốc thay vì gõ bừa <code>chmod 777</code> gây thủng bảo mật?</li>
-        </ul>
-
-        <h3 id="linux-2-1-visuals">3. Sơ đồ Giải phẫu Cơ chế &amp; Bảng Dữ liệu thật</h3>
+        <p>Hiểu rõ bộ căn cước 5 thuộc tính này sẽ giải đáp tức thì 3 câu hỏi thực tế mà kỹ sư thường gặp khi gõ <code>grep ERROR app.log</code>: (1) Vì sao bạn chỉ gõ <code>grep</code> mà Shell tự tìm được <code>/bin/grep</code> (nhờ tra cứu biến môi trường <code>$PATH</code>), còn công cụ tự viết nằm ngoài <code>$PATH</code> lại báo <em>"Command not found"</em>; (2) Vì sao chỉ gõ tên ngắn <code>app.log</code> mà tiến trình biết phải mở tệp ở thư mục nào (nhờ ghép với con trỏ <strong>Working Directory <code>cwd</code></strong>); và (3) Vì sao người dùng này đọc được <code>app.log</code> còn người khác bị chặn bởi lỗi <em>"Permission denied"</em> khi Kernel đối chiếu <strong>UID/GID</strong> của Process với chuỗi 10 ký tự phân quyền <code>-rw-r-----</code> trên tệp.</p>
 
         <x-figure id="linux-2-1a" key="2.1a" title="Hình 2.1A — Quy trình 3 Bước của Shell (Slide 26) &amp; Giải phẫu 5 Thuộc tính Căn cước trong Hồ sơ Process (task_struct)">Quy trình 3 bước của Shell trên Slide 26 (1. Parse & Expand -> 2. Search $PATH -> 3. Translate to System Calls fork/execve) và 5 thuộc tính căn cước gắn chặt vào mỗi Process đang chạy: PID/PPID, User/Group (UID/GID), Working Directory (cwd), Environment ($PATH), và Open Files (File Descriptors 0, 1, 2, 3).</x-figure>
 
@@ -70,28 +60,15 @@
           </table>
         </div>
 
-        <h3 id="linux-2-1-takeaway">4. Đúc kết Cơ học &amp; Đánh đổi (Trade-off)</h3>
-        <ul>
-          <li><strong>Bản chất cơ học:</strong> Một Process không bao giờ tồn tại lơ lửng; nó luôn mang theo 5 thuộc tính căn cước (PID, UID/GID, Working Directory, Environment, Open Files) kế thừa từ tiến trình cha (Bash). Khi <code>grep</code> xin mở <code>app.log</code>, Kernel đối chiếu tuần tự UID → GID → Others với 9 bit quyền rwx (r=4, w=2, x=1) trên tệp: khớp ở cấp nào là chốt ngay ở cấp đó.</li>
-          <li><strong>Sự đánh đổi dẫn sang Trạm 2.2:</strong> Cơ chế kiểm tra căn cước UID/GID đối chiếu với quyền rwx của File chặt chẽ và đơn giản đến mức các nhà thiết kế UNIX/Linux đã nảy ra một ý tưởng táo bạo: <em>Thay vì thiết kế thêm hàng chục cơ chế bảo mật và giao diện lập trình khác nhau cho ổ đĩa cứng, cổng USB, card mạng hay vùng nhớ tiến trình, tại sao không biến TẤT CẢ mọi thứ trong máy tính thành File?</em></li>
-        </ul>
+        <p>Khi <code>grep</code> yêu cầu mở <code>app.log</code>, Kernel đối chiếu tuần tự UID → GID → Others của Process với 9 bit quyền <code>rwx</code> (<code>r=4</code>, <code>w=2</code>, <code>x=1</code>) của tệp: khớp ở cấp nào là chốt quyền ngay ở cấp đó mà không xét tiếp cấp sau. Cơ chế kiểm chứng căn cước đối chiếu với quyền <code>rwx</code> của File gọn gàng và chặt chẽ đến mức các kiến trúc sư UNIX/Linux đã mở rộng nó ra toàn hệ thống: thay vì chế tạo hàng chục giao diện lập trình và cơ chế phân quyền riêng rẽ cho ổ cứng, USB, card mạng hay vùng nhớ tiến trình, Linux biến tất cả thực thể trong máy tính thành <strong>File</strong>.</p>
 
         <hr />
 
         <h2 id="linux-2-2" tabindex="-1">Trạm 2.2: Triết lý &quot;Everything is a File&quot; (Regular File, directory, device /dev/sda, process /proc/1234) &amp; cơ học Inode</h2>
-        <p><em>(Tương ứng Mục 01/ The Linux File System Hierarchy — "Everything is a file" trong Slide <code>01-linux-fundamentals.pdf</code> tr. 19, 31–37 + Sách <em>TLPI</em> Ch. 4, 14–15, 18 &amp; <em>OSTEP</em> Ch. 39–40: Files, Directories &amp; Inodes, tr. 467–502)</em></p>
 
-        <h3 id="linux-2-2-analogy">1. Bối cảnh &amp; Ẩn dụ đời thực: Chuẩn &quot;Ổ cắm điện 2 chấu&quot; toàn hệ thống</h3>
-        <p>Hãy tưởng tượng nếu trong nhà bạn, quạt máy đòi ổ cắm 2 lỗ tròn, tủ lạnh đòi ổ cắm 3 chấu dẹt, còn đèn bàn lại bắt nối dây đồng trực tiếp vào cầu dao tổng — bạn sẽ phát điên vì mỗi thiết bị đòi một kiểu đấu nối riêng. Triết lý cốt lõi nhất làm nên vẻ đẹp vĩnh cửu của UNIX và GNU/Linux chính là <strong>"Everything is a file" (Mọi thứ đều là File)</strong>: từ tệp nhật ký <code>app.log</code>, thư mục <code>/var/log</code>, ổ đĩa cứng vật lý <code>/dev/sda</code>, thiết bị USB <code>/dev/usb0</code> cho đến chính tiến trình đang chạy trên RAM <code>/proc/1234</code> đều được ngụy trang thành một chuẩn "ổ cắm" duy nhất mang tên <strong>File</strong> (luồng byte đọc/ghi tuần tự).</p>
+        <p>Triết lý nền tảng làm nên sức mạnh cơ học của UNIX và GNU/Linux là <strong>"Everything is a file" (Mọi thứ đều là File)</strong>: thông qua tầng trừu tượng <strong>Virtual File System (VFS)</strong> trong Kernel, từ tệp văn bản <code>app.log</code>, thư mục <code>/var/log</code>, ổ đĩa cứng vật lý <code>/dev/sda</code>, thiết bị <code>/dev/usb0</code> cho đến trạng thái tiến trình đang sống trên RAM <code>/proc/1234</code> đều được chuẩn hóa thành một giao diện luồng byte đọc/ghi đồng nhất (<em>TLPI</em> Ch. 4, 14–15, 18; <em>OSTEP</em> Ch. 39–40, tr. 467–502). Nhờ đó, kỹ sư chỉ cần dùng chung một bộ lời gọi hệ thống (<code>open()</code>, <code>read()</code>, <code>write()</code>, <code>close()</code>) và cùng một bộ công cụ CLI (<code>cat</code>, <code>grep</code>, <code>cp</code>, <code>echo</code>) để thao tác với cả dữ liệu, phần cứng lẫn tiến trình.</p>
 
-        <h3 id="linux-2-2-pain">2. Nỗi đau (Pain Point) từ trạm trước</h3>
-        <p>Nếu không có triết lý "Everything is a file", người kỹ sư sẽ vấp phải 2 nỗi thống khổ lớn:</p>
-        <ul>
-          <li><strong>(1) Phân mảnh công cụ:</strong> Bạn sẽ phải dùng một phần mềm riêng để đọc văn bản, một phần mềm khác để xem dung lượng RAM/CPU, và một bộ API hoàn toàn khác để đọc dữ liệu thô từ ổ cứng SSD.</li>
-          <li><strong>(2) Hiểu sai bản chất của Thư mục (Directory), Đổi tên (<code>mv</code>) và Xóa tệp (<code>rm</code>):</strong> Nhiều người tưởng "Thư mục" là cái hộp vật lý nhốt tệp bên trong, nên không hiểu tại sao đổi tên hay di chuyển một tệp <code>app.log</code> nặng 50 GB bằng lệnh <code>mv</code> lại hoàn tất trong 0,001 giây, hay tại sao lệnh <code>rm</code> trên Linux lại xóa vĩnh viễn không có Thùng rác (Recycle Bin).</li>
-        </ul>
-
-        <h3 id="linux-2-2-visuals">3. Sơ đồ Giải phẫu Cơ chế &amp; Bảng Dữ liệu thật</h3>
+        <p>Bên dưới lớp vỏ File đồng nhất đó là kiến trúc tách biệt giữa <strong>Directory (Danh bạ tên)</strong> và <strong>Inode (Căn cước dữ liệu thật)</strong>. Một thư mục (Directory) trên Linux thực chất chỉ là một <em>tệp đặc biệt chứa bảng ánh xạ từ Tên hiển thị (Filename) sang mã số Inode</em>, còn toàn bộ metadata (quyền <code>rwx</code>, kích thước, chủ sở hữu và con trỏ tới các khối dữ liệu vật lý Data Blocks trên SSD/HDD) đều nằm ở Inode. Cơ chế này giải thích trực diện vì sao lệnh đổi tên/di chuyển <code>mv</code> một tệp <code>app.log</code> nặng 50 GB trong cùng phân vùng lại hoàn tất dưới 1 mili-giây (chỉ sửa đúng 1 dòng chuỗi tên trong bảng thư mục, tốn 0 byte copy), và vì sao lệnh <code>rm</code> trên CLI lại xóa vĩnh viễn không qua Thùng rác (tháo trực tiếp liên kết <code>unlink</code> khỏi bảng thư mục để giải phóng Inode).</p>
 
         <x-figure id="linux-2-2a" key="2.2a" title="Hình 2.2A — Triết lý &#x27;Everything is a file&#x27; (Slide 19): Tầng VFS biến 4 Thực thể thành Giao diện Đọc/Ghi Đồng nhất">Bốn nhóm thực thể trên Slide 19 (Regular files, Directories, Device interfaces /dev/sda & /dev/usb0, Processes /proc/1234) đi qua tầng Virtual File System (VFS) của Kernel để dùng chung một bộ System Call (open/read/write/close) và dùng chung một bộ lệnh CLI (cat, grep, cp, echo).</x-figure>
 
@@ -136,24 +113,15 @@
           </table>
         </div>
 
-        <h3 id="linux-2-2-takeaway">4. Đúc kết Cơ học &amp; Đánh đổi (Trade-off)</h3>
-        <ul>
-          <li><strong>Bản chất cơ học:</strong> Triết lý "Everything is a file" kết hợp với cấu trúc Directory → Inode → Data Blocks giúp Linux biến mọi tài nguyên phức tạp thành các dòng chảy byte đơn giản. Bạn chỉ cần học một bộ công cụ duy nhất (<code>cat</code>, <code>grep</code>, echo, <code>cp</code>) là điều khiển được cả tệp log, tiến trình lẫn thiết bị phần cứng.</li>
-          <li><strong>Sự đánh đổi dẫn sang Trạm 2.3:</strong> Khi cả triệu thực thể từ chương trình hệ thống, tệp cấu hình, thiết bị phần cứng, tiến trình trên RAM cho tới nhật ký <code>app.log</code> đều biến thành File, nếu vứt chung vào một đống thì hệ thống sẽ hỗn loạn. <em>Linux đã quy hoạch "Bản đồ kho hàng" (Cây thư mục <code>/</code>) thành các phân khu chức năng như thế nào, và tại sao thiết kế 1 gốc <code>/</code> duy nhất lại ưu việt hơn hẳn kiểu chia ổ đĩa C:\\, D:\\ của Windows?</em></li>
-        </ul>
+        <p>Khi hàng triệu thực thể từ chương trình nhị phân, tệp cấu hình, thiết bị phần cứng, tiến trình trên RAM cho tới nhật ký <code>app.log</code> đều hiện diện dưới dạng File, Linux cần một quy hoạch không gian thống nhất để quản lý chúng. Thay vì tách rời từng ổ đĩa vật lý thành nhiều gốc <code>C:\</code>, <code>D:\</code> như Windows, Linux hợp nhất tất cả dưới một cây thư mục gốc <code>/</code> duy nhất.</p>
 
         <hr />
 
         <h2 id="linux-2-3" tabindex="-1">Trạm 2.3: Bản đồ kho hàng — Cây thư mục duy nhất / (/bin, /sbin, /usr, /etc, /home, /root, /var/log, /tmp, /proc) &amp; đối chiếu Windows</h2>
-        <p><em>(Tương ứng Mục 01/ The Linux File System Hierarchy — System, User &amp; Temporary Folders trong Slide <code>01-linux-fundamentals.pdf</code> tr. 20–22, 29–30 + Sách <em>TLPI</em> Ch. 12: The <code>/proc</code> File System, tr. 223–232; Ch. 18: Directories and Links, tr. 339–374)</em></p>
 
-        <h3 id="linux-2-3-analogy">1. Bối cảnh &amp; Ẩn dụ đời thực: &quot;Đại siêu thị 1 Cửa chính /&quot; vs. &quot;Khu chợ nhiều Ki-ốt C:\\, D:\\&quot;</h3>
-        <p>Trên Windows, mỗi khi bạn cắm thêm một ổ cứng hay một chiếc USB, hệ thống lại đẻ ra một gốc cây mới (C:\\, D:\\, E:\\) giống như các ki-ốt tách biệt ngoài chợ. Ngược lại, Linux quy hoạch toàn bộ hệ thống như một <strong>Đại siêu thị chỉ có duy nhất một Cửa chính là thư mục gốc <code>/</code> (Root Folder)</strong>. Bất kỳ ổ cứng vật lý mới nào lắp thêm vào máy chủ đều được gắn (mount) thành một gian hàng con nằm bên dưới mái nhà chung <code>/</code> này.</p>
+        <p>Linux tổ chức toàn bộ không gian lưu trữ theo chuẩn <strong>Filesystem Hierarchy Standard (FHS)</strong> bắt đầu từ một thư mục gốc <code>/</code> (Root Directory) duy nhất (<em>TLPI</em> Ch. 12 &amp; Ch. 18). Khác với Windows gắn trực tiếp đường dẫn ứng dụng vào ký tự ổ đĩa vật lý (<code>C:\</code>, <code>D:\</code>, <code>E:\</code>), Linux tách rời hoàn toàn <strong>Đường dẫn logic trong code</strong> khỏi <strong>Thiết bị lưu trữ vật lý bên dưới</strong> thông qua cơ chế gắn kết (<em>Mount Point</em>).</p>
 
-        <h3 id="linux-2-3-pain">2. Nỗi đau (Pain Point) từ trạm trước</h3>
-        <p>Hãy hình dung ứng dụng của bạn đang ghi nhật ký vào đường dẫn D:\\Logs\\app.log trên Windows. Sáu tháng sau, ổ cứng D:\\ bị đầy; quản trị viên lắp thêm ổ cứng mới E:\\ và chuyển thư mục log sang E:\\Logs\\app.log. Ngay lập tức, hàng chục kịch bản quét lỗi và ứng dụng đang trỏ cố định vào chữ D:\\ bị gãy vụn! Hơn nữa, nếu một kỹ sư mới đăng nhập vào máy chủ Linux mà không nắm được quy hoạch chuẩn của cây thư mục <code>/</code>, họ sẽ không biết công cụ <code>grep</code> cất ở kệ nào, tệp cấu hình SSH nằm ở đâu, và tại sao thư mục <code>/proc</code> báo dung lượng khả dụng nhưng không chiếm một byte ổ cứng nào.</p>
-
-        <h3 id="linux-2-3-visuals">3. Sơ đồ Giải phẫu Cơ chế &amp; Bảng Dữ liệu thật</h3>
+        <p>Ưu thế kiến trúc này thể hiện rõ nhất khi vận hành thực tế: trên Windows, nếu ổ <code>D:\Logs\app.log</code> bị đầy và quản trị viên phải lắp thêm ổ cứng mới <code>E:\</code>, toàn bộ kịch bản và ứng dụng đang trỏ cố định vào chữ <code>D:\</code> sẽ bị gãy. Ngược lại trên Linux, quản trị viên chỉ cần lắp ổ NVMe 10 TB mới và gắn (<code>mount</code>) nó vào đúng nhánh <code>/var/log</code> — mọi tiến trình đang gọi <code>/var/log/app.log</code> vẫn tiếp tục đọc/ghi xuyên suốt mà không phải sửa một dòng code nào.</p>
 
         <x-figure id="linux-2-3a" key="2.3a" title="Hình 2.3A — Bản đồ Cây Thư mục Hợp nhất / (Slide 20–22): Phân khu User Folders, System Folders &amp; Temporary/Variable Folders">Cấu trúc cây thư mục Linux bắt đầu từ gốc / (Slide 20–22) chia làm 3 phân khu rõ rệt: (1) Khu nhà ở User (/home/fsds, /root); (2) Khu Hệ thống (/bin, /sbin, /usr/bin, /usr/local, /etc, và /proc ảo 0 MB đĩa); (3) Khu Tạm & Biến đổi liên tục (/tmp tự xóa khi reboot, và /var/log nơi chứa tệp app.log).</x-figure>
 
@@ -172,79 +140,65 @@
             <tbody>
               <tr>
                 <td><strong><code>/bin</code></strong><br><em>(Essential User Binaries)</em></td>
-                <td>Kệ chứa các công cụ nhị phân thiết yếu nhất cho mọi người dùng; bắt buộc phải có để khởi động (boot) và cứu hộ hệ thống.</td>
+                <td>Chứa các công cụ nhị phân thiết yếu nhất cho mọi người dùng; bắt buộc phải có để khởi động (boot) và cứu hộ hệ thống.</td>
                 <td><code>/bin/ls</code>, <code>/bin/cp</code>, <code>/bin/mv</code>, <code>/bin/rm</code>, <code>/bin/cat</code>, <strong><code>/bin/grep</code></strong>, <code>/bin/bash</code></td>
-                <td>Tương đương các lệnh lõi trong C:\\Windows\\System32. Nơi cất giữ "công thức" của nhân vật chính <code>grep</code>!</td>
+                <td>Tương đương các lệnh lõi trong C:\Windows\System32. Nơi lưu giữ tệp nhị phân của nhân vật chính <code>grep</code>.</td>
               </tr>
               <tr>
                 <td><strong><code>/sbin</code></strong><br><em>(System Binaries)</em></td>
-                <td>Kệ chứa các lệnh quản trị hệ thống nguy hiểm; mặc định chỉ quản trị viên tối cao (root) mới được phép chạy.</td>
+                <td>Chứa các lệnh quản trị hệ thống đặc quyền; mặc định chỉ quản trị viên tối cao (root) mới được phép thực thi.</td>
                 <td><code>/sbin/reboot</code>, <code>/sbin/shutdown</code>, <code>/sbin/fdisk</code>, <code>/sbin/iptables</code></td>
-                <td>Tách biệt khỏi <code>/bin</code> để ngăn người dùng thường vô tình tắt máy chủ hoặc format nhầm ổ cứng.</td>
+                <td>Tách biệt khỏi <code>/bin</code> để ngăn người dùng thường vô tình tắt máy chủ hoặc phân vùng nhầm ổ cứng.</td>
               </tr>
               <tr>
                 <td><strong><code>/usr</code></strong><br><em>(User Programs &amp; Data)</em></td>
                 <td>Kho phần mềm và thư viện dùng chung cho toàn bộ người dùng trên máy chủ.</td>
                 <td>• <code>/usr/bin</code>: <code>python</code>, git, <code>gcc</code>, ssh<br>• <code>/usr/local/bin</code>: Phần mềm do dev tự biên dịch/cài thêm</td>
-                <td>Tương đương C:\\Program Files trên Windows. Trên Ubuntu đời mới, <code>/bin</code> được nối tắt (symlink) vào <code>/usr/bin</code>.</td>
+                <td>Tương đương C:\Program Files trên Windows. Trên Ubuntu hiện đại, <code>/bin</code> được nối tắt (symlink) vào <code>/usr/bin</code>.</td>
               </tr>
               <tr>
                 <td><strong><code>/etc</code></strong><br><em>(Configuration Files)</em></td>
-                <td>Phòng chứa toàn bộ "sổ tay cấu hình" dạng văn bản của hệ điều hành và các dịch vụ máy chủ.</td>
+                <td>Chứa toàn bộ tệp cấu hình dạng văn bản của hệ điều hành và các dịch vụ máy chủ.</td>
                 <td>• <code>/etc/passwd</code> (Danh sách tài khoản)<br>• <code>/etc/hosts</code> (Cấu hình tên miền cục bộ)<br>• <code>/etc/ssh/sshd_config</code> (Cấu hình SSH)</td>
-                <td>Thay thế cho Windows Registry phức tạp: trên Linux, mọi cấu hình hệ thống đều là tệp văn bản thuần túy đọc/sửa được bằng vim/nano!</td>
+                <td>Thay thế cho Windows Registry: trên Linux, mọi cấu hình hệ thống đều là tệp văn bản thuần túy đọc/sửa được bằng vim/nano.</td>
               </tr>
               <tr>
                 <td><strong><code>/proc</code></strong><br><em>(Process &amp; System Info)</em></td>
-                <td><strong>Cửa kính ảo (Virtual Filesystem)</strong> do Kernel tạo trực tiếp trên RAM để phơi bày trạng thái thời gian thực của Process và phần cứng.</td>
+                <td><strong>Hệ thống tệp ảo (Virtual Filesystem)</strong> do Kernel tạo trực tiếp trên RAM để phơi bày trạng thái thời gian thực của Process và phần cứng.</td>
                 <td>• <code>/proc/meminfo</code> (Dung lượng RAM)<br>• <code>/proc/cpuinfo</code> (Thông số CPU)<br>• <code>/proc/uptime</code> &amp; <code>/proc/1234/</code></td>
-                <td><strong>Đặc tính sống còn:</strong> Chiếm đúng <strong>0 MB trên ổ đĩa cứng</strong>! Khi tắt nguồn máy chủ, toàn bộ <code>/proc</code> biến mất và được Kernel dựng lại khi bật máy.</td>
+                <td><strong>Đặc tính cốt tử:</strong> Chiếm đúng <strong>0 MB trên ổ đĩa cứng</strong>. Khi tắt nguồn máy chủ, toàn bộ <code>/proc</code> biến mất và được Kernel dựng lại khi bật máy.</td>
               </tr>
               <tr>
                 <td><strong><code>/home</code></strong> &amp; <strong><code>/root</code></strong><br><em>(User &amp; Admin Homes)</em></td>
-                <td>• <code>/home</code>: Khu căn hộ riêng của từng người dùng thường.<br>• <code>/root</code>: Phủ riêng của quản trị viên tối cao root.</td>
+                <td>• <code>/home</code>: Thư mục cá nhân của từng người dùng thường.<br>• <code>/root</code>: Thư mục riêng của quản trị viên tối cao root.</td>
                 <td>• <code>/home/fsds</code>, <code>/home/student1</code>, <code>/home/developer</code><br>• <code>/root</code> (Nằm tách hẳn khỏi <code>/home</code>)</td>
-                <td><code>/home</code> giống C:\\Users. <code>/root</code> được đặt ngay dưới <code>/</code> để nếu ổ đĩa chứa <code>/home</code> bị hỏng, root vẫn đăng nhập vào cứu máy được.</td>
+                <td><code>/home</code> tương đương C:\Users. <code>/root</code> được đặt ngay dưới <code>/</code> để nếu phân vùng chứa <code>/home</code> bị lỗi mount, root vẫn đăng nhập vào cứu máy được.</td>
               </tr>
               <tr>
                 <td><strong><code>/tmp</code></strong><br><em>(Temporary Files)</em></td>
-                <td>Bàn nháp công cộng: bất kỳ người dùng hay chương trình nào cũng được phép tạo tệp tạm tại đây.</td>
-                <td>Tệp tải dở của trình duyệt, socket tạm, tệp nháp khi chạy crontab -e (<code>/tmp/crontab.SpK7AW</code>)</td>
-                <td>Tương đương C:\\Temp. <strong>Cảnh báo:</strong> Dữ liệu trong <code>/tmp</code> sẽ bị <strong>xóa sạch tự động mỗi khi khởi động lại máy (Reboot)</strong>!</td>
+                <td>Không gian nháp công cộng: mọi người dùng và tiến trình đều được phép tạo tệp tạm tại đây.</td>
+                <td>Tệp tải dở, socket tạm, tệp nháp khi chạy crontab -e (<code>/tmp/crontab.SpK7AW</code>)</td>
+                <td>Tương đương C:\Temp. <strong>Cảnh báo:</strong> Dữ liệu trong <code>/tmp</code> sẽ bị <strong>xóa sạch tự động mỗi khi khởi động lại máy (Reboot)</strong>.</td>
               </tr>
               <tr>
                 <td><strong><code>/var</code></strong><br><em>(Variable Data)</em></td>
                 <td>Kho chứa dữ liệu <strong>phình to và biến đổi liên tục</strong> trong suốt quá trình máy chủ vận hành 24/7.</td>
                 <td>• <strong><code>/var/log</code></strong>: Nhật ký hệ thống &amp; <strong><code>app.log</code></strong><br>• <code>/var/www</code>: Mã nguồn Web (Nginx/Apache)<br>• <code>/var/lib</code>: Dữ liệu Database (PostgreSQL/Docker)</td>
-                <td>Đây chính là "quê hương" của tệp mục tiêu <code>/var/log/app.log</code>. Khi ổ cứng máy chủ báo đầy 100%, thủ phạm số 1 luôn nằm ở <code>/var/log</code>!</td>
+                <td>Nơi đặt tệp mục tiêu <code>/var/log/app.log</code>. Khi ổ cứng máy chủ báo đầy 100%, khu vực cần kiểm tra đầu tiên luôn là <code>/var/log</code>.</td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        <h3 id="linux-2-3-takeaway">4. Đúc kết Cơ học &amp; Đánh đổi (Trade-off)</h3>
-        <ul>
-          <li><strong>Bản chất cơ học:</strong> Việc quy hoạch toàn bộ hệ thống dưới một gốc <code>/</code> duy nhất cho phép Linux tách rời hoàn toàn <strong>Đường dẫn logic trong code</strong> khỏi <strong>Ổ đĩa vật lý bên dưới</strong>. Nếu thư mục <code>/var/log</code> bị tệp <code>app.log</code> làm đầy, quản trị viên chỉ cần cắm thêm một ổ cứng NVMe 10 TB mới và gắn (mount) nó vào đúng nhánh <code>/var/log</code> — mọi kịch bản đang gọi <code>/var/log/app.log</code> vẫn chạy mượt mà không phải sửa một dòng code nào!</li>
-          <li><strong>Sự đánh đổi dẫn sang Trạm 2.4:</strong> Đã nắm trọn bản đồ kho hàng <code>/</code> trong tay, nhưng khi đăng nhập vào máy chủ qua SSH, trước mặt bạn chỉ có con trỏ nhấp nháy trên màn hình đen. <em>Làm sao di chuyển thần tốc giữa các thư mục, tạo/sao chép/đổi tên/xóa tệp an toàn, và soi đúng những dòng lỗi mới nhất trong tệp <code>/var/log/app.log</code> nặng hàng Gigabyte mà không làm treo máy chủ?</em></li>
-        </ul>
+        <p>Nắm vững bản đồ quy hoạch của cây thư mục <code>/</code> mới là điều kiện cần; khi đăng nhập vào máy chủ Production qua SSH chỉ có màn hình dòng lệnh đen trắng, kỹ sư cần bộ công cụ CLI chuẩn xác để di chuyển, thao tác tệp và truy vết các tệp log nặng hàng Gigabyte mà không làm treo phiên làm việc.</p>
 
         <hr />
 
         <h2 id="linux-2-4" tabindex="-1">Trạm 2.4: Bộ công cụ tác chiến trên cây thư mục — Điều hướng (pwd/ls/cd), thao tác (cp/mv/rm) &amp; săn log (head/tail -f/find/du)</h2>
-        <p><em>(Tương ứng Mục 03/ Command Line Basics — Navigate, Manipulate, View &amp; Search Files trong Slide <code>01-linux-fundamentals.pdf</code> tr. 27–44 + Sách <em>The Linux Programming Interface</em>, Ch. 18)</em></p>
 
-        <h3 id="linux-2-4-analogy">1. Bối cảnh &amp; Ẩn dụ đời thực: Bộ đồ nghề tác chiến trong đêm</h3>
-        <p>Nếu cây thư mục <code>/</code> là một tòa kho khổng lồ không bật đèn (vì trên Server không có giao diện chuột GUI), thì bộ lệnh <strong>Command Line Basics</strong> chính là chiếc la bàn định vị (<code>pwd</code>, <code>ls</code>, <code>cd</code>), đôi găng tay bốc xếp hàng hóa (<code>touch</code>, <code>mkdir</code>, <code>cp</code>, <code>mv</code>, <code>rm</code>) và chiếc đèn pin chiếu điểm (<code>head</code>, tail -f, <code>find</code>, <code>du</code>) giúp kỹ sư thao tác chính xác tới từng tệp log trong tích tắc.</p>
+        <p>Mỗi công cụ dòng lệnh thuộc gói GNU Coreutils (<code>pwd</code>, <code>ls</code>, <code>cd</code>, <code>cp</code>, <code>mv</code>, <code>rm</code>, <code>head</code>, <code>tail</code>, <code>find</code>, <code>du</code>) đều được thiết kế theo triết lý UNIX: <strong>"Mỗi chương trình chỉ làm duy nhất một việc và làm thật xuất sắc" (<em>Do one thing and do it well</em>)</strong>. Trong vận hành máy chủ thực tế, việc chọn đúng công cụ và đúng cờ (flag) quyết định ranh giới giữa thao tác an toàn trong 3 giây và sự cố treo máy hoặc mất dữ liệu vĩnh viễn.</p>
 
-        <h3 id="linux-2-4-pain">2. Nỗi đau (Pain Point) từ trạm trước</h3>
-        <p>Trong thực tế vận hành máy chủ sản xuất (Production Server), kỹ sư mới thường mắc 3 sai lầm chí mạng khi thao tác với tệp trên dòng lệnh:</p>
-        <ul>
-          <li><strong>(1) Quên kiểm tra vị trí đứng trước khi xóa:</strong> Chạy lệnh xóa đệ quy rm -rf khi đang đứng nhầm thư mục. Vì trên Linux CLI <strong>không hề có Thùng rác (Recycle Bin)</strong>, một cú gõ rm -rf / hoặc rm -rf * sẽ xóa sổ toàn bộ dữ liệu ngay lập tức không thể cứu vãn!</li>
-          <li><strong>(2) Dùng <code>cat</code> mở tệp log khổng lồ:</strong> Khi tệp <code>/var/log/app.log</code> đã phình lên 5 GB, nếu gõ cat /var/log/app.log, hệ thống sẽ cố gắng đổ cả trăm triệu dòng chữ ra màn hình Terminal, làm nghẽn băng thông SSH và treo cứng phiên làm việc.</li>
-          <li><strong>(3) Máy chủ báo hết ổ cứng (Disk Full 100%) lúc nửa đêm:</strong> Giữa hàng vạn thư mục trên cây <code>/</code>, nếu chỉ đi gõ <code>ls</code> từng thư mục thì mất cả tiếng đồng hồ vẫn không tìm ra tệp .log nào đang ngốn hết ổ cứng.</li>
-        </ul>
-
-        <h3 id="linux-2-4-visuals">3. Sơ đồ Giải phẫu Cơ chế &amp; Bảng Dữ liệu thật</h3>
+        <p>Ba sai lầm chí mạng cần tuyệt đối tránh trên môi trường Production là: (1) Chạy lệnh xóa đệ quy <code>rm -rf</code> khi chưa kiểm tra <code>pwd</code> (vì CLI tháo trực tiếp liên kết Inode không qua Recycle Bin); (2) Dùng <code>cat</code> đổ toàn bộ tệp <code>/var/log/app.log</code> nặng 5 GB ra màn hình làm nghẽn băng thông SSH (thay vì dùng <code>head</code>, <code>tail -n</code> hoặc <code>tail -f</code> để theo dõi dòng lỗi mới theo thời gian thực); và (3) Dò tìm thủ công bằng <code>ls</code> khi ổ đĩa báo đầy 100% thay vì kết hợp <code>du -sh *</code> và <code>find /var/log -name "*.log" -size +1G</code>.</p>
 
         <x-figure id="linux-2-4a" key="2.4a" title="Hình 2.4A — Bản đồ Tác chiến Nhóm Lệnh Điều hướng (pwd, ls, cd — Slide 28–30) &amp; Nhóm Thao tác File (touch, mkdir, cp, mv, rm — Slide 31–37)">Tổng hợp cơ học 2 nhóm lệnh nền tảng trên Slide 28–37: Nhóm Điều hướng (pwd định vị, ls -lh/-a/-t quan sát, cd ~/../- di chuyển) và Nhóm Thao tác (touch tạo file rỗng, mkdir -p tạo cây thư mục, cp -r sao chép, mv đổi tên/di chuyển, và rm -r xóa vĩnh viễn).</x-figure>
 
@@ -295,11 +249,7 @@
           </table>
         </div>
 
-        <h3 id="linux-2-4-takeaway">4. Đúc kết Cơ học &amp; Đánh đổi (Trade-off)</h3>
-        <ul>
-          <li><strong>Bản chất cơ học:</strong> Mỗi công cụ dòng lệnh trên Linux (<code>ls</code>, <code>head</code>, <code>tail</code>, <code>grep</code>, <code>find</code>, <code>du</code>, sed, wc) đều được thiết kế theo triết lý UNIX: <strong>"Mỗi chương trình chỉ làm duy nhất 1 việc và làm thật xuất sắc" (<em>Do one thing and do it well</em> — Slide 45)</strong>.</li>
-          <li><strong>Sự đánh đổi &amp; Câu hỏi dẫn sang Chặng 3:</strong> Giả sử bạn đã dùng <code>grep ERROR /var/log/app.log</code> để lọc ra được 50.000 dòng lỗi, nhưng bây giờ sếp yêu cầu: <em>"Hãy cắt lấy cột tên dịch vụ bị lỗi, sắp xếp theo thứ tự A–Z, đếm xem lỗi nào xuất hiện nhiều nhất và ghi báo cáo ra tệp, đồng thời nếu có lỗi đọc tệp thì tách riêng ra chỗ khác!"</em> Một mình lệnh <code>grep</code> không thể làm hết ngần ấy việc. Làm thế nào để các Process độc lập chuyền tay nhau luồng dữ liệu ngay trên RAM qua 3 cổng stdin (0), stdout (1), stderr (2) và đường ống Pipe (|) mà không làm bẩn kết quả của nhau? Đó chính là nội dung của <strong>Chặng 3</strong>!</li>
-        </ul>
+        <p>Vì mỗi chương trình trên Linux chỉ đảm nhận một tác vụ nguyên tử (<code>grep</code> chỉ lọc dòng, <code>sort</code> chỉ sắp xếp, <code>uniq -c</code> chỉ đếm tần suất, <code>wc -l</code> chỉ đếm tổng dòng), một tiến trình đơn lẻ không thể tự mình hoàn tất chuỗi phân tích phức tạp. Làm thế nào để ghép nối hàng loạt Process độc lập chuyền tay nhau luồng dữ liệu trực tiếp trên bộ đệm RAM của Kernel qua 3 cổng <code>stdin (0)</code>, <code>stdout (1)</code>, <code>stderr (2)</code> và đường ống <code>Pipe (|)</code> mà không làm lẫn thông báo lỗi vào kết quả? Chúng ta bước sang <strong>Chặng 3</strong>.</p>
 
         <section class="summary-section" id="linux-2-summary" tabindex="-1">
           <h2>Tóm tắt bỏ túi Chặng 2 (Mạch nhân – quả &amp; Checklist 5 câu hỏi bản chất)</h2>
@@ -307,7 +257,7 @@
             <li><strong>5 thuộc tính trên "chứng minh thư" của một Process là gì và dùng để làm gì?</strong> PID (định danh tiến trình), User/Group (UID/GID) (xét duyệt quyền chạm vào tệp rwx), Working Directory (cwd) (gốc tọa độ giải mã đường dẫn tương đối), Environment ($PATH) (danh bạ giúp Shell tìm thấy <code>/bin/grep</code> khi chỉ gõ <code>grep</code>), và Open Files (FD 0, 1, 2...).</li>
             <li><strong>Triết lý "Everything is a file" (Slide 19) mang lại sức mạnh cơ học gì?</strong> Nhờ tầng Virtual File System (VFS), cả tệp văn bản (<code>app.log</code>), thư mục (<code>/var/log</code>), thiết bị phần cứng (<code>/dev/sda</code>) lẫn thông tin tiến trình trên RAM (<code>/proc/1234</code>) đều dùng chung một giao diện đọc/ghi byte và thao tác được bằng cùng một bộ lệnh (<code>cat</code>, <code>grep</code>, <code>cp</code>, echo).</li>
             <li><strong>Tại sao lệnh <code>mv</code> đổi tên tệp 100 GB lại mất chưa tới 1 ms, và tại sao <code>rm</code> xóa không khôi phục được?</strong> Vì thư mục thực chất chỉ là một tệp đặc biệt chứa bảng ánh xạ Tên tệp → Số Inode (Slide 19). Đổi tên bằng <code>mv</code> chỉ sửa dòng chữ trong bảng thư mục (không chạm vào 100 GB dữ liệu trên đĩa), còn <code>rm</code> tháo liên kết (unlink) khỏi bảng thư mục ngay lập tức mà không đi qua Recycle Bin.</li>
-            <li><strong>Tại sao thư mục <code>/proc</code> chiếm 0 MB ổ cứng, và tại sao cây thư mục <code>/</code> của Linux ưu việt hơn C:\\, D:\\ của Windows?</strong> <code>/proc</code> là hệ thống tệp ảo do Kernel sinh trực tiếp trên RAM (như <code>/proc/meminfo</code>, <code>/proc/cpuinfo</code>). Cây thư mục hợp nhất <code>/</code> cho phép gắn (mount) ổ đĩa mới vào bất kỳ nhánh nào (như <code>/var/log</code>) mà không làm đứt gãy đường dẫn <code>/var/log/app.log</code> trong code.</li>
+            <li><strong>Tại sao thư mục <code>/proc</code> chiếm 0 MB ổ cứng, và tại sao cây thư mục <code>/</code> của Linux ưu việt hơn C:\, D:\ của Windows?</strong> <code>/proc</code> là hệ thống tệp ảo do Kernel sinh trực tiếp trên RAM (như <code>/proc/meminfo</code>, <code>/proc/cpuinfo</code>). Cây thư mục hợp nhất <code>/</code> cho phép gắn (mount) ổ đĩa mới vào bất kỳ nhánh nào (như <code>/var/log</code>) mà không làm đứt gãy đường dẫn <code>/var/log/app.log</code> trong code.</li>
             <li><strong>Khi tệp <code>/var/log/app.log</code> phình lên 5 GB làm đầy ổ đĩa, bộ lệnh tác chiến chuẩn là gì?</strong> Tuyệt đối không dùng <code>cat</code>; dùng du -sh /var/log/* và find /var/log -name "*.log" -size +1G để định vị tệp khổng lồ, dùng head -n 20 / tail -n 20 để cắt đầu/đuôi, và dùng tail -f /var/log/app.log để theo dõi dòng lỗi mới theo thời gian thực (Real-time).</li>
           </ol>
           <p style="margin-top:14px;"><strong>Bước tiếp theo:</strong> Chuyển sang <a href="#topic=F01&stage=3" onclick="selectStorageStage(3);return false;">Chặng 3: Giao tiếp Đa tiến trình (IPC), Ba Cổng 0/1/2 &amp; Đường ống Pipe →</a></p>

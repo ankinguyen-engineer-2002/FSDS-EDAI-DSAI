@@ -1,32 +1,14 @@
       <div class="prose">
-        <p><strong>Chặng 1: Database Fundamentals &amp; Data Modeling (Nền móng cấu trúc &amp; Toàn vẹn dữ liệu)</strong> mở màn cho học phần <strong>I. Engineering Foundation — F03 · Database Fundamentals</strong> (bám sát 100% <code>course-slides/03-database-fundamentals.pdf</code> — 70 trang, kết hợp nền tảng cơ học từ bộ 3 sách chuyên sâu: <em>Database Internals</em> của Alex Petrov, <em>Database Design and Modeling with PostgreSQL and MySQL</em> của Alkin Tezuysal &amp; Ibrar Ahmed, và <em>PostgreSQL: Up and Running</em> của Regina O. Obe &amp; Leo S. Hsu).</p>
-
         <h2 id="db-0-map" tabindex="-1">Trạm 0.0: Khởi tạo nhân vật chính đơn hàng trà sữa #HD01 &amp; bản đồ mạch nhân – quả 4 Chặng</h2>
-        <p><em>(Bước 0 — Thiết lập Nhân vật chính xuyên suốt, 4 Hình thái vật lý, Bản đồ Tư duy 1 dòng &amp; Ma trận Đối chiếu Slide ↔ Sách cho toàn bộ 4 Chặng — 12 Trạm)</em></p>
+
+        <p>Để toàn bộ hành trình từ thiết kế bảng biểu trên giấy cho tới lúc dữ liệu nằm bền vững dưới đĩa vật lý và vận hành trên cụm máy chủ phân tán trở thành một mạch nhân – quả liền lạc, học phần <strong>F03 · Database Fundamentals</strong> theo chân một nhân vật chính duy nhất: <strong>Đơn hàng Trà sữa #HD01 của khách hàng Lan</strong> (đặt ngày 2026-09-26, gồm 2 món: Oolong Sua đơn giá 30,000 SL 2 và Hong Tra Tac đơn giá 25,000 SL 1). Xuyên suốt 4 chặng (12 trạm), đơn hàng <strong>#HD01</strong> lần lượt tiến hóa qua 4 hình thái vật lý từ dòng văn bản thô (UNF) thành các bản ghi chuẩn hóa 3NF, đóng gói vào trang 8KB Slotted Page và WAL Record trong PostgreSQL, tách phiên bản đa thời gian MVCC và phân mảnh trên cụm phân tán.</p>
 
         <x-spine id="db-0-1" badge="TRONG BÀI HỌC NÀY · F03" title="Bản đồ Tư duy Kiến trúc 4 Chặng — 12 Trạm Database Fundamentals: Hành trình Đơn hàng Trà sữa #HD01" subtitle="Tổng quan 4 Chặng — 12 Trạm Database"><strong>Bản đồ Xương sống Học phần F03:</strong> Toàn cảnh 4 Chặng — 12 Trạm theo chân <strong>Đơn hàng Trà sữa #HD01 của khách hàng Lan</strong> (2026-09-26: Oolong Sua 30,000 SL 2 + Hong Tra Tac 25,000 SL 1) từ Data Modeling &amp; 3NF (Chặng 1), 8KB Slotted Page &amp; WAL Storage Engine (Chặng 2), MVCC, B-Tree vs LSM-Tree &amp; EXPLAIN ANALYZE (Chặng 3) đến Scale-out Sharding, 6 PGD Nodes &amp; CAP/BASE (Chặng 4).</x-spine>
 
-        <h3 id="db-0-protagonist">1. Khởi tạo &quot;Nhân vật chính&quot; Xuyên suốt Học phần</h3>
-        <p>Để toàn bộ hành trình từ thiết kế bảng biểu trên giấy cho tới lúc dữ liệu nằm yên dưới đĩa vật lý và vận hành trên cụm máy chủ phân tán trở thành một bộ phim liền mạch, chúng ta sẽ chọn một nhân vật chính xuất hiện ngay trong bản phác thảo kiến trúc: <strong>Đơn hàng Trà sữa #HD01 của khách hàng Lan</strong> (đặt ngày 2026-09-26, gồm 2 món: Oolong Sua đơn giá 30,000 SL 2 và Hong Tra Tac đơn giá 25,000 SL 1).</p>
-        <p>Thay vì học từng định nghĩa rời rạc, chúng ta sẽ theo chân <strong>#HD01</strong> tiến hóa qua 4 hình thái vật lý:</p>
-
         <x-figure id="db-0-1" key="0.1" title="Hình 0.1 — Bốn Hình thái Vật lý của Đơn hàng Trà sữa #HD01 Xuyên suốt Động cơ Cơ sở dữ liệu">Sự tiến hóa của Đơn hàng Trà sữa #HD01 (khách hàng Lan, 2026-09-26) qua 4 hình thái vật lý: (1) Dòng chữ thô hỗn độn (Unnormalized Text); (2) Các bản ghi có cấu trúc và ràng buộc (Relational Tuples 3NF với Primary Key & Foreign Key); (3) Các khối byte trong bộ nhớ và đĩa từ (8KB Slotted Page trên Shared Buffers & WAL Record mang mã LSN trong WAL Buffer); (4) Phiên bản đa thời gian và phân mảnh (MVCC Tuple & Distributed Shard).</x-figure>
 
-        <ul>
-          <li><strong>Hình thái 1 — Dòng chữ thô hỗn độn (Unnormalized Text):</strong> #HD01 bị nhét chung toàn bộ tên khách, số điện thoại và danh sách món vào một ô duy nhất, khiến hệ thống không thể tính tổng tiền hay sửa giá món.</li>
-          <li><strong>Hình thái 2 — Các bản ghi có cấu trúc và ràng buộc (Relational Tuples):</strong> #HD01 được phân rã thành các dòng dữ liệu nguyên tử trong các bảng liên kết qua Primary Key (khóa chính định danh duy nhất) và Foreign Key (khóa ngoại tham chiếu liên bảng).</li>
-          <li><strong>Hình thái 3 — Các khối byte trong bộ nhớ và đĩa từ (8KB Slotted Page &amp; WAL Record):</strong> Khi tiến vào PostgreSQL (hệ quản trị cơ sở dữ liệu quan hệ hướng đối tượng mã nguồn mở), #HD01 biến thành các chuỗi byte nằm trong khung trang 8KB trên Shared Buffers (vùng đệm bộ nhớ dùng chung trên RAM) và dòng nhật ký tuần tự mang mã LSN (Log Sequence Number — số thứ tự bản ghi nhật ký) trong WAL Buffer (bộ đệm nhật ký ghi trước).</li>
-          <li><strong>Hình thái 4 — Phiên bản đa thời gian và phân mảnh (MVCC Tuple &amp; Distributed Shard):</strong> Khi hàng nghìn khách hàng cùng bấm đặt trà sữa và sửa đơn đồng thời, #HD01 tách thành nhiều phiên bản nhờ cơ chế MVCC (Multi-Version Concurrency Control — kiểm soát đồng thời đa phiên bản) và nhân bản qua các Node (máy chủ nút) trong cụm phân tán.</li>
-        </ul>
-
-        <h3 id="db-0-mental-map">2. Bản đồ Tư duy 1 Dòng (Mental Map) &amp; Sơ đồ Mạch nhân – quả Toàn Học phần</h3>
-        <p><strong>Bản đồ Tư duy 1 dòng (One-Line Mental Map):</strong></p>
-        <pre><code>[Dữ liệu thô hỗn độn] --(1. Chuẩn hóa &amp; Ràng buộc)--&gt; [Bảng quan hệ sạch (3NF)] --(2. Đóng gói Page 8KB + Ghi WAL/RAM)--&gt; [Bền vững vật lý trên Disk] --(3. MVCC + B-Tree Index + EXPLAIN)--&gt; [Đọc/Ghi đồng thời tốc độ ms] --(4. Replication + Sharding + CAP/BASE)--&gt; [Hệ thống phân tán chịu lỗi quy mô lớn]</code></pre>
-
-        <h4>Sơ đồ Giải phẫu Lộ trình 4 Chặng — 12 Trạm (Khớp 100% Slide bài giảng &amp; Sơ đồ Excalidraw)</h4>
         <x-figure id="db-0-2" key="0.2" title="Hình 0.2 — Sơ đồ Giải phẫu Lộ trình 4 Chặng — 12 Trạm &amp; Nỗi đau Chuyển giao của Đơn hàng #HD01">Bản đồ giải phẫu 4 Chặng — 12 Trạm của học phần F03 Database Fundamentals cùng 3 nỗi đau chuyển giao nhân – quả: từ chuẩn hóa 3NF & Constraints (Chặng 1) sang 8KB Slotted Page, WAL Buffer & Checkpointer 5 phút (Chặng 2), tới MVCC Snapshot, B-Tree vs LSM-Tree & EXPLAIN ANALYZE (Chặng 3), và vươn ra cụm phân tán 6 PGD Nodes, Witness Node & CAP/BASE (Chặng 4).</x-figure>
 
-        <h4>Bảng Đối chiếu Khung Chương trình ("Slide là Xương sống, Sách là Thịt")</h4>
         <div class="table-wrap">
           <table class="clean-table">
             <thead>
@@ -68,20 +50,16 @@
 
         <hr />
 
-        <h4>Sơ đồ 1.0: Kiến trúc Tổng quan Chặng 1 — Database Fundamentals &amp; Data Modeling (Trạm 1.1 → 1.3)</h4>
         <x-figure id="db-1-0" key="1.0" title="Sơ đồ 1.0 — Nền móng Cấu trúc &amp; Toàn vẹn Dữ liệu: RDBMS Architecture, Keys/Constraints &amp; Chuẩn hóa 3NF/BCNF">Tổng quan 3 trạm của Chặng 1: [Trạm 1.1] Kiến trúc DB Client Library -> RDBMS Server -> Database Files đảm bảo Shared Access & 5 nhóm lệnh SQL (DDL, DML, DQL, DCL, TCL); [Trạm 1.2] Mô hình quan hệ (PK, FK, Cardinality 1:1/1:N/M:N) và 4 chốt chặn NOT NULL, DEFAULT, UNIQUE, CHECK; [Trạm 1.3] Chuẩn hóa UNF -> 1NF -> 2NF -> 3NF -> BCNF tách đơn #HD01 thành 4 bảng KhachHang, HoaDon, MonAn, ChiTiet.</x-figure>
 
         <h2 id="db-1-1" tabindex="-1">Trạm 1.1: What is a database &amp; DBMS architecture (Cơ sở dữ liệu &amp; giải phẫu hệ quản trị)</h2>
-        <ul>
-          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Hãy tưởng tượng tiệm trà sữa lúc mới mở chỉ ghi đơn hàng vào một cuốn sổ tay đặt ở quầy thu ngân. Khi chỉ có 1 nhân viên, việc ghi chép rất dễ dàng; nhưng khi 50 nhân viên cùng lao vào giành giật cuốn sổ để vừa ghi đơn mới vừa tẩy xóa giá tiền, cuốn sổ sẽ rách nát. DBMS (Database Management System — Hệ quản trị cơ sở dữ liệu) chính là "Ban quản lý kho hồ sơ tự động" đứng chắn giữa nhân viên và tủ hồ sơ gốc: nhân viên chỉ việc gửi phiếu yêu cầu qua cửa giao tiếp, còn việc tìm kiếm, khóa dòng và ghi xuống sổ cái do bộ máy bên trong tự điều phối.</li>
-          <li><strong>[Nỗi đau khởi điểm]:</strong> Ngày 2026-09-26, khách hàng Lan đặt đơn #HD01 gồm 2 ly Oolong Sua (30k) và 1 ly Hong Tra Tac (25k). Nếu lưu trực tiếp #HD01 vào một file văn bản phẳng trên đĩa cứng, lập trình viên phải tự viết code xử lý từng byte vị trí tệp, không có cơ chế ngăn hai luồng ghi đè lên nhau và cực kỳ khó truy vấn cập nhật khi quy mô vượt mốc 100,000 orders.</li>
-        </ul>
 
-        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Bảng Đối chiếu]</h3>
+        <p>Một <strong>DBMS (Database Management System — Hệ quản trị cơ sở dữ liệu)</strong> là lớp phần mềm trung gian đứng chắn giữa ứng dụng người dùng và các tệp dữ liệu vật lý trên đĩa cứng, tách biệt hoàn toàn ngôn ngữ truy vấn khai báo bậc cao (<strong>Query Processor</strong>) khỏi cơ chế lưu trữ byte mức thấp (<strong>Storage Engine</strong>). Nếu lưu trực tiếp đơn hàng #HD01 (ngày 2026-09-26, khách hàng Lan đặt 2 ly Oolong Sua 30k và 1 ly Hong Tra Tac 25k) vào tệp văn bản phẳng (Flat File), ứng dụng phải tự quản lý con trỏ byte, không có cơ chế khóa dòng khi 50 thu ngân ghi đè đồng thời, và tê liệt ngay khi quy mô vượt mốc 100,000 orders.</p>
+
         <x-figure id="db-1-1" key="1.1" title="Sơ đồ 1.1 — Giải phẫu Kiến trúc RDBMS Khi Tiếp nhận Đơn hàng #HD01 (Client/Server &amp; Modular Engine)">Giải phẫu 4 tầng kiến trúc RDBMS (Theo Database Internals — Figure 1-3) khi xử lý câu lệnh INSERT/SELECT #HD01: (1) Transport Subsystem (Client & Cluster Communication); (2) Query Processor (Query Parser & Cost-based Query Optimizer dựa trên Index Cardinality); (3) Execution Engine (Local & Remote Execution); (4) Storage Engine (Transaction Manager, Lock Manager, Access Methods B-Tree/LSM-Tree, Buffer Manager & Recovery Manager).</x-figure>
 
         <div class="table-wrap">
-          <table>
+          <table class="clean-table">
             <thead>
               <tr>
                 <th>Thành phần kiến trúc</th>
@@ -113,30 +91,24 @@
           </table>
         </div>
 
-        <h4>[Bổ sung Chuyên sâu +30% — Slide 05–12 &amp; Sách <em>Database Internals</em> Ch.1]: Kiến trúc DB Client Library → RDBMS Server &amp; 5 Nhóm Lệnh SQL Chuẩn</h4>
+        <h3>Kiến trúc DB Client Library → RDBMS Server &amp; 5 nhóm lệnh SQL chuẩn</h3>
+        <p>Ứng dụng thu ngân (Python / FastAPI dùng SQLAlchemy ORM hoặc psycopg) không bao giờ mở trực tiếp tệp dữ liệu trên đĩa. Thay vào đó, DB Client Library mở kết nối mạng TCP/IP (cổng mặc định 5432 trên PostgreSQL hoặc 3306 trên MySQL) tới tiến trình máy chủ RDBMS Server (<em>Slide 09–11</em> &amp; <em>Database Internals</em> Ch. 1). Nhờ kiến trúc tập trung này, RDBMS Server đảm bảo 3 đặc tính sống còn: <strong>Shared Access</strong> (nhiều người dùng đọc/ghi đồng thời an toàn), <strong>Data Integrity</strong> (kiểm tra ràng buộc trước khi chạm đĩa) và <strong>Crash Recovery</strong> (khôi phục tự động sau sự cố mất điện). Toàn bộ giao tiếp với #HD01 được chuẩn hóa qua 5 nhóm lệnh SQL (<em>Slide 36–52</em>):</p>
         <ul>
-          <li><strong>Luồng kết nối vật lý DB Client Library → RDBMS Server → Database Files (Slide 09–11):</strong> Ứng dụng thu ngân (Python / FastAPI dùng SQLAlchemy ORM hoặc psycopg) không bao giờ mở trực tiếp tệp dữ liệu trên đĩa. Thay vào đó, DB Client Library mở kết nối mạng TCP/IP (cổng mặc định 5432 trên PostgreSQL hoặc 3306 trên MySQL) tới tiến trình máy chủ RDBMS Server. Nhờ kiến trúc tập trung này, RDBMS Server đảm bảo 3 đặc tính sống còn: <strong>Shared Access</strong> (nhiều người dùng đọc/ghi đồng thời an toàn), <strong>Data Integrity</strong> (kiểm tra ràng buộc trước khi chạm đĩa) và <strong>Crash Recovery</strong> (khôi phục tự động sau sự cố mất điện).</li>
-          <li><strong>Phân류 5 nhóm câu lệnh SQL chuẩn điều khiển #HD01 (Slide 36–52):</strong>
-            <ul>
-              <li><strong>DDL (Data Definition Language):</strong> Định nghĩa khung cấu trúc bảng và ràng buộc (CREATE, ALTER, DROP, TRUNCATE).</li>
-              <li><strong>DML (Data Manipulation Language):</strong> Thao tác biến đổi dữ liệu dòng (<code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>).</li>
-              <li><strong>DQL (Data Query Language):</strong> Truy vấn rút trích và tổng hợp dữ liệu (<code>SELECT ... FROM ... WHERE ... GROUP BY ... HAVING ... ORDER BY</code>).</li>
-              <li><strong>DCL (Data Control Language):</strong> Cấp phát và thu hồi quyền truy cập bảo mật (<code>GRANT</code>, <code>REVOKE</code>).</li>
-              <li><strong>TCL (Transaction Control Language):</strong> Điều khiển ranh giới giao dịch nguyên tử (<code>BEGIN</code>, <code>COMMIT</code>, <code>ROLLBACK</code>, SAVEPOINT).</li>
-            </ul>
-          </li>
-          <li><strong>[Đúc kết Cơ học &amp; Đánh đổi]:</strong> Tách biệt Query Processor khỏi Storage Engine giúp lập trình viên thao tác với #HD01 bằng ngôn ngữ khai báo bậc cao mà không cần chạm trực tiếp vào file vật lý. Tuy nhiên, để DBMS hiểu và bảo vệ được #HD01, chúng ta không thể ném dữ liệu tự do vào đó mà phải đóng khung nó vào các bảng, khóa và ràng buộc nghiêm ngặt ở <strong>Trạm 1.2</strong>.</li>
+          <li><strong>DDL (Data Definition Language):</strong> Định nghĩa khung cấu trúc bảng và ràng buộc (CREATE, ALTER, DROP, TRUNCATE).</li>
+          <li><strong>DML (Data Manipulation Language):</strong> Thao tác biến đổi dữ liệu dòng (<code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>).</li>
+          <li><strong>DQL (Data Query Language):</strong> Truy vấn rút trích và tổng hợp dữ liệu (<code>SELECT ... FROM ... WHERE ... GROUP BY ... HAVING ... ORDER BY</code>).</li>
+          <li><strong>DCL (Data Control Language):</strong> Cấp phát và thu hồi quyền truy cập bảo mật (<code>GRANT</code>, <code>REVOKE</code>).</li>
+          <li><strong>TCL (Transaction Control Language):</strong> Điều khiển ranh giới giao dịch nguyên tử (<code>BEGIN</code>, <code>COMMIT</code>, <code>ROLLBACK</code>, SAVEPOINT).</li>
         </ul>
+
+        <p>Tách biệt Query Processor khỏi Storage Engine giúp kỹ sư thao tác với #HD01 bằng ngôn ngữ khai báo bậc cao mà không cần chạm trực tiếp vào tệp vật lý. Tuy nhiên, để DBMS bảo vệ được tính đúng đắn của #HD01, dữ liệu phải được đóng khung vào mô hình quan hệ với khóa chính, khóa ngoại và các chốt chặn ràng buộc nghiêm ngặt ở <strong>Trạm 1.2</strong>.</p>
 
         <hr />
 
         <h2 id="db-1-2" tabindex="-1">Trạm 1.2: Relational model, keys (PK, FK), cardinality &amp; constraints (Mô hình quan hệ &amp; chốt chặn ràng buộc)</h2>
-        <ul>
-          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Nếu DBMS là tòa nhà lưu trữ, thì Relational Model (Mô hình dữ liệu quan hệ do E.F. Codd khởi xướng năm 1970 dựa trên lý thuyết tập hợp và logic vị từ bậc nhất) chính là bản quy hoạch chia tòa nhà thành các phòng ban chuyên biệt (Tables), mỗi nhân sự có mã định danh căn cước (Primary Key), thẻ tham chiếu phòng ban (Foreign Key) và đội bảo vệ kiểm tra thẻ ở cửa (Constraints).</li>
-          <li><strong>[Nỗi đau từ trạm trước]:</strong> Dù đã có PostgreSQL quản lý tệp, nhưng nếu bảng dữ liệu cho phép nhập trùng mã hóa đơn #HD01, để trống tên món, hoặc nhập đơn giá âm (<code>-30,000</code>), rác dữ liệu sẽ tràn vào làm sai lệch toàn bộ báo cáo tài chính.</li>
-        </ul>
 
-        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Bảng Dữ liệu thật]</h3>
+        <p><strong>Relational Model (Mô hình dữ liệu quan hệ)</strong> do E.F. Codd khởi xướng năm 1970 tổ chức dữ liệu thành các quan hệ 2 chiều (Tables) dựa trên lý thuyết tập hợp và logic vị từ bậc nhất, trong đó mỗi bản ghi được định danh duy nhất bởi <strong>Primary Key (PK)</strong>, liên kết liên bảng qua <strong>Foreign Key (FK)</strong> và được kiểm duyệt ngay tại cổng vào bởi 4 chốt chặn <strong>Constraints (<code>NOT NULL</code>, <code>DEFAULT</code>, <code>UNIQUE</code>, <code>CHECK</code>)</strong>. Nếu thiếu các chốt chặn này, hệ thống sẽ cho phép nhập trùng mã hóa đơn #HD01, bỏ trống tên món hoặc nhập đơn giá âm (<code>-30,000</code>), làm hỏng toàn bộ báo cáo tài chính hạ nguồn.</p>
+
         <x-figure id="db-1-2" key="1.2" title="Sơ đồ 1.2 — Giải phẫu Thực thể (ERD), Lực lượng Quan hệ (Cardinality 1:1, 1:N, M:N) &amp; 4 Chốt chặn Constraints (#HD01)">Giải phẫu lực lượng quan hệ Cardinality (1:1, 1:N, M:N qua bảng trung gian ChiTietHoaDon), cơ chế khóa Primary Key (PK) / Foreign Key (FK) nối 4 bảng của đơn #HD01 (KhachHang, HoaDon, MonAn, ChiTietHoaDon), và phễu lọc 4 chốt chặn Database Constraints (NOT NULL & DEFAULT -> UNIQUE -> CHECK -> PK/FK).</x-figure>
 
         <pre><code>-- Minh họa SQL thiết lập Kiểu dữ liệu (Data Types), Khóa (Keys) và Ràng buộc (Constraints) cho #HD01
@@ -148,7 +120,7 @@ CREATE TABLE MonAn (
 );</code></pre>
 
         <div class="table-wrap">
-          <table>
+          <table class="clean-table">
             <thead>
               <tr>
                 <th>Thuật ngữ / Kiểu dữ liệu</th>
@@ -192,11 +164,9 @@ CREATE TABLE MonAn (
           </table>
         </div>
 
-        <h4>[Bổ sung Chuyên sâu +30% — Sách <em>Database Design and Modeling</em> Ch.3–4 &amp; <em>PostgreSQL: Up and Running</em>]: Cơ chế Referential Integrity &amp; Toàn bộ DDL 4 Bảng của #HD01</h4>
-        <ul>
-          <li><strong>Cơ chế hành động tham chiếu của Foreign Key (ON DELETE RESTRICT vs ON DELETE CASCADE):</strong> Khi bảng HoaDon gắn khóa ngoại MaKH REFERENCES KhachHang(MaKH), nếu ai đó chạy lệnh xóa khách hàng Lan (KH01) khỏi bảng KhachHang, hành vi mặc định ON DELETE RESTRICT sẽ lập tức chặn đứng lệnh xóa để bảo vệ lịch sử hóa đơn #HD01 không bị biến thành "bản ghi mồ côi" (Orphan Record). Ngược lại, giữa bảng HoaDon và ChiTietHoaDon, ta có thể cấu hình ON DELETE CASCADE để khi hủy đơn nháp thì các dòng chi tiết món của đơn đó cũng tự động được dọn sạch.</li>
-          <li><strong>Tác động vận hành của Foreign Key ở quy mô cực lớn:</strong> Sách <em>Database Design and Modeling</em> lưu ý rằng mỗi lần <code>INSERT</code> dòng mới vào ChiTietHoaDon, động cơ PostgreSQL phải chạy kiểm tra sự tồn tại của khóa cha trong HoaDon và MonAn. Vì vậy, <strong>luôn luôn phải đánh chỉ mục B-Tree Index trên các cột Foreign Key</strong> để thao tác kiểm tra tham chiếu và phép nối <code>JOIN</code> diễn ra trong O(log N) thay vì quét toàn bảng.</li>
-        </ul>
+        <h3>Cơ chế Referential Integrity &amp; toàn bộ DDL 4 bảng của #HD01</h3>
+        <p>Khi bảng HoaDon gắn khóa ngoại MaKH REFERENCES KhachHang(MaKH), nếu ai đó chạy lệnh xóa khách hàng Lan (KH01) khỏi bảng KhachHang, hành vi mặc định ON DELETE RESTRICT sẽ lập tức chặn đứng lệnh xóa để bảo vệ lịch sử hóa đơn #HD01 không bị biến thành "bản ghi mồ côi" (Orphan Record). Ngược lại, giữa bảng HoaDon và ChiTietHoaDon, ta cấu hình ON DELETE CASCADE để khi hủy đơn nháp thì các dòng chi tiết món của đơn đó cũng tự động được dọn sạch. Sách <em>Database Design and Modeling</em> (Ch. 3–4) đặc biệt lưu ý rằng mỗi lần <code>INSERT</code> dòng mới vào ChiTietHoaDon, động cơ PostgreSQL phải kiểm tra sự tồn tại của khóa cha trong HoaDon và MonAn; vì vậy, <strong>luôn luôn phải đánh chỉ mục B-Tree Index trên các cột Foreign Key</strong> để thao tác kiểm tra tham chiếu và phép nối <code>JOIN</code> diễn ra trong $\mathcal{O}(\log N)$ thay vì quét toàn bảng.</p>
+
         <pre><code>-- Bộ kịch bản DDL hoàn chỉnh khởi tạo 4 bảng chuẩn 3NF và 4 chốt chặn Constraints cho Đơn hàng #HD01
 CREATE TABLE KhachHang (
     MaKH    VARCHAR(10) PRIMARY KEY,
@@ -223,23 +193,19 @@ CREATE TABLE ChiTietHoaDon (
     CONSTRAINT fk_ct_monan FOREIGN KEY (MaMon)
         REFERENCES MonAn(MaMon) ON DELETE RESTRICT
 );</code></pre>
-        <ul>
-          <li><strong>[Đúc kết Cơ học &amp; Đánh đổi]:</strong> Cắm đủ 4 chốt chặn <code>NOT NULL</code>, DEFAULT, <code>UNIQUE</code>, <code>CHECK</code> cùng cặp khóa PK/FK giúp chặn đứng dữ liệu bẩn ngay tại tầng Database trước khi nó kịp lưu xuống đĩa. Nhưng nếu nhét tất cả các cột của khách hàng, hóa đơn và món ăn vào chung một bảng duy nhất, hiện tượng trùng lặp và dị thường cập nhật sẽ nổ ra — buộc #HD01 phải bước qua lò luyện chuẩn hóa ở <strong>Trạm 1.3</strong>.</li>
-        </ul>
+
+        <p>Cắm đủ 4 chốt chặn <code>NOT NULL</code>, DEFAULT, <code>UNIQUE</code>, <code>CHECK</code> cùng cặp khóa PK/FK giúp chặn đứng dữ liệu bẩn ngay tại tầng Database. Nhưng tại sao chúng ta phải tách đơn hàng #HD01 ra đúng 4 bảng trên thay vì gom tất cả cột khách hàng, hóa đơn và món ăn vào chung một bảng lớn? Câu trả lời nằm ở quy trình chuẩn hóa khử dư thừa tại <strong>Trạm 1.3</strong>.</p>
 
         <hr />
 
         <h2 id="db-1-3" tabindex="-1">Trạm 1.3: Normalization (UNF → 1NF → 2NF → 3NF → BCNF) vs denormalization (Chuẩn hóa &amp; phi chuẩn hóa)</h2>
-        <ul>
-          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Chuẩn hóa (Normalization) giống như việc dọn một chiếc tủ quần áo đang vứt lẫn lộn cả áo sơ mi, tất, giày dép và hóa đơn siêu thị vào chung một ngăn lớn (UNF), rồi phân loại chúng vào từng ngăn kéo chuyên biệt có dán nhãn (1NF → 3NF) để khi đổi một đôi giày thì không phải lục tung cả đống áo sơ mi lên sửa.</li>
-          <li><strong>[Nỗi đau từ trạm trước]:</strong> Ở trạng thái thô UNF (Unnormalized Form — dạng chưa chuẩn hóa), nhân viên gộp cả danh sách món "Oolong (30k, SL:2), HongTra (25k)" vào một ô DanhSachMon. Hệ quả: SQL không thể dùng hàm SUM() tính doanh thu từng món; khi tách ra 1NF thì thông tin của Lan (KH01, 0901xxxxxx) bị nhân bản ở mọi dòng món ăn; nếu Lan đổi số điện thoại hoặc quán đổi giá Oolong Sua, hệ thống phải quét sửa hàng loạt dòng cũ (dị thường cập nhật — Update Anomaly) và làm gãy hàm kết nối (Break JOIN function).</li>
-        </ul>
 
-        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Bảng Dữ liệu thật]</h3>
+        <p><strong>Normalization (Chuẩn hóa dữ liệu)</strong> là quy trình phân rã không mất mát thông tin (<em>Lossless Decomposition</em>) từ bảng thô chưa chuẩn hóa (UNF) qua các cấp 1NF → 2NF → 3NF / BCNF nhằm triệt tiêu sự dư thừa dữ liệu (<em>Data Redundancy</em>) và 3 dị thường cốt tử: <strong>Insertion Anomaly</strong>, <strong>Update Anomaly</strong> và <strong>Deletion Anomaly</strong>. Ở trạng thái thô UNF, việc gộp chuỗi <code>"Oolong (30k, SL:2), HongTra (25k)"</code> vào một ô <code>DanhSachMon</code> khiến SQL không thể dùng <code>SUM()</code> tính doanh thu từng món; còn khi mới dừng ở 1NF, thông tin của khách hàng Lan (<code>KH01</code>, <code>0901xxxxxx</code>) bị nhân bản ở mọi dòng món ăn, dẫn tới nguy cơ lệch dữ liệu khi cập nhật số điện thoại hoặc đổi giá món.</p>
+
         <x-figure id="db-1-3" key="1.3" title="Sơ đồ 1.3 — Hành trình Phân rã Bảo toàn (Lossless Decomposition) Đơn hàng #HD01 từ UNF -&gt; 1NF -&gt; 2NF -&gt; 3NF">Hành trình phân rã không mất mát thông tin (Lossless Decomposition) của đơn hàng #HD01: từ Bước 0 (UNF — ô DanhSachMon đa trị) -> Bước 1 (1NF — nguyên tử hóa với Composite PK MaHD + MaMon) -> Bước 2 (2NF — khử phụ thuộc hàm bộ phận, tách 3 bảng HoaDon, MonAn, ChiTietHoaDon) -> Bước 3 (3NF/BCNF — khử phụ thuộc bắc cầu MaHD -> MaKH -> TenKH/SoDT, tách bảng thứ 4 KhachHang).</x-figure>
 
         <div class="table-wrap">
-          <table>
+          <table class="clean-table">
             <thead>
               <tr>
                 <th>Cấp độ thiết kế</th>
@@ -271,9 +237,9 @@ CREATE TABLE ChiTietHoaDon (
           </table>
         </div>
 
-        <h4>[Bổ sung Chuyên sâu +30% — Giải phẫu 3 Dị thường Dữ liệu (Anomalies) Nếu Không Chuẩn hóa #HD01 Lên 3NF]</h4>
+        <h3>Giải phẫu 3 dị thường dữ liệu (Anomalies) nếu không chuẩn hóa #HD01 lên 3NF</h3>
         <div class="table-wrap">
-          <table>
+          <table class="clean-table">
             <thead>
               <tr>
                 <th>Loại Dị thường (Anomaly)</th>
@@ -301,9 +267,7 @@ CREATE TABLE ChiTietHoaDon (
           </table>
         </div>
 
-        <ul>
-          <li><strong>[Đúc kết Cơ học &amp; Đánh đổi → Chuyển giao sang Chặng 2]:</strong> Sau khi đạt chuẩn 3NF, đơn hàng #HD01 của Lan đã nằm gọn gàng trong 4 bảng logic sạch sẽ, không còn dư thừa. <strong>Nhưng nỗi đau mới xuất hiện:</strong> Các bảng 3NF này chỉ là khái niệm logic trên giấy! Khi Lan bấm nút "Thanh toán", hệ thống làm thế nào để biến các dòng dữ liệu này thành các bit vật lý trên ổ cứng mà không bị nghẽn cổ chai bởi tốc độ đọc/ghi cơ học của đĩa, đồng thời không mất trắng đơn hàng nếu máy chủ đột ngột đứt cầu dao điện? Chúng ta bước vào <strong>Chặng 2: Giải phẫu Động cơ Lưu trữ (Storage Engine) &amp; Bộ nhớ (Memory)</strong>.</li>
-        </ul>
+        <p>Sau khi đạt chuẩn 3NF, đơn hàng #HD01 của Lan đã nằm gọn trong 4 bảng logic sạch sẽ, không còn dư thừa. Nhưng các bảng 3NF mới chỉ là cấu trúc logic: khi Lan bấm nút "Thanh toán", hệ thống làm thế nào để biến các dòng dữ liệu này thành các khối byte vật lý trên ổ cứng mà không bị nghẽn cổ chai bởi tốc độ đọc/ghi cơ học của đĩa, đồng thời không mất trắng đơn hàng nếu máy chủ đột ngột mất điện? Chúng ta bước sang <strong>Chặng 2: Giải phẫu Động cơ Lưu trữ (Storage Engine) &amp; Bộ nhớ (Memory)</strong>.</p>
 
         <section class="summary-section" id="db-1-summary" tabindex="-1">
           <h2>Tóm tắt bỏ túi Chặng 1 &amp; Checklist tự kiểm tra (Data modeling &amp; 3NF)</h2>

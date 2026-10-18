@@ -1,20 +1,16 @@
       <div class="prose">
-        <p>Ở <strong>Chặng 1</strong>, Đơn hàng Trà sữa #HD01 của khách hàng Lan đã được chuẩn hóa thành 4 bảng 3NF (KhachHang, HoaDon, MonAn, ChiTietHoaDon) và khóa chặt bằng Constraints. Nhưng bảng 3NF mới chỉ sạch trên bản vẽ logic — bước vào <strong>Chặng 2 (Trạm 2.1 → 2.3): Storage Engine &amp; Memory Architecture</strong>, chúng ta giải phẫu cách động cơ PostgreSQL đóng gói #HD01 vào khung trang 8KB Slotted Page trên Shared Buffers và phối hợp với nhật ký tuần tự WAL để vừa đạt tốc độ RAM, vừa bền vững tuyệt đối trên đĩa.</p>
+        <p>Ở <strong>Chặng 1</strong>, Đơn hàng Trà sữa #HD01 của khách hàng Lan đã được chuẩn hóa thành 4 bảng 3NF (KhachHang, HoaDon, MonAn, ChiTietHoaDon) và khóa chặt bằng Constraints. Bước vào <strong>Chặng 2 (Trạm 2.1 → 2.3): Storage Engine &amp; Memory Architecture</strong>, chúng ta giải phẫu cách động cơ PostgreSQL đóng gói #HD01 vào khung trang 8KB Slotted Page trên vùng đệm Shared Buffers và phối hợp với nhật ký tuần tự WAL để vừa đạt tốc độ truy xuất của RAM, vừa bền vững tuyệt đối trên đĩa.</p>
 
-        <h4>Sơ đồ 2.0: Kiến trúc Tổng quan Chặng 2 — PostgreSQL Storage Engine, 8KB Slotted Page &amp; WAL Write Path</h4>
         <x-figure id="db-2-0" key="2.0" title="Sơ đồ 2.0 — Giải phẫu Động cơ PostgreSQL: Bộ nhớ shared_buffers, Khung trang 8KB Slotted Page &amp; Luồng ghi Kép WAL / Checkpointer">Tổng quan 3 trạm của Chặng 2: [Trạm 2.1] Client Process -> Backend Process & cấu hình thực tế trong postgresql.conf (shared_buffers = 131584 ~ 1GB, work_mem = 5120 kB, deadlock_timeout = 1000 ms); [Trạm 2.2] Cấu trúc 8KB Slotted Page (Page Header LSN, Line Pointers Ptr, Free Space, Row Tuple #HD01) & 3 biến số Buffering, Immutability, Ordering; [Trạm 2.3] Luồng ghi WAL Buffer -> WAL Writer -> WAL Files (Append-only) và Checkpointer (5 phút) xả Dirty Pages xuống Data Files.</x-figure>
 
         <h2 id="db-2-1" tabindex="-1">Trạm 2.1: Client/backend process &amp; memory versus Disk-based DBMS (Tiến trình &amp; phân cấp bộ nhớ 2 tầng)</h2>
-        <ul>
-          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Hãy hình dung Disk (ổ cứng SSD/HDD) là kho hàng khổng lồ nằm ở ngoại ô (chứa được rất nhiều hàng nhưng xe tải chạy đi lấy mất hàng giờ), còn RAM (Main Memory — bộ nhớ chính) là mặt bàn pha chế ngay trước mặt nhân viên (diện tích nhỏ nhưng lấy nguyên liệu chỉ mất một cái chớp mắt). Mỗi vị khách bước vào quán (Client Process) sẽ được cử riêng một nhân viên phục vụ (Backend Process) đứng lấy nguyên liệu ngay trên mặt bàn Shared Memory thay vì tự chạy ra kho ngoại ô.</li>
-          <li><strong>[Nỗi đau từ trạm trước]:</strong> Nếu mỗi câu lệnh <code>SELECT</code> hoặc <code>UPDATE</code> trên 4 bảng 3NF của đơn hàng #HD01 đều phải thò xuống đĩa cứng (Disk) để đọc và ghi trực tiếp, độ trễ truy cập đĩa sẽ làm tê liệt toàn bộ hệ thống ngay khi có vài chục khách hàng cùng đặt trà sữa.</li>
-        </ul>
 
-        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Bảng Đối chiếu]</h3>
+        <p>Mọi hệ quản trị cơ sở dữ liệu đặt trên đĩa (<em>Disk-Based DBMS</em> như PostgreSQL hay MySQL) đều phải giải bài toán chênh lệch tốc độ hàng nghìn lần giữa bộ nhớ RAM (nano-giây) và ổ cứng SSD/HDD (mili-giây). Nếu mỗi câu lệnh <code>SELECT</code> hoặc <code>UPDATE</code> trên 4 bảng 3NF của đơn hàng #HD01 đều chọc thẳng xuống đĩa cứng, độ trễ Disk I/O sẽ làm tê liệt hệ thống ngay khi có vài chục khách hàng đặt đơn cùng lúc. Để triệt tiêu điểm nghẽn này, PostgreSQL cấp phát cho mỗi kết nối khách hàng (Client Process) một tiến trình phục vụ riêng (Backend Process) thao tác trực tiếp trên vùng bộ nhớ đệm dùng chung <strong>Shared Memory (<code>shared_buffers</code>)</strong>, và giao việc đồng bộ xuống đĩa cho các tiến trình nền chuyên trách (WAL Writer, Checkpointer, Autovacuum Worker).</p>
+
         <x-figure id="db-2-1" key="2.1" title="Sơ đồ 2.1 — Kiến trúc Tiến trình &amp; Phân cấp Bộ nhớ 2 Tầng trong PostgreSQL (Shared Memory vs Disk)">Kiến trúc tiến trình và bộ nhớ trong PostgreSQL khi xử lý đơn hàng #HD01: mỗi Client Process kết nối sẽ được cấp phát 1 Backend Process riêng biệt, cùng thao tác trên vùng RAM Shared Memory (WAL Buffer, Shared Buffers ~1GB, Temp Buffers work_mem = 5MB, CLOG Buffers) và phối hợp với 3 tiến trình nền (WAL Writer, Checkpointer, Autovacuum Worker) để đồng bộ xuống Disk.</x-figure>
 
         <div class="table-wrap">
-          <table>
+          <table class="clean-table">
             <thead>
               <tr>
                 <th>Phân loại Hệ thống / Vùng nhớ</th>
@@ -43,10 +39,10 @@
           </table>
         </div>
 
-        <h4>[Bổ sung Chuyên sâu +30% — Sách <em>Database Design and Modeling</em> Ch.5 &amp; <em>PostgreSQL: Up and Running</em>]: Giải phẫu Định lượng File Cấu hình postgresql.conf &amp; postgresql.auto.conf</h4>
-        <p>Trong thực tế vận hành PostgreSQL, mọi vùng nhớ trên sơ đồ đều được định lượng chính xác bằng các tham số trong <code>postgresql.conf</code> (hoặc ghi đè động qua lệnh <code>ALTER SYSTEM</code> lưu vào <code>postgresql.auto.conf</code> và tra cứu trực tiếp qua bảng hệ thống <code>pg_settings</code>):</p>
+        <h3>Giải phẫu định lượng tệp cấu hình postgresql.conf &amp; postgresql.auto.conf</h3>
+        <p>Trong vận hành PostgreSQL thực tế (<em>Database Design and Modeling</em> Ch. 5 &amp; <em>PostgreSQL: Up and Running</em>), mọi vùng nhớ trên sơ đồ đều được định lượng chính xác bằng các tham số trong <code>postgresql.conf</code> (hoặc ghi đè động qua lệnh <code>ALTER SYSTEM</code> lưu vào <code>postgresql.auto.conf</code> và tra cứu trực tiếp qua bảng hệ thống <code>pg_settings</code>):</p>
         <div class="table-wrap">
-          <table>
+          <table class="clean-table">
             <thead>
               <tr>
                 <th>Tham số trong <code>postgresql.conf</code></th>
@@ -84,23 +80,18 @@
           </table>
         </div>
 
-        <ul>
-          <li><strong>[Đúc kết Cơ học &amp; Đánh đổi]:</strong> Nhờ tầng Shared Buffers trên RAM, khi Backend Process cần tra cứu giá món Oolong Sua của đơn #HD01, nó lấy ngay bản sao trên RAM thay vì đọc đĩa vật lý. Tuy nhiên, RAM và Disk không giao tiếp với nhau theo từng dòng đơn lẻ hay từng chữ cái, mà giao tiếp theo từng khối cố định gọi là Page — dẫn chúng ta tới giải phẫu vật lý bên trong Page ở <strong>Trạm 2.2</strong>.</li>
-        </ul>
+        <p>Nhờ tầng Shared Buffers trên RAM, khi Backend Process cần tra cứu giá món Oolong Sua của đơn #HD01, nó đọc ngay bản sao trên RAM thay vì chạm đĩa vật lý. Tuy nhiên, RAM và Disk không trao đổi dữ liệu theo từng dòng đơn lẻ mà theo từng khối cố định gọi là <strong>Page</strong> — dẫn chúng ta tới giải phẫu cấu trúc vật lý bên trong một Page ở <strong>Trạm 2.2</strong>.</p>
 
         <hr />
 
         <h2 id="db-2-2" tabindex="-1">Trạm 2.2: On-Disk data layout (Row vs column) &amp; Slotted Page (4-16 KB) (Cấu trúc trang vật lý)</h2>
-        <ul>
-          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Khi vận chuyển trà sữa từ kho ra quầy, bạn không chở lẻ tẻ từng hạt trân châu mà đóng vào các thùng nhựa tiêu chuẩn. Trong cơ sở dữ liệu, thùng nhựa đó gọi là <strong>Page (Trang dữ liệu, kích thước cố định từ 4-16 KB, phổ biến là 8KB trong PostgreSQL và 16KB trong MySQL InnoDB)</strong>. Bên trong chiếc thùng Page này được thiết kế cực kỳ thông minh: danh mục con trỏ xếp từ nắp thùng đi xuống, còn dữ liệu thực tế của đơn #HD01 lại xếp từ đáy thùng đi lên, gặp nhau ở khoảng trống chính giữa!</li>
-          <li><strong>[Nỗi đau từ trạm trước]:</strong> Làm sao để nhét các dòng dữ liệu có độ dài ngắn dài khác nhau (Variable-size data — ví dụ tên khách 'Lan' dài 3 ký tự nhưng 'Nguyễn Anh Kiệt' dài 15 ký tự) vào một khối Page cố định 4-16 KB mà khi xóa hoặc sửa một dòng ở giữa, ta không phải dịch chuyển toàn bộ các byte còn lại hay làm hỏng các con trỏ chỉ mục đang trỏ vào dòng đó?</li>
-        </ul>
 
-        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Bảng Dữ liệu thật]</h3>
+        <p>Đơn vị trao đổi I/O cơ sở giữa Disk và Shared Buffers là <strong>Page</strong> (trang dữ liệu kích thước cố định từ 4–16 KB: <strong>8KB</strong> trong PostgreSQL và <strong>16KB</strong> trong MySQL InnoDB). Để lưu trữ các bản ghi có độ dài biến thiên (như tên khách hàng ngắn dài khác nhau) vào một khung trang 8KB cố định mà không làm gãy các con trỏ chỉ mục bên ngoài khi xóa hoặc sửa dòng ở giữa, cơ sở dữ liệu sử dụng cấu trúc <strong>Slotted Page</strong>: phần đầu trang chứa <strong>Page Header</strong> và mảng con trỏ <strong>Line Pointers (<code>[Ptr 1]</code>, <code>[Ptr 2]</code>) mọc từ trên xuống</strong>, trong khi các bản ghi dữ liệu thực tế (<strong>Row Tuples</strong> của #HD01) lại <strong>mọc ngược từ đáy trang đi lên</strong>, gặp nhau tại vùng trống <strong>Free Space</strong> ở chính giữa.</p>
+
         <x-figure id="db-2-2" key="2.2" title="Sơ đồ 2.2 — Giải phẫu Cấu trúc Slotted Page (4-16 KB) &amp; Đối sánh Row-Oriented vs Column-Oriented Layout">Giải phẫu bên trong một khối Slotted Page cố định (8KB trong PostgreSQL): Page Header chứa mã LSN và biên vùng trống; mảng con trỏ Line Pointers [Ptr 1], [Ptr 2] mọc từ trên xuống; các bản ghi dữ liệu (Row Tuples của #HD01) mọc ngược từ đáy trang đi lên gặp nhau tại Free Space; đối sánh với lưu trữ theo dòng (Row-Oriented OLTP) và theo cột (Column-Oriented OLAP).</x-figure>
 
         <div class="table-wrap">
-          <table>
+          <table class="clean-table">
             <thead>
               <tr>
                 <th>Tiêu chí đối chiếu</th>
@@ -132,27 +123,25 @@
           </table>
         </div>
 
-        <h4>[Bổ sung Chuyên sâu +30% — Sách <em>Database Internals</em> Ch.3 &amp; <em>PostgreSQL Internals</em>]: Giải phẫu PageHeaderData (24 Bytes), Con trỏ Vật lý ctid &amp; Cơ chế TOAST</h4>
+        <h3>Giải phẫu PageHeaderData (24 Bytes), con trỏ vật lý ctid &amp; cơ chế TOAST</h3>
         <ul>
-          <li><strong>Giải phẫu 24 Bytes đầu tiên của Page Header trong PostgreSQL:</strong> Mỗi trang 8KB (8,192 bytes) mở đầu bằng PageHeaderData gồm: <code>pd_lsn</code> (8 bytes lưu mã LSN của bản ghi WAL cuối cùng sửa trang này), <code>pd_checksum</code> (2 bytes kiểm tra lỗi bit đĩa), <code>pd_lower</code> (2 bytes trỏ tới điểm cuối của mảng Line Pointers đang mọc xuống), và <code>pd_upper</code> (2 bytes trỏ tới điểm đầu của vùng Tuples đang mọc từ đáy lên). Khoảng cách pd_upper - pd_lower chính là dung lượng Free Space còn trống!</li>
-          <li><strong>Con trỏ định vị vật lý <code>ctid</code> (ItemPointer):</strong> Trong PostgreSQL, mỗi dòng dữ liệu của #HD01 có một cột ẩn hệ thống tên là <code>ctid</code> biểu diễn dưới dạng cặp tọa độ (block_number, offset_number) — ví dụ (42, 1) nghĩa là nằm tại Page #42, con trỏ Ptr #1. Bạn có thể chạy trực tiếp lệnh <code>SELECT ctid, MaHD, NgayDat FROM HoaDon WHERE MaHD = 'HD01';</code> để nhìn tận mắt vị trí trang vật lý của #HD01!</li>
-          <li><strong>Cơ chế TOAST (The Oversized-Attribute Storage Technique):</strong> Vì một trang PostgreSQL chỉ rộng 8KB và không cho phép một dòng vắt ngang qua 2 trang, nếu đơn hàng #HD01 đính kèm một cột ghi chú hoặc ảnh hóa đơn JSONB / TEXT nặng 50KB thì sao? Động cơ TOAST sẽ tự động <strong>nén (Compress)</strong> và <strong>cắt nhỏ (Out-of-line slicing)</strong> dữ liệu vượt ngưỡng ~2KB thành các mảnh nhỏ lưu sang bảng phụ <code>pg_toast</code>, chỉ để lại một con trỏ nhẹ 18 bytes trong trang chính!</li>
-          <li><strong>[Đúc kết Cơ học &amp; Đánh đổi]:</strong> Thiết kế Page (4-16 KB) có PAGE HEADER chứa mã LSN và mảng con trỏ [Ptr 1] [Ptr 2] giúp Database quản lý dữ liệu biến thiên cực kỳ linh hoạt trên cả RAM và Disk. Nhưng khi Lan yêu cầu sửa DonGia hoặc tăng số lượng ly trong #HD01, cơ chế nào giúp Database vừa phản hồi <code>COMMIT</code> tức thì cho Lan mà không bắt cô phải chờ ổ cứng tìm đúng vị trí Offset của Page để ghi đè? Câu trả lời nằm ở tuyệt kỹ điều phối giữa WAL Buffer và Dirty Page tại <strong>Trạm 2.3</strong>.</li>
+          <li><strong>Giải phẫu 24 Bytes đầu tiên của Page Header trong PostgreSQL:</strong> Mỗi trang 8KB (8,192 bytes) mở đầu bằng PageHeaderData gồm: <code>pd_lsn</code> (8 bytes lưu mã LSN của bản ghi WAL cuối cùng sửa trang này), <code>pd_checksum</code> (2 bytes kiểm tra lỗi bit đĩa), <code>pd_lower</code> (2 bytes trỏ tới điểm cuối của mảng Line Pointers đang mọc xuống), và <code>pd_upper</code> (2 bytes trỏ tới điểm đầu của vùng Tuples đang mọc từ đáy lên). Khoảng cách <code>pd_upper - pd_lower</code> chính là dung lượng Free Space còn trống (<em>Database Internals</em> Ch. 3).</li>
+          <li><strong>Con trỏ định vị vật lý <code>ctid</code> (ItemPointer):</strong> Trong PostgreSQL, mỗi dòng dữ liệu của #HD01 có một cột ẩn hệ thống tên là <code>ctid</code> biểu diễn dưới dạng cặp tọa độ <code>(block_number, offset_number)</code> — ví dụ <code>(42, 1)</code> nghĩa là nằm tại Page #42, con trỏ Ptr #1. Kỹ sư có thể chạy trực tiếp lệnh <code>SELECT ctid, MaHD, NgayDat FROM HoaDon WHERE MaHD = 'HD01';</code> để kiểm tra tọa độ trang vật lý của #HD01.</li>
+          <li><strong>Cơ chế TOAST (The Oversized-Attribute Storage Technique):</strong> Vì một trang PostgreSQL chỉ rộng 8KB và không cho phép một dòng vắt ngang qua 2 trang, nếu đơn hàng #HD01 đính kèm một cột ghi chú hoặc ảnh hóa đơn JSONB / TEXT nặng 50KB, động cơ TOAST sẽ tự động <strong>nén (Compress)</strong> và <strong>cắt nhỏ (Out-of-line slicing)</strong> dữ liệu vượt ngưỡng ~2KB thành các mảnh nhỏ lưu sang bảng phụ <code>pg_toast</code>, chỉ để lại một con trỏ nhẹ 18 bytes trong trang chính.</li>
         </ul>
+
+        <p>Thiết kế Slotted Page (8KB) có Page Header chứa mã LSN và mảng con trỏ gián tiếp <code>[Ptr 1]</code>, <code>[Ptr 2]</code> giúp Database quản lý dữ liệu biến thiên linh hoạt trên cả RAM và Disk. Nhưng khi khách hàng yêu cầu sửa <code>DonGia</code> hoặc tăng số lượng ly trong #HD01, cơ chế nào giúp Database phản hồi <code>COMMIT</code> tức thì mà không bắt khách hàng chờ ổ cứng tìm đúng Offset của Page để ghi đè ngẫu nhiên? Câu trả lời nằm ở luồng ghi kép giữa WAL Buffer và Dirty Page tại <strong>Trạm 2.3</strong>.</p>
 
         <hr />
 
         <h2 id="db-2-3" tabindex="-1">Trạm 2.3: Write Path, WAL buffer, Dirty Pages &amp; checkpointer (Luồng ghi kép &amp; cơ chế phục hồi)</h2>
-        <ul>
-          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Hãy tưởng tượng bạn là kế toán trưởng đang quản lý một tủ hồ sơ khổng lồ (DISK: DATA FILES) được sắp xếp theo thứ tự bảng chữ cái ở tầng hầm. Mỗi khi có giao dịch sửa giá đơn #HD01 thành 30000, nếu bạn phải cầm tờ giấy chạy xuống tầng hầm, mở đúng ngăn tủ (tìm theo Offset), rút hồ sơ cũ ra xóa rồi cất lại (Random I/O), khách sẽ bỏ về hết vì quá lâu. Thay vào đó, bạn làm 2 việc ngay tại bàn: (1) Sửa trực tiếp lên tờ hồ sơ đang bày sẵn trên mặt bàn (Shared Buffers → biến thành tờ giấy nháp chưa cất vào tủ gọi là Dirty Page), và (2) Ghi nhanh một dòng nối tiếp vào cuốn "Sổ nhật ký giao dịch" ngay tay phải (WAL Buffer → đẩy thẳng xuống cuối file WAL Files khi <code>COMMIT</code>). Sau đó cứ mỗi <strong>5 phút</strong>, trợ lý Checkpointer mới gom hàng nghìn tờ Dirty Page trên bàn đem xuống tầng hầm cất vào đúng ngăn tủ một lượt!</li>
-          <li><strong>[Nỗi đau từ trạm trước]:</strong> Ghi đè trực tiếp một Page (4-16 KB) xuống Data Files là thao tác ghi ngẫu nhiên (Random Write theo Offset của Page) rất tốn thời gian; nhưng nếu chỉ sửa trên RAM (Shared Buffers) mà chưa kịp ghi xuống đĩa đã bị sập nguồn (Crash), toàn bộ thay đổi của #HD01 sẽ bốc hơi — vi phạm tính bền vững (Durability).</li>
-        </ul>
 
-        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Bảng Đối chiếu]</h3>
+        <p>Ghi đè trực tiếp một Page (8KB) xuống <code>DATA FILES</code> là thao tác ghi ngẫu nhiên theo vị trí Offset (<em>Random Write I/O</em>) rất tốn thời gian; ngược lại, nếu chỉ sửa trên RAM (<code>Shared Buffers</code>) mà chưa ghi xuống đĩa đã mất điện (Crash), toàn bộ thay đổi của #HD01 sẽ bốc hơi — vi phạm tính bền vững (<em>Durability</em>). PostgreSQL hóa giải mâu thuẫn này bằng <strong>Luồng ghi kép (Dual Write Path)</strong>: khi cập nhật <code>DonGia = 30000</code>, Backend Process sửa trực tiếp trang dữ liệu trên <code>Shared Buffers</code> (đánh dấu thành <strong>Dirty Page</strong>) và đồng thời ghi một bản ghi thay đổi mang mã thứ tự <strong>LSN (Log Sequence Number)</strong> vào <strong>WAL Buffer</strong>. Ngay lúc giao dịch gọi <code>COMMIT</code>, tiến trình <strong>WAL Writer</strong> chỉ cần đẩy tuần tự (<em>Append-only Sequential Write</em>) bản ghi LSN đó xuống cuối tệp <code>WAL FILES</code> là báo thành công tức thì; còn hàng nghìn trang <strong>Dirty Pages</strong> trên RAM sẽ được tiến trình <strong>Checkpointer</strong> gom lại và xả xuống đúng Offset trong <code>DATA FILES</code> định kỳ (ví dụ mỗi <strong>5 phút</strong> một lần).</p>
+
         <x-figure id="db-2-3" key="2.3" title="Sơ đồ 2.3 — Giải phẫu Luồng Ghi Kép (Write Path): WAL Buffer vs Shared Buffers (Dirty Page) cho Đơn hàng #HD01">Luồng ghi kép trong PostgreSQL khi chạy lệnh UPDATE DonGia = 30000 cho #HD01: (1a) Nhánh tốc độ cao ghi tuần tự mã LSN #905 vào WAL Buffer và được WAL Writer đẩy tức thì xuống DISK: WAL FILES (Append-only) ngay khi COMMIT; (1b) Nhánh bất đồng bộ sửa trực tiếp Page trên Shared Buffers thành DIRTY PAGE và chờ tiến trình Checkpointer gom xả định kỳ (mỗi 5 phút) theo Offset xuống DISK: DATA FILES.</x-figure>
 
         <div class="table-wrap">
-          <table>
+          <table class="clean-table">
             <thead>
               <tr>
                 <th>Thành phần trong Luồng Ghi</th>
@@ -166,25 +155,26 @@
                 <td><strong>WAL Buffer → DISK: WAL FILES</strong></td>
                 <td>Ghi nhận chi tiết sự thay đổi (Page nào, thay đổi cột A, dòng B trong bảng X) gắn kèm mã thứ tự LSN (Log Sequence Number) theo kiểu Append-only (chỉ nối thêm vào cuối file) và xả RAM ngay sau khi đẩy xuống đĩa.</td>
                 <td><strong>Tức thì khi <code>COMMIT</code></strong> (do tiến trình WAL Writer đảm nhiệm).</td>
-                <td>Là "hộp đen máy bay": Nếu máy chủ mất điện khi Dirty Page trên RAM chưa kịp ghi xuống Data Files, Recovery Manager sẽ đọc lại các bản ghi LSN trong WAL Files để tái tạo chính xác đơn #HD01.</td>
+                <td>Đóng vai trò nhật ký khôi phục: nếu máy chủ mất điện khi Dirty Page trên RAM chưa kịp ghi xuống Data Files, Recovery Manager sẽ đọc lại các bản ghi LSN trong WAL Files để tái tạo chính xác đơn #HD01.</td>
               </tr>
               <tr>
                 <td><strong>Shared Buffers (Dirty Page) → DISK: DATA FILES</strong></td>
                 <td>Nạp khối Page (4-16 KB) lên RAM, sửa trực tiếp giá trị DonGia = 30000 trên Page khiến nó trở thành Dirty Page (trang bẩn — dữ liệu trên RAM mới hơn trên Disk).</td>
-                <td><strong>Thong thả, định kỳ (ví dụ 5 phút một lần)</strong> tiến trình Checkpointer mới gom hàng nghìn khối Dirty Page xả xuống ghi đè đúng Offset trong Data Files.</td>
+                <td><strong>Định kỳ (ví dụ 5 phút một lần)</strong> tiến trình Checkpointer gom hàng nghìn khối Dirty Page xả xuống ghi đè đúng Offset trong Data Files.</td>
                 <td>Sau khi Checkpointer ghi đè thành công Dirty Page xuống Data Files, Page đó trở lại trạng thái sạch (Clean) và các file WAL cũ trước mốc đó có thể được thu hồi.</td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        <h4>[Bổ sung Chuyên sâu +30% — Sách <em>Database Internals</em> Ch.5 &amp; <em>PostgreSQL Internals</em>]: Quy luật Vàng Write-Ahead Logging, Chống Rách Trang (Torn Page) &amp; Phục hồi REDO</h4>
+        <h3>Quy luật vàng Write-Ahead Logging, chống rách trang (Torn Page) &amp; phục hồi REDO</h3>
         <ul>
-          <li><strong>Quy luật bất biến của WAL (WAL Rule):</strong> Một khối Dirty Page trên Shared Buffers <strong>không bao giờ được phép ghi xuống Data Files trước khi bản ghi nhật ký WAL có mã LSN tương ứng của nó đã nằm yên an toàn trên đĩa WAL Files</strong> (tức là luôn đảm bảo $\text{Flushed\_WAL\_LSN} \ge \text{Page\_Header\_LSN}$).</li>
-          <li><strong>Chống thảm họa "Rách trang" (Torn Page) bằng full_page_writes = on:</strong> Vì hệ điều hành Linux thường ghi đĩa theo từng khối 4KB trong khi trang của PostgreSQL rộng 8KB, nếu mất điện đúng lúc đang ghi nửa chừng một trang 8KB, trang đó sẽ bị "rách" (4KB đầu là dữ liệu mới, 4KB sau là dữ liệu cũ). Để chống lỗi này, ngay lần đầu tiên một trang bị sửa sau mỗi kỳ Checkpoint, PostgreSQL chép nguyên vẹn cả ảnh chụp 8KB (Full Page Image - FPI) vào trong WAL!</li>
+          <li><strong>Quy luật bất biến của WAL (WAL Rule):</strong> Một khối Dirty Page trên Shared Buffers <strong>không bao giờ được phép ghi xuống Data Files trước khi bản ghi nhật ký WAL có mã LSN tương ứng của nó đã nằm yên an toàn trên đĩa WAL Files</strong> (luôn đảm bảo $\text{Flushed\_WAL\_LSN} \ge \text{Page\_Header\_LSN}$ — <em>Database Internals</em> Ch. 5).</li>
+          <li><strong>Chống thảm họa "Rách trang" (Torn Page) bằng <code>full_page_writes = on</code>:</strong> Vì hệ điều hành Linux thường ghi đĩa theo từng khối 4KB trong khi trang của PostgreSQL rộng 8KB, nếu mất điện đúng lúc đang ghi nửa chừng một trang 8KB, trang đó sẽ bị "rách" (4KB đầu là dữ liệu mới, 4KB sau là dữ liệu cũ). Để chống lỗi này, ngay lần đầu tiên một trang bị sửa sau mỗi kỳ Checkpoint, PostgreSQL chép nguyên vẹn cả ảnh chụp 8KB (Full Page Image — FPI) vào trong WAL.</li>
           <li><strong>Cơ chế phục hồi REDO tự động khi bật lại máy:</strong> Khi máy chủ khởi động lại sau sự cố sập nguồn, Recovery Manager tìm tới vị trí Redo Point của kỳ Checkpoint thành công gần nhất trong WAL Files. Với mỗi bản ghi WAL từ đó trở đi, nó so sánh mã LSN của bản ghi WAL với <code>pd_lsn</code> trong Page Header dưới đĩa: nếu $\text{WAL\_LSN} > \text{Page\_LSN}$, nó phát lại (Replay / REDO) thay đổi đó lên trang; nếu $\text{WAL\_LSN} \le \text{Page\_LSN}$, trang đó đã được ghi rồi nên bỏ qua an toàn (đảm bảo tính Idempotent tuyệt đối).</li>
-          <li><strong>[Đúc kết Cơ học &amp; Đánh đổi → Chuyển giao sang Chặng 3]:</strong> Toàn bộ thiết kế Storage Engine xoay quanh 3 tính chất cốt lõi: Buffering (giữ Dirty Page trên RAM để gom nhiều thao tác), Immutability (tính bất biến Append-only của WAL Files), và Ordering (sắp xếp thứ tự khóa để đọc nhanh). Nhờ tách bạch WAL Writer (ghi tuần tự tức thì để bảo toàn Durability) và Checkpointer (gom ghi ngẫu nhiên mỗi 5 phút để tối ưu thông lượng I/O), đơn hàng #HD01 vừa được chốt đơn cực nhanh vừa bất tử trước sự cố mất điện. <strong>Tuy nhiên, nỗi đau mới lại ập đến:</strong> Cơ chế này chạy tuyệt vời khi chỉ có mình Lan thao tác; nhưng vào giờ cao điểm trưa, khi <strong>1,000 khách hàng và nhân viên cùng lúc vừa đọc vừa sửa giá, vừa hủy đơn trên cùng một Page</strong>, làm sao để họ không đọc phải dữ liệu rác đang sửa dở (Dirty Read), không khóa cứng (Lock) toàn bộ cửa hàng, và tìm ra #HD01 giữa hàng trăm nghìn đơn hàng mà không phải lật từng Page? Chúng ta tiến vào <strong>Chặng 3: Kiểm soát Đồng thời (Concurrency Control) &amp; Thực thi Truy vấn (Query Execution)</strong>.</li>
         </ul>
+
+        <p>Toàn bộ thiết kế Storage Engine xoay quanh 3 biến số cơ học: <strong>Buffering</strong> (giữ Dirty Page trên RAM để gom nhiều thao tác), <strong>Immutability</strong> (tính bất biến Append-only của WAL Files), và <strong>Ordering</strong> (sắp xếp thứ tự khóa để đọc nhanh). Nhờ tách bạch WAL Writer và Checkpointer, đơn hàng #HD01 vừa được chốt đơn cực nhanh vừa bền vững trước sự cố mất điện. Nhưng vào giờ cao điểm trưa, khi <strong>1,000 khách hàng và nhân viên cùng lúc vừa đọc vừa sửa giá trên cùng một Page</strong>, làm sao để họ không đọc phải dữ liệu rác đang sửa dở (Dirty Read), không khóa cứng (Lock) toàn bộ cửa hàng, và tìm ra #HD01 giữa 100,000 đơn hàng mà không phải lật từng Page? Chúng ta tiến vào <strong>Chặng 3: Kiểm soát Đồng thời (Concurrency Control) &amp; Thực thi Truy vấn (Query Execution)</strong>.</p>
 
         <section class="summary-section" id="db-2-summary" tabindex="-1">
           <h2>Tóm tắt bỏ túi Chặng 2 &amp; Checklist tự kiểm tra (Storage engine &amp; memory)</h2>

@@ -1,31 +1,17 @@
       <div class="prose">
-        <p>Ở <strong>Chặng 3</strong>, chúng ta đã biết cách đấu nối các tiến trình bằng đường ống Pipe (|) và thu gom toàn bộ luồng kết quả lẫn luồng lỗi bằng <code>&gt;&gt; /var/log/backup.log 2&gt;&amp;1</code>. Bước vào <strong>Chặng 4 (Trạm 4.1 → 4.3)</strong> — chặng cuối cùng khép lại học phần <strong>F01 · Linux Fundamentals</strong> — trước khi đi vào từng công cụ, hãy nhìn bức tranh tổng thể: Để hệ thống tự vận hành mà không cần con người ngồi gõ lệnh, Linux phối hợp nhịp nhàng một <strong>bộ ba công cụ tự động hóa</strong>, mỗi công cụ trả lời đúng một câu hỏi cơ học:</p>
+        <p>Ở <strong>Chặng 3</strong>, chúng ta đã đấu nối các tiến trình bằng đường ống Pipe (|) và thu gom toàn bộ luồng kết quả lẫn luồng lỗi bằng <code>&gt;&gt; /var/log/backup.log 2&gt;&amp;1</code>. Bước vào <strong>Chặng 4 (Trạm 4.1 → 4.3)</strong> — chặng cuối khép lại học phần <strong>F01 · Linux Fundamentals</strong> — để hệ thống tự vận hành 24/7 mà không cần con người ngồi gõ lệnh, Linux phối hợp một <strong>tam giác công cụ tự động hóa</strong>, mỗi công cụ giải quyết đúng một bài toán cơ học: <strong>Shell Script (<code>.sh</code>)</strong> định nghĩa <em>làm những bước nào</em>, <strong>Make (<code>Makefile</code>)</strong> kiểm tra timestamp xem <em>tệp nào vừa sửa cần biên dịch lại</em>, và <strong>Cronjob (<code>crond</code>)</strong> quyết định <em>khi nào tự động kích hoạt</em>.</p>
 
-        <h4>Sơ đồ 4.0: Phối hợp Nhịp nhàng giữa Bộ ba Công cụ Tự động hóa trong Linux</h4>
         <x-figure id="linux-4-0" key="4.0" title="Sơ đồ 4.0 — Dây chuyền Tự động hóa 24/7: Phân vai Rõ ràng giữa 3 Công cụ (Shell Script, Make &amp; Cronjob)">Bộ ba tự động hóa trong Linux: [1] Shell Script (.sh) định nghĩa 'Làm những bước nào?', [2] Make (Makefile) kiểm tra 'File nào vừa sửa, có cần biên dịch lại không?', và [3] Cronjob (crond) quyết định 'Khi nào bắt đầu kích hoạt?'.</x-figure>
 
         <h2 id="linux-4-1" tabindex="-1">Trạm 4.1: Bash scripting — &quot;Tờ giấy dán tủ lạnh&quot; định nghĩa làm bước nào, ra sao</h2>
 
-        <h3>1. Bối cảnh &amp; Ẩn dụ đời thực</h3>
-        <p>Người mới học thường bối rối giữa 3 khái niệm: Shell, Bash và Bash Scripting. Hãy dùng một ẩn dụ cực kỳ đời thường (đối chiếu <em>Slide 46–51</em> của bài giảng <code>01-linux-fundamentals.pdf</code>):</p>
-        <ul>
-          <li><strong>Shell</strong> giống như khái niệm <strong>"Xe hơi" nói chung</strong> — là chương trình thông dịch lệnh nằm giữa con người và Kernel (có nhiều hãng khác nhau như sh, bash, zsh, fish).</li>
-          <li><strong>Bash</strong> (<em>Bourne-Again SHell</em>) giống như một dòng xe cụ thể rất phổ biến (ví dụ: <strong>"Xe Mec / BMW"</strong>) — là loại Shell mặc định trên hầu hết các bản phân phối Linux thuộc dự án GNU.</li>
-          <li><strong>Bash Scripting</strong> giống như <strong>"Tờ giấy dán trên tủ lạnh"</strong> ghi sẵn danh sách công việc từ bước 1 đến bước 10. Thay vì bạn phải đứng đọc từng câu lệnh cho đầu bếp làm, bạn viết tất cả vào một file văn bản có đuôi .sh để Bash tự đọc từ trên xuống dưới và làm một mạch!</li>
-        </ul>
+        <p>Ba khái niệm <strong>Shell</strong>, <strong>Bash</strong> và <strong>Bash Scripting</strong> nằm trên ba cấp độ phân cấp rõ rệt (<em>Slide 46–51</em>): <strong>Shell</strong> là khái niệm trình thông dịch dòng lệnh nói chung nằm giữa người dùng và Kernel (như <code>sh</code>, <code>bash</code>, <code>zsh</code>, <code>fish</code>); <strong>Bash</strong> (<em>Bourne-Again SHell</em>) là trình thông dịch mặc định thuộc dự án GNU trên hầu hết các bản phân phối Linux; còn <strong>Bash Scripting</strong> là việc đóng gói chuỗi lệnh, biến nhớ, rẽ nhánh điều kiện (<code>if/else</code>) và vòng lặp (<code>for/while</code>) vào một tệp kịch bản <code>.sh</code> để hệ thống thực thi tuần tự mà không sợ gõ sót bước hay nhầm đường dẫn.</p>
 
-        <h3>2. Nỗi đau (Pain Point) từ trạm trước</h3>
-        <p>Ở Chặng 2 và Chặng 3, nếu mỗi lần cần sao lưu dữ liệu và lọc nhật ký mà bạn phải tự tay gõ hàng chục lệnh trên Terminal, bạn sẽ rất dễ gõ sót bước, gõ nhầm tên thư mục, và không thể tự động kiểm tra điều kiện (ví dụ: <em>"Nếu có file báo cáo thì mới nén, nếu không có thì báo lỗi"</em>) hay lặp lại công việc qua hàng loạt máy chủ.</p>
-
-        <h3>3. Sơ đồ Giải phẫu Cơ chế &amp; Bảng Dữ liệu thật</h3>
-
-        <h4>Sơ đồ 4.1A: Sơ đồ Phân cấp giữa Shell, Bash và Bash Scripting</h4>
         <x-figure id="linux-4-1a" key="4.1a" title="Sơ đồ 4.1A — Từ Trình Thông dịch Lệnh (Shell / Bash) đến Kịch bản Tự động (Bash Script .sh)">Phân cấp 3 tầng từ khái niệm chung Shell (sh, bash, zsh, fish) xuống Bash (Bourne-Again SHell mặc định của GNU) và kịch bản Bash Script (.sh) tích hợp Shebang #!/bin/bash, biến, nhánh điều kiện if/else, vòng lặp for và quyền thực thi chmod +x.</x-figure>
 
-        <h4>Sơ đồ 4.1B: Trình Soạn thảo CLI (Nano vs. Vim) &amp; Cú pháp Bash Thực chiến (Slide 48–63)</h4>
         <x-figure id="linux-4-1b" key="4.1b" title="Sơ đồ 4.1B — Soạn thảo Kịch bản trên Terminal (Nano vs. Vim) &amp; Các Cấu trúc Bash Cốt lõi (Slide 48–63)">Đối chiếu hai trình soạn thảo dòng lệnh Nano (^O lưu, ^X thoát) và Vim (3 chế độ Normal, Insert 'i', Command ':wq' / ':q!'), cùng cạm bẫy so sánh chuỗi [[ 10 > 9 ]] vs số học (( 10 > 9 )), mảng (Arrays) và hàm (Functions).</x-figure>
 
-        <h4>Khối lệnh Thực tế: Kịch bản Mẫu backup.sh Tích hợp Đủ 5 Thành phần Cốt lõi</h4>
+        <p>Kịch bản mẫu <code>backup.sh</code> dưới đây tích hợp trọn vẹn 5 thành phần cốt lõi của một Bash Script chuẩn công nghiệp:</p>
         <pre><code>#!/bin/bash
 # 1. Dòng chỉ dẫn trình thông dịch (Shebang): Báo cho hệ thống dùng /bin/bash để chạy file này
 
@@ -47,13 +33,12 @@ fi
 for SERVER in server1 server2 server3; do
     echo "Đang đồng bộ dữ liệu lên máy chủ: \$SERVER"
 done</code></pre>
-        <p>Để chạy kịch bản trên như một chương trình thực thụ (Cách 2 trên <em>Slide 51</em>), kỹ sư chỉ cần thực hiện 2 lệnh (hoặc gọi trực tiếp bash backup.sh theo Cách 1):</p>
+        <p>Để chạy kịch bản trên như một chương trình độc lập (Cách 2 trên <em>Slide 51</em>), kỹ sư cấp quyền thực thi rồi kích hoạt trực tiếp (hoặc gọi qua trình thông dịch <code>bash backup.sh</code> theo Cách 1):</p>
         <pre><code>chmod +x backup.sh   # Bước 5: Cấp quyền thực thi (Execute) cho file kịch bản
 ./backup.sh          # Kích hoạt chạy kịch bản ngay tại thư mục hiện tại</code></pre>
 
-        <h4>Bảng 4.1A: Giải phẫu Cơ học 5 Thành phần Cốt lõi của một File Bash Script (.sh)</h4>
         <div class="table-wrap">
-          <table>
+          <table class="clean-table">
             <thead>
               <tr>
                 <th>Thành phần trong Script</th>
@@ -70,12 +55,12 @@ done</code></pre>
               <tr>
                 <td><strong>2. Biến (Variables)</strong><br><em>(Slide 52–54)</em></td>
                 <td>Gán: TEN="Nam"<br>Gọi ra: \$TEN | Nhập từ bàn phím: read TEN</td>
-                <td>Lưu trữ tên người dùng, đường dẫn thư mục hoặc tên file vào bộ nhớ để tái sử dụng nhiều lần. <em>(Lưu ý sống còn: Tuyệt đối không đặt khoảng trắng quanh dấu = khi gán biến; dùng export nếu muốn truyền biến sang tiến trình con!).</em></td>
+                <td>Lưu trữ tên người dùng, đường dẫn thư mục hoặc tên file vào bộ nhớ để tái sử dụng nhiều lần. Tuyệt đối không đặt khoảng trắng quanh dấu <code>=</code> khi gán biến; dùng <code>export</code> nếu muốn truyền biến sang tiến trình con.</td>
               </tr>
               <tr>
                 <td><strong>3. Điều kiện (if / elif / else)</strong><br><em>(Slide 57)</em></td>
                 <td>if [ -f "\$FILE" ]; then ... else ... fi</td>
-                <td>Giúp kịch bản biết tự ra quyết định rẽ nhánh (ví dụ: kiểm tra file có tồn tại <code>-f</code> hay thư mục có tồn tại <code>-d</code> trước khi xử lý).</td>
+                <td>Giúp kịch bản tự ra quyết định rẽ nhánh (ví dụ: kiểm tra file có tồn tại <code>-f</code> hay thư mục có tồn tại <code>-d</code> trước khi xử lý).</td>
               </tr>
               <tr>
                 <td><strong>4. Vòng lặp (for / while)</strong><br><em>(Slide 58–59)</em></td>
@@ -91,9 +76,8 @@ done</code></pre>
           </table>
         </div>
 
-        <h4>Bảng 4.1B: Trình Soạn thảo CLI (Nano vs. Vim), Cạm bẫy So sánh Số học (( )), Mảng &amp; Hàm Bash (Slide 48–63)</h4>
         <div class="table-wrap">
-          <table>
+          <table class="clean-table">
             <thead>
               <tr>
                 <th>Chủ đề Thực chiến (Slide 48–63)</th>
@@ -105,12 +89,12 @@ done</code></pre>
               <tr>
                 <td><strong>Trình soạn thảo Nano vs. Vim</strong><br><em>(Slide 48–50)</em></td>
                 <td><strong>Nano:</strong> Ctrl+O (Lưu), Ctrl+X (Thoát), Ctrl+K (Cắt), Ctrl+U (Dán).<br><strong>Vim:</strong> Bấm i vào <em>Insert Mode</em> → bấm ESC về <em>Normal Mode</em> → gõ :wq (Lưu &amp; thoát) hoặc :q! (Thoát hủy sửa).</td>
-                <td>Trên máy chủ Linux (Server không có chuột), Nano giúp chỉnh sửa nhanh cho người mới, còn Vim cực mạnh khi xử lý file cấu hình lớn nhờ tách biệt chế độ di chuyển/xóa (<em>Normal Mode</em>: dd xóa dòng, u hoàn tác) và chế độ gõ chữ (<em>Insert Mode</em>).</td>
+                <td>Trên máy chủ Linux không có GUI, Nano giúp chỉnh sửa nhanh cho người mới, còn Vim cực mạnh khi xử lý file cấu hình lớn nhờ tách biệt chế độ điều hướng/xóa (<em>Normal Mode</em>: dd xóa dòng, u hoàn tác) và chế độ nhập liệu (<em>Insert Mode</em>).</td>
               </tr>
               <tr>
                 <td><strong>Cạm bẫy So sánh Chuỗi vs. Số học</strong><br><em>(Slide 56)</em></td>
                 <td>Sai (Chuỗi): [[ 10 &gt; 9 ]] → <strong>False (1)</strong><br>Đúng (Số): (( 10 &gt; 9 )) → <strong>True (0)</strong></td>
-                <td>Bên trong cặp ngoặc vuông [[ ... ]], dấu <code>&gt;</code> so sánh theo <strong>thứ tự bảng chữ cái ASCII (Lexicographical)</strong> nên ký tự đầu '1' của "10" nhỏ hơn '9'! Muốn tính toán hoặc so sánh số học trong Bash, bắt buộc dùng ngoặc kép (( 10 &gt; 9 )) hoặc cờ <code>-gt</code>, <code>-lt</code>, <code>-eq</code>.</td>
+                <td>Bên trong cặp ngoặc vuông [[ ... ]], dấu <code>&gt;</code> so sánh theo <strong>thứ tự bảng chữ cái ASCII (Lexicographical)</strong> nên ký tự đầu '1' của "10" nhỏ hơn '9'. Muốn tính toán hoặc so sánh số học trong Bash, bắt buộc dùng ngoặc kép (( 10 &gt; 9 )) hoặc cờ <code>-gt</code>, <code>-lt</code>, <code>-eq</code>.</td>
               </tr>
               <tr>
                 <td><strong>Mảng (Arrays) trong Bash</strong><br><em>(Slide 60)</em></td>
@@ -126,32 +110,17 @@ done</code></pre>
           </table>
         </div>
 
-        <h3>4. Đúc kết Cơ học &amp; Đánh đổi (Trade-off)</h3>
-        <ul>
-          <li><strong>Bản chất cơ học:</strong> Bash Script gom các lệnh rời rạc thành một quy trình khép kín có biến nhớ, có rẽ nhánh điều kiện và có vòng lặp tự động.</li>
-          <li><strong>Sự đánh đổi dẫn sang Trạm 4.2:</strong> Bash Script là ngôn ngữ thông dịch (<em>Interpreted</em>) — mỗi lần chạy là Bash phải đọc từng dòng chữ rồi dịch ngay lúc đó nên tốc độ xử lý tính toán nặng rất chậm. Với các phần mềm đòi hỏi tốc độ cao viết bằng ngôn ngữ C/C++ gồm hàng trăm file mã nguồn, làm sao để dịch chúng sang mã máy (0 và 1) và quản lý việc cập nhật mà không phải biên dịch lại từ đầu toàn bộ dự án mỗi khi chỉ sửa 1 dòng code?</li>
-        </ul>
+        <p>Tuy nhiên, Bash Script là ngôn ngữ thông dịch (<em>Interpreted</em>) — mỗi lần chạy là Bash phải đọc và dịch từng dòng văn bản nên không phù hợp cho các tác vụ tính toán hiệu năng cao. Với các hệ thống lõi viết bằng C/C++ gồm hàng trăm tệp mã nguồn, làm sao để biên dịch chúng sang mã máy nhị phân và chỉ biên dịch lại đúng những tệp vừa thay đổi?</p>
 
         <h2 id="linux-4-2" tabindex="-1">Trạm 4.2: Compilation (GCC) &amp; Makefile — Lò luyện mã máy &amp; người quản đốc xưởng</h2>
 
-        <h3>1. Bối cảnh &amp; Ẩn dụ đời thực</h3>
-        <ul>
-          <li><strong>Compilation (Biên dịch với GCC):</strong> Giống như một <strong>lò luyện kim</strong>. Mã nguồn viết bằng ngôn ngữ C (.c) hay C++ (.cpp) là bản thiết kế mà con người đọc hiểu được, nhưng CPU không hiểu. Trình biên dịch <code>gcc</code> / g++ sẽ nung chảy bản thiết kế đó qua 4 công đoạn (Pre-processor → Compiler → Assembler → Linker) để đúc thành một cỗ máy nguyên khối bằng mã máy nhị phân (Binary Executable) chạy với tốc độ tối đa (<em>Slide 64–67</em>).</li>
-          <li><strong>Make &amp; <code>Makefile</code>:</strong> Giống như <strong>người quản đốc phân xưởng thông minh</strong> (<em>Slide 68–71</em>). Khi dự án có 100 bản thiết kế (.c), nếu bạn chỉ vừa sửa lại đúng 1 bản thiết kế <code>main.c</code>, người quản đốc <code>make</code> sẽ nhìn vào đồng hồ thời gian (Timestamp) trên từng file để chỉ nung đúc lại đúng phần vừa sửa, tuyệt đối không đập đi làm lại cả 99 phần kia!</li>
-        </ul>
+        <p>Để thực thi mã nguồn C/C++ ở tốc độ phần cứng tối đa, trình biên dịch <strong><code>gcc</code> / <code>g++</code></strong> đưa mã nguồn qua dây chuyền 4 công đoạn (Pre-processor <code>.i</code> → Compiler <code>.s</code> → Assembler <code>.o</code> → Linker) để tạo ra tệp thực thi nhị phân chuẩn ELF 64-bit (<em>Slide 64–67</em> &amp; <em>CS:APP</em> Ch. 1, 7). Nhưng khi dự án mở rộng lên hàng trăm tệp <code>.c</code>, việc gõ lệnh <code>gcc</code> thủ công sẽ bắt máy tính biên dịch lại từ đầu toàn bộ dự án dù bạn chỉ sửa đúng một dòng trong <code>main.c</code>. Công cụ <strong><code>make</code></strong> giải quyết triệt để điểm nghẽn này bằng cách đọc các quy tắc phụ thuộc trong <strong><code>Makefile</code></strong> và đối chiếu dấu thời gian sửa đổi (<code>mtime</code> Timestamp) giữa tệp đích (<em>Target</em>) với tệp nguyên liệu (<em>Prerequisites</em>) để chỉ biên dịch lại đúng những nhánh vừa thay đổi (<em>Slide 68–71</em>).</p>
 
-        <h3>2. Nỗi đau (Pain Point) từ trạm trước</h3>
-        <p>Khi xây dựng một phần mềm lớn từ nhiều file mã nguồn (<code>main.c</code>, <code>ham_phu.c</code>...), nếu biên dịch thủ công bằng tay với lệnh <code>gcc</code>, bạn vừa phải gõ những câu lệnh dài lê thê, vừa phải chờ máy biên dịch lại từ đầu toàn bộ 100 file dù bạn chỉ sửa đúng một dấu chấm phẩy trong 1 file duy nhất — cực kỳ lãng phí thời gian và tài nguyên máy tính.</p>
-
-        <h3>3. Sơ đồ Giải phẫu Cơ chế &amp; Bảng Dữ liệu thật</h3>
-
-        <h4>Sơ đồ 4.2A: Dây chuyền Biên dịch Mã nguồn C sang Mã máy của GCC (Slide 64–67)</h4>
         <x-figure id="linux-4-2a" key="4.2a" title="Sơ đồ 4.2A — Quá trình Biên dịch 4 Bước của GCC (.c → .i → .s → .o → Binary ELF 64-bit)">Trình biên dịch GCC đưa mã nguồn C (.c) qua 4 giai đoạn: Pre-processor (.i) → Compiler (.s Assembly) → Assembler (.o Object file) → Linker ghép các file .o cùng thư viện thành chương trình thực thi nhị phân ELF 64-bit.</x-figure>
 
-        <h4>Sơ đồ 4.2B: Cơ chế Quyết định Thông minh của Make dựa trên Makefile (Slide 68–71)</h4>
         <x-figure id="linux-4-2b" key="4.2b" title="Sơ đồ 4.2B — Cách Quản đốc Make Kiểm tra Thời gian Sửa đổi (Timestamp mtime) &amp; Nhãn .PHONY">Công cụ Make đọc Makefile theo cấu trúc Target : Prerequisites và dòng lệnh Recipe thụt đầu dòng bằng phím [TAB], đối chiếu Timestamp (mtime) để chỉ dịch lại file .c vừa sửa và bỏ qua các file .o còn mới.</x-figure>
 
-        <h4>Khối lệnh Thực tế: Cấu trúc một File Makefile Chuẩn mực (Kèm Luật Phím [TAB] &amp; Nhãn .PHONY)</h4>
+        <p>Dưới đây là cấu trúc một <code>Makefile</code> chuẩn mực minh họa quy tắc phụ thuộc, luật thụt lề bằng phím <code>[TAB]</code> và nhãn <code>.PHONY</code>:</p>
         <pre><code># Khai báo biến trình biên dịch và cờ tối ưu (Slide 71)
 CC = gcc
 CFLAGS = -Wall -O2
@@ -177,9 +146,8 @@ ham_phu.o: ham_phu.c
 clean:
 	rm -f *.o ung_dung</code></pre>
 
-        <h4>Bảng 4.2: Đối chiếu Cơ học giữa Biên dịch Thủ công (gcc) và Quản lý Tự động (make)</h4>
         <div class="table-wrap">
-          <table>
+          <table class="clean-table">
             <thead>
               <tr>
                 <th>Tiêu chí Đối chiếu</th>
@@ -207,37 +175,20 @@ clean:
           </table>
         </div>
 
-        <h3>4. Đúc kết Cơ học &amp; Đánh đổi (Trade-off)</h3>
-        <ul>
-          <li><strong>Bản chất cơ học:</strong> GCC biến mã nguồn con người viết thành mã máy tốc độ cao, còn Make dùng mốc thời gian (Timestamp) của từng file để đảm bảo hệ thống không bao giờ làm lại những bước biên dịch dư thừa.</li>
-          <li><strong>Sự đánh đổi dẫn sang Trạm 4.3:</strong> Bây giờ bạn đã có kịch bản <code>backup.sh</code> (biết làm những bước nào) và <code>Makefile</code> (biết lắp ráp chương trình thông minh). Nhưng cả hai công cụ này đều nằm im trên ổ đĩa cho đến khi có ai đó gõ lệnh kích hoạt. Làm sao để đúng 2:00 sáng mỗi ngày, hệ thống tự động bấm nút chạy mà bạn vẫn ngủ ngon?</li>
-        </ul>
+        <p>Đến đây chúng ta đã có kịch bản <code>backup.sh</code> (định nghĩa các bước thực thi) và <code>Makefile</code> (biên dịch tối ưu theo timestamp). Nhưng cả hai công cụ này đều nằm tĩnh trên ổ đĩa cho đến khi có người gõ lệnh kích hoạt. Làm thế nào để hệ thống tự động điểm danh và chạy kịch bản đúng 02:00 sáng mỗi ngày?</p>
 
         <h2 id="linux-4-3" tabindex="-1">Trạm 4.3: Hệ thống Cronjob — Trực ban 24/7 (&quot;Khi nào bắt đầu chạy?&quot;) &amp; 3 cạm bẫy kinh điển</h2>
 
-        <h3>1. Bối cảnh &amp; Ẩn dụ đời thực</h3>
-        <p>Để hẹn giờ tự động trên Linux, bạn sẽ gặp 4 khái niệm có chữ "Cron" rất dễ bị gọi lẫn lộn. Hãy phân biệt chúng thật rạch ròi qua hình ảnh <strong>Hệ thống Trực ban Tòa nhà</strong> (<em>Slide 72–74</em> &amp; <em>TLPI</em> Ch. 37):</p>
-        <ul>
-          <li><strong>Cron</strong>: Là tên gọi chung của <strong>toàn bộ hệ thống/cơ chế hẹn giờ tự động</strong> trong Linux.</li>
-          <li><strong>Crontab</strong> (<em>Cron Table</em>): Là <strong>cuốn sổ lịch trình (bảng thời gian biểu)</strong> ghi danh sách giờ nào làm việc gì (gõ crontab -e để mở sổ ra sửa, crontab -l để xem sổ, crontab -r để xóa sổ).</li>
-          <li><strong>Cronjob</strong>: Là <strong>từng dòng công việc cụ thể</strong> được ghi bên trong cuốn sổ Crontab đó.</li>
-          <li><strong>Crond</strong> (<em>Cron Daemon</em>): Là <strong>anh bảo vệ chạy ngầm 24/7</strong>, cứ đúng mỗi <strong>60 giây (1 phút)</strong> lại thức dậy một lần, cầm đồng hồ đối chiếu với cuốn sổ Crontab: Hễ thấy dòng Cronjob nào khớp với giờ hiện tại là lập tức bấm nút kích hoạt!</li>
-        </ul>
+        <p>Hệ thống lập lịch tự động trên Linux gồm 4 thành phần tách biệt (<em>Slide 72–74</em> &amp; <em>TLPI</em> Ch. 37): <strong>Cron</strong> là tên chung của cơ chế hẹn giờ; <strong>Crontab</strong> (<em>Cron Table</em>) là tệp bảng lịch trình của từng người dùng (thao tác qua <code>crontab -e</code> để sửa, <code>crontab -l</code> để xem, <code>crontab -r</code> để xóa); <strong>Cronjob</strong> là từng dòng tác vụ cụ thể ghi trong bảng đó; và <strong><code>crond</code></strong> (<em>Cron Daemon</em>) là tiến trình chạy ngầm 24/7, thức dậy đúng mỗi <strong>60 giây</strong> để đối chiếu đồng hồ hệ thống với 5 trường thời gian (<code>Phút Giờ Ngày Tháng Thứ</code>) trong Crontab.</p>
 
-        <h3>2. Nỗi đau (Pain Point) từ trạm trước</h3>
-        <p>Đây là "cơn ác mộng" kinh điển nhất của mọi kỹ sư vận hành Linux: Lúc chiều ngồi gõ lệnh chạy thử kịch bản <code>./backup.sh</code> trên màn hình Terminal thì chạy mượt mà 100%, nhưng tối hôm đó cài vào Crontab để hẹn 2:00 sáng tự chạy thì sáng hôm sau mở ra thấy <strong>không có bất kỳ bản sao lưu nào được tạo ra, cũng chẳng có một dòng báo lỗi nào</strong>! Tại sao một lệnh chạy tay thì sống mà đưa vào Cronjob lại chết im lặng?</p>
+        <p>Sự cố kinh điển nhất khi vận hành Linux là kịch bản <code>./backup.sh</code> chạy thử bằng tay trên Terminal thì thành công 100%, nhưng khi đưa vào Crontab hẹn chạy lúc 02:00 sáng lại thất bại im lặng không để lại dấu vết. Nguyên nhân gốc nằm ở chỗ tiến trình do <code>crond</code> khởi tạo chạy trong một môi trường cực kỳ tối giản (<code>$PATH=/usr/bin:/bin</code>, thư mục đứng <code>cwd=$HOME</code>, không gắn với màn hình Terminal). Để vượt qua 3 cạm bẫy chết im lặng và 2 giới hạn cốt tử của Cron, kỹ sư phải nắm vững cấu trúc 5 trường thời gian và quy trình bọc lỗi chuẩn công nghiệp dưới đây:</p>
 
-        <h3>3. Sơ đồ Giải phẫu Cơ chế &amp; Bảng Dữ liệu thật</h3>
-
-        <h4>Sơ đồ 4.3A: Giải phẫu 5 Trường Thời gian của Crontab (Từ Nhỏ đến Lớn — Slide 73–74)</h4>
         <x-figure id="linux-4-3a" key="4.3a" title="Sơ đồ 4.3A — Công thức Đọc 5 Dấu sao (* * * * *) trong Crontab: Từ Đơn vị Nhỏ đến Đơn vị Lớn">Giải phẫu 4 khái niệm Cron/Crontab/Cronjob/Crond và 5 trường thời gian của Crontab sắp xếp từ đơn vị nhỏ đến lớn: Phút (0-59) → Giờ (0-23) → Ngày trong tháng (1-31) → Tháng (1-12) → Thứ trong tuần (0-6 hoặc 0-7, Chủ Nhật = 0 hoặc 7), cùng 4 ký tự *, ,, -, /.</x-figure>
 
-        <h4>Sơ đồ 4.3B: Vòng lặp Quét 60 Giây của Crond, 3 cạm bẫy Kinh điển &amp; 2 Giới hạn Cốt tử (Slide 72–76)</h4>
         <x-figure id="linux-4-3b" key="4.3b" title="Sơ đồ 4.3B — Cơ chế Quét Mỗi 60 Giây của Crond, 3 cạm bẫy &#x27;Chết Im Lặng&#x27; &amp; Giải pháp Bọc Lỗi (Slide 72–76)">Mỗi 60 giây tiến trình ngầm crond quét bảng Crontab; để không chết im lặng, kỹ sư phải vượt qua 3 cạm bẫy (đường dẫn tuyệt đối, thu gom log 2>&1, đúng sổ user vs root) và 2 giới hạn cốt tử của Cron (không tự retry khi lỗi mạng, mất lịch khi máy tắt nguồn).</x-figure>
 
-        <h4>Bảng 4.3A: Bộ 6 Ví dụ Lập lịch Crontab Thực chiến Điển hình Nhất (Slide 73–74)</h4>
         <div class="table-wrap">
-          <table>
+          <table class="clean-table">
             <thead>
               <tr>
                 <th>Biểu thức 5 Trường (Phút Giờ Ngày Tháng Thứ)</th>
@@ -280,19 +231,18 @@ clean:
           </table>
         </div>
 
-        <h4>Khối lệnh Thực tế: Quy trình 3 Bước Thiết lập một Cronjob Tự động Chạy Ngầm Hoàn chỉnh</h4>
-        <p><strong>Bước 1:</strong> Viết nội dung kịch bản sao lưu vào đường dẫn tuyệt đối <code>/home/nam/backup.sh</code> (lưu ý dùng đường dẫn tuyệt đối cho mọi file/thư mục bên trong):</p>
+        <p>Quy trình 3 bước thiết lập một Cronjob chuẩn Production luôn dùng <strong>đường dẫn tuyệt đối</strong> và <strong>điều hướng gộp lỗi <code>2&gt;&amp;1</code></strong>:</p>
+        <p><strong>Bước 1:</strong> Viết nội dung kịch bản sao lưu vào đường dẫn tuyệt đối <code>/home/nam/backup.sh</code> (dùng đường dẫn tuyệt đối cho cả lệnh <code>/bin/tar</code> và <code>/bin/date</code> bên trong):</p>
         <pre><code>#!/bin/bash
 # Đóng gói và nén toàn bộ thư mục tài liệu kèm nhãn ngày tháng năm (YYYY-MM-DD)
 /bin/tar -czf /backup/tailieu_\$(/bin/date +%F).tar.gz /home/nam/tailieu</code></pre>
         <p><strong>Bước 2:</strong> Cấp quyền thực thi (Execute) cho file kịch bản:</p>
         <pre><code>chmod +x /home/nam/backup.sh</code></pre>
-        <p><strong>Bước 3:</strong> Mở sổ lịch trình bằng lệnh crontab -e và thêm dòng hẹn giờ chạy lúc 2:00 sáng mỗi ngày (kết hợp thu gom toàn bộ nhật ký và lỗi từ Chặng 3):</p>
+        <p><strong>Bước 3:</strong> Mở sổ lịch trình bằng lệnh crontab -e và thêm dòng hẹn giờ chạy lúc 02:00 sáng mỗi ngày kèm thu gom nhật ký lỗi:</p>
         <pre><code>0 2 * * * /home/nam/backup.sh &gt;&gt; /var/log/backup.log 2&gt;&amp;1</code></pre>
 
-        <h4>Bảng 4.3B: 3 cạm bẫy Kinh điển &amp; 2 Giới hạn Cốt tử của CronJob (Kèm Giải pháp từ Slide 75–76)</h4>
         <div class="table-wrap">
-          <table>
+          <table class="clean-table">
             <thead>
               <tr>
                 <th>Cạm bẫy / Giới hạn Cốt tử</th>
@@ -303,7 +253,7 @@ clean:
             <tbody>
               <tr>
                 <td><strong>Cạm bẫy 1: Quên Đường dẫn Tuyệt đối (Absolute Path)</strong></td>
-                <td>Khi bạn mở Terminal, biến môi trường \$PATH chứa rất nhiều thư mục và bạn đang đứng sẵn ở thư mục làm việc. Nhưng khi <code>crond</code> chạy ngầm, nó khởi tạo một môi trường cực kỳ tối giản (\$PATH=/usr/bin:/bin và đứng ở \$HOME), nên gõ <code>backup.sh</code> hay <code>python3</code> trống không sẽ bị báo <em>"command not found"</em> ngay!</td>
+                <td>Khi mở Terminal, biến môi trường \$PATH chứa nhiều thư mục và bạn đang đứng sẵn ở thư mục làm việc. Nhưng khi <code>crond</code> chạy ngầm, nó khởi tạo môi trường tối giản (\$PATH=/usr/bin:/bin và đứng ở \$HOME), nên gõ <code>backup.sh</code> hay <code>python3</code> trống không sẽ bị báo <em>"command not found"</em>.</td>
                 <td>Luôn viết <strong>đường dẫn tuyệt đối bắt đầu từ gốc <code>/</code></strong> cho cả chương trình lẫn file kịch bản (ví dụ: <code>/usr/bin/python3 /home/nam/script.py</code> hoặc khai báo PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ở đầu Crontab).</td>
               </tr>
               <tr>
@@ -313,28 +263,24 @@ clean:
               </tr>
               <tr>
                 <td><strong>Cạm bẫy 3: Đặt Nhầm Sổ Crontab (User vs. Root)</strong></td>
-                <td>Mỗi tài khoản trên Linux có một cuốn sổ Crontab riêng biệt! Gõ crontab -e là ghi vào sổ của nam (chạy với quyền hạn hẹp của nam); còn gõ sudo crontab -e là ghi vào sổ của root.</td>
+                <td>Mỗi tài khoản trên Linux có một cuốn sổ Crontab riêng biệt. Gõ crontab -e là ghi vào sổ của user thường; còn gõ sudo crontab -e là ghi vào sổ của root.</td>
                 <td>Nếu kịch bản cần quyền quản trị (như ghi vào <code>/var/log</code> hoặc khởi động lại dịch vụ hệ thống), phải đặt trong sudo crontab -e (hoặc <code>/etc/crontab</code>), tránh đặt nhầm vào sổ của user thường gây lỗi <em>Permission denied</em>.</td>
               </tr>
               <tr>
                 <td><strong>Giới hạn 4: Không Tự Thử Lại Khi Lỗi (No Auto-Retry — Slide 75)</strong></td>
-                <td>Cron chỉ biết kích hoạt lệnh đúng giờ hẹn. Nếu đúng 02:00 sáng mạng bị rớt 5 giây làm lệnh tải dữ liệu thất bại, Cron <strong>không bao giờ tự động chạy lại</strong> mà bỏ qua luôn đến tận ngày hôm sau!</td>
+                <td>Cron chỉ kích hoạt lệnh đúng giờ hẹn. Nếu đúng 02:00 sáng mạng bị rớt 5 giây làm lệnh tải dữ liệu thất bại, Cron <strong>không tự động chạy lại</strong> mà bỏ qua đến tận ngày hôm sau.</td>
                 <td>Bọc vòng lặp tự động thử lại (Retry Loop) ngay bên trong kịch bản Bash Script (<em>Slide 75</em>):<br><code>for ((i=1; i&lt;=3; i++)); do /home/nam/backup.sh &amp;&amp; exit 0; sleep 60; done</code> (thử tối đa 3 lần, mỗi lần cách nhau 60 giây).</td>
               </tr>
               <tr>
                 <td><strong>Giới hạn 5: Mất Lịch Khi Máy Tắt Nguồn (Missed Jobs — Slide 75–76)</strong></td>
-                <td>Nếu máy tính/server bị tắt nguồn hoặc bảo trì đúng vào lúc 02:00 sáng, khi bật máy lại lúc 08:00 sáng, <code>crond</code> sẽ <strong>bỏ qua luôn công việc đã lỡ</strong> chứ không chạy bù!</td>
+                <td>Nếu máy tính/server bị tắt nguồn hoặc bảo trì đúng vào lúc 02:00 sáng, khi bật máy lại lúc 08:00 sáng, <code>crond</code> sẽ <strong>bỏ qua luôn công việc đã lỡ</strong> chứ không chạy bù.</td>
                 <td>Trên máy cá nhân hay tắt mở hoặc hệ thống Production hiện đại, sử dụng <strong>Anacron</strong> hoặc <strong>systemd Timers</strong> (<em>Slide 76</em>) — hỗ trợ tự động chạy bù các lịch bị lỡ khi bật máy (Persistent=true), kiểm tra điều kiện mạng sẵn sàng rồi mới chạy, và ghi log tập trung qua journald.</td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        <h3>4. Đúc kết Cơ học &amp; Đánh đổi (Trade-off)</h3>
-        <ul>
-          <li><strong>Bản chất cơ học:</strong> Hệ thống Cronjob hoàn thiện mảnh ghép cuối cùng của dây chuyền tự động hóa: Tiến trình ngầm <code>crond</code> thức dậy mỗi 60 giây, đọc 5 trường thời gian trong sổ Crontab, rồi tự động gọi kịch bản Bash Script (và Make) chạy ngầm cùng bộ thu gom nhật ký <code>&gt;&gt; ... 2&gt;&amp;1</code>.</li>
-          <li><strong>Khép lại toàn bộ hành trình 4 Chặng:</strong> Từ một câu hỏi khởi đầu ở Chặng 1 (<em>"Khi bạn gõ một dòng lệnh, chuyện gì thực sự diễn ra bên dưới nắp máy?"</em>), giờ đây bạn đã nắm trọn vẹn đường đi cơ học của hệ điều hành Linux từ lõi Kernel ra tới dây chuyền tự động hóa 24/7!</li>
-        </ul>
+        <p>Hệ thống Cronjob đã hoàn thiện mảnh ghép cuối cùng của dây chuyền tự động hóa Linux: tiến trình ngầm <code>crond</code> thức dậy mỗi 60 giây, đối chiếu 5 trường thời gian trong Crontab, rồi tự động kích hoạt kịch bản Bash Script (và Make) chạy ngầm cùng bộ thu gom nhật ký <code>&gt;&gt; ... 2&gt;&amp;1</code>. Từ một dòng lệnh <code>grep ERROR /var/log/app.log</code> khởi đầu ở Chặng 1, giờ đây toàn bộ đường đi cơ học từ hạt nhân Kernel ra tới dây chuyền tự động hóa 24/7 đã khép kín.</p>
 
         <section class="summary-section" id="linux-4-summary" tabindex="-1">
           <h2>Tóm tắt bỏ túi Chặng 4 &amp; khép kín hành trình Linux Fundamentals</h2>

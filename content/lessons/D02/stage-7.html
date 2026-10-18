@@ -1,17 +1,13 @@
       <div class="prose">
-        <p>Ở <strong>Chặng 6 (Phần 3)</strong>, chúng ta đã lắp thành công "bộ não giao dịch" (<strong>Delta Lake, Apache Iceberg, Apache Hudi</strong>) lên trên các tệp Parquet của Cloud Object Storage, giúp <strong>Đơn hàng #8888</strong> có đầy đủ đặc tính <strong>ACID, Time Travel, Schema Enforcement</strong> và các chiến lược ghi/bảo trì vật lý (<strong>COW, MOR, Compaction, Z-Ordering, Vacuum</strong>).</p>
-        <p>Bước vào <strong>Chặng 7 (Phần 4: Multi-Hop Architecture &amp; Governance)</strong> — chặng cuối cùng khép lại toàn bộ chương trình <strong>Storage Layer</strong> — chúng ta sẽ giải quyết bài toán quy hoạch ở cấp độ toàn doanh nghiệp: <em>Khi đã có công nghệ bảng Lakehouse trong tay, làm sao tổ chức luồng chảy của hàng tỷ đơn hàng từ lúc mới văng ra khỏi hệ thống nguồn đầy lỗi và trùng lặp cho đến khi trở thành những con số KPI tinh khiết trên màn hình của Tổng Giám đốc, đồng thời kiểm soát bảo mật, phả hệ và hóa đơn đám mây?</em></p>
+        <p>Sau khi trang bị tầng siêu dữ liệu giao dịch (<strong>Delta Lake, Apache Iceberg, Apache Hudi</strong>) lên trên các tệp Parquet của Cloud Object Storage ở <strong>Chặng 6</strong>, <strong>Chặng 7 (Multi-Hop Architecture &amp; Governance)</strong> giải quyết bài toán quy hoạch dây chuyền dữ liệu ở cấp độ toàn doanh nghiệp: tổ chức luồng tinh chế lũy tiến qua 3 tầng <strong>Bronze → Silver → Gold</strong>, cách ly dữ liệu lỗi vào bảng kiểm dịch (Quarantine) và nâng đỡ toàn hệ thống bằng 4 dòng chảy ngầm (Data Catalog, Lineage, Row/Column Security &amp; Cloud FinOps).</p>
 
         <h2 id="storage-7-1" tabindex="-1">Trạm 7.1: Khái niệm Multi-Hop &amp; triết lý kiến trúc Medallion (Quality gating pattern)</h2>
-        <p><em>(Tương ứng mục 01/ Khái niệm Multi-hop: Tinh chế dữ liệu lũy tiến qua từng chặng kiểm soát chất lượng)</em></p>
 
-        <h3 id="storage-7-1-metaphor">1. Ẩn dụ đời thực: &quot;Hành trình trưởng thành của Dữ liệu&quot; &amp; &quot;Nhà máy lọc nước 3 cấp&quot;</h3>
-        <p>Dữ liệu đang di chuyển trên đường ống (data in flight) ngoài đời thực vô cùng hỗn loạn: nó đổ về với đủ mọi hình dạng, kích thước, mức độ đầy đủ khác nhau, đôi khi đến trễ (late-arriving data) hoặc bị lỗi định dạng. Nếu cố viết một đoạn code duy nhất để biến dữ liệu thô vừa nạp về thành báo cáo cho Giám đốc ngay lập tức (1-Hop), đường ống sẽ liên tục gãy vụn mỗi khi nguồn phát sinh rác.</p>
-        <p>Để giải quyết triệt để, <strong>Kiến trúc Medallion (Multi-Hop Architecture)</strong> ra đời như một khuôn mẫu thiết kế dữ liệu (data design pattern) giúp tổ chức dữ liệu logic trong Lakehouse qua các tầng cách ly để <strong>tinh chế dữ liệu lũy tiến qua từng cổng kiểm soát chất lượng (progressively refining datasets via Quality Gating)</strong>. Nhóm tác giả sách <em>Delta Lake: The Definitive Guide</em> (Ch. 9, tr. 228) ví von 3 tầng <strong>Bronze → Silver → Gold</strong> giống hệt như <strong>hành trình trưởng thành của một con người</strong>:</p>
+        <p><span id="storage-7-1-metaphor"></span>Dữ liệu di chuyển trên đường ống (data in flight) ngoài thực tế luôn tiềm ẩn bản ghi đến trễ (late-arriving data), trùng lặp hoặc lỗi định dạng. Nếu biến đổi trực tiếp từ nguồn thô ra thẳng báo cáo quản trị trong 1 bước duy nhất (1-Hop), đường ống sẽ liên tục gãy mỗi khi nguồn phát sinh rác. <strong>Kiến trúc Medallion (Multi-Hop Architecture)</strong> tổ chức dữ liệu trong Lakehouse qua 3 tầng cách ly (<strong>Bronze → Silver → Gold</strong>) để <strong>tinh chế dữ liệu lũy tiến qua từng cổng kiểm soát chất lượng (progressively refining datasets via Quality Gating)</strong> (<em>Delta Lake: The Definitive Guide</em>, Ch. 9, tr. 228):</p>
 
-        <x-figure id="storage-7-1a" key="7.1a" title="Hình 7.1a — Kiến trúc Multi-hop Medallion &amp; Cổng Kiểm soát Chất lượng (Quality Gating Pattern: Infancy → Teenage → Maturity)">Luồng tinh chế lũy tiến qua 3 tầng của kiến trúc Medallion: Bronze Layer (tuổi sơ sinh — giữ nguyên bản thô để Audit & Replay), Silver Layer (tuổi thiếu niên — lọc bỏ _corrupt, khử trùng và chuẩn hóa Enterprise View ~3NF/SCD2), và Gold Layer (tuổi trưởng thành — phi chuẩn hóa Star Schema/OBT và tổng hợp KPI phục vụ BI & AI/ML).</x-figure>
+        <x-figure id="storage-7-1a" key="7.1a" title="Hình 7.1a — Kiến trúc Multi-hop Medallion &amp; Cổng Kiểm soát Chất lượng (Quality Gating Pattern: Infancy → Teenage → Maturity)">Luồng tinh chế lũy tiến qua 3 tầng của kiến trúc Medallion: Bronze Layer (tuổi sơ sinh — giữ nguyên bản thô để Audit &amp; Replay), Silver Layer (tuổi thiếu niên — lọc bỏ _corrupt, khử trùng và chuẩn hóa Enterprise View ~3NF/SCD2), và Gold Layer (tuổi trưởng thành — phi chuẩn hóa Star Schema/OBT và tổng hợp KPI phục vụ BI &amp; AI/ML).</x-figure>
 
-        <h3 id="storage-7-1-why3">2. Tại sao phải tách thành 3 tầng (Three-tiered framework) thay vì 1 bước?</h3>
+        <h3 id="storage-7-1-why3">Tại sao phải tách thành 3 tầng (Three-tiered framework) thay vì 1 bước?</h3>
         <p>Lý do cốt lõi nhất của việc tách làm 3 tầng (<em>Delta Lake: The Definitive Guide</em>, tr. 228) là giúp đội ngũ kỹ sư <strong>luôn có một nơi an toàn để khôi phục hoặc quay lui (recover or fall back on) khi sự cố xảy ra hoặc khi yêu cầu nghiệp vụ thay đổi</strong> mà không bao giờ phải chọc ngược vào cơ sở dữ liệu OLTP đang chạy thật:</p>
 
         <x-figure id="storage-7-1b" key="7.1b" title="Hình 7.1b — Đối chiếu Đường ống 1-Hop Mong manh vs. Kiến trúc 3-Tiered Medallion Có Chốt chặn Quay lui (Fallback &amp; Replay)">So sánh đường ống 1-Hop trực tiếp (dễ gãy vụn khi gặp gói tin lỗi, không có điểm quay lui nên phải đọc lại từ DB OLTP) với kiến trúc 3-Tiered Medallion (lấy tầng Bronze làm mỏ neo bất biến để Replay, tầng Silver tái sử dụng toàn doanh nghiệp, và tầng Gold linh hoạt nối chuỗi).</x-figure>
@@ -22,22 +18,20 @@
         </div>
 
         <h2 id="storage-7-2" tabindex="-1">Trạm 7.2: Giải phẫu chi tiết 3 tầng Medallion qua hành trình đơn hàng #8888</h2>
-        <p><em>(Tương ứng mục 02/ Mô hình Medallion: Bronze Layer → Silver Layer → Gold Layer)</em></p>
 
-        <h3 id="storage-7-2-bronze">1. Tầng Bronze (Bronze Layer / Raw Zone) &amp; Kỹ thuật Cột Bảo toàn Lỗi (_corrupt / _debug)</h3>
+        <h3 id="storage-7-2-bronze">Tầng Bronze (Bronze Layer / Raw Zone) &amp; Kỹ thuật Cột Bảo toàn Lỗi (_corrupt / _debug)</h3>
         <p>Tầng Bronze đại diện cho điểm khởi đầu của phả hệ dữ liệu (data lineage) trong Lakehouse — đóng vai trò vùng hạ cánh (landing zone) lưu giữ bản sao nguyên trạng từ các nguồn như PostgreSQL CDC (qua Debezium/Flink vào <code>hudi_sales_transactions_bronze</code>) hoặc luồng clickstream từ Kafka (vào <code>hudi_web_clickstreams_bronze</code> — <em>Apache Hudi: The Definitive Guide</em>, tr. 252–253). Tại đây, kỹ sư chỉ áp dụng <strong>biến đổi tối thiểu (minimal transformations)</strong> theo cơ chế <strong>chỉ nối đuôi (Append-only)</strong> kèm cột ngữ cảnh (<code>_ingested_at</code>, <code>_source_topic</code>).</p>
         <p><strong>Tuyệt chiêu vận hành thực chiến — Permissive Mode &amp; Cột _corrupt / _debug (<em>Delta Lake: The Definitive Guide</em>, Example 9-4, tr. 230):</strong> Thay vì để một bản ghi lỗi định dạng (như Đơn #8889 bị lỗi chuỗi tiền tệ <code>"ERROR_TIMEOUT"</code>) làm sập toàn bộ job Streaming lúc 2 giờ sáng hoặc bị âm thầm vứt bỏ (DROPMALFORMED), kỹ sư bật chế độ PERMISSIVE để gom phần dữ liệu lỗi vào cột <code>_corrupt</code> (hoặc <code>_debug</code>, <code>_rescued_data</code>) ở tầng Bronze rồi phân luồng tại cổng lên Silver:</p>
 
         <x-figure id="storage-7-2a" key="7.2a" title="Hình 7.2a — Cơ chế Cột Bảo toàn Lỗi (Permissive Passthrough: _corrupt / _debug) &amp; Cách ly Dữ liệu Bẩn (Quarantine / DLQ)">Cơ chế bảo vệ đường ống tại tầng Bronze bằng Spark Permissive Mode: bản ghi hợp lệ (#8888) có _corrupt = NULL được đi thẳng lên bảng Silver, trong khi bản ghi lỗi định dạng (#8889) được giữ nguyên bằng chứng trong cột _corrupt và tách sang bảng cách ly (Quarantine) để kỹ sư sửa lỗi và Replay.</x-figure>
 
-        <h3 id="storage-7-2-journey">2. Hình hài của Đơn hàng #8888 biến đổi qua 3 Tầng Bronze → Silver → Gold</h3>
-        <p>Hãy quan sát trực tiếp một bản ghi của <strong>Đơn hàng #8888</strong> lột xác về mặt cấu trúc, kiểu dữ liệu và mô hình hóa khi chảy qua 3 bảng Lakehouse ở 3 tầng:</p>
+        <h3 id="storage-7-2-journey">Hình hài của Đơn hàng #8888 biến đổi qua 3 Tầng Bronze → Silver → Gold</h3>
+        <p><span id="storage-7-2-matrix"></span>Quan sát trực tiếp một bản ghi của <strong>Đơn hàng #8888</strong> biến đổi về mặt cấu trúc, kiểu dữ liệu và mô hình hóa khi chảy qua 3 bảng Lakehouse ở 3 tầng:</p>
 
         <x-figure id="storage-7-2b" key="7.2b" title="Hình 7.2b — Hành trình Lột xác của Đơn hàng #8888 qua 3 Bảng Lakehouse (Bronze → Silver → Gold)">Sự biến đổi cụ thể của Đơn hàng #8888: từ 2 dòng JSON thô bị trùng lặp ở bảng bronze.sales_transactions_raw, được khử trùng (Dedup), lọc bỏ _corrupt, ép kiểu DECIMAL và ánh xạ khóa thay thế (~3NF/SCD2) ở bảng silver.orders_cleaned, cho đến khi được phi chuẩn hóa thành bảng phẳng gold.obt_customer_sales_analytics (0 JOIN) phục vụ BI.</x-figure>
 
-        <h3 id="storage-7-2-matrix">3. Bảng Đối chiếu Toàn diện 3 Tầng Medallion (Bí kíp Phỏng vấn &amp; Thiết kế Kiến trúc)</h3>
         <div class="table-wrap">
-          <table>
+          <table class="clean-table">
             <thead>
               <tr>
                 <th>Tiêu chí thiết kế</th>
@@ -81,24 +75,23 @@
           </table>
         </div>
 
-        <h3 id="storage-7-2-streaming">4. Streaming Medallion &amp; 3 Chốt chặn Kiểm định Chất lượng Tự động (Expectations &amp; Constraints)</h3>
+        <h3 id="storage-7-2-streaming">Streaming Medallion &amp; 3 Chốt chặn Kiểm định Chất lượng Tự động (Expectations &amp; Constraints)</h3>
         <p>Khi doanh nghiệp cần giảm độ trễ từ lúc khách bấm mua Đơn #8888 đến lúc hiện lên Dashboard xuống mức cận thời gian thực, họ triển khai <strong>Streaming Medallion Architecture</strong> (dùng Spark Structured Streaming / Flink đọc luồng thay đổi tăng trưởng Change Data Feed từ Bronze → Silver → Gold — <em>Delta Lake: The Definitive Guide</em>, tr. 232–237) kết hợp <strong>3 hàng rào kiểm định tự động</strong>:</p>
 
-        <x-figure id="storage-7-2c" key="7.2c" title="Hình 7.2c — Ba Chốt chặn Kiểm định Chất lượng Tự động trong Streaming Medallion (Schema Gate, CHECK Constraints &amp; DLT/WAP)">Ba lớp hàng rào bảo vệ chất lượng dữ liệu tự động khi chuyển tầng: (1) Khóa lược đồ với mergeSchema=false và overwriteSchema=false; (2) Ràng buộc cấp bảng ALTER TABLE ADD CONSTRAINT CHECK (net_amount > 0); (3) Bộ kỳ vọng @dlt.expect / expect_or_drop / expect_or_fail của Delta Live Tables hoặc mô hình nhánh Write-Audit-Publish (WAP) của Apache Iceberg.</x-figure>
+        <x-figure id="storage-7-2c" key="7.2c" title="Hình 7.2c — Ba Chốt chặn Kiểm định Chất lượng Tự động trong Streaming Medallion (Schema Gate, CHECK Constraints &amp; DLT/WAP)">Ba lớp hàng rào bảo vệ chất lượng dữ liệu tự động khi chuyển tầng: (1) Khóa lược đồ với mergeSchema=false và overwriteSchema=false; (2) Ràng buộc cấp bảng ALTER TABLE ADD CONSTRAINT CHECK (net_amount &gt; 0); (3) Bộ kỳ vọng @dlt.expect / expect_or_drop / expect_or_fail của Delta Live Tables hoặc mô hình nhánh Write-Audit-Publish (WAP) của Apache Iceberg.</x-figure>
 
         <h2 id="storage-7-3" tabindex="-1">Trạm 7.3: Dòng chảy ngầm quản trị &amp; vận hành (Undercurrents: Catalog, lineage, security &amp; FinOps)</h2>
-        <p><em>(Tương ứng mục 03/ Dòng chảy ngầm: Data Catalog, Lineage, Bảo mật Row/Col Security &amp; FinOps)</em></p>
 
         <p>Theo Joe Reis &amp; Matt Housley (<em>Fundamentals of Data Engineering</em>, Ch. 2, tr. 21) và <em>Delta Lake: The Definitive Guide</em> (Ch. 12–13, tr. 289–346), một nhà máy Medallion 3 tầng không thể đứng vững nếu thiếu các <strong>Dòng chảy ngầm (Undercurrents)</strong> chạy xuyên suốt mọi mắt xích từ Bronze sang Gold:</p>
 
-        <x-figure id="storage-7-3a" key="7.3a" title="Hình 7.3a — Kiến trúc Medallion được nâng đỡ bởi Các Dòng chảy Ngầm (The Undercurrents: Catalog, Lineage, Security &amp; FinOps)">Mối quan hệ giữa luồng tinh chế ngang (Bronze -> Silver -> Gold) và 3 dòng chảy ngầm nâng đỡ bên dưới: (1) Data Catalog & Lineage tập trung; (2) Bảo mật chi tiết cấp dòng/cột & tuân thủ GDPR; (3) Quản trị vòng đời nhiệt độ lưu trữ Cloud FinOps.</x-figure>
+        <x-figure id="storage-7-3a" key="7.3a" title="Hình 7.3a — Kiến trúc Medallion được nâng đỡ bởi Các Dòng chảy Ngầm (The Undercurrents: Catalog, Lineage, Security &amp; FinOps)">Mối quan hệ giữa luồng tinh chế ngang (Bronze -&gt; Silver -&gt; Gold) và 3 dòng chảy ngầm nâng đỡ bên dưới: (1) Data Catalog &amp; Lineage tập trung; (2) Bảo mật chi tiết cấp dòng/cột &amp; tuân thủ GDPR; (3) Quản trị vòng đời nhiệt độ lưu trữ Cloud FinOps.</x-figure>
 
-        <h3 id="storage-7-3-ssot">1. Chấm dứt Cơn ác mộng &quot;40 Thùng chứa riêng lẻ&quot; bằng Single Source of Truth &amp; Data Catalog</h3>
-        <p>Trong thực tế vận hành (<em>Delta Lake: The Definitive Guide</em>, tr. 346 &amp; tr. 227), nhiều tổ chức mắc sai lầm chí mạng: thay vì giữ một bảng chuẩn duy nhất, họ <strong>xuất (export) các phân vùng của bảng Đơn hàng ra 40 vị trí bên ngoài khác nhau</strong> (40 Cloud Storage Buckets/Prefixes riêng biệt) cho 40 đội nhóm tiêu thụ. Hãy đặt phản mẫu này cạnh kiến trúc chuẩn mực dùng <strong>Unity Catalog / AWS Glue / Nessie</strong> (với không gian tên 3 cấp catalog.schema.table, ví dụ <code>prod.gold.customer_sales</code>) và <strong>OpenLineage</strong> (truy vết phả hệ chủ động qua 3 thực thể Dataset → Job → Run, tr. 334):</p>
+        <h3 id="storage-7-3-ssot">Single Source of Truth &amp; Data Catalog Tập trung</h3>
+        <p>Trong thực tế vận hành (<em>Delta Lake: The Definitive Guide</em>, tr. 346 &amp; tr. 227), thay vì xuất (export) các phân vùng của bảng Đơn hàng ra 40 Cloud Storage Buckets riêng biệt cho 40 đội nhóm tiêu thụ, kiến trúc chuẩn mực dùng <strong>Unity Catalog / AWS Glue / Nessie</strong> (với không gian tên 3 cấp catalog.schema.table, ví dụ <code>prod.gold.customer_sales</code>) và <strong>OpenLineage</strong> (truy vết phả hệ chủ động qua 3 thực thể Dataset → Job → Run, tr. 334):</p>
 
         <x-figure id="storage-7-3b" key="7.3b" title="Hình 7.3b — Phản mẫu Xuất bảng ra 40 Buckets riêng lẻ vs. Chuẩn mực Single Source of Truth &amp; Unity Catalog">Đối chiếu phản mẫu nhân bản dữ liệu ra 40 Buckets riêng lẻ (gây ác mộng phân quyền IAM ở 40 nơi và tốn 40 lần chi phí tính toán lẫn phí băng thông Ingress/Egress khi cần chạy lại Đơn #8888) với kiến trúc Single Source of Truth kết hợp Catalog tập trung và Delta Sharing.</x-figure>
 
-        <h3 id="storage-7-3-security">2. Bảo mật Chi tiết (Row-Level Security &amp; Column Masking) và Tuân thủ GDPR</h3>
+        <h3 id="storage-7-3-security">Bảo mật Chi tiết (Row-Level Security &amp; Column Masking) và Tuân thủ GDPR</h3>
         <p>Thay vì phải nhân bản bảng dữ liệu ra nhiều nơi để che giấu thông tin nhạy cảm của Đơn hàng #8888, hệ thống quản trị Lakehouse áp dụng <strong>nguyên tắc đặc quyền tối thiểu (Least Privilege)</strong> bằng ngôn ngữ SQL DCL (GRANT / REVOKE) kết hợp <strong>bộ lọc dòng (Row Filter)</strong> và <strong>mặt nạ cột (Column Mask)</strong> ngay trên cùng một bảng vật lý:</p>
 
         <x-figure id="storage-7-3c" key="7.3c" title="Hình 7.3c — Phân quyền Chi tiết (Row-Level Security &amp; Column Masking) trên Cùng 1 Bảng Gold">Minh họa cơ chế phân quyền chi tiết trên cùng một bảng prod.gold.customer_sales: Giám đốc Chi nhánh Bình Dương bị áp Row-Level Security nên chỉ thấy Đơn #8888; Chuyên viên Phân tích bị áp Column Masking nên thấy cả 2 đơn nhưng số điện thoại cá nhân bị che thành xxxx-xxx-456.</x-figure>
@@ -107,13 +100,13 @@
           <li><strong>Tuân thủ Quyền được lãng quên (GDPR / CCPA Right to be Forgotten):</strong> Khi khách hàng Nguyễn Văn A yêu cầu xóa dữ liệu cá nhân, kỹ sư thực thi lệnh xóa xuyên suốt các tầng Bronze → Silver → Gold theo quy trình 3 bước khép kín: <strong>(1) <code>DELETE / MERGE</code></strong> (tạo Deletion Vectors đánh dấu xóa) → <strong>(2) REORG TABLE ... APPLY (PURGE) / <code>OPTIMIZE</code></strong> (viết lại tệp vật lý loại bỏ hẳn bản ghi) → <strong>(3) <code>VACUUM</code></strong> (xóa vĩnh viễn tệp Parquet lịch sử trên S3).</li>
         </ul>
 
-        <h3 id="storage-7-3-finops">3. Cloud FinOps &amp; Quản trị Vòng đời Nhiệt độ Lưu trữ (Storage Lifecycle Management)</h3>
-        <p>Mảnh ghép cuối cùng giúp người kỹ sư dữ liệu ghi điểm tuyệt đối với CTO là khả năng <strong>tối ưu hóa ngân sách đám mây (FinOps)</strong> thông qua việc kết hợp quy luật nhiệt độ dữ liệu ở Chặng 1 với vòng đời 6 giai đoạn của tài sản dữ liệu (Creation → Storage → Usage → Sharing → Archiving → Destruction — <em>Delta Lake: The Definitive Guide</em>, Hình 12-2, tr. 297):</p>
+        <h3 id="storage-7-3-finops">Cloud FinOps &amp; Quản trị Vòng đời Nhiệt độ Lưu trữ (Storage Lifecycle Management)</h3>
+        <p>Mảnh ghép cuối cùng kết hợp quy luật nhiệt độ dữ liệu ở Chặng 1 với vòng đời 6 giai đoạn của tài sản dữ liệu (Creation → Storage → Usage → Sharing → Archiving → Destruction — <em>Delta Lake: The Definitive Guide</em>, Hình 12-2, tr. 297):</p>
 
         <x-figure id="storage-7-3d" key="7.3d" title="Hình 7.3d — Vòng đời Nhiệt độ Dữ liệu &amp; Tối ưu Chi phí Đám mây (Cloud FinOps Lifecycle: Hot → Warm → Cold/Archival)">Chính sách chuyển tầng lưu trữ tự động theo nhiệt độ dữ liệu: từ tầng Nóng (Hot Tier ~$0.023/GB cho bảng Gold/Silver đang truy vấn tích cực), sang tầng Ấm (Warm Tier ~$0.0125/GB sau 30–90 ngày), và xuống tầng Lạnh/Lưu trữ (Cold/Archival S3 Glacier / GCS Archive ~$0.004–$0.001/GB sau 180 ngày cho dữ liệu lịch sử tầng Bronze, tiết kiệm tới 1/17 chi phí).</x-figure>
 
         <div class="table-wrap">
-          <table>
+          <table class="clean-table">
             <thead>
               <tr>
                 <th>Chiến lược FinOps</th>
@@ -141,15 +134,14 @@
           </table>
         </div>
 
-        <h2 id="storage-7-4" tabindex="-1">Trạm 7.4: Bản đồ kiến trúc tổng thể 6 tầng (Bottom-Up Blueprint) — Khép lại toàn bộ khóa học!</h2>
-        <p><em>(Tương ứng bức tranh tổng thành toàn bộ học phần D02 · Storage Layer từ Chặng 1 đến Chặng 7)</em></p>
+        <h2 id="storage-7-4" tabindex="-1">Trạm 7.4: Bản đồ kiến trúc tổng thể 6 tầng (Bottom-Up Blueprint)</h2>
 
-        <p>Đi hết <strong>Chặng 7</strong>, bạn đã hoàn thành trọn vẹn <strong>100% chương trình Storage Layer</strong> (bao trọn toàn bộ 59 trang <code>08-storage-layer.pdf</code> và 5 cuốn sách chuyên khảo cốt lõi). Để bạn có thể nhìn thấu suốt toàn bộ 7 Chặng vừa học chỉ trong <strong>1 bức tranh duy nhất đi từ phần cứng vật lý dưới cùng lên tới tầng Quản trị và Phục vụ trên cùng</strong>, dưới đây là <strong>Bản đồ Kiến trúc 6 Tầng (Bottom-Up Blueprint)</strong> cùng bảng tổng kết trọn đời của <strong>Đơn hàng #8888</strong>:</p>
+        <p>Để tổng hợp toàn bộ 7 Chặng của học phần <strong>D02 · Storage Layer</strong> trong một mô hình duy nhất đi từ phần cứng vật lý dưới cùng lên tới tầng Quản trị và Phục vụ trên cùng, dưới đây là <strong>Bản đồ Kiến trúc 6 Tầng (Bottom-Up Blueprint)</strong> cùng bảng đối chiếu xuyên suốt của <strong>Đơn hàng #8888</strong>:</p>
 
-        <x-figure id="storage-7-4" key="7.4" title="Hình 7.4 — Bản đồ Kiến trúc 6 Tầng của Hệ thống Lưu trữ Hiện đại (Bottom-Up Blueprint: Chặng 1 → Chặng 7)">Bản đồ kiến trúc 6 tầng tổng hợp toàn bộ học phần Storage Layer từ dưới lên trên: (1) Nền móng Vật lý & Mô hình Lưu trữ; (2) Định dạng Tệp, In-Memory Arrow & Nén; (3) Bộ ba Open Table Formats (Delta, Iceberg, Hudi); (4) Động cơ Tính toán & Streaming tách rời Lưu trữ; (5) Mô hình hóa Medallion & Kimball; (6) Tầng Phục vụ & Dòng chảy ngầm Quản trị (Catalog, Lineage, Security, FinOps).</x-figure>
+        <x-figure id="storage-7-4" key="7.4" title="Hình 7.4 — Bản đồ Kiến trúc 6 Tầng của Hệ thống Lưu trữ Hiện đại (Bottom-Up Blueprint: Chặng 1 → Chặng 7)">Bản đồ kiến trúc 6 tầng tổng hợp toàn bộ học phần Storage Layer từ dưới lên trên: (1) Nền móng Vật lý &amp; Mô hình Lưu trữ; (2) Định dạng Tệp, In-Memory Arrow &amp; Nén; (3) Bộ ba Open Table Formats (Delta, Iceberg, Hudi); (4) Động cơ Tính toán &amp; Streaming tách rời Lưu trữ; (5) Mô hình hóa Medallion &amp; Kimball; (6) Tầng Phục vụ &amp; Dòng chảy ngầm Quản trị (Catalog, Lineage, Security, FinOps).</x-figure>
 
         <div class="table-wrap">
-          <table>
+          <table class="clean-table">
             <thead>
               <tr>
                 <th>Chặng học</th>
@@ -206,7 +198,7 @@
         </div>
 
         <section class="summary-section" id="storage-7-summary" tabindex="-1">
-          <h2>Checklist tổng kết Chặng 7 (Nhắm mắt trả lời được là làm chủ hoàn toàn)</h2>
+          <h2>Tóm tắt bỏ túi Chặng 7 (Medallion &amp; Governance)</h2>
           <ol>
             <li><strong>Tại sao phải lọc dữ liệu qua 3 tầng Bronze → Silver → Gold mà không làm 1 bước (1-Hop)?</strong> → Để kiểm soát chất lượng lũy tiến qua từng cổng (Quality Gating), tái sử dụng dữ liệu sạch cấp doanh nghiệp ở tầng <strong>Silver</strong> cho nhiều phòng ban, và luôn có tầng <strong>Bronze</strong> nguyên bản làm mỏ neo an toàn để <strong>chạy lại (Replay / Recovery)</strong> khi logic tầng trên bị lỗi hoặc khi yêu cầu kinh doanh thay đổi mà không cần chọc lại vào DB OLTP nguồn.</li>
             <li><strong>Mô hình dữ liệu và chiến lược bảng Lakehouse ở tầng Silver và tầng Gold khác nhau thế nào?</strong> → Tầng <strong>Silver</strong> hướng tới góc nhìn thực thể toàn doanh nghiệp nên chuẩn hóa gần <strong>3NF / Data Vault / SCD Type 2</strong> và ưu tiên bảng <strong>MOR hoặc COW + Deletion Vectors</strong> để xử lý lệnh MERGE / Upsert khử trùng nhanh; tầng <strong>Gold</strong> hướng tới tốc độ đọc báo cáo BI và AI cụ thể nên phi chuẩn hóa thành <strong>Star Schema</strong> hoặc <strong>One Big Table (OBT)</strong> (giảm tối đa phép <code>JOIN</code>) và ưu tiên bảng <strong>COW + Z-Ordering / Liquid Clustering</strong>.</li>
@@ -214,6 +206,6 @@
             <li><strong>Tại sao không nên xuất (export) dữ liệu bảng ra 40 Buckets riêng cho 40 phòng ban?</strong> → Vì nó phá vỡ nguyên tắc <strong>Single Source of Truth</strong>, gây ác mộng quản lý/thu hồi quyền truy cập ở 40 nơi và đốt tiền tính toán lẫn phí băng thông mạng hai chiều (ingress/egress costs) mỗi khi cần sửa lỗi và chạy lại (reprocess) dữ liệu. Giải pháp chuẩn là giữ 1 bảng duy nhất và phân quyền qua <strong>Unity Catalog / Delta Sharing</strong> kèm <strong>Row-Level Security &amp; Column Masking</strong>.</li>
             <li><strong>Làm sao vừa giữ lịch sử ở tầng Bronze nhiều năm để kiểm toán vừa không bị cháy túi tiền Cloud?</strong> → Áp dụng chính sách vòng đời <strong>Cloud FinOps</strong>: tự động chuyển dữ liệu lịch sử từ tầng <strong>Hot / Warm Object Storage</strong> (~$0.023 → $0.0125/GB/tháng) xuống tầng <strong>Cold / Archival Storage (S3 Glacier / GCS Archive)</strong> (~$0.004 – $0.001/GB/tháng — rẻ bằng 1/6 đến 1/17), kết hợp chạy <code>VACUUM</code> dọn các tệp quá hạn Time Travel trên bảng nóng và dùng cụm tính toán tạm thời (Ephemeral Compute).</li>
           </ol>
-          <p style="margin-top:14px;"><strong>Hoàn tất 100% Học phần D02 · Storage Layer (Chặng 1 → Chặng 7):</strong> Bạn đã nắm trọn chuỗi nhân – quả xuyên suốt từ độ trễ nano-giây của CPU/RAM, cấu trúc byte của Parquet/Arrow, hạ tầng phân tán HDFS/Kafka, nghệ thuật mô hình hóa Kimball, sự trỗi dậy của bộ ba Lakehouse (Delta Lake, Apache Iceberg, Apache Hudi) cho đến kiến trúc Multi-hop Medallion và Quản trị Doanh nghiệp. <a href="#topic=D02&stage=1" onclick="selectStorageStage(1);return false;">Quay lại ôn tập từ Chặng 1 ──►</a></p>
+          <p style="margin-top:14px;"><strong>Hoàn tất Học phần D02 · Storage Layer (Chặng 1 → Chặng 7):</strong> <a href="#topic=D02&stage=1" onclick="selectStorageStage(1);return false;">Quay lại ôn tập từ Chặng 1 ──►</a></p>
         </section>
       </div>

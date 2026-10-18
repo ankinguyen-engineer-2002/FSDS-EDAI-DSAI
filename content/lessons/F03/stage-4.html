@@ -1,25 +1,16 @@
       <div class="prose">
-        <p>Ở <strong>Chặng 3</strong>, chúng ta đã vắt kiệt hiệu năng của một máy chủ PostgreSQL đơn lẻ (Single Node) bằng MVCC, B-Tree Index và <code>EXPLAIN ANALYZE</code>. Khi hệ thống phải phục vụ hàng triệu đơn hàng #HD01 xuyên quốc gia không được phép ngừng hoạt động dù cháy ổ cứng hay đứt cáp quang, chúng ta bước vào <strong>Chặng 4 (Trạm 4.1 → 4.3): Scalability, High Availability &amp; NoSQL Trade-offs</strong>.</p>
+        <p>Ở <strong>Chặng 3</strong>, chúng ta đã tối ưu hiệu năng của một máy chủ PostgreSQL đơn lẻ (Single Node) bằng MVCC, B-Tree Index và <code>EXPLAIN ANALYZE</code>. Khi hệ thống phải phục vụ hàng triệu đơn hàng #HD01 xuyên vùng địa lý và không được phép ngừng hoạt động dù hỏng ổ cứng hay đứt cáp quang, chúng ta bước vào <strong>Chặng 4 (Trạm 4.1 → 4.3): Scalability, High Availability &amp; NoSQL Trade-offs</strong>.</p>
 
-        <h4>Sơ đồ 4.0: Kiến trúc Tổng quan Chặng 4 — Mở rộng Quy mô (Sharding), Đa vùng Luôn sẵn sàng (6 PGD Nodes) &amp; Định lý CAP / BASE</h4>
         <x-figure id="db-4-0" key="4.0" title="Sơ đồ 4.0 — Mở rộng Quy mô &amp; Hệ thống Phân tán: Scale-up vs Sharding, Cụm 6 PGD Nodes + Witness Node &amp; Đánh đổi SQL / NoSQL (CAP &amp; BASE)">Tổng quan 3 trạm của Chặng 4: [Trạm 4.1] Vertical Scaling (Scale-up) vs Horizontal Scaling (Scale-out / Partitioning / Sharding); [Trạm 4.2] Replication (Sync/Async), Failover, High Availability (HA), cụm đa vùng 6 PGD Nodes + PGD Proxy + Witness Node vùng 3 (Global Consensus Raft/Paxos), Barman Backup & Distributed SQL (TiDB, YDB); [Trạm 4.3] 4 họ NoSQL (Key-Value, Document/BSON, Column-Family, Graph), định lý CAP (CA/CP/AP) & giao dịch BASE (Eventual Consistency, LWW, Vector Clocks).</x-figure>
 
         <h2 id="db-4-1" tabindex="-1">Trạm 4.1: Vertical scaling (Scale-up) vs horizontal scaling (Scale-out), Replication &amp; Sharding (Mở rộng hạ tầng &amp; nhân bản)</h2>
-        <ul>
-          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Khi quán trà sữa quá tải, bạn có 2 cách mở rộng:
-            <ol>
-              <li><strong>Vertical Scaling (Scale-up — Mở rộng theo chiều dọc):</strong> Tuyển một pha chế viên siêu cấp có 8 tay và lắp mặt bàn to gấp đôi tại duy nhất 1 cửa hàng cũ (nâng cấp CPU, RAM, ổ SSD cho 1 máy chủ).</li>
-              <li><strong>Horizontal Scaling (Scale-out — Mở rộng theo chiều ngang):</strong> Mở thêm 10 chi nhánh mới trên khắp thành phố (Nodes), trong đó chia nhỏ danh sách khách hàng theo từng quận cho từng chi nhánh giữ (Sharding / Database Partitioning), đồng thời mỗi chi nhánh có một sổ sao lưu chép lại tức thì (Replication) để nếu chi nhánh chính mất điện thì chi nhánh phụ lên thay ngay (Failover)!</li>
-            </ol>
-          </li>
-          <li><strong>[Nỗi đau từ trạm trước]:</strong> Mở rộng dọc (Scale-up) nhanh gọn vì không phải sửa code ứng dụng, nhưng sớm chạm giới hạn phần cứng vật lý, chi phí tăng phi tuyến tính và vẫn tồn tại điểm chết duy nhất (Single Point of Failure). Khi bước sang mở rộng ngang (Scale-out), ta lập tức đối mặt với độ trễ mạng giữa các máy chủ và bài toán kinh điển của hệ thống phân tán.</li>
-        </ul>
 
-        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Bảng Đối chiếu]</h3>
+        <p>Khi một máy chủ cơ sở dữ liệu chạm ngưỡng tải, kiến trúc sư đứng trước hai hướng mở rộng: <strong>Vertical Scaling (Scale-up — Mở rộng dọc)</strong> bằng cách nâng cấp CPU, RAM, NVMe trên cùng một máy chủ đơn lẻ, hoặc <strong>Horizontal Scaling (Scale-out — Mở rộng ngang)</strong> bằng cách phân chia dữ liệu ra nhiều nút máy chủ độc lập (<strong>Sharding / Partitioning</strong>) kết hợp nhân bản dự phòng (<strong>Replication</strong>) để chuyển đổi tự động khi có sự cố (<strong>Failover</strong>). Mở rộng dọc có ưu thế không phải sửa logic ứng dụng và không chịu độ trễ mạng liên nút, nhưng sớm chạm trần vật lý và vẫn giữ điểm chết duy nhất (<em>Single Point of Failure</em>); ngược lại, mở rộng ngang mở khóa dung lượng gần như vô hạn nhưng buộc hệ thống phải đối mặt với chi phí giao dịch liên phân mảnh (<em>Cross-Shard Transactions</em>) và bài toán đồng thuận phân tán (<em>Consensus</em>).</p>
+
         <x-figure id="db-4-1" key="4.1" title="Sơ đồ 4.1 — Giải phẫu Scale-up vs Scale-out (Sharding) &amp; Cơ chế Replication (Sync vs Async) cho Đơn hàng #HD01">Đối sánh Vertical Scaling (Scale-up nâng cấp 1 máy chủ đơn lẻ từ CPU x4/RAM 16G lên CPU x64/RAM 512G) với Horizontal Scaling (Scale-out / Sharding chia đơn hàng #HD01..#HD99 ra 3 Shard Node A/B/C), cùng cơ chế nhân bản Synchronous Replication (chờ Replica ACK, 0 mất dữ liệu) vs Asynchronous Replication (báo OK ngay, sao chép ngầm).</x-figure>
 
         <div class="table-wrap">
-          <table>
+          <table class="clean-table">
             <thead>
               <tr>
                 <th>Chiến lược Mở rộng / Giao thức</th>
@@ -57,26 +48,24 @@
           </table>
         </div>
 
-        <h4>[Bổ sung Chuyên sâu +30% — Sách <em>PostgreSQL: Up and Running</em> &amp; <em>Database Internals</em> Ch.8–13]: Phân mảnh Bảng Nội bộ (Declarative Partitioning) vs Phân mảnh Cụm (Sharding &amp; 2PC)</h4>
+        <h3>Phân mảnh bảng nội bộ (Declarative Partitioning) vs phân mảnh cụm (Sharding &amp; 2PC)</h3>
         <ul>
-          <li><strong>Phân biệt Table Partitioning (trên 1 cụm máy chủ) và Distributed Sharding (vắt ngang nhiều máy chủ):</strong> Trước khi đẩy hệ thống sang kiến trúc đa máy chủ phức tạp, PostgreSQL cung cấp cơ chế <strong>Declarative Partitioning</strong> chia một bảng HoaDon khổng lồ thành các bảng vật lý nhỏ hơn theo 3 chiến lược: PARTITION BY RANGE (NgayDat) (chia theo từng tháng/quý), PARTITION BY LIST (KhuVuc), hoặc PARTITION BY HASH (MaHD). Nhờ cơ chế Partition Pruning, khi truy vấn đơn #HD01 ngày 2026-09-26, Query Optimizer tự động bỏ qua toàn bộ các phân vùng của các tháng khác!</li>
-          <li><strong>Chi phí của giao dịch liên phân mảnh (Cross-Shard Transactions &amp; Two-Phase Commit - 2PC):</strong> Khi dữ liệu bị băm sang nhiều máy chủ vật lý khác nhau (Sharding), nếu một giao dịch vừa cập nhật ví của Lan ở Shard 1 (Node A) vừa ghi hóa đơn ở Shard 2 (Node B), hệ thống bắt buộc phải chạy giao thức cam kết 2 pha <strong>Two-Phase Commit (2PC)</strong> (gồm pha Prepare hỏi ý kiến mọi nút và pha Commit). Nếu nút điều phối (Coordinator) hoặc 1 nút thành viên bị đứt mạng giữa hai pha, các bản ghi đang khóa sẽ bị treo cứng — đó là lý do kỹ sư luôn phải chọn <strong>Shard Key</strong> (như MaKH hoặc <code>Tenant_ID</code>) sao cho 99% giao dịch chỉ diễn ra gọn trong phạm vi 1 Shard duy nhất!</li>
-          <li><strong>[Đúc kết Cơ học &amp; Đánh đổi]:</strong> Như tác giả <em>Database Internals</em> đúc kết ở trang 313: Storage Engine quyết định <strong>Hiệu năng cục bộ (Performance)</strong> trên từng nút, còn hệ thống giao tiếp cụm quyết định <strong>Khả năng mở rộng (Scalability)</strong> của toàn cụm; nhưng nếu đặt một giao thức cam kết nguyên tử chậm chạp lên trên một Storage Engine nhanh nhất thì kết quả tổng thể vẫn chậm! Vậy trong thực tế doanh nghiệp, người ta lắp ráp các nút PostgreSQL đa vùng địa lý và các hệ quản trị Distributed SQL thế hệ mới như thế nào để đạt trạng thái <strong>Luôn sẵn sàng (Always-on High Availability)</strong>? Chúng ta bước sang <strong>Trạm 4.2</strong>.</li>
+          <li><strong>Phân biệt Table Partitioning (trên 1 cụm máy chủ) và Distributed Sharding (vắt ngang nhiều máy chủ):</strong> Trước khi đẩy hệ thống sang kiến trúc đa máy chủ phức tạp, PostgreSQL cung cấp cơ chế <strong>Declarative Partitioning</strong> chia một bảng HoaDon khổng lồ thành các bảng vật lý nhỏ hơn theo 3 chiến lược: <code>PARTITION BY RANGE (NgayDat)</code> (chia theo từng tháng/quý), <code>PARTITION BY LIST (KhuVuc)</code>, hoặc <code>PARTITION BY HASH (MaHD)</code>. Nhờ cơ chế Partition Pruning, khi truy vấn đơn #HD01 ngày 2026-09-26, Query Optimizer tự động bỏ qua toàn bộ các phân vùng của các tháng khác.</li>
+          <li><strong>Chi phí của giao dịch liên phân mảnh (Cross-Shard Transactions &amp; Two-Phase Commit — 2PC):</strong> Khi dữ liệu bị băm sang nhiều máy chủ vật lý khác nhau (Sharding), nếu một giao dịch vừa cập nhật ví của Lan ở Shard 1 (Node A) vừa ghi hóa đơn ở Shard 2 (Node B), hệ thống bắt buộc phải chạy giao thức cam kết 2 pha <strong>Two-Phase Commit (2PC)</strong> (gồm pha Prepare hỏi ý kiến mọi nút và pha Commit). Nếu nút điều phối (Coordinator) hoặc 1 nút thành viên bị đứt mạng giữa hai pha, các bản ghi đang khóa sẽ bị treo cứng — đó là lý do kỹ sư luôn phải chọn <strong>Shard Key</strong> (như <code>MaKH</code> hoặc <code>Tenant_ID</code>) sao cho 99% giao dịch chỉ diễn ra gọn trong phạm vi 1 Shard duy nhất.</li>
         </ul>
+
+        <p>Như Alex Petrov đúc kết trong <em>Database Internals</em> (tr. 313): Storage Engine quyết định <strong>Hiệu năng cục bộ (Performance)</strong> trên từng nút, còn hệ thống giao tiếp cụm quyết định <strong>Khả năng mở rộng (Scalability)</strong> của toàn cụm. Vậy trong thực tế doanh nghiệp, người ta lắp ráp các nút PostgreSQL đa vùng địa lý và các hệ quản trị Distributed SQL thế hệ mới như thế nào để đạt trạng thái <strong>Luôn sẵn sàng (Always-on High Availability)</strong>? Chúng ta bước sang <strong>Trạm 4.2</strong>.</p>
 
         <hr />
 
         <h2 id="db-4-2" tabindex="-1">Trạm 4.2: Always-on multi-location HA (EnterpriseDB PGD) &amp; next-gen databases (TiDB, YugabyteDB, ClickHouse) (Kiến trúc đa vùng &amp; thế hệ mới)</h2>
-        <ul>
-          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Để chuỗi trà sữa không bao giờ ngừng bán ngay cả khi cả một thành phố bị mất điện diện rộng (Location Failure), bạn xây dựng 2 trung tâm điều hành đối xứng ở <strong>Vùng 1 (TP.HCM)</strong> và <strong>Vùng 2 (Hà Nội)</strong>, mỗi vùng có 3 máy chủ dữ liệu kèm 1 trạm điều phối (PGD Proxy), cộng thêm 1 <strong>Trọng tài chứng kiến (Witness Node)</strong> đặt tại <strong>Vùng 3 (Đà Nẵng)</strong> không cần giữ hàng hóa nhưng cầm lá phiếu quyết định xem vùng nào còn sống để điều hướng khách hàng khi đứt cáp!</li>
-          <li><strong>[Nỗi đau từ trạm trước]:</strong> Nếu chỉ đặt các máy chủ Replica trong cùng một phòng máy, sự cố mất điện hoặc hỏa hoạn tại phòng máy đó sẽ đánh sập toàn bộ cụm. Nhưng nếu chia đều máy chủ sang 2 vùng địa lý (mỗi vùng 3 nút) mà đường cáp giữa 2 vùng bị đứt, không vùng nào chiếm được đa số phiếu để tự quyết định các thao tác toàn cục (Global Consensus) như thêm nút mới hay chạy lệnh DDL phân tán!</li>
-        </ul>
 
-        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Bảng Đối chiếu]</h3>
+        <p>Nếu chỉ đặt các máy chủ Replica trong cùng một trung tâm dữ liệu, một sự cố mất điện hoặc đứt cáp cấp vùng (<em>Location Failure</em>) sẽ đánh sập toàn bộ cụm; nhưng nếu chia đều 6 nút dữ liệu sang 2 vùng địa lý (mỗi vùng 3 nút) mà đường cáp liên vùng bị đứt, không vùng nào chiếm được quá bán số phiếu (Quorum $\ge 4$) để tự quyết định các thao tác đồng thuận toàn cục (<em>Global Consensus</em>). Kiến trúc <strong>Always-On Multi-Location</strong> của EnterpriseDB PGD (<em>Database Design and Modeling</em> Ch. 8) giải quyết bài toán này bằng cách dựng 2 vùng đối xứng (mỗi vùng gồm 3 PGD Data Nodes + PGD Proxy) và đặt thêm 1 <strong>Witness Node (Trọng tài chứng kiến)</strong> tại vùng địa lý thứ 3: Witness Node không lưu dữ liệu đơn hàng nhưng giữ lá phiếu thứ 7 giúp vùng còn sống đạt ngưỡng Quorum tức thì khi vùng kia sập nguồn.</p>
+
         <x-figure id="db-4-2" key="4.2" title="Sơ đồ 4.2 — Kiến trúc Always-On Multi-Location trong EnterpriseDB (6 PGD Nodes + Witness Node + Barman)">Kiến trúc đa vùng luôn sẵn sàng (Always-on Multi-location) theo Chương 8 sách Database Design and Modeling: 2 vùng chính đối xứng (Location A & Location B), mỗi vùng gồm 3 PGD Proxy và 3 Data Nodes nhân bản chéo (Mesh Replication); Vùng 3 đặt Witness Node (không lưu dữ liệu, chỉ bỏ phiếu giữ Global Consensus & Distributed DDL khi 1 vùng sập); kết hợp Barman (Backup/RTO) và PEM (Monitoring).</x-figure>
 
         <div class="table-wrap">
-          <table>
+          <table class="clean-table">
             <thead>
               <tr>
                 <th>Công nghệ / Thành phần Kiến trúc</th>
@@ -109,38 +98,31 @@
           </table>
         </div>
 
-        <h4>[Bổ sung Chuyên sâu +30% — Toán học Đồng thuận Quorum ($Q = \lfloor N/2 \rfloor + 1$) &amp; Bộ đôi Chỉ số Sống còn RPO / RTO]</h4>
+        <h3>Toán học đồng thuận Quorum ($Q = \lfloor N/2 \rfloor + 1$) &amp; bộ đôi chỉ số RPO / RTO</h3>
         <ul>
           <li><strong>Tại sao bắt buộc phải có Witness Node ở Vùng thứ 3? (Bài toán Quorum số lẻ):</strong> Trong các thuật toán đồng thuận phân tán như Raft và Paxos, để tránh thảm họa "hai bộ não" (Split-Brain — hai vùng mất liên lạc cùng tự nhận mình là cụm chính và nhận ghi dữ liệu mâu thuẫn nhau), một quyết định toàn cục bắt buộc phải đạt đa số phiếu quá bán:
             $$Q = \left\lfloor \frac{N}{2} \right\rfloor + 1$$
-            Nếu chỉ có 6 Data Nodes chia đều cho Vùng 1 (3 nút) và Vùng 2 (3 nút), thì ngưỡng quá bán là $Q = \lfloor 6/2 \rfloor + 1 = 4\text{ phiếu}$. Khi Vùng 1 bị sập nguồn toàn bộ, Vùng 2 chỉ còn 3 phiếu ($3 < 4$) nên <strong>bị đóng băng không thể đạt đồng thuận toàn cục</strong>! Khi đặt thêm 1 Witness Node (trọng tài không lưu dữ liệu, chi phí cực rẻ) ở Vùng 3, tổng số phiếu là $N = 7$ và ngưỡng quá bán vẫn là $Q = \lfloor 7/2 \rfloor + 1 = 4\text{ phiếu}$. Lúc này, dù Vùng 1 sập hoàn toàn (mất 3 phiếu), Vùng 2 (3 phiếu) + Vùng 3 Witness (1 phiếu) = <strong>4 phiếu ($\ge 4$)</strong> — hệ thống lập tức vượt ngưỡng Quorum và tiếp tục hoạt động không gián đoạn!</li>
+            Nếu chỉ có 6 Data Nodes chia đều cho Vùng 1 (3 nút) và Vùng 2 (3 nút), thì ngưỡng quá bán là $Q = \lfloor 6/2 \rfloor + 1 = 4\text{ phiếu}$. Khi Vùng 1 bị sập nguồn toàn bộ, Vùng 2 chỉ còn 3 phiếu ($3 < 4$) nên <strong>bị đóng băng không thể đạt đồng thuận toàn cục</strong>. Khi đặt thêm 1 Witness Node (trọng tài không lưu dữ liệu, chi phí cực rẻ) ở Vùng 3, tổng số phiếu là $N = 7$ và ngưỡng quá bán vẫn là $Q = \lfloor 7/2 \rfloor + 1 = 4\text{ phiếu}$. Lúc này, dù Vùng 1 sập hoàn toàn (mất 3 phiếu), Vùng 2 (3 phiếu) + Vùng 3 Witness (1 phiếu) = <strong>4 phiếu ($\ge 4$)</strong> — hệ thống lập tức vượt ngưỡng Quorum và tiếp tục hoạt động không gián đoạn.</li>
           <li><strong>Phân biệt 2 thước đo sinh tử trong Phục hồi Thảm họa (Disaster Recovery):</strong>
             <ul>
               <li><strong>RPO (Recovery Point Objective):</strong> Lượng dữ liệu tối đa chấp nhận bị mất tính theo thời gian khi xảy ra thảm họa (ví dụ: RPO = 0 với Synchronous Replication, hoặc RPO &lt; 5 giây với Async Streaming WAL).</li>
               <li><strong>RTO (Recovery Time Objective):</strong> Thời gian tối đa để hệ thống khôi phục và hoạt động trở lại sau sự cố (ví dụ: RTO &lt; 5 giây nhờ tự động chuyển hướng qua PGD Proxy, kết hợp Barman sao lưu ngoại vi để khôi phục theo thời điểm PITR — Point-In-Time Recovery).</li>
             </ul>
           </li>
-          <li><strong>[Đúc kết Cơ học &amp; Đánh đổi]:</strong> Để đạt được kiến trúc đa vùng luôn sẵn sàng (Always-on), kỹ sư bắt buộc phải đảm bảo <strong>Tính đối xứng về cấu hình và hạ tầng (Configuration and infrastructure symmetry)</strong> giữa các nút và các vùng để khi một vùng sập, vùng còn lại đủ sức gánh toàn bộ tải được chuyển hướng sang. Thế nhưng, nếu ứng dụng của bạn không chỉ lưu hóa đơn có cấu trúc cố định mà còn phải lưu hàng triệu bình luận đa phương tiện, giỏ hàng biến đổi cấu trúc liên tục mỗi ngày và đòi hỏi phản hồi tức thì ngay cả khi đứt cáp mạng xuyên lục địa thì sao? Đó là lúc chúng ta đặt SQL và NoSQL lên bàn cân của <strong>Định lý CAP và mô hình BASE</strong> ở trạm cuối cùng — <strong>Trạm 4.3</strong>.</li>
         </ul>
+
+        <p>Để đạt được kiến trúc đa vùng luôn sẵn sàng (Always-on), kỹ sư bắt buộc phải đảm bảo <strong>Tính đối xứng về cấu hình và hạ tầng (Configuration and infrastructure symmetry)</strong> giữa các nút và các vùng để khi một vùng sập, vùng còn lại đủ sức gánh toàn bộ tải được chuyển hướng sang. Thế nhưng, nếu ứng dụng của bạn không chỉ lưu hóa đơn có cấu trúc cố định mà còn phải lưu giỏ hàng biến đổi cấu trúc liên tục mỗi ngày và đòi hỏi phản hồi tức thì ngay cả khi đứt cáp mạng xuyên vùng thì sao? Đó là lúc chúng ta đặt SQL và NoSQL lên bàn cân của <strong>Định lý CAP và mô hình BASE</strong> ở <strong>Trạm 4.3</strong>.</p>
 
         <hr />
 
         <h2 id="db-4-3" tabindex="-1">Trạm 4.3: SQL vs NoSQL data models, CAP theorem (CA/CP/AP) &amp; BASE vs ACID (Định lý CAP &amp; kiến trúc lai)</h2>
-        <ul>
-          <li><strong>[Bối cảnh &amp; Ẩn dụ đời thực]:</strong> Định lý CAP (do Eric Brewer đề xuất đầu những năm 2000) giống như quy luật vật lý khi hai chi nhánh trà sữa ở Quận 1 và Quận 7 bị đứt đường dây điện thoại liên lạc (Partition — phân mảnh mạng) đúng lúc khách hàng Lan vào Quận 1 nạp thêm tiền vào ví thành viên:
-            <ul>
-              <li>Nếu bạn chọn <strong>CP (Consistency + Partition Tolerance):</strong> Chi nhánh Quận 7 lập tức treo biển "Tạm ngưng trừ tiền ví" cho đến khi nối lại điện thoại với Quận 1 để tránh việc Lan tiêu lố số tiền thực có (ưu tiên dữ liệu chuẩn xác tuyệt đối như ngân hàng).</li>
-              <li>Nếu bạn chọn <strong>AP (Availability + Partition Tolerance theo mô hình BASE):</strong> Cả hai chi nhánh cứ cho Lan đặt trà sữa và tích điểm bình thường để không mất khách, rồi khi nối lại đường dây sẽ tự động cộng dồn đối soát sau (Eventual Consistency — nhất quán cuối cùng)!</li>
-            </ul>
-          </li>
-          <li><strong>[Nỗi đau từ trạm trước]:</strong> Các bảng SQL truyền thống đòi hỏi lược đồ cứng (Rigid schema): mỗi lần muốn thêm các trường dữ liệu lồng nhau phức tạp (như danh sách topping tùy chỉnh theo từng vùng, lịch sử hành vi lướt app dạng mảng/đối tượng con của đơn #HD01), việc chạy lệnh sửa cấu trúc bảng (Database migrations) trên hàng trăm triệu dòng rất nặng nề.</li>
-        </ul>
 
-        <h3>[Sơ đồ Giải phẫu Cơ chế &amp; Bảng Đối chiếu]</h3>
+        <p><strong>Định lý CAP</strong> (do Eric Brewer đề xuất) khẳng định rằng khi xảy ra đứt cáp phân mảnh mạng giữa các nút (<strong>Partition — P</strong>), một hệ thống phân tán chỉ có thể chọn một trong hai: hoặc chọn <strong>CP (Consistency + Partition Tolerance)</strong> — tạm ngưng nhận giao dịch ghi ở nhánh bị cô lập để bảo vệ tính đúng đắn tuyệt đối của số dư tiền theo chuẩn <strong>ACID</strong>; hoặc chọn <strong>AP (Availability + Partition Tolerance)</strong> — cho phép cả hai nhánh tiếp tục nhận đơn hàng để không gián đoạn dịch vụ rồi đồng bộ đối soát sau theo mô hình <strong>BASE (Basically Available, Soft state, Eventual consistency)</strong>. Song song với đánh đổi CAP/BASE là sự ra đời của 4 họ cơ sở dữ liệu <strong>NoSQL</strong> (Key-Value, Document/BSON, Column-Family, Graph) giúp giải phóng ứng dụng khỏi lược đồ bảng cứng nhắc (Rigid Schema) khi xử lý dữ liệu bán cấu trúc.</p>
+
         <x-figure id="db-4-3" key="4.3" title="Sơ đồ 4.3 — Giải phẫu 4 Mô hình NoSQL, Tam giác Đánh đổi Định lý CAP &amp; Kiến trúc Lai (PostgreSQL Multi-Model + Redis Cache)">Giải phẫu tam giác định lý CAP (Eric Brewer) khi xảy ra đứt mạng (Network Partition): đối sánh CA (RDBMS đơn vùng), CP (ACID — ưu tiên dữ liệu đúng tuyệt đối) và AP (BASE — ưu tiên luôn phản hồi với Eventual Consistency); 4 họ NoSQL (Key-Value Redis, Document MongoDB BSON, Column-Family Cassandra, Graph Neo4j) và kiến trúc lai thực chiến kết hợp Redis Cache + PostgreSQL Multi-Model (3NF + JSONB + hstore + ltree).</x-figure>
 
         <div class="table-wrap">
-          <table>
+          <table class="clean-table">
             <thead>
               <tr>
                 <th>Tiêu chí đặt lên bàn cân</th>
@@ -172,15 +154,15 @@
           </table>
         </div>
 
-        <h4>[Bổ sung Chuyên sâu +30% — Sách <em>Database Internals</em> Ch.11 &amp; <em>PostgreSQL: Up and Running</em>]: Giải quyết Xung đột LWW vs Vector Clocks &amp; Thực hành PostgreSQL Multi-Model (JSONB + GIN Index)</h4>
+        <h3>Giải quyết xung đột LWW vs Vector Clocks &amp; thực hành PostgreSQL Multi-Model (JSONB + GIN Index)</h3>
         <ul>
-          <li><strong>Cơ chế phân xử xung đột trong hệ thống AP / BASE (Last-Write-Wins vs Vector Clocks):</strong> Khi hai nút phân tán cùng cho phép sửa dữ liệu trong lúc đứt mạng (Network Partition), lúc mạng nối lại hệ thống phải hòa giải 2 phiên bản xung đột:
+          <li><strong>Cơ chế phân xử xung đột trong hệ thống AP / BASE (Last-Write-Wins vs Vector Clocks — <em>Database Internals</em> Ch. 11):</strong> Khi hai nút phân tán cùng cho phép sửa dữ liệu trong lúc đứt mạng (Network Partition), lúc mạng nối lại hệ thống phải hòa giải 2 phiên bản xung đột:
             <ul>
-              <li><strong>Last-Write-Wins (LWW):</strong> Gắn nhãn thời gian vật lý (Wall-clock Timestamp) cho mỗi lần ghi và giữ lại bản có mốc thời gian lớn hơn. Rủi ro: đồng hồ vật lý giữa các máy chủ luôn bị lệch nhẹ (Clock Skew trong giao thức NTP), có thể làm bản ghi mới hơn bị nuốt mất bởi máy chủ có đồng hồ chạy nhanh!</li>
-              <li><strong>Vector Clocks (Đồng hồ Vector):</strong> Thay vì tin vào đồng hồ vật lý, mỗi nút duy trì một mảng bộ đếm logic [Node_A: v1, Node_B: v2] để phát hiện chính xác 2 nhánh thay đổi xảy ra đồng thời (Concurrent Siblings) và chuyển cho tầng ứng dụng hoặc cấu trúc CRDTs hợp nhất không mất dữ liệu.</li>
+              <li><strong>Last-Write-Wins (LWW):</strong> Gắn nhãn thời gian vật lý (Wall-clock Timestamp) cho mỗi lần ghi và giữ lại bản có mốc thời gian lớn hơn. Rủi ro: đồng hồ vật lý giữa các máy chủ luôn bị lệch nhẹ (Clock Skew trong giao thức NTP), có thể làm bản ghi mới hơn bị nuốt mất bởi máy chủ có đồng hồ chạy nhanh.</li>
+              <li><strong>Vector Clocks (Đồng hồ Vector):</strong> Thay vì tin vào đồng hồ vật lý, mỗi nút duy trì một mảng bộ đếm logic <code>[Node_A: v1, Node_B: v2]</code> để phát hiện chính xác 2 nhánh thay đổi xảy ra đồng thời (Concurrent Siblings) và chuyển cho tầng ứng dụng hoặc cấu trúc CRDTs hợp nhất không mất dữ liệu.</li>
             </ul>
           </li>
-          <li><strong>Thực hành PostgreSQL Multi-Model cho đơn hàng #HD01 (Kết hợp 3NF + JSONB + GIN Index):</strong> Thay vì phải dựng thêm một cụm MongoDB riêng chỉ để lưu cấu trúc Topping tùy chỉnh của từng ly trà sữa, PostgreSQL cho phép lưu trực tiếp kiểu nhị phân JSONB có đánh chỉ mục đảo ngược GIN (Generalized Inverted Index) tốc độ cao ngay bên trong bảng quan hệ:</li>
+          <li><strong>Thực hành PostgreSQL Multi-Model cho đơn hàng #HD01 (Kết hợp 3NF + JSONB + GIN Index):</strong> Thay vì phải dựng thêm một cụm MongoDB riêng chỉ để lưu cấu trúc Topping tùy chỉnh của từng ly trà sữa, PostgreSQL cho phép lưu trực tiếp kiểu nhị phân <code>JSONB</code> có đánh chỉ mục đảo ngược <strong>GIN (Generalized Inverted Index)</strong> tốc độ cao ngay bên trong bảng quan hệ:</li>
         </ul>
         <pre><code>-- Minh họa PostgreSQL Multi-Model: Kết hợp cột quan hệ chuẩn 3NF và cột tài liệu động JSONB cho #HD01
 ALTER TABLE ChiTietHoaDon
@@ -199,8 +181,8 @@ SELECT MaHD, MaMon, SoLuong, TuyChonTopping-&gt;&gt;'muc_duong' AS MucDuong
 FROM ChiTietHoaDon
 WHERE TuyChonTopping @&gt; '{"toppings": ["Kem Cheese"]}'::jsonb;</code></pre>
 
-        <h3>[Đúc kết Cơ học Toàn Học Phần]</h3>
-        <p>Khép lại hành trình qua <strong>4 Chặng (12 Trạm)</strong>, đơn hàng trà sữa <strong>#HD01 của khách hàng Lan</strong> đã dạy cho chúng ta bài học cốt lõi của một Principal Database Engineer: <strong>Không có cơ sở dữ liệu nào là "viên đạn bạc" miễn phí; mọi thiết kế đều là sự đánh đổi có định lượng giữa các giới hạn vật lý:</strong></p>
+        <h3>Đúc kết cơ học toàn học phần</h3>
+        <p>Khép lại hành trình qua <strong>4 Chặng (12 Trạm)</strong>, đơn hàng trà sữa <strong>#HD01 của khách hàng Lan</strong> làm nổi bật nguyên lý cốt lõi của kỹ thuật cơ sở dữ liệu: <strong>mọi thiết kế lưu trữ đều là sự đánh đổi có định lượng giữa các giới hạn vật lý</strong>:</p>
         <ol>
           <li>Ở <strong>Tầng Mô hình (Data Modeling):</strong> Đánh đổi giữa <strong>Chống dư thừa/An toàn ghi (3NF + Constraints)</strong> và <strong>Tốc độ đọc không cần nối bảng (Controlled Denormalization)</strong>.</li>
           <li>Ở <strong>Tầng Động cơ Lưu trữ (Storage Engine):</strong> Đánh đổi giữa <strong>Độ trễ đọc ngẫu nhiên (Mutable B-Tree Pages 4-16 KB)</strong> và <strong>Thông lượng ghi tuần tự (Immutable Append-only WAL &amp; LSM-Trees)</strong>, được điều hòa bởi bộ nhớ đệm Shared Buffers (Dirty Pages) và tiến trình Checkpointer (5 phút/lần).</li>

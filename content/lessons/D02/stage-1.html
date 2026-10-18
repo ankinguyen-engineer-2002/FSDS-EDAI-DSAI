@@ -1,20 +1,13 @@
       <div class="prose">
-        <p><strong>Chặng 1: Nguyên liệu gốc &amp; Cơ chế vật lý (Raw Ingredients &amp; Physical Mechanics)</strong> mở màn cho toàn bộ học phần <strong>II. Data Engineering — D02 · Storage Layer</strong> (bám sát 100% <code>course-slides/05-storage-layer.pdf</code> — 173 trang, kết hợp nền tảng cơ học từ bộ 5 sách kinh điển: <em>Fundamentals of Data Engineering</em> của Reis &amp; Housley, <em>Designing Data-Intensive Applications</em> của Martin Kleppmann, <em>The Data Warehouse Toolkit</em> của Kimball &amp; Ross, <em>Delta Lake: Up and Running</em> của Bennion et al., và <em>Apache Iceberg: The Definitive Guide</em> của Shiran et al.).</p>
-
         <h2 id="storage-0-map" tabindex="-1">Trạm 0.0: Nhân vật chính đơn hàng #8888 &amp; bản đồ tư duy 7 Chặng storage layer</h2>
-        <p><em>(Bước 0 — Thiết lập Nhân vật chính xuyên suốt, Bản đồ Cơ học 7 Chặng &amp; Ma trận nhân – quả Toàn Học Phần trước khi đi sâu từng Trạm)</em></p>
+
+        <p><span id="storage-0-protagonist"></span><span id="storage-0-mental-map"></span>Toàn bộ 7 Chặng của học phần <strong>D02 · Storage Layer</strong> theo chân một thực thể xuyên suốt: <strong>Đơn hàng #8888 (khách hàng Nguyễn Văn A tại Bình Dương đặt mua bộ Sofa giá 15.000.000 VNĐ lúc 10:05:12)</strong> từ khoảnh khắc các bit điện tử đầu tiên vừa lóe lên trên thanh RAM của máy chủ bán hàng OLTP cho đến khi kết tinh thành chỉ số KPI doanh thu trên bảng điều khiển quản trị. Mọi kiến trúc lưu trữ hiện đại đều vận hành theo một sợi dây nhân – quả bất biến: <strong>Giới hạn vật lý của phần cứng ở tầng dưới sẽ định đoạt cấu trúc tệp, mô hình dữ liệu và kiến trúc quản trị ở tầng trên</strong>.</p>
 
         <x-spine id="storage-0-1" badge="TRONG BÀI HỌC NÀY · D02" title="Bản đồ Kiến trúc 7 Chặng Storage Layer — Hành trình Đơn hàng #8888" subtitle="Tổng quan 7 Chặng Storage Layer"><strong>Bản đồ Xương sống Học phần D02:</strong> Toàn cảnh 7 Chặng tiến hóa của Đơn hàng #8888 từ phần cứng vật lý CPU Cache / RAM / SSD / HDD (Chặng 1), định dạng Parquet / Arrow (Chặng 2), hạ tầng phân tán HDFS / Kafka / Cloud DWH (Chặng 3), mô hình Kimball Star Schema / SCD2 (Chặng 4), vượt đầm lầy Data Swamp (Chặng 5) lên Delta Lake / Iceberg / Hudi (Chặng 6) và quy hoạch Medallion 6 Tầng (Chặng 7).</x-spine>
 
-        <h3 id="storage-0-protagonist">1. Nhân vật chính Xuyên suốt Học phần: Đơn hàng #8888</h3>
-        <p>Thay vì học từng công nghệ lưu trữ như những ốc đảo rời rạc, toàn bộ 7 Chặng của học phần <strong>D02 · Storage Layer</strong> theo chân một nhân vật chính duy nhất: <strong>Đơn hàng #8888 (khách hàng Nguyễn Văn A tại Bình Dương đặt mua bộ Sofa giá 15.000.000 VNĐ lúc 10:05:12)</strong> từ khoảnh khắc các bit điện tử đầu tiên vừa lóe lên trên thanh RAM của máy chủ bán hàng OLTP cho đến khi kết tinh thành con số KPI doanh thu tinh khiết trên bảng điều khiển của Tổng Giám đốc.</p>
-
-        <h3 id="storage-0-mental-map">2. Bản đồ Tư duy 1 Dòng (Mental Map) — Mạch Nhân Quả 7 Chặng</h3>
-        <p>Mọi kiến trúc lưu trữ hiện đại đều tuân theo một sợi dây nhân – quả bất biến: <strong>Giới hạn vật lý của phần cứng ở tầng dưới sẽ định đoạt cấu trúc tệp, mô hình dữ liệu và kiến trúc quản trị ở tầng trên</strong>:</p>
-
         <x-figure id="storage-0-1" key="0.1" title="Hình 0.1 — Bản đồ Cơ học 7 Chặng Storage Layer: Hành trình Tiến hóa của Đơn hàng #8888 (Mental Map)">Hành trình 7 Chặng của Đơn hàng #8888: Từ giới hạn vật lý CPU/RAM/SSD/HDD (Chặng 1) và định dạng tệp Parquet/Arrow (Chặng 2), qua hạ tầng phân tán HDFS/Kafka/Data Warehouse (Chặng 3) và mô hình hóa Kimball Star Schema/SCD2 (Chặng 4), tiến hóa từ Data Lake/Swamp (Chặng 5) lên Open Table Formats Delta/Iceberg/Hudi (Chặng 6) và quy hoạch Multi-Hop Medallion + Governance (Chặng 7).</x-figure>
 
-        <h3 id="storage-0-roadmap">3. Bảng Đối chiếu Lộ trình 7 Chặng (Mạch nhân – quả Slide ↔ Sách Kinh điển)</h3>
+        <span id="storage-0-roadmap"></span>
         <div class="table-wrap">
           <table class="clean-table">
             <thead>
@@ -76,15 +69,11 @@
 
         <h2 id="storage-1-1" tabindex="-1">Trạm 1.1: Bậc thang phần cứng &amp; thang đo độ trễ vật lý (Cache Hierarchy)</h2>
 
-        <h3 id="storage-1-1-story">1. Câu chuyện của Đơn hàng #8888</h3>
-        <p>Khi khách hàng bấm nút thanh toán <strong>Đơn hàng #8888</strong>, vi xử lý (CPU) của máy chủ bán hàng cần xử lý thông tin đơn hàng này ngay lập tức. Tuy nhiên, không có một thiết bị lưu trữ đơn lẻ nào trên thế giới vừa <strong>siêu nhanh</strong>, vừa <strong>siêu rẻ</strong>, lại vừa <strong>không mất dữ liệu khi cúp điện</strong>. Vì vậy, máy tính phải tổ chức lưu trữ thành một <strong>hệ thống phân tầng bộ nhớ đệm (Cache Hierarchy)</strong> — bắt đầu từ tối đa 4 tầng bộ nhớ đệm nằm ngay bên trong nhân CPU, đi xuống RAM, SSD và cuối cùng là Cloud Object Storage và Archival Storage.</p>
-
-        <h3 id="storage-1-1-pyramid">2. Sơ đồ Kim tự tháp Độ trễ &amp; Thao tác Thực tế</h3>
-        <p>Mỗi bước đi xuống dưới chân kim tự tháp, chi phí trên mỗi Gigabyte rẻ đi hàng chục đến hàng trăm lần, nhưng độ trễ truy xuất (Latency) lại chậm đi theo cấp số nhân:</p>
+        <p><span id="storage-1-1-story"></span><span id="storage-1-1-pyramid"></span>Khi khách hàng bấm nút thanh toán <strong>Đơn hàng #8888</strong>, vi xử lý (CPU) của máy chủ bán hàng cần xử lý thông tin đơn hàng ngay lập tức. Tuy nhiên, không có một thiết bị lưu trữ đơn lẻ nào vừa <strong>siêu nhanh</strong>, vừa <strong>siêu rẻ</strong>, lại vừa <strong>không mất dữ liệu khi cúp điện</strong>. Máy tính buộc phải tổ chức lưu trữ thành một <strong>hệ thống phân tầng bộ nhớ đệm (Cache Hierarchy)</strong> — bắt đầu từ các tầng bộ nhớ đệm nằm ngay trong nhân CPU, đi xuống RAM, SSD và cuối cùng là Cloud Object Storage cùng Archival Storage. Mỗi bước đi xuống dưới chân kim tự tháp, chi phí trên mỗi Gigabyte rẻ đi hàng chục đến hàng trăm lần, nhưng độ trễ truy xuất (Latency) lại chậm đi theo cấp số nhân:</p>
 
         <x-figure id="storage-1-1" key="1.1" title="Hình 1.1 — Tháp Độ trễ Vật lý &amp; Các Tác vụ Thực tế (Cache Hierarchy)">Sơ đồ tổng hợp từ bảng phân tầng bộ nhớ thực nghiệm và thang đo độ trễ hệ thống.</x-figure>
 
-        <h3 id="storage-1-1-table">3. Bảng thông số kỹ thuật chi tiết các tầng lưu trữ</h3>
+        <span id="storage-1-1-table"></span>
         <div class="table-wrap">
           <table class="clean-table">
             <thead>
@@ -154,17 +143,17 @@
 
         <h2 id="storage-1-2" tabindex="-1">Trạm 1.2: Đặc tính kỹ thuật của RAM &amp; hiện tượng tràn bộ nhớ (Spill-to-Disk)</h2>
 
-        <h3 id="storage-1-2-ram">1. Cơ chế hoạt động của RAM (1.1.3)</h3>
+        <h3 id="storage-1-2-ram">Cơ chế hoạt động của RAM &amp; Tính khả biến (Volatility)</h3>
         <p>Bộ nhớ RAM (DDR5 / DRAM) được gắn trực tiếp vào không gian địa chỉ của CPU (CPU address space) theo nguyên lý kiến trúc <em>Von Neumann &amp; Harvard</em> để chứa cả <strong>mã lệnh (code)</strong> lẫn <strong>dữ liệu (data)</strong> với độ trễ chỉ ~100 ns (nhanh gấp <strong>1.000 lần</strong> SSD) và băng thông ~100 GB/s:</p>
 
-        <x-figure id="storage-1-2b" key="1.2b" title="Hình 1.2a — Giải phẫu Cơ học Bộ nhớ RAM: Address Space, DRAM Volatility &amp; In-Memory Cache">Ánh xạ trực tiếp vào không gian địa chỉ CPU (~100 ns, ~100 GB/s), chu kỳ nạp tụ điện DRAM khả biến (< 1s) và vai trò tầng đệm của Redis / Memcached / Hazelcast.</x-figure>
+        <x-figure id="storage-1-2b" key="1.2b" title="Hình 1.2a — Giải phẫu Cơ học Bộ nhớ RAM: Address Space, DRAM Volatility &amp; In-Memory Cache">Ánh xạ trực tiếp vào không gian địa chỉ CPU (~100 ns, ~100 GB/s), chu kỳ nạp tụ điện DRAM khả biến (&lt; 1s) và vai trò tầng đệm của Redis / Memcached / Hazelcast.</x-figure>
 
         <p><strong>Quy tắc sống còn về Tính khả biến (Volatility):</strong> Vì các ô nhớ DRAM giữ bit bằng tụ điện cần nạp tươi liên tục, mất nguồn điện dưới <strong>1 giây</strong> sẽ xóa sạch dữ liệu trên RAM. Do đó, các hệ thống in-memory như <strong>Redis</strong> (đa cấu trúc dữ liệu kèm RDB/AOF), <strong>Memcached</strong> (key-value thuần) hay <strong>Hazelcast</strong> (in-memory data grid) đóng vai trò là tầng đệm tốc độ cao (Cache), còn dữ liệu gốc bắt buộc phải ghi xuống tầng đĩa bền vững.</p>
 
-        <h3 id="storage-1-2-spill">2. Hiện tượng Tràn bộ nhớ — &quot;Spill-to-Disk&quot; (1.1.5)</h3>
-        <p>Trong các hệ thống tính toán phân tán như Apache Spark, RAM đóng vai trò là vùng làm việc chính để thực hiện các phép biến đổi, sắp xếp và gom nhóm dữ liệu.</p>
+        <h3 id="storage-1-2-spill">Hiện tượng Tràn bộ nhớ — Spill-to-Disk</h3>
+        <p>Trong các hệ thống tính toán phân tán như Apache Spark, RAM đóng vai trò là vùng làm việc chính để thực hiện các phép biến đổi, sắp xếp và gom nhóm dữ liệu. Khi khối lượng dữ liệu vượt quá dung lượng RAM cấp phát cho Executor, hệ thống buộc phải xả các phân vùng trung gian xuống ổ đĩa cục bộ:</p>
 
-        <x-figure id="storage-1-2" key="1.2" title="Hình 1.2b — Cơ chế Tràn bộ nhớ (Spill-to-Disk) trên Node tính toán Spark"></x-figure>
+        <x-figure id="storage-1-2" key="1.2" title="Hình 1.2b — Cơ chế Tràn bộ nhớ (Spill-to-Disk) trên Node tính toán Spark">Khi vùng nhớ Execution Memory trên RAM bị lấp đầy bởi các phép Shuffle / Sort / Join lớn, Spark buộc phải tuần tự hóa và xả (spill) dữ liệu trung gian xuống đĩa SSD/HDD cục bộ, làm tốc độ xử lý sụt giảm hàng nghìn lần.</x-figure>
 
         <ul>
           <li><strong>Hệ quả kỹ thuật:</strong> Khi xảy ra hiện tượng <strong>Spill-to-Disk</strong>, CPU phải ngừng tính toán để chờ ổ đĩa SSD (chậm hơn RAM <strong>1.000 lần</strong>) hoặc đĩa từ HDD (chậm hơn RAM tới <strong>40.000 – 100.000 lần</strong>), khiến thời gian chạy pipeline phân tích bị kéo dài đột biến.</li>
@@ -174,22 +163,17 @@
 
         <h2 id="storage-1-3" tabindex="-1">Trạm 1.3: Cơ học đĩa cứng (Random Seek vs. Sequential Scan) &amp; bí mật của cloud storage</h2>
 
-        <p>Vì RAM quá đắt (~$10/GB) và mất dữ liệu khi tắt nguồn, toàn bộ 10 triệu đơn hàng như Đơn #8888 bắt buộc phải được cất xuống đĩa cứng hoặc Cloud Object Storage. Tại đây, bạn phải đối mặt với quy luật cơ học của ổ đĩa.</p>
+        <p><span id="storage-1-3-assets"></span><span id="storage-1-3-compare"></span>Vì RAM quá đắt (~$10/GB) và mất dữ liệu khi tắt nguồn, toàn bộ 10 triệu đơn hàng như Đơn #8888 bắt buộc phải được cất xuống đĩa cứng hoặc Cloud Object Storage. Mỗi ổ đĩa vật lý đều có đúng <strong>3 tài sản giới hạn</strong> mà nhà cung cấp đám mây và người dùng cùng khai thác: <strong>(1) Dung lượng lưu trữ (Storage Capacity — ví dụ 10 TB)</strong>, <strong>(2) Số thao tác vào/ra mỗi giây (IOPS — ví dụ HDD chỉ đạt ~100 IOPS)</strong>, và <strong>(3) Băng thông tối đa (Maximum Bandwidth — đọc tuần tự đạt 200–300 MB/s)</strong>.</p>
 
-        <h3 id="storage-1-3-assets">1. Ba Tài sản Cốt lõi của một Ổ đĩa (The 3 Disk Assets)</h3>
-        <p>Khi bạn mua hoặc thuê bất kỳ ổ đĩa nào trong cụm lưu trữ đám mây, mỗi ổ đĩa vật lý đều có đúng <strong>3 tài sản giới hạn</strong> mà nhà cung cấp đám mây và người dùng cùng khai thác: <strong>(1) Dung lượng lưu trữ (Storage Capacity — ví dụ 10 TB)</strong>, <strong>(2) Số thao tác vào/ra mỗi giây (IOPS — ví dụ HDD chỉ đạt ~100 IOPS)</strong>, và <strong>(3) Băng thông tối đa (Maximum Bandwidth — đọc tuần tự đạt 200–300 MB/s)</strong>.</p>
-
-        <h3 id="storage-1-3-compare">2. Đối chiếu: Tìm kiếm Ngẫu nhiên (Random Seek) vs. Quét Tuần tự (Sequential Scan / Streaming Transfer)</h3>
-
-        <x-figure id="storage-1-3" key="1.3" title="Hình 1.3a — Random Seek (~100 IOPS) vs. Sequential Scan (200–300 MB/s)"></x-figure>
+        <x-figure id="storage-1-3" key="1.3" title="Hình 1.3a — Random Seek (~100 IOPS) vs. Sequential Scan (200–300 MB/s)">Đối chiếu cơ học đọc đĩa: Random Seek tốn 4–10 ms di chuyển đầu đọc cho mỗi truy vấn lẻ (~100 IOPS), trong khi Sequential Scan đọc liền mạch toàn bộ khối dữ liệu ở băng thông tối đa 200–300 MB/s.</x-figure>
 
         <ul>
           <li><strong>Tại sao Random Seek là kẻ thù của phân tích dữ liệu lớn, còn Sequential Scan là chìa khóa vàng?</strong> Mỗi lần nhảy đầu đọc trên HDD mất 4–10 ms (giới hạn ~100 IOPS); ngược lại, tổ chức dữ liệu thành các khối liền mạch để quét tuần tự (Sequential Scan / Streaming Transfer) giúp bỏ qua chi phí tìm kiếm và đọc thẳng ở tốc độ tối đa 200–300 MB/s.</li>
         </ul>
 
-        <h3 id="storage-1-3-secrets">3. Hai &quot;Bí mật Nhà nghề&quot; của Cloud Object Storage từ 3 Tài sản Đĩa</h3>
+        <h3 id="storage-1-3-secrets">Hai Bí mật Nhà nghề của Cloud Object Storage từ 3 Tài sản Đĩa</h3>
 
-        <x-figure id="storage-1-3b" key="1.3b" title="Hình 1.3b — Hai Bí mật Nhà nghề của Cloud Object Storage từ 3 Tài sản Đĩa">Đọc song song qua hàng nghìn ổ đĩa đạt ~3 GB/s (chuyển điểm nghẽn sang Mạng & CPU) và mô hình định giá Archival Storage rẻ bằng 1/17 (~$0.004/GB) trên cùng phần cứng vật lý.</x-figure>
+        <x-figure id="storage-1-3b" key="1.3b" title="Hình 1.3b — Hai Bí mật Nhà nghề của Cloud Object Storage từ 3 Tài sản Đĩa">Đọc song song qua hàng nghìn ổ đĩa đạt ~3 GB/s (chuyển điểm nghẽn sang Mạng &amp; CPU) và mô hình định giá Archival Storage rẻ bằng 1/17 (~$0.004/GB) trên cùng phần cứng vật lý.</x-figure>
 
         <ul>
           <li><strong>Đọc song song (Parallel Reads) &amp; Phân bổ 3 Tài sản Đĩa:</strong> Nhờ tán nhỏ dữ liệu ra hàng nghìn ổ đĩa để đọc song song qua mạng (~3 GB/s mỗi instance), Cloud Object Storage chuyển điểm nghẽn từ tốc độ đĩa đơn lẻ sang <strong>hạ tầng mạng (Network performance) và CPU</strong>. Đồng thời, trên cùng phần cứng vật lý với gói Standard (~$0.02/GB), gói <strong>Archival Storage</strong> trên GCP/AWS có giá rẻ bằng <strong>1/17 (~$0.004/GB)</strong> vì khách hàng chỉ mua phần <strong>dung lượng (Capacity)</strong> dư thừa và chấp nhận chờ tới <strong>12 giờ</strong> khi ổ đĩa rảnh rỗi IOPS mới xuất dữ liệu!</li>
@@ -201,7 +185,7 @@
 
         <p>Để cân bằng giữa tốc độ truy xuất và ngân sách lưu trữ cho hàng tỷ đơn hàng, kỹ sư dữ liệu phân loại dữ liệu theo <strong>3 mức nhiệt độ (Data Temperature)</strong>:</p>
 
-        <x-figure id="storage-1-4" key="1.4" title="Hình 1.4 — Ba mức Nhiệt độ Lưu trữ: Hot Tier ──► Warm Tier ──► Cold / Archival Tier"></x-figure>
+        <x-figure id="storage-1-4" key="1.4" title="Hình 1.4 — Ba mức Nhiệt độ Lưu trữ: Hot Tier ──► Warm Tier ──► Cold / Archival Tier">Phân tầng dữ liệu theo tần suất truy cập: Hot Tier (RAM/NVMe SSD cho dữ liệu truy xuất tức thời), Warm Tier (Cloud Object Storage Standard cho phân tích định kỳ) và Cold/Archival Tier (Glacier/Archive cho lưu trữ tuân thủ dài hạn).</x-figure>
 
         <ul>
           <li><strong>Đánh đổi chi phí (Cost Trade-offs):</strong> Nếu bạn lưu toàn bộ dữ liệu ở tầng Nóng (Hot storage), mọi truy vấn đều cực nhanh nhưng chi phí sẽ làm cạn kiệt ngân sách. Ngược lại, nếu đẩy hết xuống tầng Lạnh (Cold storage) để tiết kiệm tiền lưu trữ hàng tháng, bạn sẽ phải chịu thời gian chờ đợi kéo dài và chi phí xuất dữ liệu (retrieval cost) rất đắt mỗi khi cần đọc lại.</li>
@@ -215,11 +199,11 @@
 
         <h2 id="storage-1-5" tabindex="-1">Trạm 1.5: Ranh giới hệ thống — Source System (OLTP) vs. Storage System (OLAP)</h2>
 
-        <p>Trạm cuối cùng của Chặng 1 trả lời câu hỏi: <em>Tại sao chúng ta không chạy báo cáo doanh thu trực tiếp trên cơ sở dữ liệu bán hàng vừa sinh ra Đơn hàng #8888, mà bắt buộc phải tách thành hai hệ thống riêng biệt?</em></p>
+        <p>Tại sao không chạy báo cáo doanh thu trực tiếp trên cơ sở dữ liệu bán hàng vừa sinh ra Đơn hàng #8888, mà bắt buộc phải tách thành hai hệ thống riêng biệt?</p>
 
-        <x-figure id="storage-1-5" key="1.5" title="Hình 1.5 — Ranh giới Hệ thống: Source System (OLTP) vs. Storage System (OLAP)"></x-figure>
+        <x-figure id="storage-1-5" key="1.5" title="Hình 1.5 — Ranh giới Hệ thống: Source System (OLTP) vs. Storage System (OLAP)">Sự phân tách kiến trúc giữa hệ thống giao dịch nguồn OLTP (ghi/đọc ngẫu nhiên theo dòng với độ trễ mili-giây trên SSD) và hệ thống phân tích OLAP (quét tuần tự theo cột trên quy mô lớn).</x-figure>
 
-        <h3 id="storage-1-5-reasons">Ba lý do cốt tử bắt buộc phải tách rời OLTP và OLAP:</h3>
+        <h3 id="storage-1-5-reasons">Ba lý do cốt tử bắt buộc phải tách rời OLTP và OLAP</h3>
         <ol>
           <li><strong>Tránh xung đột tài nguyên (Resource Competition):</strong> Việc chạy đồng thời các tác vụ giao dịch (cần phản hồi mili-giây cho khách mua hàng) và các tác vụ phân tích nặng (quét hàng trăm triệu dòng ngốn sạch CPU và băng thông đĩa) trên cùng một cơ sở dữ liệu sẽ gây tranh chấp tài nguyên, làm treo ứng dụng bán hàng.</li>
           <li>
