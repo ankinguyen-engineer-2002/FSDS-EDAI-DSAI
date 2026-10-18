@@ -1,87 +1,61 @@
-# FSDS · EDAI · DSAI Personal Learning Hub
+# FSDS · EDAI · DSAI — Personal Study Hub
 
-Repository này biến slide khóa học và sách tham khảo thành một **visual-first personal study desk** bằng tiếng Việt.
+Kho lưu trữ cá nhân tối giản cho chương trình **Full-Stack Data Science · Enterprise Data & AI**, gồm 3 thành phần cốt lõi:
 
-## Source nội dung beginner-first
+1. **`fsds-learning-hub.html`** — Sản phẩm học tập chính (Minimalist Anthropic Editorial UI). Nội dung do người học trực tiếp biên soạn và nạp nguyên văn theo từng **Chặng**, đi kèm 2 hệ thống sơ đồ chuẩn:
+   - **Mermaid ↔ Excalidraw**: Render trực tiếp bằng Mermaid v11 trên trang và hỗ trợ chuyển đổi 1-click sang `.excalidraw` thông qua `@excalidraw/mermaid-to-excalidraw` hoặc dán trực tiếp vào Excalidraw Web.
+   - **ASCII / Unicode Box-Drawing Chuẩn Cột**: Được dựng và kiểm chứng tự động bằng `scripts/ascii_diagram.py` (chuẩn hóa `NFC` tiếng Việt, căn lề và kiểm tra tọa độ từng cột `┌ ┐ │ └ ┘` 100%).
+2. **`course-slides/` & `FSDS-EDAI-DSAI-syllabus.md`** — 12 bộ slide PDF chính hãng của khóa học và lộ trình 25 chủ đề từ Engineering Foundation đến Distributed Platform & Cloud.
+3. **`library/`** — Thư viện 179 sách và tài liệu kỹ thuật chính hãng phân theo 10 chuyên đề (`01-computer-science` → `10-blockchain`).
 
-- `content/lesson-mechanisms.json`: source of truth cho 37 scene cơ chế của Linux, Python, Database và Web API.
-- `content/beginner-guides.json`: pain, living metaphor, hướng dẫn đọc, stress test và synthesis của 27 chương.
-- `content/term-examples.json`: ví dụ thực tế cho toàn bộ thuật ngữ được hiển thị.
-- `content/beginner-layout.css`: layout bài học đã được duyệt theo phong cách Anthropic.
-- `content/beginner-renderer.js`: renderer nối prose, glossary và Archify.
-- `scripts/embed_beginner_content.py`: nhúng năm source trên vào HTML duy nhất; `--check` được chạy trong validation.
+---
 
-## Xem online
+## Cấu trúc thư mục
 
 ```text
-https://ankinguyen-engineer-2002.github.io/FSDS-EDAI-DSAI/
+FSDS-EDAI-DSAI/
+├── fsds-learning-hub.html          # Ứng dụng học tập chính (mở trực tiếp hoặc qua GitHub Pages)
+├── FSDS-EDAI-DSAI-syllabus.md      # Đề cương 25 chủ đề khóa học
+├── content/
+│   └── lessons-data.json           # Dữ liệu bài học & sơ đồ Mermaid + ASCII đã kiểm chứng
+├── scripts/
+│   ├── ascii_diagram.py            # Engine dựng & kiểm chứng sơ đồ ASCII thẳng cột 100%
+│   ├── build_hub.py                # Build content + sơ đồ vào fsds-learning-hub.html
+│   ├── validate.py                 # Kiểm tra cú pháp JS, sơ đồ ASCII & Mermaid
+│   └── publish.sh                  # Build, validate và đẩy lên GitHub Pages
+├── course-slides/                  # [Local - gitignored] 12 bộ slide PDF gốc (01..12)
+└── library/                        # [Local - gitignored] 179 tài liệu/sách tham khảo chính hãng
 ```
 
-## Mở sản phẩm local
+---
 
-Chạy một static server tại thư mục repo:
+## Các bài học đã nạp trên Hub
+
+- **D02 · Data Engineering — Storage Layer (`course-slides/08-storage-layer.pdf`)**:
+  - **Chặng 1 / 7 (Hoàn thành 100%)**: *Nguyên liệu gốc & Cơ chế vật lý (Raw Ingredients & Physical Mechanics)* — 5 Trạm kiến thức (`Cache Hierarchy`, `RAM & Spill-to-Disk`, `Random Seek vs. Sequential Scan & Cloud Object Storage`, `Data Temperature Hot/Warm/Cold`, `OLTP vs. OLAP`) kèm 5 cặp sơ đồ **Mermaid ↔ Excalidraw** & **Verified ASCII**.
+  - **Chặng 2 → 7**: Đã dựng sẵn thanh tiến trình chờ nạp nội dung tiếp theo.
+- **I. Engineering Foundation (`F01` → `F06`)**:
+  - `F01` · Linux Fundamentals
+  - `F02` · Python Fundamentals
+  - `F03` · Database Fundamentals (PostgreSQL)
+  - `F04` · Web API (FastAPI)
+  - `F05` · Validation & Verification
+  - `F06` · Containerization & Orchestration (Docker)
+
+---
+
+## Cách sử dụng & Cập nhật bài học mới
+
+### 1. Xem trực tiếp trên máy (Local)
+Vì `fsds-learning-hub.html` đã loại bỏ toàn bộ iframe ngoài nên có thể mở trực tiếp hoặc chạy qua local server:
 
 ```bash
 python3 -m http.server 8765
+# Mở: http://127.0.0.1:8765/fsds-learning-hub.html
 ```
 
-Sau đó mở `http://127.0.0.1:8765/fsds-learning-hub.html`.
-
-> Không nên mở trực tiếp bằng `file://` vì các Archify iframe là file tương đối và browser có thể áp chính sách origin khác nhau.
-
-## Bốn bài hoàn chỉnh
-
-- F01 · Linux Fundamentals
-- F02 · Python Fundamentals
-- F03 · Database Fundamentals / PostgreSQL
-- F04 · Web API / FastAPI
-
-Hub có:
-
-- syllabus navigation;
-- light/dark theme;
-- collapsible rail;
-- reading progress theo bài;
-- ghi chú cá nhân autosave bằng localStorage;
-- 44/44 learning visuals được dựng bằng Archify, có pan/zoom, guided focus, brand mark chuẩn và full-screen;
-- bốn bài hoàn chỉnh dùng format beginner-first: việc thật → giải thích đời thường → cơ chế → thuật ngữ → ứng dụng công việc → tự kiểm;
-- 27 chương hiển thị 167 thuật ngữ cốt lõi, được hỗ trợ bởi bank 237 ví dụ thực tế; từng visual có hướng dẫn đọc và câu tự kể lại riêng;
-- bài đọc theo mạch vĩ mô → vi mô.
-
-## Cấu trúc chính
-
-```text
-fsds-learning-hub.html          # application/hub chính
-learning-digest/                # nguồn prose cô đọng theo bài
-course-slides/                  # slide nguồn
-library/                        # thư viện sách tham khảo
-archify/specs/                  # 44 JSON specs — source of truth
-archify/rendered/               # 44 Archify HTML đã deliver
-archify/receipts/               # validation/delivery/browser receipts
-docs/                           # audit, visual catalog, technical/UI standard
-LEARNING-DESIGN-METHOD.md       # phương pháp học nền
-```
-
-## Tài liệu bắt buộc đọc trước khi thêm bài
-
-1. `LEARNING-DESIGN-METHOD.md` — rule nội dung duy nhất: pain → living metaphor → mechanism/stress test → golden takeaway.
-2. `docs/FSDS-LEARNING-HUB-STANDARD.md` — contract kỹ thuật cho Archify, UI và publish.
-3. `docs/VISUAL-CATALOG-FIRST-3-LESSONS.md`
-
-## Lưu ý
-
-- `archive/fsds-learning-hub-before-study-hub.html` là snapshot trước redesign 2026-09-24.
-- Archify spec là source of truth; không sửa trực tiếp file trong `archify/rendered/`.
-
-## Publish lên GitHub Pages
-
+### 2. Build & Kiểm chứng sơ đồ ASCII / Mermaid
 ```bash
-./scripts/validate.sh
-./scripts/publish.sh "Mô tả thay đổi"
+python3 scripts/build_hub.py
+python3 scripts/validate.py
 ```
-
-Push lên `main` sẽ kích hoạt GitHub Actions và deploy Pages tự động. Nếu có sửa visual, chạy `./scripts/rebuild-archify.sh` trước. Xem `docs/PUBLISHING-WORKFLOW.md`.
-
-## Nguồn local không publish
-
-`library/` và `course-slides/` được giữ trên máy để tổng hợp kiến thức nhưng không commit vào repository public do dung lượng và bản quyền.

@@ -157,11 +157,11 @@ Hệ thống Visual của FSDS Learning Hub là sự kết hợp của **4 tần
 3. **Tầng 3 — Khung Xương sống Kiến trúc (`<x-spine>`), Bảng Ma trận Định lượng (`.clean-table`) & Khối Callout (`.callout`)**:
    - Mở đầu mỗi Chặng bằng thẻ `<x-spine>` (`buildSpineHeroBanner()`) định vị rõ bài toán cốt lõi, đi kèm các bảng ma trận đối chiếu đa chiều (`.clean-table`) và hộp phân tích đánh đổi kỹ thuật (`.callout`, `.callout.warn`).
 
-4. **Tầng 4 — Thẻ Sơ đồ Đa Lớp Màu & Chuyển động Xung nhịp Durdraw (`<x-figure>` + `scripts/ascii_engine/painter.py`, `dur_loader.py`, `animation.py`, `content/ascii-art/*.dur`)**:
-   - Khác hoàn toàn với ASCII trắng đen thuần túy: mọi sơ đồ `<x-figure>` được đóng gói trong thẻ cửa sổ macOS (`.visual-card`) và kết xuất qua **Headless Monodraw + Durdraw Engine**:
+4. **Tầng 4 — Thẻ Sơ đồ Đa Lớp Màu (`<x-figure>` + `scripts/ascii_engine/painter.py`, `dur_loader.py`, `content/ascii-art/*.dur`)**:
+   - Khác hoàn toàn với ASCII trắng đen thuần túy: mọi sơ đồ `<x-figure>` được đóng gói trong thẻ cửa sổ macOS (`.visual-card`) với thanh công cụ 2 nút tinh gọn (`Sao chép` bảo toàn 100% hình học gốc và `Phóng to` toàn màn hình `openExpandModal`), kết xuất qua **Headless Monodraw + Durdraw Engine**:
      - **Kiểm định Hình học Tuyệt đối (`scripts/ascii_diagram.py`)**: Dùng `make_box`, `join_horizontal`, `pad_center`, `pad_right` (`strict=True`, Unicode NFC) và đi qua `verify_diagram(ascii_text, diagram_id, kind=...)` (`0` tràn khung, `0` lệch cột).
      - **Tách 8 Lớp Màu Ngữ nghĩa (`scripts/ascii_engine/painter.py`)**: Tự động phân tích cú pháp hình học để tô 8 lớp màu chuẩn WCAG AA trên cả nền Sáng/Tối và 6 bảng màu (`ac-border`, `ac-shadow`, `ac-header`, `ac-flow`, `ac-ok`, `ac-warn`, `ac-danger`, `ac-muted`).
-     - **Định dạng `.dur` & Hiệu ứng Chuyển động Dòng chảy (`content/ascii-art/*.dur` + `animation.py`)**: Tự động xuất file `.dur` và kích hoạt hiệu ứng xung nhịp dòng chảy dữ liệu trực tiếp trên trình duyệt (kèm nút bật/tắt `Hiệu ứng: Bật/Tắt`, nút `Sao chép` bảo toàn 100% hình học gốc, và nút `Phóng to` toàn màn hình `openExpandModal`).
+     - **Định dạng `.dur` (`content/ascii-art/*.dur`)**: Tự động xuất dữ liệu màu & hình học chuẩn `.dur` phục vụ lưu trữ và kiểm định tự động.
 
 ### Bước 3: Quét Từ điển Tự động (`scripts/glossary_scanner.py`) & Kết nối Centered AI Glossary Modal + `FSDS_TTL_CACHE`
 

@@ -21,10 +21,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build static Pages artifact
         run: |
-          mkdir -p _site/archify
+          mkdir -p _site/content _site/assets
           cp fsds-learning-hub.html _site/index.html
           cp fsds-learning-hub.html _site/fsds-learning-hub.html
-          cp -R archify/rendered _site/archify/rendered
+          if [ -d content ]; then cp -R content/* _site/content/ 2>/dev/null || true; fi
+          if [ -d assets ]; then cp -R assets/* _site/assets/ 2>/dev/null || true; fi
           touch _site/.nojekyll
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

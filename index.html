@@ -3595,7 +3595,6 @@
       <div class="expand-header">
         <span id="expandModalTitle">Sơ đồ chi tiết</span>
         <div style="display:flex;align-items:center;gap:8px;">
-          <button class="ui-btn ascii-anim-btn" type="button" aria-pressed="true" onclick="toggleAsciiAnimation(this)" title="Bật/Tắt hiệu ứng dòng chảy Durdraw">Hiệu ứng: Bật</button>
           <button class="ui-btn" id="expandCopyBtn" type="button">Sao chép ASCII</button>
           <button class="ui-btn" id="expandCloseBtn" type="button">Đóng (Esc)</button>
         </div>
@@ -4395,10 +4394,6 @@
       caption: caption || ""
     };
 
-    const animBtn = isFlagship
-      ? `<button type="button" class="ui-btn ascii-anim-btn" aria-pressed="true" onclick="toggleAsciiAnimation(this)" title="Bật/Tắt hiệu ứng dòng chảy dữ liệu Durdraw">Hiệu ứng: Bật</button>`
-      : `<span class="visual-engine-tag hide-mobile">Monodraw · ASCII</span>`;
-
     return `
       <figure class="visual-card" id="vcard-${safeId}"${isFlagship ? ' data-flagship="true"' : ""}>
         <div class="visual-bar">
@@ -4407,7 +4402,6 @@
             <span>${escapeHtml(title)}</span>
           </div>
           <div class="visual-controls">
-            ${animBtn}
             <button type="button" class="ui-btn" onclick="copyDiagram('${safeId}')">Sao chép</button>
             <button type="button" class="ui-btn" onclick="openExpandModal('${safeId}', this)">Phóng to</button>
           </div>

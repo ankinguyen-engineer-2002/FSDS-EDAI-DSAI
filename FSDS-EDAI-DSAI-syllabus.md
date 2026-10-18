@@ -82,16 +82,3 @@ Cloud + Gateway + IaC + CI/CD
 Observability + SRE + Final Coursework
 ```
 
-## V. Phương pháp biên tập duy nhất
-
-Mọi chủ đề được viết theo một đường học thống nhất:
-
-1. **Bức tranh tổng quát:** một sơ đồ kiến trúc duy nhất cho toàn hệ thống.
-2. **Vai trò từng phần:** mỗi thành phần tồn tại để giải quyết vấn đề gì.
-3. **Cắt lớp nền tảng:** chỉ giữ các lớp lõi cần để suy luận; bỏ chi tiết thứ yếu.
-4. **Luồng chạy thực tế:** theo một kịch bản cụ thể xuyên qua toàn bộ các lớp.
-5. **Đào sâu có đối chiếu:** mở chi tiết khi cần và luôn nối lại bản đồ tổng quan.
-
-Nội dung phải cô đọng, dùng tiếng Việt gần gũi, kết hợp chữ với hình và dùng chuyển động để biểu diễn sự thay đổi hoặc dòng dữ liệu. Công nghệ chỉ xuất hiện đúng vai trò của nó trong hệ thống; không học bằng danh sách công cụ hay command rời rạc.
-
-Các file PDF trong `course-slides/` là nguồn kiểm tra độ phủ. Learning hub là phiên bản đã biên tập lại, không sao chép thứ tự hoặc cách trình bày của deck gốc.
