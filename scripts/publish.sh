@@ -26,11 +26,13 @@ fi
 
 git add README.md FSDS-EDAI-DSAI-syllabus.md Prompt.md .gitignore .github/workflows/pages.yml \
   index.html fsds-learning-hub.html \
-  content/lessons/ content/lessons-data.json content/glossary-data.json content/pictograms.json content/ascii-art/ \
+  content/lessons/ content/lessons-data.json content/glossary-data.json content/pictograms.json content/ascii-art/ content/arena-blueprints.json \
   assets/masks/ \
-  scripts/ascii_diagram.py scripts/ascii_engine/ scripts/build_hub.py scripts/glossary_scanner.py scripts/publish.sh scripts/qa_runtime.py scripts/validate.py
+  supabase/schema.sql \
+  scripts/ascii_diagram.py scripts/ascii_engine/ scripts/build_hub.py scripts/glossary_scanner.py scripts/publish.sh scripts/qa_runtime.py scripts/validate.py \
+  scripts/arena_blueprints.py scripts/arena_module.py scripts/qa_arena_e2e.py
 
-if git diff --cached -- index.html fsds-learning-hub.html content/ scripts/ | grep -qE "AQ\.Ab8|AIza[0-9A-Za-z_-]{35}"; then
+if git diff --cached -- index.html fsds-learning-hub.html content/ scripts/ supabase/ | grep -qE "AQ\.Ab8|AIza[0-9A-Za-z_-]{35}|ghp_[0-9A-Za-z]{36}|sk-[A-Za-z0-9]{32,}"; then
   echo "ERROR: Raw secret detected in staged changes! Aborting." >&2
   exit 1
 fi

@@ -17,6 +17,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from f04_api_module import build_api_ascii_diagrams, API_SIM2D_JS
 from f05_validation_module import build_validation_ascii_diagrams, VALIDATION_SIM2D_JS
 from f01_f03_d02_sim2d import LINUX_SIM2D_JS, DATABASE_SIM2D_JS, STORAGE_SIM2D_JS
+from arena_blueprints import build_arena_payload
+from arena_module import ARENA_CSS, ARENA_JS
 from ascii_diagram import (
     display_width,
     join_horizontal,
@@ -8220,6 +8222,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       display: none;
     }
   }
+  __ARENA_CSS__
   </style>
 </head>
 <body>
@@ -8255,6 +8258,9 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         </button>
         <button class="ui-btn" id="glossaryNavBtn" type="button" onclick="openGlossaryView()" title="Mở Từ điển Kỹ thuật AI">
           <span id="navGlossaryLabel">Từ điển AI (74)</span>
+        </button>
+        <button class="ui-btn" id="practiceNavBtn" type="button" onclick="openPracticeView()" title="Đấu trường Luyện tập &amp; Sát hạch Năng lực AI (7 Cấp bậc)">
+          <span id="navPracticeLabel">Luyện tập AI</span>
         </button>
       </nav>
       <span class="topbar-context-pill hide-mobile" id="topbarContextPill"></span>
@@ -9959,6 +9965,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     const cleanTopic = String(topic || "F01").trim();
     if (cleanTopic === "CATALOG") return "#/catalog";
     if (cleanTopic === "GLOSSARY") return "#/glossary";
+    if (cleanTopic === "PRACTICE") return "#/practice";
     const cleanStage = Number(stage) || 1;
     if (section) {
       return `#/${cleanTopic}/${cleanStage}/${section}`;
@@ -9975,11 +9982,15 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     if (h === "/glossary" || h === "glossary") {
       return { topic: "GLOSSARY", stage: 1, section: null };
     }
+    if (h === "/practice" || h === "practice") {
+      return { topic: "PRACTICE", stage: 1, section: null };
+    }
     if (h.startsWith("/")) {
       const parts = h.slice(1).split("/").filter(Boolean);
       const t0 = parts[0] ? decodeURIComponent(parts[0]) : null;
       if (t0 && t0.toLowerCase() === "catalog") return { topic: "CATALOG", stage: 1, section: null };
       if (t0 && t0.toLowerCase() === "glossary") return { topic: "GLOSSARY", stage: 1, section: null };
+      if (t0 && t0.toLowerCase() === "practice") return { topic: "PRACTICE", stage: 1, section: null };
       return {
         topic: t0,
         stage: parts[1] ? (Number(parts[1]) || 1) : null,
@@ -15448,7 +15459,7 @@ __LESSON_TEMPLATES_JS__
     const pill = document.getElementById("topbarContextPill");
     if (!pill) return;
 
-    if (activeTopic === "CATALOG" || activeTopic === "GLOSSARY") {
+    if (activeTopic === "CATALOG" || activeTopic === "GLOSSARY" || activeTopic === "PRACTICE") {
       pill.style.display = "none";
       pill.innerHTML = "";
       return;
@@ -15527,6 +15538,10 @@ __LESSON_TEMPLATES_JS__
           <span>Từ điển kỹ thuật AI</span>
           <span class="rail-shortcut-badge">130 thuật ngữ</span>
         </button>
+        <button type="button" class="rail-shortcut-btn ${activeTopic === 'PRACTICE' ? 'active' : ''}" onclick="openPracticeView()">
+          <span>Đấu trường Luyện tập AI</span>
+          <span class="rail-shortcut-badge">7 Cấp bậc</span>
+        </button>
       </div>
 
       <div class="rail-section-heading"><span>Lộ trình 6 Tracks (EDAI + DSAI)</span><span>49</span></div>
@@ -15576,7 +15591,7 @@ __LESSON_TEMPLATES_JS__
   function renderPageToc() {
     const panel = document.getElementById("pageTocPanel");
     if (!panel) return;
-    if (activeTopic === "CATALOG" || activeTopic === "GLOSSARY") {
+    if (activeTopic === "CATALOG" || activeTopic === "GLOSSARY" || activeTopic === "PRACTICE") {
       panel.innerHTML = "";
       return;
     }
@@ -15963,18 +15978,25 @@ __LESSON_TEMPLATES_JS__
     closeGlossaryPopover(true);
     window.__diagrams = {};
     const container = document.getElementById("articleContainer");
-    const isFullWidthMode = (activeTopic === "CATALOG" || activeTopic === "GLOSSARY");
+    const isFullWidthMode = (activeTopic === "CATALOG" || activeTopic === "GLOSSARY" || activeTopic === "PRACTICE");
     document.body.classList.toggle("catalog-mode", isFullWidthMode);
 
     const catBtn = document.getElementById("catalogTopBtn");
     if (catBtn) catBtn.classList.toggle("active", activeTopic === "CATALOG");
     const glsBtn = document.getElementById("glossaryNavBtn");
     if (glsBtn) glsBtn.classList.toggle("active", activeTopic === "GLOSSARY");
+    const pracBtn = document.getElementById("practiceNavBtn");
+    if (pracBtn) pracBtn.classList.toggle("active", activeTopic === "PRACTICE");
 
     if (activeTopic === "CATALOG") {
       container.innerHTML = renderCatalogView();
     } else if (activeTopic === "GLOSSARY") {
       container.innerHTML = renderGlossaryView();
+    } else if (activeTopic === "PRACTICE") {
+      if (typeof renderArenaView === "function") {
+        renderArenaView();
+        startArenaDwellTimer();
+      }
     } else if (TOPIC_CONFIG[activeTopic]) {
       container.innerHTML = renderTopic(activeTopic);
       if (activeTopic === "F01" && activeStorageStage === 1) {
@@ -16025,7 +16047,7 @@ __LESSON_TEMPLATES_JS__
     }
     setupScrollSpy();
     updateReadingProgress();
-    if (typeof currentAppLang !== "undefined" && currentAppLang === "en") {
+    if (typeof currentAppLang !== "undefined" && currentAppLang === "en" && activeTopic !== "PRACTICE") {
       translateActiveViewToEnglish();
     }
   }
@@ -16037,6 +16059,10 @@ __LESSON_TEMPLATES_JS__
     }
     if (code === "GLOSSARY") {
       openGlossaryView(pushHistory);
+      return;
+    }
+    if (code === "PRACTICE") {
+      openPracticeView(null, pushHistory);
       return;
     }
     const { group } = findTopicContext(code);
@@ -17098,6 +17124,7 @@ Chỉ trả về DUY NHẤT 1 JSON object hợp lệ gồm 5 trường (không b
     setTxt("railToggleLabel", "Mục lục", "Syllabus");
     setTxt("navCoursesLabel", "Khóa học (26)", "Courses (26)");
     setTxt("navGlossaryLabel", "Từ điển AI (74)", "AI Glossary (74)");
+    setTxt("navPracticeLabel", "Luyện tập AI", "AI Arena");
     setTxt("searchBtnLabel", "Tìm kiếm...", "Search...");
     setTxt("accentBtnLabel", "Màu", "Accent");
     setTxt("cmdFooterHint", "↑↓ Di chuyển · Enter Chọn · Esc Đóng", "↑↓ Navigate · Enter Select · Esc Close");
@@ -17207,6 +17234,11 @@ ${JSON.stringify(payload)}`;
       localStorage.setItem("fsds-lang", currentAppLang);
     } catch (_e) {}
     applyStaticUiChromeLanguage(currentAppLang);
+    if (activeTopic === "PRACTICE" && typeof renderArenaView === "function") {
+      renderArenaView();
+      showToast(currentAppLang === "en" ? "Switched Arena & AI Warden to English" : "Đã chuyển Đấu trường & Quản Giáo AI sang Tiếng Việt");
+      return;
+    }
     if (currentAppLang === "en") {
       showToast("Switching to English (AI Auto-Translate + TTL Cache)...");
       translateActiveViewToEnglish();
@@ -17309,6 +17341,8 @@ ${JSON.stringify(payload)}`;
     applyRouteFromUrl(null);
   });
 
+  __ARENA_JS__
+
   const initRoute = parseRouteHash(window.location.hash);
   if (initRoute.topic) syncStateVars(initRoute.topic, initRoute.stage || 1, initRoute.section || activeStationId);
   else if (initRoute.stage) syncStateVars(activeTopic, initRoute.stage, initRoute.section || activeStationId);
@@ -17363,7 +17397,12 @@ def main():
     orchestration_ascii = build_orchestration_ascii_diagrams()
     consumption_ascii = build_consumption_ascii_diagrams()
 
-    compiled_html_template = HTML_TEMPLATE.replace("__LESSON_TEMPLATES_JS__", compile_lesson_templates_js())
+    compiled_html_template = (
+        HTML_TEMPLATE
+        .replace("__LESSON_TEMPLATES_JS__", compile_lesson_templates_js())
+        .replace("__ARENA_CSS__", ARENA_CSS)
+        .replace("__ARENA_JS__", ARENA_JS)
+    )
 
     from glossary_scanner import scan_build_hub
     from ascii_engine import paint_ascii_html, export_dur_json, is_flagship_animated
@@ -17428,6 +17467,7 @@ def main():
             "lookup": glossary_payload["lookup"],
             "stats": glossary_payload["stats"],
         },
+        "arena": build_arena_payload(),
     }
 
     content_dir = ROOT / "content"
