@@ -43,6 +43,5 @@ if git diff --cached --quiet; then
 fi
 
 git commit -m "$message"
-git push origin HEAD:main
-git push origin HEAD:redesign/academy-v2
-printf '\nPushed to main & redesign/academy-v2. GitHub Pages deployment triggered.\n'
+git push origin HEAD:dev
+printf '\nPushed to origin/dev (Production main remains untouched until explicitly merged).\n'

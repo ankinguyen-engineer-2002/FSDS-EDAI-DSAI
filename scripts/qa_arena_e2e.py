@@ -93,7 +93,7 @@ def run_arena_e2e() -> int:
             )
             page.on("pageerror", lambda exc: console_errors.append(f"[pageerror] {exc}"))
 
-            print("=== 1. Navigating to FSDS Hub & Opening #/practice Arena ===")
+            print("=== 1. Navigating to FSDS Hub & Verifying #/practice Login Gate & Logout Flow ===")
             page.goto(url, wait_until="domcontentloaded")
             page.wait_for_timeout(250)
 
@@ -103,7 +103,7 @@ def run_arena_e2e() -> int:
                 "In-Arena Chatbox is strictly absent on regular lesson route (#/F01/1)",
             )
 
-            # Click topbar Practice Arena button
+            # Click topbar Practice Arena button -> Must land on Login Gate (#arenaLoginGate) first!
             page.click("#practiceNavBtn")
             page.wait_for_timeout(200)
             check(
@@ -111,9 +111,45 @@ def run_arena_e2e() -> int:
                 "Topbar button #practiceNavBtn routes cleanly to #/practice",
             )
             check(
-                page.locator("#arenaRoot").count() == 1 and page.locator("#arena-chat-panel").count() == 1,
-                "Arena root container and In-Arena Contextual Chatbox mounted inside #/practice",
+                page.locator("#arenaLoginGate").count() == 1
+                and page.locator("#arenaRoot").count() == 0
+                and page.locator(".catalog-hero.swatch-peach").count() == 1
+                and page.locator(".cds-badge-seal").count() >= 1,
+                "Unauthenticated visit to #/practice renders Anthropic Academy Login Gate (#arenaLoginGate) with swatch-peach hero & SVG seal",
             )
+
+            # Verify F5 reload while logged out stays on Login Gate (does NOT dump into workspace)
+            page.reload(wait_until="domcontentloaded")
+            page.wait_for_timeout(250)
+            check(
+                page.locator("#arenaLoginGate").count() == 1 and page.locator("#arenaRoot").count() == 0,
+                "Pressing F5 while logged out stays strictly on Login Gate (#arenaLoginGate)",
+            )
+
+            # Click 1-click Sandbox Persona button to log in as virt_sinhvien_fresh
+            page.click('[data-gate-quick-login="virt_sinhvien_fresh"]')
+            page.wait_for_timeout(200)
+            check(
+                page.locator("#arenaRoot").count() == 1
+                and page.locator("#arena-chat-panel").count() == 1
+                and page.locator(".catalog-hero.swatch-heather").count() == 1
+                and page.locator(".lesson-roadmap-grid").count() == 1
+                and page.locator(".glossary-dict-controls").count() == 1
+                and page.locator(".arena-window-card").count() == 2
+                and page.locator("#arenaLogoutBtn").count() == 1,
+                "Logging in mounts Anthropic Academy Arena (#arenaRoot) with swatch-heather hero, roadmap grid, glossary controls, window cards, and #arenaLogoutBtn",
+            )
+
+            # Test clicking #arenaLogoutBtn -> returns to Login Gate, and F5 keeps it logged out
+            page.click("#arenaLogoutBtn")
+            page.wait_for_timeout(150)
+            check(
+                page.locator("#arenaLoginGate").count() == 1 and page.locator("#arenaRoot").count() == 0,
+                "Clicking #arenaLogoutBtn immediately logs out and returns to #arenaLoginGate",
+            )
+            # Log back in via persona button to continue full E2E suite
+            page.click('[data-gate-quick-login="virt_sinhvien_fresh"]')
+            page.wait_for_timeout(150)
 
             print("=== 2. Verifying Ultra-Fast Cognitive Digest (<1ms) & Unified Profile Context Packet ===")
             perf_info = page.evaluate(

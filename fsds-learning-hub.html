@@ -3604,313 +3604,71 @@
   }
   
   /* ==========================================================================
-     ARENA PRACTICE LAB (#/practice) — ANTHROPIC EDITORIAL DESIGN SYSTEM
+     ARENA PRACTICE LAB (#/practice) — AUTHENTIC ANTHROPIC ACADEMY CDS
      ========================================================================== */
   .arena-shell {
     display: flex;
     flex-direction: column;
-    gap: 18px;
-    max-width: 1120px;
+    gap: 22px;
+    max-width: var(--article-max, 1120px);
     margin: 0 auto;
-    padding: 4px 0 48px;
+    padding: 0 0 56px;
   }
 
-  .arena-hero-banner {
+  /* Login Gate Two-Column Editorial Layout */
+  .arena-gate-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+    align-items: stretch;
+  }
+
+  @media (min-width: 860px) {
+    .arena-gate-grid {
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    }
+  }
+
+  .arena-gate-card {
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    padding: 22px 24px;
-    border-radius: var(--cds-radius-card);
+    justify-content: space-between;
+    gap: 16px;
+    padding: 24px 26px;
+    border-radius: 16px;
     background: var(--cds-surface-1);
     box-shadow: var(--cds-shadow-card-ring);
-    border-left: 3px solid var(--cds-clay);
   }
 
-  .arena-hero-top {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 14px;
-  }
-
-  .arena-hero-title-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    min-width: 0;
-    flex: 1 1 420px;
-  }
-
-  .arena-eyebrow-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    font-family: var(--cds-font-mono);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--cds-clay);
-  }
-
-  .arena-title {
-    margin: 0;
+  .arena-gate-card h2 {
+    margin: 0 0 6px;
     font-family: var(--cds-font-serif);
-    font-size: clamp(22px, 2.2vw, 30px);
+    font-size: 21px;
     font-weight: 400;
-    line-height: 1.18;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.015em;
     color: var(--cds-text-primary);
   }
 
-  .arena-subtitle {
+  .arena-gate-card p {
     margin: 0;
-    font-family: var(--cds-font-sans);
     font-size: 14px;
     line-height: 1.56;
     color: var(--cds-text-secondary);
-    max-width: 64rem;
   }
 
-  .arena-toolbar-actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .arena-btn {
-    appearance: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    min-height: 34px;
-    padding: 6px 12px;
-    border-radius: 8px;
-    border: 1px solid var(--cds-border-default);
-    background: var(--cds-surface-0);
-    color: var(--cds-text-primary);
-    font-family: var(--cds-font-sans);
-    font-size: 12.5px;
-    font-weight: 500;
-    line-height: 1.2;
-    cursor: pointer;
-    transition: background 0.14s, border-color 0.14s, color 0.14s, transform 0.1s;
-    text-decoration: none;
-  }
-
-  .arena-btn:hover {
-    background: var(--cds-fill-ghost-hover);
-    border-color: var(--cds-clay);
-  }
-
-  .arena-btn-primary {
-    background: var(--cds-fill-primary);
-    border-color: var(--cds-fill-primary);
-    color: var(--cds-text-on-primary);
-  }
-
-  .arena-btn-primary:hover {
-    opacity: 0.92;
-    background: var(--cds-fill-primary);
-    border-color: var(--cds-fill-primary);
-    color: var(--cds-text-on-primary);
-  }
-
-  .arena-btn-clay {
-    background: color-mix(in oklab, var(--cds-clay) 14%, var(--cds-surface-0));
-    border-color: color-mix(in oklab, var(--cds-clay) 42%, var(--cds-border-default));
-    color: var(--cds-text-primary);
-    font-weight: 600;
-  }
-
-  .arena-btn-clay:hover {
-    background: color-mix(in oklab, var(--cds-clay) 22%, var(--cds-surface-0));
-    border-color: var(--cds-clay);
-  }
-
-  /* Career Rank Ladder & Metrics Strip */
-  .arena-rank-ladder {
-    display: grid;
-    grid-template-columns: repeat(7, minmax(110px, 1fr));
-    gap: 8px;
-    overflow-x: auto;
-    padding-bottom: 2px;
-  }
-
-  .arena-rank-step {
+  .arena-form-stack {
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    padding: 9px 11px;
-    border-radius: 8px;
-    border: 1px solid var(--cds-border-subtle);
-    background: var(--cds-surface-0);
-    opacity: 0.68;
-    transition: opacity 0.15s, border-color 0.15s, background 0.15s;
-  }
-
-  .arena-rank-step.cleared {
-    opacity: 0.9;
-    border-color: color-mix(in oklab, var(--cds-clay) 35%, var(--cds-border-subtle));
-  }
-
-  .arena-rank-step.current {
-    opacity: 1;
-    background: color-mix(in oklab, var(--cds-clay) 11%, var(--cds-surface-0));
-    border-color: var(--cds-clay);
-    box-shadow: 0 1px 3px rgba(20, 20, 19, 0.06);
-  }
-
-  .arena-rank-step-code {
-    font-family: var(--cds-font-mono);
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--cds-clay);
-    letter-spacing: 0.04em;
-  }
-
-  .arena-rank-step-name {
-    font-family: var(--cds-font-sans);
-    font-size: 12.5px;
-    font-weight: 600;
-    color: var(--cds-text-primary);
-  }
-
-  .arena-rank-step-sub {
-    font-size: 11px;
-    color: var(--cds-text-muted);
-  }
-
-  .arena-metrics-strip {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
-    gap: 10px;
-  }
-
-  .arena-metric-box {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    padding: 10px 13px;
-    border-radius: 8px;
-    background: var(--cds-surface-0);
-    border: 1px solid var(--cds-border-subtle);
-  }
-
-  .arena-metric-label {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--cds-text-muted);
-  }
-
-  .arena-metric-value {
-    font-family: var(--cds-font-mono);
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--cds-text-primary);
-  }
-
-  .arena-metric-note {
-    font-size: 11.5px;
-    color: var(--cds-text-secondary);
-  }
-
-  /* AI Warden Live Strip */
-  .arena-warden-strip {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
     gap: 12px;
-    padding: 13px 16px;
-    border-radius: 10px;
-    background: color-mix(in oklab, var(--cds-surface-2) 78%, var(--cds-surface-0));
-    border: 1px solid var(--cds-border-default);
   }
 
-  .arena-warden-strip.harsh {
-    border-left: 3px solid #b44c36;
-    background: color-mix(in oklab, #b44c36 8%, var(--cds-surface-0));
-  }
-
-  .arena-warden-strip.praise {
-    border-left: 3px solid #2e6f40;
-    background: color-mix(in oklab, #2e6f40 8%, var(--cds-surface-0));
-  }
-
-  .arena-warden-left {
-    display: flex;
-    align-items: flex-start;
-    gap: 11px;
-    flex: 1 1 420px;
-    min-width: 0;
-  }
-
-  .arena-warden-badge {
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 34px;
-    height: 34px;
-    border-radius: 8px;
-    background: var(--cds-fill-primary);
-    color: var(--cds-text-on-primary);
-    font-family: var(--cds-font-mono);
-    font-size: 11.5px;
-    font-weight: 700;
-  }
-
-  .arena-warden-text-wrap {
+  .arena-field {
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    min-width: 0;
+    gap: 5px;
   }
 
-  .arena-warden-header {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 7px;
-    font-family: var(--cds-font-sans);
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--cds-text-primary);
-  }
-
-  .arena-warden-quote {
-    margin: 0;
-    font-family: var(--cds-font-sans);
-    font-size: 13.5px;
-    line-height: 1.5;
-    color: var(--cds-text-primary);
-  }
-
-  /* Controls Bar: Role Track, Topic Selector, Level Tabs */
-  .arena-controls-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 12px;
-    padding: 16px 18px;
-    border-radius: var(--cds-radius-card);
-    background: var(--cds-surface-1);
-    box-shadow: var(--cds-shadow-card-ring);
-  }
-
-  .arena-control-col {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    min-width: 0;
-  }
-
+  .arena-field-label,
   .arena-control-label {
     font-family: var(--cds-font-sans);
     font-size: 11px;
@@ -3925,14 +3683,15 @@
     appearance: none;
     width: 100%;
     height: 36px;
-    padding: 0 11px;
+    padding: 0 12px;
     border-radius: 8px;
     border: 1px solid var(--cds-border-default);
     background: var(--cds-surface-0);
     color: var(--cds-text-primary);
     font-family: var(--cds-font-sans);
-    font-size: 13px;
+    font-size: 13.5px;
     outline: none;
+    transition: border-color 0.14s ease;
   }
 
   .arena-select:focus,
@@ -3940,104 +3699,177 @@
     border-color: var(--cds-clay);
   }
 
-  .arena-level-tabs {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-  }
-
-  .arena-level-tab {
+  /* Buttons aligned with main Hub .ui-btn */
+  .arena-btn {
     appearance: none;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 3px;
-    padding: 11px 14px;
-    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 5px 12px;
+    border-radius: 8px;
     border: 1px solid var(--cds-border-default);
     background: var(--cds-surface-0);
-    color: var(--cds-text-secondary);
-    text-align: left;
-    cursor: pointer;
-    transition: background 0.14s, border-color 0.14s, color 0.14s;
-  }
-
-  .arena-level-tab:hover {
-    background: var(--cds-fill-ghost-hover);
     color: var(--cds-text-primary);
-  }
-
-  .arena-level-tab.active {
-    background: color-mix(in oklab, var(--cds-clay) 12%, var(--cds-surface-0));
-    border-color: var(--cds-clay);
-    color: var(--cds-text-primary);
-  }
-
-  .arena-level-tab-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    gap: 6px;
     font-family: var(--cds-font-sans);
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 12.5px;
+    font-weight: 500;
+    line-height: 1.2;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.14s var(--motion-ease), border-color 0.14s var(--motion-ease), color 0.14s var(--motion-ease), transform 0.1s ease;
+    text-decoration: none;
   }
 
-  .arena-level-tab-sub {
-    font-size: 11.5px;
-    line-height: 1.4;
+  .arena-btn:hover:not(:disabled) {
+    background: var(--cds-fill-ghost-hover);
+    border-color: var(--cds-border-strong);
+  }
+
+  .arena-btn:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+
+  .arena-btn-primary {
+    background: var(--cds-fill-primary);
+    border-color: var(--cds-fill-primary);
+    color: var(--cds-text-on-primary);
+  }
+
+  .arena-btn-primary:hover:not(:disabled) {
+    opacity: 0.92;
+    background: var(--cds-fill-primary);
+    border-color: var(--cds-fill-primary);
+    color: var(--cds-text-on-primary);
+  }
+
+  .arena-btn-clay {
+    background: var(--cds-clay);
+    border-color: var(--cds-clay);
+    color: #ffffff;
+    font-weight: 500;
+  }
+
+  .arena-btn-clay:hover:not(:disabled) {
+    opacity: 0.92;
+    background: var(--cds-clay);
+    border-color: var(--cds-clay);
+    color: #ffffff;
+  }
+
+  .arena-btn-danger {
+    color: #b44c36;
+    border-color: color-mix(in oklab, #b44c36 32%, var(--cds-border-default));
+    background: color-mix(in oklab, #b44c36 6%, var(--cds-surface-0));
+  }
+
+  .arena-btn-danger:hover:not(:disabled) {
+    background: color-mix(in oklab, #b44c36 14%, var(--cds-surface-0));
+    border-color: #b44c36;
+  }
+
+  /* Career Rank Pills & Warden Editorial Callout */
+  .arena-rank-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .arena-rank-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 7px;
+    border: 1px solid var(--cds-border-subtle);
+    background: var(--cds-surface-0);
+    font-family: var(--cds-font-sans);
+    font-size: 12px;
+    color: var(--cds-text-muted);
+    transition: all 0.14s ease;
+  }
+
+  .arena-rank-chip code {
+    font-family: var(--cds-font-mono);
+    font-size: 10.5px;
     color: var(--cds-text-muted);
   }
 
-  /* Main Workspace Split: Question Card + In-Arena Contextual Chatbox */
+  .arena-rank-chip.cleared {
+    color: var(--cds-text-secondary);
+    border-color: color-mix(in oklab, var(--cds-clay) 28%, var(--cds-border-subtle));
+  }
+
+  .arena-rank-chip.current {
+    background: var(--cds-fill-primary);
+    border-color: var(--cds-fill-primary);
+    color: var(--cds-text-on-primary);
+    font-weight: 500;
+  }
+
+  .arena-rank-chip.current code {
+    color: var(--cds-clay);
+    font-weight: 600;
+  }
+
+  /* Warden Editorial Spine Card */
+  .arena-warden-card {
+    padding: 16px 20px;
+    background: var(--cds-surface-1);
+    border-radius: var(--cds-radius-card);
+    box-shadow: var(--cds-shadow-card-ring);
+    border: 1px solid var(--cds-border-default);
+    transition: border-color 0.16s ease, background 0.16s ease;
+  }
+
+  .arena-warden-card.harsh {
+    border-left: 3px solid #b44c36;
+  }
+
+  .arena-warden-card.praise {
+    border-left: 3px solid #2c6b45;
+  }
+
+  /* Main Workspace Split: Question App-Window + Contextual Chat App-Window */
   .arena-workspace-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
+    gap: 20px;
     align-items: start;
   }
 
-  @media (min-width: 980px) {
+  @media (min-width: 1020px) {
     .arena-workspace-grid {
-      grid-template-columns: minmax(0, 1.38fr) minmax(320px, 0.62fr);
+      grid-template-columns: minmax(0, 1.36fr) minmax(330px, 0.64fr);
     }
   }
 
-  .arena-question-card {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    padding: 22px 24px;
+  .arena-window-card {
+    margin: 0;
     border-radius: var(--cds-radius-card);
     background: var(--cds-surface-1);
     box-shadow: var(--cds-shadow-card-ring);
+    overflow: hidden;
     min-width: 0;
   }
 
-  .arena-q-meta-bar {
+  .arena-window-body {
+    padding: 22px 24px;
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--cds-border-subtle);
-  }
-
-  .arena-q-badges {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
+    flex-direction: column;
+    gap: 16px;
+    background: var(--cds-surface-0);
   }
 
   .arena-pill {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding: 3px 9px;
-    border-radius: 6px;
+    padding: 2px 8px;
+    border-radius: 5px;
     border: 1px solid var(--cds-border-subtle);
     background: var(--cds-surface-0);
     font-family: var(--cds-font-mono);
@@ -4047,45 +3879,47 @@
   }
 
   .arena-pill.tier-shift {
-    border-color: color-mix(in oklab, var(--cds-clay) 40%, var(--cds-border-subtle));
-    background: color-mix(in oklab, var(--cds-clay) 10%, var(--cds-surface-0));
-    color: var(--cds-text-primary);
+    background: var(--glossary-badge-bg);
+    color: var(--glossary-badge-text);
+    border-color: transparent;
+    font-weight: 600;
   }
 
   .arena-pill.sla-warn {
-    border-color: #b44c36;
-    background: color-mix(in oklab, #b44c36 12%, var(--cds-surface-0));
+    border-color: color-mix(in oklab, #b44c36 45%, transparent);
+    background: color-mix(in oklab, #b44c36 10%, var(--cds-surface-0));
     color: #b44c36;
     font-weight: 600;
   }
 
   .arena-tier-context-box {
-    padding: 10px 13px;
-    border-radius: 8px;
-    background: var(--cds-surface-0);
+    padding: 12px 15px;
+    border-radius: 10px;
+    background: var(--cds-surface-1);
     border: 1px solid var(--cds-border-subtle);
-    font-size: 12.5px;
-    line-height: 1.5;
+    font-size: 13px;
+    line-height: 1.55;
     color: var(--cds-text-secondary);
   }
 
   .arena-q-stem {
     font-family: var(--cds-font-sans);
-    font-size: 15.5px;
-    line-height: 1.62;
+    font-size: 16px;
+    line-height: 1.66;
+    letter-spacing: -0.003em;
     color: var(--cds-text-primary);
     margin: 0;
   }
 
   .arena-code-block {
     margin: 0;
-    padding: 12px 14px;
-    border-radius: 8px;
-    background: var(--code-block-bg, var(--cds-surface-0));
-    border: 1px solid var(--cds-border-subtle);
+    padding: 14px 16px;
+    border-radius: 10px;
+    background: var(--code-block-bg, var(--cds-surface-1));
+    box-shadow: var(--cds-shadow-card-ring);
     font-family: var(--cds-font-mono);
     font-size: 12.5px;
-    line-height: 1.5;
+    line-height: 1.52;
     color: var(--cds-text-primary);
     overflow-x: auto;
     white-space: pre-wrap;
@@ -4100,53 +3934,54 @@
 
   .arena-option-btn {
     appearance: none;
-    display: flex;
-    align-items: flex-start;
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    align-items: baseline;
     gap: 12px;
     width: 100%;
-    padding: 13px 15px;
-    border-radius: 10px;
+    padding: 14px 16px;
+    border-radius: 12px;
     border: 1px solid var(--cds-border-default);
-    background: var(--cds-surface-0);
+    background: var(--cds-surface-1);
     color: var(--cds-text-primary);
     font-family: var(--cds-font-sans);
-    font-size: 14px;
-    line-height: 1.55;
+    font-size: 14.5px;
+    line-height: 1.56;
     text-align: left;
     cursor: pointer;
-    transition: background 0.14s, border-color 0.14s;
+    transition: background 0.15s var(--motion-ease), border-color 0.15s var(--motion-ease), transform 0.12s var(--motion-ease);
   }
 
   .arena-option-btn:hover:not(:disabled) {
-    background: var(--cds-fill-ghost-hover);
-    border-color: var(--cds-clay);
+    background: var(--cds-surface-2);
+    border-color: var(--cds-border-strong);
+    transform: translateY(-1px);
   }
 
   .arena-option-btn.selected {
     border-color: var(--cds-clay);
-    background: color-mix(in oklab, var(--cds-clay) 10%, var(--cds-surface-0));
+    background: color-mix(in oklab, var(--cds-clay) 8%, var(--cds-surface-1));
   }
 
   .arena-option-btn.correct {
-    border-color: #2e6f40;
-    background: color-mix(in oklab, #2e6f40 11%, var(--cds-surface-0));
+    border-color: #2c6b45;
+    background: color-mix(in oklab, #2c6b45 10%, var(--cds-surface-1));
   }
 
   .arena-option-btn.wrong {
     border-color: #b44c36;
-    background: color-mix(in oklab, #b44c36 11%, var(--cds-surface-0));
+    background: color-mix(in oklab, #b44c36 10%, var(--cds-surface-1));
   }
 
   .arena-opt-letter {
-    flex-shrink: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 26px;
     height: 26px;
-    border-radius: 6px;
-    border: 1px solid var(--cds-border-default);
-    background: var(--cds-surface-1);
+    border-radius: 7px;
+    background: var(--cds-surface-0);
+    box-shadow: var(--cds-shadow-card-ring);
     font-family: var(--cds-font-mono);
     font-size: 12px;
     font-weight: 600;
@@ -4154,14 +3989,12 @@
   }
 
   .arena-option-btn.correct .arena-opt-letter {
-    background: #2e6f40;
-    border-color: #2e6f40;
+    background: #2c6b45;
     color: #ffffff;
   }
 
   .arena-option-btn.wrong .arena-opt-letter {
     background: #b44c36;
-    border-color: #b44c36;
     color: #ffffff;
   }
 
@@ -4169,48 +4002,50 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    padding: 16px;
-    border-radius: 10px;
-    background: var(--cds-surface-0);
+    padding: 16px 18px;
+    border-radius: 12px;
+    background: var(--cds-surface-1);
     border: 1px solid var(--cds-border-default);
   }
 
-  .arena-textarea {
+  .arena-textarea,
+  .arena-l3-textarea {
     width: 100%;
-    min-height: 130px;
-    padding: 12px;
+    min-height: 128px;
+    padding: 12px 14px;
     border-radius: 8px;
     border: 1px solid var(--cds-border-default);
-    background: var(--cds-surface-1);
+    background: var(--cds-surface-0);
     color: var(--cds-text-primary);
     font-family: var(--cds-font-sans);
-    font-size: 13.5px;
-    line-height: 1.56;
+    font-size: 14px;
+    line-height: 1.58;
     resize: vertical;
     outline: none;
   }
 
-  .arena-textarea:focus {
+  .arena-textarea:focus,
+  .arena-l3-textarea:focus {
     border-color: var(--cds-clay);
   }
 
-  /* Feedback & Distractor Anatomy Panel */
+  /* Post-Submit Editorial Breakdown */
   .arena-feedback-panel {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    padding: 16px 18px;
-    border-radius: 10px;
-    background: var(--cds-surface-0);
-    border: 1px solid var(--cds-border-default);
+    padding: 18px 20px;
+    border-radius: 12px;
+    background: var(--cds-surface-1);
+    box-shadow: var(--cds-shadow-card-ring);
   }
 
   .arena-feedback-panel.pass {
-    border-left: 4px solid #2e6f40;
+    border-left: 3px solid #2c6b45;
   }
 
   .arena-feedback-panel.fail {
-    border-left: 4px solid #b44c36;
+    border-left: 3px solid #b44c36;
   }
 
   .arena-distractor-list {
@@ -4223,20 +4058,20 @@
   }
 
   .arena-distractor-item {
-    padding: 8px 11px;
-    border-radius: 6px;
-    background: var(--cds-surface-1);
-    font-size: 12.5px;
-    line-height: 1.5;
+    padding: 9px 12px;
+    border-radius: 8px;
+    background: var(--cds-surface-0);
+    border: 1px solid var(--cds-border-subtle);
+    font-size: 13px;
+    line-height: 1.54;
     color: var(--cds-text-secondary);
   }
 
-  /* Contextual In-Arena Study Chatbox */
+  /* In-Arena Contextual Study Chat Window */
   .arena-chat-card {
     display: flex;
     flex-direction: column;
-    height: 100%;
-    min-height: 460px;
+    min-height: 480px;
     max-height: 680px;
     border-radius: var(--cds-radius-card);
     background: var(--cds-surface-1);
@@ -4245,40 +4080,10 @@
     min-width: 0;
   }
 
-  .arena-chat-header {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 14px 16px;
-    background: var(--cds-surface-2);
-    border-bottom: 1px solid var(--cds-border-subtle);
-  }
-
-  .arena-chat-title-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    font-family: var(--cds-font-sans);
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--cds-text-primary);
-  }
-
-  .arena-chat-mode-tag {
-    font-family: var(--cds-font-mono);
-    font-size: 10.5px;
-    padding: 2px 7px;
-    border-radius: 4px;
-    background: var(--cds-surface-0);
-    border: 1px solid var(--cds-border-subtle);
-    color: var(--cds-clay);
-  }
-
   .arena-chat-messages {
     flex: 1;
     overflow-y: auto;
-    padding: 14px;
+    padding: 16px;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -4286,18 +4091,18 @@
   }
 
   .arena-chat-bubble {
-    padding: 10px 12px;
-    border-radius: 8px;
-    font-size: 13px;
-    line-height: 1.54;
+    padding: 11px 14px;
+    border-radius: 10px;
+    font-size: 13.5px;
+    line-height: 1.56;
     word-break: break-word;
   }
 
   .arena-chat-bubble.user {
     align-self: flex-end;
     max-width: 88%;
-    background: color-mix(in oklab, var(--cds-clay) 14%, var(--cds-surface-1));
-    border: 1px solid color-mix(in oklab, var(--cds-clay) 35%, var(--cds-border-subtle));
+    background: var(--cds-surface-2);
+    border: 1px solid var(--cds-border-default);
     color: var(--cds-text-primary);
   }
 
@@ -4312,8 +4117,8 @@
   .arena-chat-bubble.warden {
     align-self: flex-start;
     max-width: 94%;
-    background: color-mix(in oklab, #b44c36 9%, var(--cds-surface-1));
-    border: 1px solid color-mix(in oklab, #b44c36 38%, var(--cds-border-subtle));
+    background: color-mix(in oklab, #b44c36 8%, var(--cds-surface-1));
+    border-left: 3px solid #b44c36;
     color: var(--cds-text-primary);
   }
 
@@ -4321,25 +4126,27 @@
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    padding: 8px 12px;
+    padding: 9px 14px;
     background: var(--cds-surface-1);
     border-top: 1px solid var(--cds-border-subtle);
   }
 
   .arena-chat-chip {
     appearance: none;
-    padding: 4px 9px;
-    border-radius: 6px;
+    padding: 4px 10px;
+    border-radius: 7px;
     border: 1px solid var(--cds-border-subtle);
     background: var(--cds-surface-0);
     color: var(--cds-text-secondary);
     font-family: var(--cds-font-sans);
     font-size: 11.5px;
     cursor: pointer;
+    transition: background 0.14s, color 0.14s, border-color 0.14s;
   }
 
   .arena-chat-chip:hover {
-    border-color: var(--cds-clay);
+    background: var(--cds-fill-ghost-hover);
+    border-color: var(--cds-border-strong);
     color: var(--cds-text-primary);
   }
 
@@ -4347,17 +4154,17 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 12px;
+    padding: 10px 14px;
     background: var(--cds-surface-1);
     border-top: 1px solid var(--cds-border-subtle);
   }
 
-  /* Arena Modals (Warden Assessment, BYOK AI Provider Hub, Multi-Account Switcher) */
+  /* Centered Anthropic-Style Modals */
   .arena-modal-dialog {
-    width: min(760px, 96vw);
-    max-height: 88vh;
+    width: min(740px, 96vw);
+    max-height: 86vh;
     background: var(--cds-surface-0);
-    border-radius: var(--cds-radius-card);
+    border-radius: 16px;
     box-shadow: var(--cds-shadow-modal);
     border: 1px solid var(--cds-border-default);
     display: flex;
@@ -4370,7 +4177,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 14px 18px;
+    padding: 16px 22px;
     background: var(--cds-surface-1);
     border-bottom: 1px solid var(--cds-border-subtle);
   }
@@ -4378,15 +4185,16 @@
   .arena-modal-title {
     margin: 0;
     font-family: var(--cds-font-serif);
-    font-size: 18px;
-    font-weight: 500;
+    font-size: 19px;
+    font-weight: 400;
+    letter-spacing: -0.015em;
     color: var(--cds-text-primary);
   }
 
   .arena-modal-body {
     flex: 1;
     overflow-y: auto;
-    padding: 18px 20px;
+    padding: 20px 24px;
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -4394,42 +4202,30 @@
 
   .arena-account-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
   }
 
   .arena-account-card {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    gap: 8px;
-    padding: 13px 15px;
-    border-radius: 10px;
-    border: 1px solid var(--cds-border-default);
+    gap: 10px;
+    padding: 15px 17px;
+    border-radius: 12px;
     background: var(--cds-surface-1);
+    box-shadow: var(--cds-shadow-card-ring);
   }
 
   .arena-account-card.active {
-    border-color: var(--cds-clay);
-    background: color-mix(in oklab, var(--cds-clay) 10%, var(--cds-surface-0));
-  }
-
-  @media (min-width: 760px) {
-    .arena-control-col-wide {
-      grid-column: span 2;
-    }
+    box-shadow: 0 0 0 1.5px var(--cds-clay), var(--cds-shadow-card-ring);
+    background: color-mix(in oklab, var(--cds-clay) 6%, var(--cds-surface-1));
   }
 
   @media (max-width: 640px) {
-    .arena-hero-banner,
-    .arena-question-card {
+    .arena-window-body,
+    .arena-gate-card {
       padding: 16px;
-    }
-    .arena-level-tabs {
-      grid-template-columns: 1fr;
-    }
-    .arena-rank-ladder {
-      grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
     }
   }
 
@@ -35657,6 +35453,7 @@ ${JSON.stringify(payload)}`;
 
   let arenaRuntime = {
     initialized: false,
+    isLoggedIn: false,
     activeAccountId: "virt_sinhvien_fresh",
     accounts: {},
     aiConfig: {
@@ -36096,6 +35893,9 @@ ${JSON.stringify(payload)}`;
     if (loaded && loaded.accounts && Object.keys(loaded.accounts).length > 0) {
       arenaRuntime.accounts = loaded.accounts;
       arenaRuntime.activeAccountId = loaded.activeAccountId || Object.keys(loaded.accounts)[0];
+      if (typeof loaded.isLoggedIn === "boolean") {
+        arenaRuntime.isLoggedIn = loaded.isLoggedIn;
+      }
       if (loaded.aiConfig) {
         arenaRuntime.aiConfig = Object.assign(arenaRuntime.aiConfig, loaded.aiConfig);
       }
@@ -36148,6 +35948,7 @@ ${JSON.stringify(payload)}`;
         ensureAccountProfileMemory(activeAcc);
       }
       const payload = {
+        isLoggedIn: Boolean(arenaRuntime.isLoggedIn),
         activeAccountId: arenaRuntime.activeAccountId,
         accounts: arenaRuntime.accounts,
         aiConfig: arenaRuntime.aiConfig,
@@ -36160,6 +35961,16 @@ ${JSON.stringify(payload)}`;
       // Ignore quota errors in restricted environments
     }
     rebuildHotCognitiveDigest();
+  }
+
+  function logoutArenaSession() {
+    initArenaPersistence();
+    arenaRuntime.isLoggedIn = false;
+    arenaRuntime.activeModal = null;
+    saveArenaPersistence();
+    if (typeof activeTopic !== "undefined" && activeTopic === "PRACTICE") {
+      renderArenaView();
+    }
   }
 
   function mirrorToIndexedDB(payload) {
@@ -36271,6 +36082,7 @@ ${JSON.stringify(payload)}`;
       : `Local Profile Active (@${cleanHandle})`;
 
     arenaRuntime.activeAccountId = existingAcc.accountId;
+    arenaRuntime.isLoggedIn = true;
     saveArenaPersistence();
     return { account: existingAcc, verified: verified, ghData: ghData };
   }
@@ -37444,13 +37256,179 @@ ${JSON.stringify(payload)}`;
     }
   }
 
+  function renderArenaLoginGateHtml() {
+    const allAccs = Object.values(arenaRuntime.accounts);
+    const customAccs = allAccs.filter((a) => a.presetType === "github_user" || a.presetType === "custom");
+    const presetAccs = allAccs.filter((a) => a.presetType !== "github_user" && a.presetType !== "custom");
+
+    const customListHtml = customAccs.length > 0 ? `
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--cds-border-subtle);display:flex;flex-direction:column;gap:8px;">
+        <span style="font-family:var(--cds-font-mono);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--cds-text-muted);">
+          ${arenaTr("Hồ Sơ Cá Nhân Đã Lưu Trên Máy Này (" + customAccs.length + ")", "Saved Personal Profiles on This Browser (" + customAccs.length + ")")}
+        </span>
+        <div class="arena-persona-list">
+          ${customAccs.map((a) => {
+            recomputeAccountAdjudication(a);
+            const pm = ensureAccountProfileMemory(a);
+            return `
+              <button type="button" class="stage-pill-btn" data-gate-quick-login="${escapeHtml(a.accountId)}">
+                <span class="stage-pill-num">T${a.verifiedRankTier}</span>
+                <span>
+                  <strong style="display:block;font-size:13.5px;color:var(--cds-text-primary);">
+                    ${escapeHtml(a.displayName)} (@${escapeHtml(a.githubHandle)})
+                    ${pm.githubVerified ? " ✓" : ""}
+                  </strong>
+                  <span style="font-size:12px;color:var(--cds-text-secondary);">
+                    ${escapeHtml(a.roleTrack)} · ${a.totalXp} XP · ${pm.totalQuestionsSolved || 0} ${arenaTr("câu đã giải", "solved")}
+                  </span>
+                </span>
+              </button>
+            `;
+          }).join("")}
+        </div>
+      </div>
+    ` : "";
+
+    const presetListHtml = presetAccs.map((a) => {
+      recomputeAccountAdjudication(a);
+      const pm = ensureAccountProfileMemory(a);
+      return `
+        <button type="button" class="stage-pill-btn" data-gate-quick-login="${escapeHtml(a.accountId)}">
+          <span class="stage-pill-num">T${a.verifiedRankTier}</span>
+          <span>
+            <strong style="display:block;font-size:13.5px;color:var(--cds-text-primary);">${escapeHtml(a.displayName)}</strong>
+            <span style="font-size:12px;color:var(--cds-text-secondary);">
+              @${escapeHtml(a.githubHandle)} · ${escapeHtml(a.roleTrack)} · ${a.totalXp} XP · ${a.computedMetrics ? a.computedMetrics.topicsMasteredCount : 0}/12 topics · SLA: ${a.wardenState.slaBreachCount}
+            </span>
+          </span>
+        </button>
+      `;
+    }).join("");
+
+    const sealArt = typeof renderBadgeSealHtml === "function"
+      ? renderBadgeSealHtml("ObjectShield", "IDENTITY & MASTERY GATE")
+      : "";
+
+    return `
+      <div class="arena-shell" id="arenaLoginGate">
+        <header class="catalog-hero swatch-peach" id="arena-login-hero">
+          <div class="lesson-hero-dots" aria-hidden="true"></div>
+          <div class="lesson-header-grid has-artwork">
+            <div class="lesson-header-copy">
+              <div class="lesson-meta">
+                <span class="cds-swatch-pill">ANTHROPIC ACADEMY · PRACTICE ARENA</span>
+                <span class="cds-swatch-pill">${arenaTr("CỔNG ĐỊNH DANH & ĐỒNG BỘ HỒ SƠ", "AUTHENTICATION & PROFILE GATE")}</span>
+                <span class="cds-swatch-pill">MULTI-USER DB READY</span>
+              </div>
+              <h1 class="lesson-title">${arenaTr("Đăng Nhập Hồ Sơ Kỹ Sư Để Vào Đấu Trường Sát Hạch", "Sign In to Enter the Engineering Mastery Arena")}</h1>
+              <p class="lesson-lead">
+                ${arenaTr(
+                  "Mỗi kỹ sư có bộ nhớ tiến độ, lịch sử lỗi sai, điểm độ phủ × độ sâu và phán quyết Quản Giáo AI hoàn toàn độc lập. Đăng nhập bằng GitHub cá nhân để lưu trữ lâu dài hoặc chọn nhanh 1 trong 5 hồ sơ giả lập để kiểm thử.",
+                  "Every engineer has an isolated AI profile memory ledger, Breadth × Depth mastery matrix, and AI Warden adjudication history. Sign in with GitHub or pick a pre-seeded persona below."
+                )}
+              </p>
+              <div class="arena-hero-actions-bar">
+                <button type="button" class="arena-btn" id="arenaOpenProviderModalBtn">
+                  ${arenaTr("Cấu Hình AI / BYOK API", "Configure AI Provider / BYOK")}
+                </button>
+                <button type="button" class="arena-btn" id="arenaOpenAccountsModalBtn">
+                  ${arenaTr("Quản Lý Database & Đồng Bộ Cloud", "Manage Multi-User Cloud DB")}
+                </button>
+              </div>
+            </div>
+            <div class="lesson-hero-art">${sealArt}</div>
+          </div>
+        </header>
+
+        <section class="arena-gate-grid" id="arena-gate-cards">
+          <!-- Column 1: Real GitHub / Custom Profile Login -->
+          <div class="arena-gate-card">
+            <span class="arena-gate-eyebrow">${arenaTr("ĐỊNH DANH CÁ NHÂN & ĐỒNG BỘ ĐÁM MÂY", "PERSONAL IDENTITY & CLOUD SYNC")}</span>
+            <h2 class="arena-gate-title">${arenaTr("Đăng Nhập Bằng Tài Khoản GitHub", "Sign In with GitHub Identity")}</h2>
+            <p class="arena-gate-desc">
+              ${arenaTr(
+                "Hệ thống tự động đối chiếu hồ sơ qua api.github.com, khởi tạo sổ cái bộ nhớ AI riêng cho bạn và duy trì phiên đăng nhập kể cả khi tải lại trang (F5).",
+                "Automatically verifies your handle via api.github.com, initializes your dedicated AI profile memory ledger, and persists your session across F5 reloads."
+              )}
+            </p>
+
+            <form id="arenaGateLoginForm" style="display:flex;flex-direction:column;gap:12px;margin-top:4px;">
+              <div class="arena-control-col">
+                <label class="arena-control-label" for="arenaGateGithubInput">${arenaTr("GitHub Username (*)", "GitHub Username (*)")}</label>
+                <input type="text" class="arena-input" id="arenaGateGithubInput" placeholder="VD: torvalds, karpathy, ten-cua-ban..." required autocomplete="username" />
+              </div>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div class="arena-control-col">
+                  <label class="arena-control-label" for="arenaGateNameInput">${arenaTr("Tên hiển thị", "Display Name")}</label>
+                  <input type="text" class="arena-input" id="arenaGateNameInput" placeholder="${arenaTr("Tự động lấy từ GitHub nếu để trống", "Auto-filled from GitHub if blank")}" />
+                </div>
+                <div class="arena-control-col">
+                  <label class="arena-control-label" for="arenaGateRoleSelect">${arenaTr("Vị trí mục tiêu (JD Track)", "Target JD Role Track")}</label>
+                  <select class="arena-select" id="arenaGateRoleSelect">
+                    <option value="DE">Data Engineer (DE)</option>
+                    <option value="AIE">AI Engineer (AIE)</option>
+                    <option value="MLE">ML Engineer (MLE)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="arena-control-col">
+                <label class="arena-control-label" for="arenaGateTokenInput">${arenaTr("GitHub Personal Access Token (Tùy chọn · Quyền 'gist' để đồng bộ Cloud)", "Optional: GitHub Token ('gist' scope for Cloud DB Sync)")}</label>
+                <input type="password" class="arena-input" id="arenaGateTokenInput" placeholder="ghp_... (Để trống nếu chỉ lưu trên trình duyệt & IndexedDB)" autocomplete="current-password" />
+              </div>
+
+              <div style="display:flex;justify-content:flex-end;margin-top:6px;">
+                <button type="submit" class="arena-btn arena-btn-primary" id="arenaGateLoginBtn" style="width:100%;justify-content:center;padding:12px 18px;font-size:14px;">
+                  ${arenaTr("Xác Thực GitHub & Vào Đấu Trường →", "Verify GitHub & Enter Practice Arena →")}
+                </button>
+              </div>
+            </form>
+
+            ${customListHtml}
+          </div>
+
+          <!-- Column 2: 5 Pre-seeded Sandbox Personas -->
+          <div class="arena-gate-card">
+            <span class="arena-gate-eyebrow">${arenaTr("CHẾ ĐỘ THỬ NGHIỆM NHANH · 5 HỒ SƠ MẪU", "INSTANT SANDBOX · 5 PRE-SEEDED PERSONAS")}</span>
+            <h2 class="arena-gate-title">${arenaTr("Chọn Hồ Sơ Giả Lập Để Vào Ngay", "One-Click Sandbox Persona Login")}</h2>
+            <p class="arena-gate-desc">
+              ${arenaTr(
+                "Dành cho việc kiểm thử nhanh các kịch bản của Quản Giáo AI: từ Sinh viên mới tinh (T1), Người cày lặp 1 bài F01 bị khóa cấp, Người ngâm câu hỏi lố SLA, cho tới Kỹ sư Senior+ (T7).",
+                "Test how The AI Warden and Polymorphic Question Engine adapt across 5 realistic engineering personas with pre-populated telemetry."
+              )}
+            </p>
+
+            <div class="arena-persona-list" id="arenaGatePersonaList">
+              ${presetListHtml}
+            </div>
+          </div>
+        </section>
+      </div>
+    `;
+  }
+
   function renderArenaView() {
     initArenaPersistence();
     const container = document.getElementById("articleContainer");
     if (!container) return;
 
+    if (!arenaRuntime.isLoggedIn) {
+      const tocList = document.getElementById("tocList");
+      if (tocList) {
+        tocList.innerHTML = `
+          <li><a class="toc-link active" href="#arena-login-hero">${arenaTr("Cổng Đăng Nhập Đấu Trường", "Arena Sign-In Gate")}</a></li>
+          <li><a class="toc-link" href="#arena-gate-cards">${arenaTr("Chọn Hồ Sơ Kỹ Sư", "Select Engineering Profile")}</a></li>
+        `;
+      }
+      container.innerHTML = renderArenaLoginGateHtml() + renderArenaActiveModalHtml();
+      bindArenaDomEvents();
+      return;
+    }
+
     const cat = getArenaCatalog();
     const acc = getActiveArenaAccount();
+    const pm = ensureAccountProfileMemory(acc);
     const digest = readHotCognitiveDigest();
     if (!acc.activeSession || acc.activeSession.topic !== acc.selectedTopic || acc.activeSession.level !== Number(acc.selectedLevel)) {
       generatePolymorphicInstance(acc, false);
@@ -37465,10 +37443,10 @@ ${JSON.stringify(payload)}`;
     const tocList = document.getElementById("tocList");
     if (tocList) {
       tocList.innerHTML = `
-        <li><a class="toc-link active" href="#arena-hero">${arenaTr("Bảng Phong Thần & Cấp Bậc", "Career Rank Ladder")}</a></li>
-        <li><a class="toc-link" href="#arena-warden-bar">${arenaTr("Quản Giáo AI Giám Sát", "AI Warden Monitor")}</a></li>
-        <li><a class="toc-link" href="#arena-workspace">${arenaTr("Trạm Sát Hạch & Biến Thể", "Polymorphic Question Lab")}</a></li>
-        <li><a class="toc-link" href="#arena-chat-panel">${arenaTr("Box Chat Hỏi Đáp Nội Khu", "In-Arena Contextual Chat")}</a></li>
+        <li><a class="toc-link active" href="#arena-hero">${arenaTr("Hồ Sơ & Cấp Bậc", "Profile & Career Rank")}</a></li>
+        <li><a class="toc-link" href="#arena-warden-bar">${arenaTr("Quản Giáo AI Giám Sát", "AI Warden Telemetry")}</a></li>
+        <li><a class="toc-link" href="#arena-workspace">${arenaTr("Trạm Sát Hạch Biến Thể", "Polymorphic Question Lab")}</a></li>
+        <li><a class="toc-link" href="#arena-chat-panel">${arenaTr("Box Chat Nội Khu", "In-Arena Study Chat")}</a></li>
       `;
     }
 
@@ -37497,15 +37475,22 @@ ${JSON.stringify(payload)}`;
       const m = acc.mastery[inst.blueprintId] || {};
       const bestVal = m[`l${lvl.level}Best`] || 0;
       return `
-        <button type="button" class="arena-level-tab ${activeCls}" data-arena-level="${lvl.level}">
-          <div class="arena-level-tab-top">
-            <span>${escapeHtml(isArenaEn() ? lvl.enTitle : lvl.title)}</span>
-            <span class="arena-pill">${bestVal}%</span>
-          </div>
-          <span class="arena-level-tab-sub">${escapeHtml(lvl.formatBadge)} · +${lvl.baseXp} XP</span>
+        <button type="button" class="glossary-filter-pill ${activeCls}" data-arena-level="${lvl.level}">
+          <span>${escapeHtml(isArenaEn() ? lvl.enTitle : lvl.title)} (${escapeHtml(lvl.formatBadge)})</span>
+          <span class="glossary-filter-count">${bestVal}%</span>
         </button>
       `;
     }).join("");
+
+    const rolePillsHtml = [
+      { id: "DE", label: "Data Engineer (DE)" },
+      { id: "AIE", label: "AI Engineer (AIE)" },
+      { id: "MLE", label: "ML Engineer (MLE)" }
+    ].map((r) => `
+      <button type="button" class="glossary-filter-pill ${acc.roleTrack === r.id ? "active" : ""}" data-arena-role-pill="${r.id}">
+        <span>${r.label}</span>
+      </button>
+    `).join("");
 
     const letters = ["A", "B", "C", "D"];
     const optionsHtml = (inst.options || []).map((optText, idx) => {
@@ -37529,13 +37514,12 @@ ${JSON.stringify(payload)}`;
     const secSla = Math.floor((inst.slaTargetMs || 45000) / 1000);
     const slaWarnCls = (inst.activeAnswerMs || 0) > (inst.slaTargetMs || 45000) ? "sla-warn" : "";
 
-    // Chat messages for this question instance
     const thread = acc.chatThreads[inst.instanceId] || [];
     const chatMessagesHtml = thread.length === 0
       ? `<div class="arena-chat-bubble assistant">
            ${arenaTr(
-             `<strong>Box Chat Nội Khu (${inst.topic} · ${inst.levelKey})</strong>: Tôi nắm toàn bộ ngữ cảnh của biến thể câu hỏi này và hồ sơ năng lực của bạn. Khi bạn <em>chưa nộp bài</em>, tôi chỉ gợi ý tư duy nguyên lý gốc (chống lộ đáp án A/B/C/D). Sau khi <em>nộp bài</em>, bạn có thể hỏi mổ xẻ sâu bất kỳ phương án nào!`,
-             `<strong>In-Arena Contextual Chat (${inst.topic} · ${inst.levelKey})</strong>: I hold the full context of this polymorphic question and your profile. <em>Before submission</em>, I provide Socratic first-principles hints only (spoiler-locked). <em>After submission</em>, ask anything for a deep breakdown!`
+             `<strong>Box Chat Nội Khu (${inst.topic} · ${inst.levelKey})</strong>: Tôi nắm toàn bộ ngữ cảnh của biến thể câu hỏi này và hồ sơ năng lực của bạn (@${escapeHtml(acc.githubHandle)}). Khi bạn <em>chưa nộp bài</em>, tôi chỉ gợi ý tư duy nguyên lý gốc (chống lộ đáp án A/B/C/D). Sau khi <em>nộp bài</em>, bạn có thể hỏi mổ xẻ sâu bất kỳ phương án nào!`,
+             `<strong>In-Arena Contextual Chat (${inst.topic} · ${inst.levelKey})</strong>: I hold the full context of this polymorphic question and your profile (@${escapeHtml(acc.githubHandle)}). <em>Before submission</em>, I provide Socratic first-principles hints only (spoiler-locked). <em>After submission</em>, ask anything for a deep breakdown!`
            )}
          </div>`
       : thread.map((msg) => `
@@ -37548,7 +37532,6 @@ ${JSON.stringify(payload)}`;
           </div>
         `).join("");
 
-    // Feedback block after submission
     let feedbackHtml = "";
     if (inst.submitted) {
       const distractorItems = (inst.options || []).map((opt, i) => {
@@ -37588,180 +37571,214 @@ ${JSON.stringify(payload)}`;
       `;
     }
 
+    const heroSealArt = typeof renderBadgeSealHtml === "function"
+      ? renderBadgeSealHtml("ObjectShield", `${currentRank.badgeCode} · ${acc.roleTrack}`)
+      : "";
+
     container.innerHTML = `
       <div class="arena-shell" id="arenaRoot">
-        <!-- 1. HERO & CAREER LADDER -->
-        <section class="arena-hero-banner" id="arena-hero">
-          <div class="arena-hero-top">
-            <div class="arena-hero-title-group">
-              <div class="arena-eyebrow-row">
-                <span>ADAPTIVE PRACTICE & CAREER MASTERY ARENA</span>
-                <span>·</span>
-                <span>${escapeHtml(acc.displayName)} (@${escapeHtml(acc.githubHandle)})</span>
-                <span>·</span>
-                <span>Context DB: ${arenaRuntime.hotDigestPerfMs}ms</span>
+        <!-- 1. ANTHROPIC ACADEMY HERO BANNER -->
+        <header class="catalog-hero swatch-heather" id="arena-hero">
+          <div class="lesson-hero-dots" aria-hidden="true"></div>
+          <div class="lesson-header-grid has-artwork">
+            <div class="lesson-header-copy">
+              <div class="lesson-meta">
+                <span class="cds-swatch-pill">PRACTICE ARENA · ${escapeHtml(currentRank.badgeCode)}</span>
+                <span class="cds-swatch-pill">${escapeHtml(acc.displayName)} (@${escapeHtml(acc.githubHandle)})${pm.githubVerified ? " ✓" : ""}</span>
+                <span class="cds-swatch-pill">TRACK: ${escapeHtml(acc.roleTrack)}</span>
+                <span class="cds-swatch-pill">DB: ${arenaRuntime.hotDigestPerfMs}ms</span>
               </div>
-              <h1 class="arena-title">${arenaTr("Đấu Trường Luyện Tập Thích Ứng & Sát Hạch Cấp Bậc Kỹ Sư", "AI Adaptive Practice & Engineering Career Arena")}</h1>
-              <p class="arena-subtitle">
+              <h1 class="lesson-title">${arenaTr("Đấu Trường Luyện Tập Thích Ứng & Sát Hạch Cấp Bậc Kỹ Sư", "AI Adaptive Practice & Engineering Career Arena")}</h1>
+              <p class="lesson-lead">
                 ${arenaTr(
-                  "Mỗi lần làm mới hoặc chuyển cấp đều sinh biến thể ngữ cảnh mới 100%. Trình độ tổng thể từ Sinh viên tới Senior+ được phán quyết bởi Quản Giáo AI dựa trên Ma trận Độ phủ × Độ sâu × Tốc độ SLA (chống cày lặp 1 bài).",
-                  "Every refresh or rank-up generates 100% fresh contextual variants. Overall rank from Student to Senior+ is adjudicated by The AI Warden across Breadth × Depth × SLA Speed (anti-grind enforced)."
+                  "Mỗi lần làm mới hoặc chuyển cấp đều sinh biến thể ngữ cảnh mới 100%. Trình độ thực tế từ Sinh viên (T1) tới Senior+ (T7) được phán quyết bởi Quản Giáo AI dựa trên Ma trận Độ phủ × Độ sâu × Tốc độ SLA.",
+                  "Every refresh or rank-up generates 100% fresh contextual variants. Overall rank from Student (T1) to Senior+ (T7) is adjudicated by The AI Warden across Breadth × Depth × SLA Speed."
                 )}
               </p>
+              <div class="arena-hero-actions-bar">
+                <button type="button" class="arena-btn arena-btn-clay" id="arenaOpenWardenModalBtn">
+                  ${arenaTr("Hồ Sơ Phán Quyết Quản Giáo", "Warden Adjudication Dossier")}
+                </button>
+                <button type="button" class="arena-btn" id="arenaOpenProviderModalBtn">
+                  ${arenaTr("Cấu Hình AI / BYOK API", "AI Provider & BYOK Hub")}
+                </button>
+                <button type="button" class="arena-btn" id="arenaOpenAccountsModalBtn">
+                  ${arenaTr("Đổi Hồ Sơ & Đồng Bộ DB", "Switch Profile & Cloud DB")} (${Object.keys(arenaRuntime.accounts).length})
+                </button>
+                <button type="button" class="arena-btn arena-btn-danger" id="arenaLogoutBtn" title="${arenaTr("Đăng xuất khỏi phiên làm việc hiện tại", "Sign out of current session")}">
+                  ${arenaTr("Đăng xuất", "Sign Out")} (@${escapeHtml(acc.githubHandle)})
+                </button>
+              </div>
             </div>
-            <div class="arena-toolbar-actions">
-              <button type="button" class="arena-btn arena-btn-clay" id="arenaOpenWardenModalBtn">
-                ${arenaTr("Xem Đánh Giá Của Quản Giáo", "Warden Assessment Popup")}
-              </button>
-              <button type="button" class="arena-btn" id="arenaOpenProviderModalBtn">
-                ${arenaTr("Cấu Hình AI / BYOK API", "AI Provider & API Hub")}
-              </button>
-              <button type="button" class="arena-btn" id="arenaOpenAccountsModalBtn">
-                ${arenaTr("Tài Khoản & Acc Ảo", "Accounts & Virtual Sandbox")} (${Object.keys(arenaRuntime.accounts).length})
-              </button>
+            <div class="lesson-hero-art">${heroSealArt}</div>
+          </div>
+        </header>
+
+        <!-- 2. ACADEMY ROADMAP GRID: CAREER LADDER + AI WARDEN LIVE TELEMETRY -->
+        <section class="lesson-roadmap-grid">
+          <div class="lesson-roadmap-card">
+            <div class="roadmap-card-head">
+              <span class="roadmap-eyebrow">${arenaTr("THANG CẤP BẬC KỸ SƯ ĐÃ XÁC MINH", "VERIFIED ENGINEERING CAREER LADDER")}</span>
+              <h2 class="roadmap-title">${escapeHtml(currentRank.badgeCode)} — ${escapeHtml(isArenaEn() ? currentRank.enTitle : currentRank.title)}</h2>
+            </div>
+            <div class="arena-rank-ladder" id="arenaRankLadder">
+              ${rankLadderHtml}
+            </div>
+            <div class="arena-metrics-strip">
+              <div class="arena-metric-box">
+                <span class="arena-metric-label">${arenaTr("Cấp Bậc Thực Tế", "Verified Rank")}</span>
+                <span class="arena-metric-value" id="arenaVerifiedRankText">${escapeHtml(currentRank.badgeCode)}</span>
+                <span class="arena-metric-note">${escapeHtml(isArenaEn() ? currentRank.enTitle : currentRank.title)}</span>
+              </div>
+              <div class="arena-metric-box">
+                <span class="arena-metric-label">${arenaTr("Độ Phủ (Breadth)", "Breadth Coverage")}</span>
+                <span class="arena-metric-value">${digest.metrics.topicsMasteredCount} / 12 (${digest.metrics.breadthPct}%)</span>
+                <span class="arena-metric-note">${arenaTr("Chống cày lặp 1 bài", "Anti-grind enforced")}</span>
+              </div>
+              <div class="arena-metric-box">
+                <span class="arena-metric-label">${arenaTr("Độ Sâu (Depth)", "Weighted Depth")}</span>
+                <span class="arena-metric-value">${digest.metrics.avgDepthPct}% · L3: ${digest.metrics.l3UnassistedCount}</span>
+                <span class="arena-metric-note">L1(20%)+L2(35%)+L3(45%)</span>
+              </div>
+              <div class="arena-metric-box">
+                <span class="arena-metric-label">${arenaTr("Kinh Nghiệm & SLA", "Total XP & SLA")}</span>
+                <span class="arena-metric-value">${acc.totalXp} XP · ${acc.wardenState.slaBreachCount} SLA</span>
+                <span class="arena-metric-note">Grind flags: ${acc.wardenState.antiGrindFlags}</span>
+              </div>
             </div>
           </div>
 
-          <div class="arena-rank-ladder" id="arenaRankLadder">
-            ${rankLadderHtml}
-          </div>
-
-          <div class="arena-metrics-strip">
-            <div class="arena-metric-box">
-              <span class="arena-metric-label">${arenaTr("Cấp Bậc Thực Tế (Warden)", "Verified Career Rank")}</span>
-              <span class="arena-metric-value" id="arenaVerifiedRankText">${escapeHtml(currentRank.badgeCode)}</span>
-              <span class="arena-metric-note">${escapeHtml(isArenaEn() ? currentRank.enTitle : currentRank.title)}</span>
-            </div>
-            <div class="arena-metric-box">
-              <span class="arena-metric-label">${arenaTr("Độ Phủ Chuyên Đề (Breadth)", "Topic Breadth Coverage")}</span>
-              <span class="arena-metric-value">${digest.metrics.topicsMasteredCount} / 12 (${digest.metrics.breadthPct}%)</span>
-              <span class="arena-metric-note">${arenaTr("Cấm cày lặp 1 bài để lên cấp", "Single-topic grinding locked")}</span>
-            </div>
-            <div class="arena-metric-box">
-              <span class="arena-metric-label">${arenaTr("Độ Sâu Trung Bình (Depth)", "Weighted Depth Score")}</span>
-              <span class="arena-metric-value">${digest.metrics.avgDepthPct}% · L3 Pass: ${digest.metrics.l3UnassistedCount}</span>
-              <span class="arena-metric-note">${arenaTr("L1 (20%) + L2 (35%) + L3 (45%)", "Unassisted L1/L2/L3 weighted")}</span>
-            </div>
-            <div class="arena-metric-box">
-              <span class="arena-metric-label">${arenaTr("Điểm Kinh Nghiệm & Lỗi SLA", "Total XP & SLA Telemetry")}</span>
-              <span class="arena-metric-value">${acc.totalXp} XP · ${acc.wardenState.slaBreachCount} SLA</span>
-              <span class="arena-metric-note">${arenaTr(`Cảnh báo cày lặp: ${acc.wardenState.antiGrindFlags}`, `Anti-grind flags: ${acc.wardenState.antiGrindFlags}`)}</span>
-            </div>
-          </div>
-        </section>
-
-        <!-- 2. WARDEN LIVE MONITOR STRIP -->
-        <section class="arena-warden-strip ${escapeHtml(acc.wardenState.tone || "neutral")}" id="arena-warden-bar">
-          <div class="arena-warden-left">
-            <span class="arena-warden-badge">W-AI</span>
-            <div class="arena-warden-text-wrap">
-              <div class="arena-warden-header">
-                <span>${arenaTr("Quản Giáo AI · Giám Sát Trực Tiếp", "The AI Warden · Live Telemetry Adjudicator")}</span>
+          <div class="lesson-roadmap-card arena-warden-card ${escapeHtml(acc.wardenState.tone || "neutral")}" id="arena-warden-bar">
+            <div class="roadmap-card-head">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+                <span class="roadmap-eyebrow">${arenaTr("QUẢN GIÁO AI · GIÁM SÁT TRỰC TIẾP", "THE AI WARDEN · LIVE TELEMETRY MONITOR")}</span>
                 <span class="arena-pill">${arenaTr("Chống Học Vẹt & Cày Điểm", "Anti-Rote & Anti-Grind")}</span>
               </div>
-              <p class="arena-warden-quote" id="arenaWardenLiveQuote">
-                ${escapeHtml(isArenaEn() ? acc.wardenState.lastCommentEn : acc.wardenState.lastCommentVi)}
-              </p>
+              <h2 class="roadmap-title">${arenaTr("Nhận Xét & Chỉ Thị Sát Hạch Trực Tiếp", "Live Adjudication & Remedial Directive")}</h2>
+            </div>
+            <p class="arena-warden-quote" id="arenaWardenLiveQuote" style="flex:1;">
+              ${escapeHtml(isArenaEn() ? acc.wardenState.lastCommentEn : acc.wardenState.lastCommentVi)}
+            </p>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--cds-border-subtle);">
+              <span style="font-family:var(--cds-font-mono);font-size:11.5px;color:var(--cds-text-muted);">
+                Solved: ${pm.totalQuestionsSolved || 0} · Accuracy: ${pm.totalQuestionsSolved > 0 ? Math.round((pm.totalCorrectAnswers / pm.totalQuestionsSolved) * 100) : 0}% · Chat Q&A: ${pm.totalChatQuestionsAsked || 0}
+              </span>
+              <button type="button" class="arena-btn" id="arenaQuickWardenBtn">
+                ${arenaTr("Mổ Xẻ Trình Độ Chi Tiết →", "Open Full Warden Dossier →")}
+              </button>
             </div>
           </div>
-          <button type="button" class="arena-btn" id="arenaQuickWardenBtn">
-            ${arenaTr("Mổ Xẻ Trình Độ Chi Tiết", "Full Warden Dossier")}
-          </button>
         </section>
 
-        <!-- 3. CONTROLS: JD TRACK, TOPIC, LEVEL -->
-        <section class="arena-controls-grid">
-          <div class="arena-control-col">
-            <label class="arena-control-label" for="arenaRoleSelect">${arenaTr("Vị Trí Mục Tiêu (Khớp JD Thị Trường)", "Target JD Role Track")}</label>
-            <select class="arena-select" id="arenaRoleSelect">
-              <option value="DE" ${acc.roleTrack === "DE" ? "selected" : ""}>Data Engineer (DE · Pipeline / Storage / Streaming)</option>
-              <option value="AIE" ${acc.roleTrack === "AIE" ? "selected" : ""}>AI Engineer (AIE · RAG / LLM Serving / Agents)</option>
-              <option value="MLE" ${acc.roleTrack === "MLE" ? "selected" : ""}>ML Engineer (MLE · Training / Feature Store / GPU Kernel)</option>
-            </select>
+        <!-- 3. GLOSSARY-STYLE FILTER BAR: TRACK, SYLLABUS STATION, MASTERY LEVEL -->
+        <section class="glossary-dict-controls" aria-label="Arena Practice Controls">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;align-items:end;">
+            <div class="arena-control-col">
+              <label class="arena-control-label" for="arenaTopicSelect">${arenaTr("Chuyên Đề Sát Hạch (49 Học Phần)", "Syllabus Station Selection")}</label>
+              <select class="arena-select" id="arenaTopicSelect">
+                ${topicOptionsHtml}
+              </select>
+            </div>
+            <div class="arena-control-col">
+              <label class="arena-control-label" for="arenaRoleSelect">${arenaTr("Vị Trí Mục Tiêu (Khớp JD Thị Trường)", "Target JD Role Track")}</label>
+              <select class="arena-select" id="arenaRoleSelect">
+                <option value="DE" ${acc.roleTrack === "DE" ? "selected" : ""}>Data Engineer (DE · Pipeline / Storage / Streaming)</option>
+                <option value="AIE" ${acc.roleTrack === "AIE" ? "selected" : ""}>AI Engineer (AIE · RAG / LLM Serving / Agents)</option>
+                <option value="MLE" ${acc.roleTrack === "MLE" ? "selected" : ""}>ML Engineer (MLE · Training / Feature Store / GPU Kernel)</option>
+              </select>
+            </div>
           </div>
-          <div class="arena-control-col arena-control-col-wide">
-            <label class="arena-control-label" for="arenaTopicSelect">${arenaTr("Chuyên Đề Luyện Tập (49 Học Phần)", "Syllabus Topic Selection (49 Courses)")}</label>
-            <select class="arena-select" id="arenaTopicSelect">
-              ${topicOptionsHtml}
-            </select>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;padding-top:10px;border-top:1px solid var(--cds-border-subtle);">
+            <div class="glossary-filter-pills" id="arenaLevelTabs" role="tablist">
+              ${levelTabsHtml}
+            </div>
+            <div class="glossary-filter-pills">
+              ${rolePillsHtml}
+            </div>
           </div>
         </section>
 
-        <div class="arena-level-tabs" id="arenaLevelTabs">
-          ${levelTabsHtml}
-        </div>
-
-        <!-- 4. WORKSPACE: POLYMORPHIC QUESTION CARD + CONTEXTUAL IN-ARENA CHATBOX -->
+        <!-- 4. WORKSPACE: ANTHROPIC WINDOW CARDS FOR POLYMORPHIC LAB & CONTEXTUAL CHAT -->
         <section class="arena-workspace-grid" id="arena-workspace">
-          <div class="arena-question-card">
-            <div class="arena-q-meta-bar">
-              <div class="arena-q-badges">
-                <span class="arena-pill tier-shift">${escapeHtml(inst.rankBadge)} · ${escapeHtml(inst.roleTrack)}</span>
-                <span class="arena-pill">${escapeHtml(inst.topic)} · ${escapeHtml(inst.levelKey)}</span>
-                <span class="arena-pill ${slaWarnCls}" id="arenaSlaTimerPill">SLA: ${secElapsed}s / ${secSla}s</span>
-                ${inst.assisted ? `<span class="arena-pill sla-warn">Assisted (Có gợi ý)</span>` : ""}
-              </div>
-              <div style="display:flex;gap:6px;">
-                <button type="button" class="arena-btn" id="arenaMutateSeedBtn" title="Sinh biến thể ngữ cảnh mới ngay lập tức">
-                  ${arenaTr("↻ Sinh Biến Thể Mới", "↻ Mutate Variant")}
-                </button>
-                <button type="button" class="arena-btn" id="arenaAiRewriteBtn" title="Dùng LLM viết lại góc hỏi mới">
-                  ${arenaTr("AI Biến Thể Sâu", "AI Deep Rewrite")}
-                </button>
-              </div>
+          <div class="arena-window-card">
+            <div class="visual-bar">
+              <span class="visual-window-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+              <span class="visual-bar-title">${escapeHtml(inst.topic)} · ${escapeHtml(inst.levelKey)} · ${escapeHtml(inst.rankBadge)} (${escapeHtml(inst.roleTrack)})</span>
+              <span class="visual-engine-tag ${slaWarnCls}" id="arenaSlaTimerPill">SLA: ${secElapsed}s / ${secSla}s</span>
             </div>
 
-            <div class="arena-tier-context-box">
-              <strong>${arenaTr("Chuẩn JD & Độ khó theo Cấp bậc hiện tại", "Adaptive Rank & JD Calibration")} (${escapeHtml(inst.rankBadge)}):</strong>
-              ${escapeHtml(inst.jdExpectation || inst.tierDirective)}
-            </div>
-
-            <p class="arena-q-stem" id="arenaQuestionStem">${escapeHtml(inst.stem)}</p>
-
-            ${inst.codeSnippet ? `<pre class="arena-code-block"><code>${escapeHtml(inst.codeSnippet)}</code></pre>` : ""}
-
-            ${inst.mcqPrompt ? `<div style="font-weight:600;font-size:14px;color:var(--cds-text-primary);">${escapeHtml(inst.mcqPrompt)}</div>` : ""}
-
-            <div class="arena-options-list" id="arenaOptionsList">
-              ${optionsHtml}
-            </div>
-
-            ${inst.level === 3 ? `
-              <div class="arena-l3-defense-box">
-                <label style="font-weight:600;font-size:13.5px;color:var(--cds-text-primary);" for="arenaL3Textarea">
-                  ${escapeHtml(inst.openPrompt)}
-                </label>
-                <textarea class="arena-textarea" id="arenaL3Textarea" placeholder="${arenaTr(
-                  "Trình bày lập luận nguyên lý gốc, cơ chế xử lý lỗi và đánh đổi kỹ thuật bằng lời của bạn (AI chấm theo bản chất cốt lõi, không bắt bẻ câu chữ máy móc)...",
-                  "Write your architectural defense and trade-offs in your own words (AI Semantic Grader evaluates core concepts, not rigid wording)..."
-                )}">${escapeHtml(inst.l3OpenDraft || "")}</textarea>
-                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-                  <span style="font-size:12px;color:var(--cds-text-muted);">
-                    ${arenaTr("Tự động lưu nháp tức thì (F5 không mất chữ).", "Draft auto-saved instantaneously across F5.")}
-                  </span>
-                  <button type="button" class="arena-btn arena-btn-primary" id="arenaSubmitL3Btn">
-                    ${arenaTr("Nộp Bài & Chấm Điểm Bản Chất (L3)", "Submit & Run Semantic Grader (L3)")}
+            <div class="arena-window-body">
+              <div class="arena-q-meta-bar">
+                <div class="arena-q-badges">
+                  <span class="arena-pill tier-shift">${escapeHtml(inst.rankBadge)} · ${escapeHtml(inst.roleTrack)}</span>
+                  <span class="arena-pill">Variant #${escapeHtml(String(inst.variantSeed || 1))}</span>
+                  ${inst.assisted ? `<span class="arena-pill sla-warn">Assisted (Có gợi ý)</span>` : ""}
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                  <button type="button" class="arena-btn" id="arenaMutateSeedBtn" title="Sinh biến thể ngữ cảnh mới ngay lập tức">
+                    ${arenaTr("↻ Sinh Biến Thể Mới", "↻ Mutate Variant")}
+                  </button>
+                  <button type="button" class="arena-btn" id="arenaAiRewriteBtn" title="Dùng LLM viết lại góc hỏi mới">
+                    ${arenaTr("AI Biến Thể Sâu", "AI Deep Rewrite")}
                   </button>
                 </div>
               </div>
-            ` : ""}
 
-            ${feedbackHtml}
+              <div class="arena-tier-context-box">
+                <strong>${arenaTr("Chuẩn JD & Độ khó theo Cấp bậc hiện tại", "Adaptive Rank & JD Calibration")} (${escapeHtml(inst.rankBadge)}):</strong>
+                ${escapeHtml(inst.jdExpectation || inst.tierDirective)}
+              </div>
+
+              <p class="arena-q-stem" id="arenaQuestionStem">${escapeHtml(inst.stem)}</p>
+
+              ${inst.codeSnippet ? `<pre class="arena-code-block"><code>${escapeHtml(inst.codeSnippet)}</code></pre>` : ""}
+
+              ${inst.mcqPrompt ? `<div style="font-weight:600;font-size:14px;color:var(--cds-text-primary);">${escapeHtml(inst.mcqPrompt)}</div>` : ""}
+
+              <div class="arena-options-list" id="arenaOptionsList">
+                ${optionsHtml}
+              </div>
+
+              ${inst.level === 3 ? `
+                <div class="arena-l3-defense-box">
+                  <label style="font-weight:600;font-size:13.5px;color:var(--cds-text-primary);" for="arenaL3Textarea">
+                    ${escapeHtml(inst.openPrompt)}
+                  </label>
+                  <textarea class="arena-textarea" id="arenaL3Textarea" placeholder="${arenaTr(
+                    "Trình bày lập luận nguyên lý gốc, cơ chế xử lý lỗi và đánh đổi kỹ thuật bằng lời của bạn (AI chấm theo bản chất cốt lõi, không bắt bẻ câu chữ máy móc)...",
+                    "Write your architectural defense and trade-offs in your own words (AI Semantic Grader evaluates core concepts, not rigid wording)..."
+                  )}">${escapeHtml(inst.l3OpenDraft || "")}</textarea>
+                  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <span style="font-size:12px;color:var(--cds-text-muted);">
+                      ${arenaTr("Tự động lưu nháp tức thì (F5 không mất chữ).", "Draft auto-saved instantaneously across F5.")}
+                    </span>
+                    <button type="button" class="arena-btn arena-btn-primary" id="arenaSubmitL3Btn">
+                      ${arenaTr("Nộp Bài & Chấm Điểm Bản Chất (L3)", "Submit & Run Semantic Grader (L3)")}
+                    </button>
+                  </div>
+                </div>
+              ` : ""}
+
+              ${feedbackHtml}
+            </div>
           </div>
 
-          <!-- CONTEXTUAL IN-ARENA CHATBOX (ONLY INSIDE #/PRACTICE) -->
-          <aside class="arena-chat-card" id="arena-chat-panel">
+          <!-- CONTEXTUAL IN-ARENA CHATBOX WINDOW -->
+          <aside class="arena-window-card" id="arena-chat-panel">
+            <div class="visual-bar">
+              <span class="visual-window-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+              <span class="visual-bar-title">${arenaTr("Box Chat Hỏi Đáp Trong Bài", "Contextual Study Chat")}</span>
+              <span class="visual-engine-tag">
+                ${inst.submitted ? arenaTr("Post-Submit · Mở Khóa", "Post-Submit · Unlocked") : arenaTr("Pre-Submit · Chống Lộ Đáp Án", "Pre-Submit · Anti-Spoiler")}
+              </span>
+            </div>
+
             <div class="arena-chat-header">
-              <div class="arena-chat-title-row">
-                <span>${arenaTr("Box Chat Hỏi Đáp Trong Bài", "Contextual In-Arena Study Chat")}</span>
-                <span class="arena-chat-mode-tag">
-                  ${inst.submitted ? arenaTr("Post-Submit · Mở Khóa", "Post-Submit · Unlocked") : arenaTr("Pre-Submit · Chống Lộ Đáp Án", "Pre-Submit · Anti-Spoiler")}
-                </span>
-              </div>
               <span style="font-size:11.5px;color:var(--cds-text-muted);">
                 ${arenaTr(
-                  ` Đang neo ngữ cảnh vào: ${inst.topic} (${inst.levelKey}) · Lưu lịch sử theo từng câu.`,
-                  `Context anchored to: ${inst.topic} (${inst.levelKey}) · Logged per question instance.`
+                  `Đang neo ngữ cảnh vào: ${inst.topic} (${inst.levelKey}) · Hồ sơ @${acc.githubHandle}`,
+                  `Context anchored to: ${inst.topic} (${inst.levelKey}) · Profile @${acc.githubHandle}`
                 )}
               </span>
             </div>
@@ -38167,6 +38184,51 @@ ${JSON.stringify(payload)}`;
     const acc = getActiveArenaAccount();
     const inst = acc.activeSession;
 
+    // Login Gate events
+    const gateForm = document.getElementById("arenaGateLoginForm");
+    if (gateForm) {
+      gateForm.onsubmit = async (ev) => {
+        ev.preventDefault();
+        const ghInp = document.getElementById("arenaGateGithubInput");
+        const nameInp = document.getElementById("arenaGateNameInput");
+        const roleInp = document.getElementById("arenaGateRoleSelect");
+        const tokInp = document.getElementById("arenaGateTokenInput");
+        const loginBtn = document.getElementById("arenaGateLoginBtn");
+        const gh = (ghInp && ghInp.value.trim()) || "engineer-dev";
+        const name = (nameInp && nameInp.value.trim()) || "";
+        const role = (roleInp && roleInp.value) || "DE";
+        const tok = (tokInp && tokInp.value.trim()) || "";
+        if (loginBtn) {
+          loginBtn.disabled = true;
+          loginBtn.textContent = arenaTr("Đang xác thực hồ sơ GitHub...", "Verifying GitHub identity...");
+        }
+        await verifyAndFetchGitHubIdentity(gh, name, role, tok);
+        arenaRuntime.isLoggedIn = true;
+        saveArenaPersistence();
+        renderArenaView();
+      };
+    }
+
+    document.querySelectorAll("[data-gate-quick-login]").forEach((btn) => {
+      btn.onclick = () => {
+        const targetId = btn.getAttribute("data-gate-quick-login");
+        if (targetId && arenaRuntime.accounts[targetId]) {
+          arenaRuntime.activeAccountId = targetId;
+          arenaRuntime.isLoggedIn = true;
+          arenaRuntime.activeModal = null;
+          saveArenaPersistence();
+          renderArenaView();
+        }
+      };
+    });
+
+    const logoutBtn = document.getElementById("arenaLogoutBtn");
+    if (logoutBtn) {
+      logoutBtn.onclick = () => {
+        logoutArenaSession();
+      };
+    }
+
     const wardenBtn = document.getElementById("arenaOpenWardenModalBtn");
     if (wardenBtn) wardenBtn.onclick = () => { arenaRuntime.activeModal = "warden"; renderArenaView(); };
 
@@ -38200,6 +38262,17 @@ ${JSON.stringify(payload)}`;
         renderArenaView();
       };
     }
+
+    document.querySelectorAll("[data-arena-role-pill]").forEach((btn) => {
+      btn.onclick = () => {
+        const newRole = btn.getAttribute("data-arena-role-pill");
+        if (newRole) {
+          acc.roleTrack = newRole;
+          generatePolymorphicInstance(acc, true);
+          renderArenaView();
+        }
+      };
+    });
 
     const topicSelect = document.getElementById("arenaTopicSelect");
     if (topicSelect) {
@@ -38255,7 +38328,6 @@ ${JSON.stringify(payload)}`;
         inst.selectedOption = idx;
         saveArenaPersistence();
         if (inst.level === 1 || inst.level === 2) {
-          // Instant feedback on L1 & L2 upon clicking option!
           submitArenaAnswer();
         } else {
           renderArenaView();
@@ -38417,6 +38489,7 @@ ${JSON.stringify(payload)}`;
         const targetId = btn.getAttribute("data-switch-acc");
         if (arenaRuntime.accounts[targetId]) {
           arenaRuntime.activeAccountId = targetId;
+          arenaRuntime.isLoggedIn = true;
           arenaRuntime.activeModal = null;
           saveArenaPersistence();
           renderArenaView();
@@ -38456,9 +38529,10 @@ ${JSON.stringify(payload)}`;
         const res = await verifyAndFetchGitHubIdentity(gh, name, role, ghToken);
         if (res && res.account && gistId) {
           ensureAccountProfileMemory(res.account).gistId = gistId;
-          saveArenaPersistence();
         }
+        arenaRuntime.isLoggedIn = true;
         arenaRuntime.activeModal = null;
+        saveArenaPersistence();
         renderArenaView();
       };
     }
@@ -38561,7 +38635,9 @@ ${JSON.stringify(payload)}`;
         if (ta && ta.value.trim()) {
           try {
             importAccountJsonString(ta.value.trim());
+            arenaRuntime.isLoggedIn = true;
             arenaRuntime.activeModal = null;
+            saveArenaPersistence();
             renderArenaView();
             if (typeof showToast === "function") {
               showToast(arenaTr("Đã khôi phục Hồ sơ & Bộ nhớ AI thành công!", "Restored Profile & AI Memory successfully!"));
@@ -38585,10 +38661,12 @@ ${JSON.stringify(payload)}`;
     getActiveAccount: getActiveArenaAccount,
     readHotDigest: readHotCognitiveDigest,
     buildProfileContextPacket: buildUnifiedProfileContextPacket,
+    logout: logoutArenaSession,
     switchAccount: (accountId) => {
       initArenaPersistence();
       if (arenaRuntime.accounts[accountId]) {
         arenaRuntime.activeAccountId = accountId;
+        arenaRuntime.isLoggedIn = true;
         saveArenaPersistence();
         if (typeof activeTopic !== "undefined" && activeTopic === "PRACTICE") renderArenaView();
         return true;
@@ -38600,6 +38678,7 @@ ${JSON.stringify(payload)}`;
       const id = "virt_test_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
       arenaRuntime.accounts[id] = createBlankAccount(id, displayName, githubHandle, roleTrack, "custom");
       arenaRuntime.activeAccountId = id;
+      arenaRuntime.isLoggedIn = true;
       saveArenaPersistence();
       if (typeof activeTopic !== "undefined" && activeTopic === "PRACTICE") renderArenaView();
       return id;
